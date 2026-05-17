@@ -1,0 +1,5 @@
+appId: sh.solo
+---
+- launchApp:
+    clearState: true
+- runFlow: flows/dev-client.yaml
