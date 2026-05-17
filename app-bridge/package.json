@@ -1,0 +1,11 @@
+{
+  "name": "@solo/app-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/shared/messages.ts",
+  "types": "src/shared/messages.ts",
+  "dependencies": {
+    "base64-js": "^1.5.1",
+    "tweetnacl": "^1.0.3"
+  }
+}

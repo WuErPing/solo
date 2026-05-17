@@ -1,0 +1,165 @@
+package cmd
+
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/WuErPing/solo/cli/internal/output"
+	"github.com/WuErPing/solo/protocol"
+	"github.com/spf13/cobra"
+)
+
+var (
+	agentLogsFollow bool
+	agentLogsTail   int
+	agentLogsFilter string
+)
+
+var agentLogsCmd = &cobra.Command{
+	Use:   "logs <id>",
+	Short: "View agent activity/timeline",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runAgentLogs,
+}
+
+func init() {
+	agentLogsCmd.Flags().BoolVarP(&agentLogsFollow, "follow", "f", false, "Follow log output (streaming)")
+	agentLogsCmd.Flags().IntVar(&agentLogsTail, "tail", 0, "Show last N entries")
+	agentLogsCmd.Flags().StringVar(&agentLogsFilter, "filter", "", "Filter by event type (tools, text, errors)")
+	agentCmd.AddCommand(agentLogsCmd)
+}
+
+func runAgentLogs(cmd *cobra.Command, args []string) error {
+	ctx := cmd.Context()
+	c, err := newClient(ctx)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	agentID, err := fetchAndResolveAgentID(ctx, c, args[0])
+	if err != nil {
+		return err
+	}
+
+	// Fetch timeline
+	req := &protocol.FetchAgentTimelineRequest{
+		Type:      "fetch_agent_timeline_request",
+		AgentID:   agentID,
+		RequestID: c.GenerateRequestID(),
+		Direction: strPtr("tail"),
+	}
+
+	if agentLogsTail > 0 {
+		req.Limit = intPtr(agentLogsTail)
+	}
+
+	resp, err := c.Request(ctx, req)
+	if err != nil {
+		return fmt.Errorf("fetch timeline: %w", err)
+	}
+
+	payload, _ := json.Marshal(resp.Message)
+	var timeline struct {
+		Payload struct {
+			Entries []struct {
+				Item struct {
+					Type string `json:"type"`
+					Text string `json:"text,omitempty"`
+					Name string `json:"name,omitempty"`
+				} `json:"item"`
+			} `json:"entries"`
+		} `json:"payload"`
+	}
+	json.Unmarshal(payload, &timeline)
+
+	if len(timeline.Payload.Entries) == 0 {
+		fmt.Fprintln(output.Stdout, "No activity to display.")
+		return nil
+	}
+
+	for _, entry := range timeline.Payload.Entries {
+		if matchesLogFilter(entry.Item.Type, agentLogsFilter) {
+			printLogEntry(entry.Item.Type, entry.Item.Text, entry.Item.Name)
+		}
+	}
+
+	// If --follow, subscribe to streaming events
+	if !agentLogsFollow {
+		return nil
+	}
+
+	streams := c.Subscribe("agent_stream")
+	defer c.Unsubscribe("agent_stream", streams)
+
+	fmt.Fprintln(output.Stdout, "\n--- streaming ---")
+
+	for {
+		select {
+		case msg := <-streams:
+			if msg == nil {
+				return nil
+			}
+			sp, _ := json.Marshal(msg.Message)
+			var streamMsg struct {
+				Payload protocol.AgentStreamPayload `json:"payload"`
+			}
+			json.Unmarshal(sp, &streamMsg)
+			stream := streamMsg.Payload
+			if stream.AgentID != agentID {
+				continue
+			}
+			evtData, _ := json.Marshal(stream.Event)
+			var evt struct {
+				Type string `json:"type"`
+				Item struct {
+					Type string `json:"type"`
+					Text string `json:"text,omitempty"`
+					Name string `json:"name,omitempty"`
+				} `json:"item,omitempty"`
+			}
+			json.Unmarshal(evtData, &evt)
+			if evt.Type == "timeline" && matchesLogFilter(evt.Item.Type, agentLogsFilter) {
+				printLogEntry(evt.Item.Type, evt.Item.Text, evt.Item.Name)
+			}
+
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func matchesLogFilter(itemType, filter string) bool {
+	if filter == "" {
+		return true
+	}
+	f := toLower(filter)
+	t := toLower(itemType)
+	switch f {
+	case "tools":
+		return t == "tool_call"
+	case "text":
+		return t == "user_message" || t == "assistant_message" || t == "reasoning"
+	case "errors":
+		return t == "error"
+	default:
+		return t == f
+	}
+}
+
+func printLogEntry(itemType, text, name string) {
+	switch itemType {
+	case "assistant_message":
+		fmt.Fprintf(output.Stdout, "  %s\n", text)
+	case "reasoning":
+		fmt.Fprintf(output.Stdout, "  [Reasoning] %s\n", text)
+	case "tool_call":
+		fmt.Fprintf(output.Stdout, "  [Tool: %s]\n", name)
+	case "error":
+		fmt.Fprintf(output.Stdout, "  [Error] %s\n", text)
+	case "user_message":
+		fmt.Fprintf(output.Stdout, "  [User] %s\n", text)
+	default:
+		fmt.Fprintf(output.Stdout, "  [%s] %s\n", itemType, text)
+	}
+}

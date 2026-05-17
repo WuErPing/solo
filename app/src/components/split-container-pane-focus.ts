@@ -1,0 +1,20 @@
+const INTERACTIVE_TARGET_SELECTOR = [
+  "a",
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "[role='button']",
+  "[role='link']",
+  "[contenteditable='true']",
+  "[data-solo-pane-focus-exempt='true']",
+].join(", ");
+
+export function shouldFocusPaneFromEventTarget(target: EventTarget | null): boolean {
+  const candidate = target as unknown as { closest?: (selector: string) => Element | null } | null;
+  if (!candidate || typeof candidate.closest !== "function") {
+    return true;
+  }
+
+  return !candidate.closest(INTERACTIVE_TARGET_SELECTOR);
+}

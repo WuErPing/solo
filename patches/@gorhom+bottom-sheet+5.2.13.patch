@@ -1,0 +1,30 @@
+diff --git a/node_modules/@gorhom/bottom-sheet/lib/commonjs/components/bottomSheetTextInput/BottomSheetTextInput.js b/node_modules/@gorhom/bottom-sheet/lib/commonjs/components/bottomSheetTextInput/BottomSheetTextInput.js
+index 55c6308..1ed21cb 100644
+--- a/node_modules/@gorhom/bottom-sheet/lib/commonjs/components/bottomSheetTextInput/BottomSheetTextInput.js
++++ b/node_modules/@gorhom/bottom-sheet/lib/commonjs/components/bottomSheetTextInput/BottomSheetTextInput.js
+@@ -39,7 +39,9 @@ const BottomSheetTextInputComponent = /*#__PURE__*/(0, _react.forwardRef)(({
+   }, [onFocus, animatedKeyboardState]);
+   const handleOnBlur = (0, _react.useCallback)(args => {
+     const keyboardState = animatedKeyboardState.get();
+-    const currentFocusedInput = (0, _utilities.findNodeHandle)(_reactNative.TextInput.State.currentlyFocusedInput());
++    const currentFocusedInput = typeof _reactNative.TextInput.State.currentlyFocusedInput === 'function'
++      ? (0, _utilities.findNodeHandle)(_reactNative.TextInput.State.currentlyFocusedInput())
++      : null;
+ 
+     /**
+      * we need to make sure that we only remove the target
+diff --git a/node_modules/@gorhom/bottom-sheet/lib/module/components/bottomSheetTextInput/BottomSheetTextInput.js b/node_modules/@gorhom/bottom-sheet/lib/module/components/bottomSheetTextInput/BottomSheetTextInput.js
+index 4be3599..e7cddbd 100644
+--- a/node_modules/@gorhom/bottom-sheet/lib/module/components/bottomSheetTextInput/BottomSheetTextInput.js
++++ b/node_modules/@gorhom/bottom-sheet/lib/module/components/bottomSheetTextInput/BottomSheetTextInput.js
+@@ -34,7 +34,9 @@ const BottomSheetTextInputComponent = /*#__PURE__*/forwardRef(({
+   }, [onFocus, animatedKeyboardState]);
+   const handleOnBlur = useCallback(args => {
+     const keyboardState = animatedKeyboardState.get();
+-    const currentFocusedInput = findNodeHandle(RNTextInput.State.currentlyFocusedInput());
++    const currentFocusedInput = typeof RNTextInput.State.currentlyFocusedInput === 'function'
++      ? findNodeHandle(RNTextInput.State.currentlyFocusedInput())
++      : null;
+ 
+     /**
+      * we need to make sure that we only remove the target

@@ -1,0 +1,9 @@
+{
+  "name": "solo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": ["app", "app-bridge", "packages/highlight"],
+  "scripts": {
+    "postinstall": "patch-package"
+  }
+}

@@ -1,18 +1,64 @@
 # Binaries
-paseod
-paseo
+solo
+solo-cli
+solo-relay
 *.exe
+/output/
+app/test-results/
 
 # Test temp
 /tmp/
 
+# Go
+*.test
+*.out
+vendor/
+
 # IDE
 .idea/
 .vscode/
+.claude/
+.qoder/
 *.swp
 
 # OS
 .DS_Store
 
+# Logs
+*.log
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Node.js
+node_modules/
+.pnpm-store/
+.yarn/
+.pnp.*
+
+# TypeScript
+*.tsbuildinfo
+
+# Build outputs
+dist/
+app-bridge/dist/
+packages/highlight/dist/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Runtime
+*.pid
+
+# Deployment / CI caches
+.turbo/
+.vercel/
+.wrangler/
+
 # Others
 .VSCodeCounter/
+graphify-out/
+.sisyphus/
