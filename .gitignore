@@ -1,0 +1,18 @@
+# Binaries
+paseod
+paseo
+*.exe
+
+# Test temp
+/tmp/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# Others
+.VSCodeCounter/
