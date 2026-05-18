@@ -40,13 +40,21 @@ func newTestSessionGrace(t *testing.T, conn WSConn, gracePeriod time.Duration) *
 	scriptMgr := workspace.NewScriptManager()
 	scriptProxy := workspace.NewScriptProxy(logger, scriptMgr)
 
-	sess := NewSession(
-		"test-client", string(protocol.ClientCLI), conn,
-		cfg, logger, agentMgr, timelineStore, registry,
-		workspaceStore, terminalMgr, projectReg, workspaceReg,
-		gitSvc, scriptMgr, scriptProxy,
-		func(msg protocol.WSOutboundMessage) {},
-	)
+	sess := NewSessionWithConfig("test-client", string(protocol.ClientCLI), conn, SessionConfig{
+		Config:         cfg,
+		Logger:         logger,
+		AgentMgr:       agentMgr,
+		TimelineStore:  timelineStore,
+		Registry:       registry,
+		WorkspaceStore: workspaceStore,
+		TerminalMgr:    terminalMgr,
+		ProjectReg:     projectReg,
+		WorkspaceReg:   workspaceReg,
+		GitSvc:         gitSvc,
+		ScriptMgr:      scriptMgr,
+		ScriptProxy:    scriptProxy,
+		Broadcast:      func(msg protocol.WSOutboundMessage) {},
+	})
 	sess.gracePeriod = gracePeriod
 	return sess
 }

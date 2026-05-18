@@ -134,7 +134,23 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 	activityTracker := NewClientActivityTracker()
 
 	// Create WS server with dependencies
-	ws := NewWSServer(cfg, logger, agentMgr, timelineStore, registry, workspaceStore, terminalMgr, projectReg, workspaceReg, gitSvc, scriptMgr, scriptProxy, pushTokenStore, pusher, activityTracker)
+	ws := NewWSServerWithConfig(DaemonConfig{
+		Config:          cfg,
+		Logger:          logger,
+		AgentMgr:        agentMgr,
+		TimelineStore:   timelineStore,
+		Registry:        registry,
+		WorkspaceStore:  workspaceStore,
+		TerminalMgr:     terminalMgr,
+		ProjectReg:      projectReg,
+		WorkspaceReg:    workspaceReg,
+		GitSvc:          gitSvc,
+		ScriptMgr:       scriptMgr,
+		ScriptProxy:     scriptProxy,
+		PushTokenStore:  pushTokenStore,
+		Pusher:          pusher,
+		ActivityTracker: activityTracker,
+	})
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", ws.HandleWebSocket)
@@ -356,6 +372,47 @@ func NewWSServer(cfg *config.Config, logger *slog.Logger, agentMgr *agent.AgentM
 	}
 }
 
+// DaemonConfig aggregates all dependencies needed by NewWSServer.
+// This reduces the parameter count from 15 to 1.
+type DaemonConfig struct {
+	Config          *config.Config
+	Logger          *slog.Logger
+	AgentMgr        *agent.AgentManager
+	TimelineStore   *agent.InMemoryTimelineStore
+	Registry        *agent.ProviderRegistry
+	WorkspaceStore  *WorkspaceStore
+	TerminalMgr     *terminal.TerminalManager
+	ProjectReg      *workspace.ProjectRegistry
+	WorkspaceReg    *workspace.WorkspaceRegistry
+	GitSvc          workspace.WorkspaceGitService
+	ScriptMgr       *workspace.ScriptManager
+	ScriptProxy     *workspace.ScriptProxy
+	PushTokenStore  push.TokenStore
+	Pusher          push.Pusher
+	ActivityTracker ActivityTracker
+}
+
+// NewWSServerWithConfig creates a new WebSocket server using a DaemonConfig.
+func NewWSServerWithConfig(cfg DaemonConfig) *WSServer {
+	return NewWSServer(
+		cfg.Config,
+		cfg.Logger,
+		cfg.AgentMgr,
+		cfg.TimelineStore,
+		cfg.Registry,
+		cfg.WorkspaceStore,
+		cfg.TerminalMgr,
+		cfg.ProjectReg,
+		cfg.WorkspaceReg,
+		cfg.GitSvc,
+		cfg.ScriptMgr,
+		cfg.ScriptProxy,
+		cfg.PushTokenStore,
+		cfg.Pusher,
+		cfg.ActivityTracker,
+	)
+}
+
 func (s *WSServer) broadcast(msg protocol.WSOutboundMessage) {
 	s.mu.RLock()
 	sessions := make([]*Session, 0, len(s.sessions))
@@ -575,7 +632,21 @@ func (s *WSServer) handleNewConnection(conn WSConn) {
 		existingSess.shutdownForReplacement()
 	}
 
-	sess := NewSession(clientID, string(clientType), conn, s.cfg, s.logger, s.agentMgr, s.timelineStore, s.registry, s.workspaceStore, s.terminalMgr, s.projectReg, s.workspaceReg, s.gitSvc, s.scriptMgr, s.scriptProxy, s.broadcast)
+	sess := NewSessionWithConfig(clientID, string(clientType), conn, SessionConfig{
+		Config:         s.cfg,
+		Logger:         s.logger,
+		AgentMgr:       s.agentMgr,
+		TimelineStore:  s.timelineStore,
+		Registry:       s.registry,
+		WorkspaceStore: s.workspaceStore,
+		TerminalMgr:    s.terminalMgr,
+		ProjectReg:     s.projectReg,
+		WorkspaceReg:   s.workspaceReg,
+		GitSvc:         s.gitSvc,
+		ScriptMgr:      s.scriptMgr,
+		ScriptProxy:    s.scriptProxy,
+		Broadcast:      s.broadcast,
+	})
 	if _, isRelay := conn.(*relayclient.E2EEConn); isRelay {
 		sess.SetIsRelay(true)
 	}

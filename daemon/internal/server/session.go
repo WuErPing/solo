@@ -184,6 +184,46 @@ func NewSession(clientID, clientType string, conn WSConn, cfg *config.Config, lo
 	return sess
 }
 
+// SessionConfig aggregates all dependency parameters needed by NewSession.
+// This reduces the parameter count from 16 to 3 (clientID, clientType, conn).
+type SessionConfig struct {
+	Config         *config.Config
+	Logger         *slog.Logger
+	AgentMgr       *agent.AgentManager
+	TimelineStore  *agent.InMemoryTimelineStore
+	Registry       *agent.ProviderRegistry
+	WorkspaceStore *WorkspaceStore
+	TerminalMgr    *terminal.TerminalManager
+	ProjectReg     *workspace.ProjectRegistry
+	WorkspaceReg   *workspace.WorkspaceRegistry
+	GitSvc         workspace.WorkspaceGitService
+	ScriptMgr      *workspace.ScriptManager
+	ScriptProxy    *workspace.ScriptProxy
+	Broadcast      func(protocol.WSOutboundMessage)
+}
+
+// NewSessionWithConfig creates a new session using a SessionConfig.
+func NewSessionWithConfig(clientID, clientType string, conn WSConn, cfg SessionConfig) *Session {
+	return NewSession(
+		clientID,
+		clientType,
+		conn,
+		cfg.Config,
+		cfg.Logger,
+		cfg.AgentMgr,
+		cfg.TimelineStore,
+		cfg.Registry,
+		cfg.WorkspaceStore,
+		cfg.TerminalMgr,
+		cfg.ProjectReg,
+		cfg.WorkspaceReg,
+		cfg.GitSvc,
+		cfg.ScriptMgr,
+		cfg.ScriptProxy,
+		cfg.Broadcast,
+	)
+}
+
 // Run starts reading messages from the WebSocket connection.
 func (s *Session) Run() {
 	// Set up server-initiated ping/pong if the connection supports it.

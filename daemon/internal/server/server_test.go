@@ -65,7 +65,23 @@ func newTestWSServer(t *testing.T) (*WSServer, *httptest.Server) {
 	pushTokenStore := push.NewInMemoryTokenStore()
 	pusher := push.NewExpoPushService("", pushTokenStore, logger)
 	activityTracker := NewClientActivityTracker()
-	ws := NewWSServer(cfg, logger, agentMgr, timelineStore, registry, workspaceStore, terminalMgr, projectReg, workspaceReg, gitSvc, scriptMgr, scriptProxy, pushTokenStore, pusher, activityTracker)
+	ws := NewWSServerWithConfig(DaemonConfig{
+		Config:          cfg,
+		Logger:          logger,
+		AgentMgr:        agentMgr,
+		TimelineStore:   timelineStore,
+		Registry:        registry,
+		WorkspaceStore:  workspaceStore,
+		TerminalMgr:     terminalMgr,
+		ProjectReg:      projectReg,
+		WorkspaceReg:    workspaceReg,
+		GitSvc:          gitSvc,
+		ScriptMgr:       scriptMgr,
+		ScriptProxy:     scriptProxy,
+		PushTokenStore:  pushTokenStore,
+		Pusher:          pusher,
+		ActivityTracker: activityTracker,
+	})
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", ws.HandleWebSocket)

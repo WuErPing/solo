@@ -110,7 +110,23 @@ func TestProveIt_WSServerHasActivityTracker(t *testing.T) {
 	pusher := push.NewExpoPushService("", tokenStore, logger)
 	activityTracker := NewClientActivityTracker()
 
-	ws := NewWSServer(cfg, logger, agentMgr, timelineStore, registry, workspaceStore, terminalMgr, projectReg, workspaceReg, gitSvc, scriptMgr, scriptProxy, tokenStore, pusher, activityTracker)
+	ws := NewWSServerWithConfig(DaemonConfig{
+		Config:          cfg,
+		Logger:          logger,
+		AgentMgr:        agentMgr,
+		TimelineStore:   timelineStore,
+		Registry:        registry,
+		WorkspaceStore:  workspaceStore,
+		TerminalMgr:     terminalMgr,
+		ProjectReg:      projectReg,
+		WorkspaceReg:    workspaceReg,
+		GitSvc:          gitSvc,
+		ScriptMgr:       scriptMgr,
+		ScriptProxy:     scriptProxy,
+		PushTokenStore:  tokenStore,
+		Pusher:          pusher,
+		ActivityTracker: activityTracker,
+	})
 
 	if ws.activityTracker == nil {
 		t.Error("WSServer.activityTracker is nil after fix")
