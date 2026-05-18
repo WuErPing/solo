@@ -1,8 +1,10 @@
 package server
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/config"
@@ -87,6 +90,7 @@ func newTestWSServer(t *testing.T) (*WSServer, *httptest.Server) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", ws.HandleWebSocket)
 	mux.HandleFunc("/api/health", handleHealth)
+	mux.Handle("/metrics", promhttp.Handler())
 
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
@@ -296,4 +300,78 @@ func TestInvalidProtocolVersion(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected close due to incompatible protocol")
 	}
+}
+
+func TestMetricsEndpoint(t *testing.T) {
+	_, ts := newTestWSServer(t)
+	resp, err := http.Get(ts.URL + "/metrics")
+	if err != nil {
+		t.Fatalf("GET /metrics: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.Contains(ct, "text/plain") {
+		t.Fatalf("expected text/plain content-type, got %q", ct)
+	}
+}
+
+func TestMetricsConnectionsTotalIncrements(t *testing.T) {
+	_, ts := newTestWSServer(t)
+
+	// Get connection count before
+	before := getMetricValue(t, ts, "solo_daemon_connections_total")
+
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/ws"
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+
+	// Send valid hello
+	hello := protocol.WSInboundMessage{
+		Type:            "hello",
+		ClientID:        "metrics-test-client",
+		ClientType:      protocol.ClientCLI,
+		ProtocolVersion: protocol.WSProtocolVersion,
+	}
+	if err := conn.WriteJSON(hello); err != nil {
+		t.Fatalf("write hello: %v", err)
+	}
+
+	// Wait for server_info response
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	_, _, err = conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("read server_info: %v", err)
+	}
+
+	// Connection counter should have incremented
+	after := getMetricValue(t, ts, "solo_daemon_connections_total")
+	if after != before+1 {
+		t.Fatalf("connections_total: before=%d after=%d, expected after=before+1", before, after)
+	}
+}
+
+func getMetricValue(t *testing.T, ts *httptest.Server, name string) int {
+	t.Helper()
+	resp, err := http.Get(ts.URL + "/metrics")
+	if err != nil {
+		t.Fatalf("GET /metrics: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Simple line parser for Prometheus text format
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, name+" ") {
+			var val int
+			fmt.Sscanf(line, name+" %d", &val)
+			return val
+		}
+	}
+	return 0
 }

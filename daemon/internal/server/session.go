@@ -12,6 +12,7 @@ import (
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/config"
+	"github.com/WuErPing/solo/daemon/internal/metrics"
 	"github.com/WuErPing/solo/daemon/internal/push"
 	"github.com/WuErPing/solo/daemon/internal/terminal"
 	"github.com/WuErPing/solo/daemon/internal/workspace"
@@ -319,6 +320,7 @@ func (s *Session) processLoop() {
 	for item := range s.inboundQueue {
 		wg.Add(1)
 		item := item
+		metrics.MessagesReceivedTotal.Inc()
 		go func() {
 			defer wg.Done()
 			defer func() {
