@@ -58,6 +58,10 @@ coverage/
 .vercel/
 .wrangler/
 
+# expo
+
+.expo/
+
 # Others
 .VSCodeCounter/
 graphify-out/
