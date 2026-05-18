@@ -6,12 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
+
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/config"
 	"github.com/WuErPing/solo/daemon/internal/terminal"
 	"github.com/WuErPing/solo/daemon/internal/workspace"
 	"github.com/WuErPing/solo/protocol"
-	"github.com/gorilla/websocket"
 )
 
 // mockConn is a test double that blocks on ReadMessage until signaled.
@@ -77,10 +78,10 @@ func (e *panicError) Error() string {
 // the shutdown completes without panicking.
 //
 // This is a regression test for the following bug:
-//   1. Client disconnects
-//   2. Session.Run() closes sendQueue
-//   3. defer s.coalescer.FlushAll() runs AFTER sendQueue is closed
-//   4. FlushAll() callbacks try to write to closed sendQueue -> panic
+//  1. Client disconnects
+//  2. Session.Run() closes sendQueue
+//  3. defer s.coalescer.FlushAll() runs AFTER sendQueue is closed
+//  4. FlushAll() callbacks try to write to closed sendQueue -> panic
 func TestSessionShutdownDoesNotPanicWithPendingCoalescer(t *testing.T) {
 	cfg := &config.Config{
 		SoloHome: t.TempDir(),
@@ -104,7 +105,7 @@ func TestSessionShutdownDoesNotPanicWithPendingCoalescer(t *testing.T) {
 	scriptProxy := workspace.NewScriptProxy(logger, scriptMgr)
 
 	conn := newMockConn()
-		sess := NewSession(
+	sess := NewSession(
 		"test-client", string(protocol.ClientCLI), conn,
 		cfg, logger, agentMgr, timelineStore, registry,
 		workspaceStore, terminalMgr, projectReg, workspaceReg,

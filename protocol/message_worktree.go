@@ -30,7 +30,7 @@ type WorkspaceSetupSnapshot struct {
 // --- Worktree Outbound Messages ---
 
 type CreateSoloWorktreeResponse struct {
-	Type    string                             `json:"type"`
+	Type    string                            `json:"type"`
 	Payload CreateSoloWorktreeResponsePayload `json:"payload"`
 }
 
@@ -70,4 +70,3 @@ type WorkspaceSetupStatusResponsePayload struct {
 }
 
 func (m *WorkspaceSetupStatusResponse) MsgType() string { return "workspace_setup_status_response" }
-

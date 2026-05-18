@@ -430,4 +430,3 @@ type ProvidersSnapshotPayload struct {
 }
 
 func (m *ProvidersSnapshotUpdate) MsgType() string { return "providers_snapshot_update" }
-

@@ -135,5 +135,3 @@ func TestDecodeOpencodeResponse_InvalidJSON(t *testing.T) {
 		t.Fatal("expected error for invalid JSON")
 	}
 }
-
-

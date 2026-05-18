@@ -42,11 +42,11 @@ type nudgeTimer struct {
 }
 
 type Session struct {
-	mu                  sync.Mutex
-	ServerID            string
-	ControlSocket       *ControlSocket
-	Connections         map[string]*ConnectionData
-	controlNudgeTimers  map[string]*nudgeTimer
+	mu                    sync.Mutex
+	ServerID              string
+	ControlSocket         *ControlSocket
+	Connections           map[string]*ConnectionData
+	controlNudgeTimers    map[string]*nudgeTimer
 	serverDataNudgeTimers map[string]*nudgeTimer
 }
 

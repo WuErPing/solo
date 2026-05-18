@@ -16,13 +16,13 @@ type opencodeProvidersResponse struct {
 }
 
 type opencodeModelInfo struct {
-	Name        string                 `json:"name"`
-	Family      json.RawMessage        `json:"family"`
-	ReleaseDate string                 `json:"release_date,omitempty"`
-	Capabilities *opencodeCapabilities `json:"capabilities,omitempty"`
-	Cost        interface{}            `json:"cost,omitempty"`
-	Limit       *opencodeModelLimit    `json:"limit,omitempty"`
-	Variants    map[string]interface{} `json:"variants,omitempty"`
+	Name         string                 `json:"name"`
+	Family       json.RawMessage        `json:"family"`
+	ReleaseDate  string                 `json:"release_date,omitempty"`
+	Capabilities *opencodeCapabilities  `json:"capabilities,omitempty"`
+	Cost         interface{}            `json:"cost,omitempty"`
+	Limit        *opencodeModelLimit    `json:"limit,omitempty"`
+	Variants     map[string]interface{} `json:"variants,omitempty"`
 }
 
 type opencodeCapabilities struct {

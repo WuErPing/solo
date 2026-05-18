@@ -10,15 +10,17 @@ import (
 	"testing"
 	"time"
 
+	"net/http"
+	"net/http/httptest"
+
+	"github.com/gorilla/websocket"
+
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/config"
 	"github.com/WuErPing/solo/daemon/internal/push"
 	"github.com/WuErPing/solo/daemon/internal/terminal"
 	"github.com/WuErPing/solo/daemon/internal/workspace"
 	"github.com/WuErPing/solo/protocol"
-	"github.com/gorilla/websocket"
-	"net/http"
-	"net/http/httptest"
 )
 
 // newTestWSServerWithOpenCode creates a test WS server that registers both mock
@@ -180,7 +182,7 @@ func collectTimelineEvents(t *testing.T, conn *websocket.Conn, agentID string, t
 			Payload struct {
 				Kind  string `json:"kind"`
 				Agent struct {
-					ID     string                      `json:"id"`
+					ID     string                        `json:"id"`
 					Status protocol.AgentLifecycleStatus `json:"status"`
 				} `json:"agent"`
 			} `json:"payload"`
@@ -408,7 +410,7 @@ func TestOpenCodeReasoningDedupE2E(t *testing.T) {
 		t.Errorf("assistant text: %q", truncateText(fullAssistant, 200))
 	}
 
-		deleteOpencodeAgentForTest(t, conn, agentID)
+	deleteOpencodeAgentForTest(t, conn, agentID)
 }
 
 // deleteOpencodeAgentForTest is like deleteAgentForTest but with a longer read

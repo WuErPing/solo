@@ -32,7 +32,6 @@ var opencodeHeadersTimeoutTokens = []string{
 	"headers timeout", "headers timeout error", "headers_timeout", "und_err_headers_timeout",
 }
 
-
 // --- OpenCode Agent Client ---
 
 type OpenCodeAgentClient struct {
@@ -338,6 +337,3 @@ func resolveOpenCodeVersion(binaryPath string) (string, error) {
 }
 
 // --- Model Definition Builder (matches Solo's buildOpenCodeModelDefinition) ---
-
-
-

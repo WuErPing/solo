@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/spf13/cobra"
+
 	"github.com/WuErPing/solo/cli/internal/client"
 	"github.com/WuErPing/solo/cli/internal/output"
 	"github.com/WuErPing/solo/protocol"
-	"github.com/spf13/cobra"
 )
 
 var agentAttachCmd = &cobra.Command{
@@ -72,11 +73,11 @@ func runAgentAttach(cmd *cobra.Command, args []string) error {
 
 func printExistingTimeline(ctx context.Context, c *client.DaemonClient, agentID string) {
 	req := &protocol.FetchAgentTimelineRequest{
-		Type:      "fetch_agent_timeline_request",
-		AgentID:   agentID,
-		RequestID: c.GenerateRequestID(),
-		Direction: strPtr("tail"),
-		Limit:     intPtr(200),
+		Type:       "fetch_agent_timeline_request",
+		AgentID:    agentID,
+		RequestID:  c.GenerateRequestID(),
+		Direction:  strPtr("tail"),
+		Limit:      intPtr(200),
 		Projection: strPtr("projected"),
 	}
 
@@ -118,7 +119,7 @@ func fetchAndResolveAgentID(ctx context.Context, c *client.DaemonClient, idOrPre
 		var fetchResp struct {
 			Payload struct {
 				Agent *protocol.AgentSnapshotPayload `json:"agent"`
-				Error *string `json:"error,omitempty"`
+				Error *string                        `json:"error,omitempty"`
 			} `json:"payload"`
 		}
 		json.Unmarshal(payload, &fetchResp)

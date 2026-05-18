@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/gorilla/websocket"
+
+	"github.com/WuErPing/solo/daemon/internal/agent"
 )
 
 // TestSession_UserMessageTimelineEventIsStoredAndSent verifies that user_message

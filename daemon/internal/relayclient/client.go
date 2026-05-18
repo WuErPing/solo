@@ -12,9 +12,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gorilla/websocket"
+
 	"github.com/WuErPing/solo/daemon/internal/wsconn"
 	"github.com/WuErPing/solo/protocol"
-	"github.com/gorilla/websocket"
 )
 
 const (

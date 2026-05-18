@@ -11,9 +11,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/WuErPing/solo/daemon/internal/wsconn"
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/nacl/box"
+
+	"github.com/WuErPing/solo/daemon/internal/wsconn"
 )
 
 // DaemonKeyPair mirrors the on-disk daemon-keypair.json structure.

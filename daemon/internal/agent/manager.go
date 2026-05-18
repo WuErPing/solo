@@ -8,9 +8,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/WuErPing/solo/daemon/internal/push"
 	"github.com/WuErPing/solo/protocol"
-	"github.com/google/uuid"
 )
 
 // AgentClient is the interface that each agent provider must implement.
@@ -136,8 +137,8 @@ type AgentManager struct {
 	// workCh fallback path (pipeline congested). It ensures buffered
 	// timeline entries are flushed even when the normal event path is
 	// stalled, preventing cross-turn message mixing.
-	coalescerFlushFuncs   map[uint64]func(agentID string)
-	nextCoalescerFlushID  uint64
+	coalescerFlushFuncs  map[uint64]func(agentID string)
+	nextCoalescerFlushID uint64
 
 	droppedEventCount atomic.Int64
 }

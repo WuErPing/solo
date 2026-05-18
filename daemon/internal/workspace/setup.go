@@ -23,13 +23,13 @@ type SetupProgressEvent struct {
 
 // SetupCommandSnapshot represents the state of a single setup command.
 type SetupCommandSnapshot struct {
-	Index      int     `json:"index"`
-	Command    string  `json:"command"`
-	Cwd        string  `json:"cwd"`
-	Log        string  `json:"log"`
-	Status     string  `json:"status"` // "running" | "completed" | "failed"
-	ExitCode   *int    `json:"exitCode"`
-	DurationMs *int    `json:"durationMs,omitempty"`
+	Index      int    `json:"index"`
+	Command    string `json:"command"`
+	Cwd        string `json:"cwd"`
+	Log        string `json:"log"`
+	Status     string `json:"status"` // "running" | "completed" | "failed"
+	ExitCode   *int   `json:"exitCode"`
+	DurationMs *int   `json:"durationMs,omitempty"`
 }
 
 // SetupProgressFunc is called to emit progress events.

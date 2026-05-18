@@ -13,7 +13,7 @@ func TestBuildOpenCodeModelDefinition(t *testing.T) {
 		Name:   "Test Model",
 		Family: json.RawMessage(`"test-family"`),
 		Variants: map[string]interface{}{
-			"fast":    "v1",
+			"fast":     "v1",
 			"thorough": "v2",
 		},
 		Capabilities: &opencodeCapabilities{

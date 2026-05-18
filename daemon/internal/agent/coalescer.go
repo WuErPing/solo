@@ -43,9 +43,9 @@ type pendingToolCallEntry struct {
 
 // pendingEntry is a union of text or tool_call entries.
 type pendingEntry struct {
-	isText    bool
-	text      pendingTextEntry
-	toolCall  pendingToolCallEntry
+	isText   bool
+	text     pendingTextEntry
+	toolCall pendingToolCallEntry
 }
 
 // coalescerBuffer holds buffered entries for a single agent.

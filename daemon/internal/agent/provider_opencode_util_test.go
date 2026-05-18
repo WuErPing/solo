@@ -106,9 +106,9 @@ func TestExtractNestedNumber(t *testing.T) {
 
 func TestReadPositiveFloat(t *testing.T) {
 	tests := []struct {
-		name   string
-		input  interface{}
-		want   *float64
+		name  string
+		input interface{}
+		want  *float64
 	}{
 		{"nil", nil, nil},
 		{"positive float64", 3.14, ptrFloat(3.14)},
@@ -220,9 +220,9 @@ func TestStringifyStructuredMessage(t *testing.T) {
 
 func TestParseOpenCodeModel(t *testing.T) {
 	tests := []struct {
-		input          string
-		wantProvider   string
-		wantModel      string
+		input        string
+		wantProvider string
+		wantModel    string
 	}{
 		{"openai/gpt-4o", "openai", "gpt-4o"},
 		{"anthropic/claude-3-opus", "anthropic", "claude-3-opus"},
@@ -243,9 +243,9 @@ func TestParseOpenCodeModel(t *testing.T) {
 
 func TestParseSlashCommandInput(t *testing.T) {
 	tests := []struct {
-		input     string
-		wantName  string
-		wantArgs  string
+		input    string
+		wantName string
+		wantArgs string
 	}{
 		{"/commit fix bug", "commit", "fix bug"},
 		{"/test", "test", ""},
@@ -697,8 +697,6 @@ func TestFindAvailablePort(t *testing.T) {
 		t.Errorf("port = %d, want > 0", port)
 	}
 }
-
-
 
 func TestExtractStringOrJoinArray_MixedTypes(t *testing.T) {
 	m := map[string]interface{}{

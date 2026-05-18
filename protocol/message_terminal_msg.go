@@ -339,4 +339,3 @@ type AgentSlashCommand struct {
 }
 
 func (m *ListCommandsResponse) MsgType() string { return "list_commands_response" }
-

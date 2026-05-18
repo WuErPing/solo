@@ -26,4 +26,3 @@ type EditorTarget struct {
 }
 
 func (m *ListAvailableEditorsResponse) MsgType() string { return "list_available_editors_response" }
-

@@ -8,16 +8,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/WuErPing/solo/protocol"
 	"github.com/gorilla/websocket"
+
+	"github.com/WuErPing/solo/protocol"
 )
 
 // DaemonClient is a WebSocket client that connects to a Solo daemon.
 type DaemonClient struct {
-	conn      *websocket.Conn
-	clientID  string
-	wsURL     string
-	logger    *slog.Logger
+	conn     *websocket.Conn
+	clientID string
+	wsURL    string
+	logger   *slog.Logger
 
 	mu        sync.Mutex
 	pending   map[string]chan *protocol.WSOutboundMessage // requestId -> response channel
@@ -81,8 +82,8 @@ func NewDaemonClient(ctx context.Context, host, clientID string) (*DaemonClient,
 	if serverInfoMsg.Type == "session" {
 		payload, _ := json.Marshal(serverInfoMsg.Message)
 		var status struct {
-			Type    string `json:"type"`
-			Status  string `json:"status"`
+			Type   string `json:"type"`
+			Status string `json:"status"`
 		}
 		json.Unmarshal(payload, &status)
 		if status.Status == "server_info" {

@@ -16,12 +16,12 @@ import (
 // and drop subsequent events (especially turn_completed).
 //
 // This is a regression test for the bug where:
-// 1. OpenCode produces many timeline events during a turn
-// 2. Each event triggers synchronous handleStreamEvent → sendMessage (which can
-//    block up to 5s on sendQueue full) and ApplySnapshot (disk I/O)
-// 3. subscribeToSession goroutine falls behind, dispatcher subscriber channel fills
-// 4. When turn_completed arrives, dispatcher's 500ms subscriber timeout fires
-// 5. turn_completed is silently dropped — client never sees terminal state
+//  1. OpenCode produces many timeline events during a turn
+//  2. Each event triggers synchronous handleStreamEvent → sendMessage (which can
+//     block up to 5s on sendQueue full) and ApplySnapshot (disk I/O)
+//  3. subscribeToSession goroutine falls behind, dispatcher subscriber channel fills
+//  4. When turn_completed arrives, dispatcher's 500ms subscriber timeout fires
+//  5. turn_completed is silently dropped — client never sees terminal state
 //
 // The fix adds a buffered work channel between the dispatcher drain and
 // handleStreamEvent, so the dispatcher channel is always drained quickly.

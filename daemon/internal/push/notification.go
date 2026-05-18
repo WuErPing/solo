@@ -9,9 +9,9 @@ const notificationPreviewLimit = 220
 
 // NotificationPayload represents the data sent to Expo Push API.
 type NotificationPayload struct {
-	Title string                 `json:"title"`
-	Body  string                 `json:"body"`
-	Data  NotificationData       `json:"data"`
+	Title string           `json:"title"`
+	Body  string           `json:"body"`
+	Data  NotificationData `json:"data"`
 }
 
 // NotificationData contains routing information for the client.

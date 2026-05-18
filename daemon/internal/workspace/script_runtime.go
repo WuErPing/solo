@@ -16,14 +16,14 @@ const (
 
 // ScriptRuntime tracks a running service script.
 type ScriptRuntime struct {
-	WorkspaceID  string       `json:"workspaceId"`
-	ScriptName   string       `json:"scriptName"`
-	Hostname     string       `json:"hostname"`
-	Port         int          `json:"port"`
-	TerminalID   string       `json:"terminalId"`
-	Status       ScriptStatus `json:"status"`
-	ExitCode     *int         `json:"exitCode,omitempty"`
-	ProxyURL     string       `json:"proxyUrl"`
+	WorkspaceID string       `json:"workspaceId"`
+	ScriptName  string       `json:"scriptName"`
+	Hostname    string       `json:"hostname"`
+	Port        int          `json:"port"`
+	TerminalID  string       `json:"terminalId"`
+	Status      ScriptStatus `json:"status"`
+	ExitCode    *int         `json:"exitCode,omitempty"`
+	ProxyURL    string       `json:"proxyUrl"`
 }
 
 // ScriptManager manages the lifecycle of workspace service scripts.

@@ -63,8 +63,8 @@ func LoadOrCreateDaemonKeyPair() (*DaemonKeyPair, error) {
 	}
 	payload := map[string]interface{}{
 		"v":            2,
-		"publicKeyB64":  kp.PublicKeyB64,
-		"secretKeyB64":  kp.SecretKeyB64,
+		"publicKeyB64": kp.PublicKeyB64,
+		"secretKeyB64": kp.SecretKeyB64,
 	}
 	data, _ = json.MarshalIndent(payload, "", "  ")
 	if err := os.WriteFile(filePath, append(data, '\n'), 0600); err != nil {
@@ -76,10 +76,10 @@ func LoadOrCreateDaemonKeyPair() (*DaemonKeyPair, error) {
 
 // ConnectionOfferV2 is the relay pairing offer payload.
 type ConnectionOfferV2 struct {
-	V                int    `json:"v"`
-	ServerID         string `json:"serverId"`
+	V                  int    `json:"v"`
+	ServerID           string `json:"serverId"`
 	DaemonPublicKeyB64 string `json:"daemonPublicKeyB64"`
-	Relay            struct {
+	Relay              struct {
 		Endpoint string `json:"endpoint"`
 	} `json:"relay"`
 }
@@ -93,7 +93,7 @@ func GeneratePairingOffer(serverID, relayEndpoint, appBaseURL string) (string, e
 
 	offer := ConnectionOfferV2{
 		V:                  2,
-		ServerID:          serverID,
+		ServerID:           serverID,
 		DaemonPublicKeyB64: kp.PublicKeyB64,
 	}
 	offer.Relay.Endpoint = relayEndpoint

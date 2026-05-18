@@ -38,13 +38,13 @@ func (s *Session) projectPlacementForCwd(cwd string) *protocol.ProjectPlacementP
 	}
 
 	checkout := protocol.ProjectCheckoutLitePayload{
-		Cwd:                  normalizedCwd,
-		IsGit:                false,
-		CurrentBranch:        nil,
-		RemoteURL:            nil,
-		WorktreeRoot:         nil,
+		Cwd:                 normalizedCwd,
+		IsGit:               false,
+		CurrentBranch:       nil,
+		RemoteURL:           nil,
+		WorktreeRoot:        nil,
 		IsSoloOwnedWorktree: false,
-		MainRepoRoot:         nil,
+		MainRepoRoot:        nil,
 	}
 	if s.gitSvc != nil {
 		if meta := s.gitSvc.GetMetadataCached(normalizedCwd); meta != nil && meta.ProjectKind == workspace.ProjectKindGit {
@@ -91,13 +91,13 @@ func (s *Session) projectPlacementForWorkspace(ws *workspace.PersistedWorkspaceR
 	}
 
 	checkout := protocol.ProjectCheckoutLitePayload{
-		Cwd:                  normalizeProjectCwd(ws.Cwd),
-		IsGit:                ws.Kind == workspace.WorkspaceKindLocalCheckout || ws.Kind == workspace.WorkspaceKindWorktree,
-		CurrentBranch:        nil,
-		RemoteURL:            nil,
-		WorktreeRoot:         nil,
+		Cwd:                 normalizeProjectCwd(ws.Cwd),
+		IsGit:               ws.Kind == workspace.WorkspaceKindLocalCheckout || ws.Kind == workspace.WorkspaceKindWorktree,
+		CurrentBranch:       nil,
+		RemoteURL:           nil,
+		WorktreeRoot:        nil,
 		IsSoloOwnedWorktree: ws.Kind == workspace.WorkspaceKindWorktree,
-		MainRepoRoot:         nil,
+		MainRepoRoot:        nil,
 	}
 	if checkout.IsGit {
 		worktreeRoot := checkout.Cwd
@@ -226,10 +226,10 @@ func (s *Session) upsertWorkspaceForCwd(cwd string) (*protocol.WorkspaceDescript
 			}
 		}
 		ws.GitRuntime = &protocol.WorkspaceGitRuntime{
-			CurrentBranch:        gitMeta.CurrentBranch,
-			RemoteURL:            gitMeta.RemoteUrl,
+			CurrentBranch:       gitMeta.CurrentBranch,
+			RemoteURL:           gitMeta.RemoteUrl,
 			IsSoloOwnedWorktree: &gitMeta.IsWorktree,
-			IsDirty:              &isDirty,
+			IsDirty:             &isDirty,
 		}
 	}
 
@@ -338,10 +338,10 @@ func (s *Session) handleFetchWorkspaces(m *protocol.FetchWorkspacesRequest) {
 					isDirty = *dirtyPtr
 				}
 				ws.GitRuntime = &protocol.WorkspaceGitRuntime{
-					CurrentBranch:        gitMeta.CurrentBranch,
-					RemoteURL:            gitMeta.RemoteUrl,
+					CurrentBranch:       gitMeta.CurrentBranch,
+					RemoteURL:           gitMeta.RemoteUrl,
 					IsSoloOwnedWorktree: &gitMeta.IsWorktree,
-					IsDirty:              &isDirty,
+					IsDirty:             &isDirty,
 				}
 			}
 		}
@@ -707,8 +707,8 @@ func (s *Session) buildWorkspaceDescriptor(ws *workspace.PersistedWorkspaceRecor
 
 	if meta := s.gitSvc.GetMetadataCached(ws.Cwd); meta != nil {
 		desc.GitRuntime = &protocol.WorkspaceGitRuntime{
-			CurrentBranch:        meta.CurrentBranch,
-			RemoteURL:            meta.RemoteUrl,
+			CurrentBranch:       meta.CurrentBranch,
+			RemoteURL:           meta.RemoteUrl,
 			IsSoloOwnedWorktree: &meta.IsWorktree,
 		}
 		if dirtyPtr := s.gitSvc.IsDirtyCached(ws.Cwd); dirtyPtr != nil {

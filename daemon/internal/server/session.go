@@ -8,13 +8,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gorilla/websocket"
+
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/config"
 	"github.com/WuErPing/solo/daemon/internal/push"
 	"github.com/WuErPing/solo/daemon/internal/terminal"
 	"github.com/WuErPing/solo/daemon/internal/workspace"
 	"github.com/WuErPing/solo/protocol"
-	"github.com/gorilla/websocket"
 )
 
 // Session represents a single client WebSocket connection.
@@ -55,11 +56,11 @@ type Session struct {
 	setupProgress   map[string]*workspace.SetupProgressEvent // key: workspaceID
 	setupProgressMu sync.RWMutex
 
-	done        chan struct{}
-	unsub              func()   // unsubscribe from agent manager events
-	coalescerFlushID   uint64   // registration ID for coalescer flush callback
-	doneOnce    sync.Once
-	cleanupOnce sync.Once
+	done             chan struct{}
+	unsub            func() // unsubscribe from agent manager events
+	coalescerFlushID uint64 // registration ID for coalescer flush callback
+	doneOnce         sync.Once
+	cleanupOnce      sync.Once
 
 	// Multi-socket model: sockets holds all currently attached WebSocket connections.
 	// Guarded by socketsMu. Used by AttachSocket / broadcastToSockets.
@@ -67,14 +68,14 @@ type Session struct {
 	socketsMu sync.RWMutex
 
 	// Async send queue (mirrors Node.js ws library behavior: enqueue and return)
-	sendQueue  *sendQueue
-	writeDone  chan struct{}
+	sendQueue *sendQueue
+	writeDone chan struct{}
 
 	handlerRegistry *messageHandlerRegistry
 
 	// Inbound message queue decouples ReadMessage from handler execution
-	inboundQueue  chan inboundQueueItem
-	processDone   chan struct{}
+	inboundQueue chan inboundQueueItem
+	processDone  chan struct{}
 	// inboundClosed is set to true immediately after close(inboundQueue) in
 	// runReadLoop, before <-processDone completes. AttachSocket checks this flag
 	// to detect the window where inboundQueue is closed but processDone is not yet

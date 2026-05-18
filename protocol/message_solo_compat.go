@@ -99,4 +99,3 @@ type ArchiveWorkspaceRequest struct {
 }
 
 func (m *ArchiveWorkspaceRequest) MsgType() string { return "archive_workspace_request" }
-

@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuErPing/solo/daemon/internal/wsconn"
 	"github.com/gorilla/websocket"
+
+	"github.com/WuErPing/solo/daemon/internal/wsconn"
 )
 
 // blockingSessionAttacher blocks forever in AttachExternalConnection,

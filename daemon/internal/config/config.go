@@ -11,21 +11,21 @@ import (
 
 // Config holds the daemon configuration.
 type Config struct {
-	SoloHome         string
-	Listen            string // "127.0.0.1:17612" or "unix:///path" or "pipe:///path"
-	ServerID          string
-	RelayEnabled             bool
-	RelayEndpoint            string
-	RelayPublicEndpoint      string
+	SoloHome                     string
+	Listen                       string // "127.0.0.1:17612" or "unix:///path" or "pipe:///path"
+	ServerID                     string
+	RelayEnabled                 bool
+	RelayEndpoint                string
+	RelayPublicEndpoint          string
 	RelayDisableControlKeepalive bool
-	MCPEnabled        bool
-	MCPInjectIntoAgents bool
-	CORSOrigins       []string
-	Hostnames         []string
-	AppBaseURL        string
-	Supervised        bool
-	Version           string
-	CustomModels      map[string][]CustomModelConfig // key = provider ID
+	MCPEnabled                   bool
+	MCPInjectIntoAgents          bool
+	CORSOrigins                  []string
+	Hostnames                    []string
+	AppBaseURL                   string
+	Supervised                   bool
+	Version                      string
+	CustomModels                 map[string][]CustomModelConfig // key = provider ID
 }
 
 // PersistedConfig mirrors the on-disk config.json structure.
@@ -35,11 +35,11 @@ type PersistedConfig struct {
 }
 
 type DaemonConfig struct {
-	Listen    *string         `json:"listen,omitempty"`
-	Hostnames []string        `json:"hostnames,omitempty"`
-	MCP       *MCPConfig      `json:"mcp,omitempty"`
-	CORS      *CORSConfig     `json:"cors,omitempty"`
-	Relay     *RelayConfig    `json:"relay,omitempty"`
+	Listen    *string          `json:"listen,omitempty"`
+	Hostnames []string         `json:"hostnames,omitempty"`
+	MCP       *MCPConfig       `json:"mcp,omitempty"`
+	CORS      *CORSConfig      `json:"cors,omitempty"`
+	Relay     *RelayConfig     `json:"relay,omitempty"`
 	Providers *ProvidersConfig `json:"providers,omitempty"`
 }
 
@@ -52,10 +52,10 @@ type CORSConfig struct {
 }
 
 type RelayConfig struct {
-	Enabled                *bool   `json:"enabled,omitempty"`
-	Endpoint               *string `json:"endpoint,omitempty"`
-	PublicEndpoint         *string `json:"publicEndpoint,omitempty"`
-	DisableControlKeepalive *bool  `json:"disableControlKeepalive,omitempty"`
+	Enabled                 *bool   `json:"enabled,omitempty"`
+	Endpoint                *string `json:"endpoint,omitempty"`
+	PublicEndpoint          *string `json:"publicEndpoint,omitempty"`
+	DisableControlKeepalive *bool   `json:"disableControlKeepalive,omitempty"`
 }
 
 type AppConfig struct {
@@ -84,19 +84,19 @@ type CustomSelectOption struct {
 // DefaultConfig returns a Config with sensible defaults.
 func DefaultConfig() *Config {
 	return &Config{
-		SoloHome:         "",
-		Listen:            "127.0.0.1:17612",
-		ServerID:          "",
-		RelayEnabled:      true,
-		RelayEndpoint:     "relay.solo.sh:443",
+		SoloHome:            "",
+		Listen:              "127.0.0.1:17612",
+		ServerID:            "",
+		RelayEnabled:        true,
+		RelayEndpoint:       "relay.solo.sh:443",
 		RelayPublicEndpoint: "relay.solo.sh:443",
-		MCPEnabled:        true,
+		MCPEnabled:          true,
 		MCPInjectIntoAgents: false,
-		CORSOrigins:       nil,
-		Hostnames:         nil,
-		AppBaseURL:        "https://app.solo.sh",
-		Supervised:        false,
-		Version:           "0.1.0",
+		CORSOrigins:         nil,
+		Hostnames:           nil,
+		AppBaseURL:          "https://app.solo.sh",
+		Supervised:          false,
+		Version:             "0.1.0",
 	}
 }
 

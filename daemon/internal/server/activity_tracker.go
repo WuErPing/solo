@@ -25,8 +25,8 @@ type ActivityTracker interface {
 
 // ClientActivityTracker is a thread-safe in-memory implementation of ActivityTracker.
 type ClientActivityTracker struct {
-	mu      sync.RWMutex
-	states  map[string]*ClientPresenceState
+	mu     sync.RWMutex
+	states map[string]*ClientPresenceState
 }
 
 // NewClientActivityTracker creates a new client activity tracker.

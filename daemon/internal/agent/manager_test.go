@@ -144,7 +144,7 @@ type slowMockAgentClient struct {
 	session *slowMockAgentSession
 }
 
-func (c *slowMockAgentClient) Provider() string { return "slow-mock" }
+func (c *slowMockAgentClient) Provider() string                      { return "slow-mock" }
 func (c *slowMockAgentClient) IsAvailable(ctx context.Context) error { return nil }
 func (c *slowMockAgentClient) CreateSession(ctx context.Context, config *protocol.AgentSessionConfig) (AgentSession, error) {
 	c.session = &slowMockAgentSession{}
@@ -153,9 +153,15 @@ func (c *slowMockAgentClient) CreateSession(ctx context.Context, config *protoco
 func (c *slowMockAgentClient) ResumeSession(ctx context.Context, handle *protocol.AgentPersistenceHandle) (AgentSession, error) {
 	return c.CreateSession(ctx, &protocol.AgentSessionConfig{Provider: c.Provider()})
 }
-func (c *slowMockAgentClient) ListModels(ctx context.Context, cwd string) ([]protocol.AgentModelDefinition, error) { return nil, nil }
-func (c *slowMockAgentClient) ListModes(ctx context.Context, cwd string) ([]protocol.AgentMode, error) { return nil, nil }
-func (c *slowMockAgentClient) ListClientCommands(ctx context.Context, cwd string) ([]protocol.AgentSlashCommand, error) { return nil, nil }
+func (c *slowMockAgentClient) ListModels(ctx context.Context, cwd string) ([]protocol.AgentModelDefinition, error) {
+	return nil, nil
+}
+func (c *slowMockAgentClient) ListModes(ctx context.Context, cwd string) ([]protocol.AgentMode, error) {
+	return nil, nil
+}
+func (c *slowMockAgentClient) ListClientCommands(ctx context.Context, cwd string) ([]protocol.AgentSlashCommand, error) {
+	return nil, nil
+}
 
 type slowMockAgentSession struct{}
 
@@ -175,22 +181,30 @@ func (s *slowMockAgentSession) Subscribe() <-chan AgentStreamEvent {
 	return nil
 }
 func (s *slowMockAgentSession) Interrupt(ctx context.Context) error { return nil }
-func (s *slowMockAgentSession) Close() error { return nil }
-func (s *slowMockAgentSession) RespondPermission(requestID string, response protocol.AgentPermissionResponse) error { return nil }
+func (s *slowMockAgentSession) Close() error                        { return nil }
+func (s *slowMockAgentSession) RespondPermission(requestID string, response protocol.AgentPermissionResponse) error {
+	return nil
+}
 func (s *slowMockAgentSession) GetRuntimeInfo(ctx context.Context) (*protocol.AgentRuntimeInfo, error) {
 	return &protocol.AgentRuntimeInfo{Provider: "slow-mock"}, nil
 }
-func (s *slowMockAgentSession) GetAvailableModes(ctx context.Context) ([]protocol.AgentMode, error) { return nil, nil }
+func (s *slowMockAgentSession) GetAvailableModes(ctx context.Context) ([]protocol.AgentMode, error) {
+	return nil, nil
+}
 func (s *slowMockAgentSession) GetCurrentMode(ctx context.Context) (*string, error) { return nil, nil }
-func (s *slowMockAgentSession) SetMode(modeID string) error { return nil }
-func (s *slowMockAgentSession) SetModel(modelID string) error { return nil }
-func (s *slowMockAgentSession) SetThinkingOption(optionID string) error { return nil }
+func (s *slowMockAgentSession) SetMode(modeID string) error                         { return nil }
+func (s *slowMockAgentSession) SetModel(modelID string) error                       { return nil }
+func (s *slowMockAgentSession) SetThinkingOption(optionID string) error             { return nil }
 func (s *slowMockAgentSession) DescribePersistence() *protocol.AgentPersistenceHandle {
 	return &protocol.AgentPersistenceHandle{Provider: "slow-mock", SessionID: "slow-session"}
 }
 func (s *slowMockAgentSession) GetPendingPermissions() []interface{} { return nil }
-func (s *slowMockAgentSession) ListCommands(ctx context.Context) ([]protocol.AgentSlashCommand, error) { return nil, nil }
-func (s *slowMockAgentSession) StreamHistory(ctx context.Context) ([]AgentStreamEvent, error) { return nil, nil }
+func (s *slowMockAgentSession) ListCommands(ctx context.Context) ([]protocol.AgentSlashCommand, error) {
+	return nil, nil
+}
+func (s *slowMockAgentSession) StreamHistory(ctx context.Context) ([]AgentStreamEvent, error) {
+	return nil, nil
+}
 
 func TestSendAgentMessageRejectsWhenAlreadyRunning(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))

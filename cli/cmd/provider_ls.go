@@ -3,8 +3,9 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/WuErPing/solo/cli/internal/output"
 	"github.com/spf13/cobra"
+
+	"github.com/WuErPing/solo/cli/internal/output"
 )
 
 var providerLsCmd = &cobra.Command{

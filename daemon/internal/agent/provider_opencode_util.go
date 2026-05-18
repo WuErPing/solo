@@ -31,6 +31,7 @@ func readPositiveFloat(v interface{}) *float64 {
 	}
 	return &f
 }
+
 // --- Tool Call Detail Mapping (gap #1, matches Solo's deriveOpencodeToolDetail) ---
 
 func normalizeToolStatus(status string) string {
@@ -65,6 +66,7 @@ func buildToolCallTimelineItem(callID, toolName, status string, input, output, e
 
 	return item
 }
+
 // deriveToolCallDetail parses tool input/output into typed detail (matches Solo's deriveOpencodeToolDetail).
 func deriveToolCallDetail(toolName string, input, output interface{}) map[string]interface{} {
 	switch toolName {
@@ -284,6 +286,7 @@ func extractNumber(m map[string]interface{}, keys ...string) interface{} {
 	}
 	return nil
 }
+
 // extractStringOrJoinArray extracts a string value, or joins an array of strings with spaces.
 func extractStringOrJoinArray(m map[string]interface{}, keys ...string) string {
 	for _, k := range keys {
@@ -306,6 +309,7 @@ func extractStringOrJoinArray(m map[string]interface{}, keys ...string) string {
 	}
 	return ""
 }
+
 // extractNestedString extracts a string from a nested map structure.
 func extractNestedString(m map[string]interface{}, nestedKey string, keys ...string) string {
 	nested, ok := m[nestedKey].(map[string]interface{})
@@ -314,6 +318,7 @@ func extractNestedString(m map[string]interface{}, nestedKey string, keys ...str
 	}
 	return extractString(nested, keys...)
 }
+
 // extractNestedNumber extracts a number from a nested map structure.
 func extractNestedNumber(m map[string]interface{}, nestedKey string, keys ...string) interface{} {
 	nested, ok := m[nestedKey].(map[string]interface{})
@@ -322,6 +327,7 @@ func extractNestedNumber(m map[string]interface{}, nestedKey string, keys ...str
 	}
 	return extractNumber(nested, keys...)
 }
+
 // --- Prompt Parts Builder (gap #10, matches Solo's buildOpenCodePromptParts) ---
 
 func buildOpenCodePromptParts(text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) []map[string]interface{} {
@@ -394,6 +400,7 @@ func getAttachmentExtension(mimeType string) string {
 		return "bin"
 	}
 }
+
 // extractQuestionAnswers parses the response to build answers array for question.reply.
 func extractQuestionAnswers(pendingInput map[string]interface{}, response protocol.AgentPermissionResponse) [][]string {
 	questions, _ := pendingInput["questions"].([]map[string]interface{})
@@ -533,10 +540,12 @@ func isHeadersTimeoutError(err error) bool {
 	}
 	return false
 }
+
 var opencodeDefaultModeDescriptions = map[string]string{
 	"build": "Allows edits and tool execution for implementation work",
 	"plan":  "Read-only planning mode that avoids file edits",
 }
+
 func opencodeDefaultModes() []protocol.AgentMode {
 	return []protocol.AgentMode{
 		{ID: "build", Label: "Build", Description: "Allows edits and tool execution for implementation work"},
@@ -564,11 +573,13 @@ func sortOpenCodeModes(modes []protocol.AgentMode) []protocol.AgentMode {
 	}
 	return sorted
 }
+
 var fatalRetryTokens = []string{
 	"insufficient balance", "no resource package", "please recharge",
 	"invalid api key", "unauthorized", "authentication",
 	"model not found", "unknown model", "does not exist", "unsupported model",
 }
+
 func isFatalRetryMessage(msg string) bool {
 	lower := strings.ToLower(msg)
 	for _, token := range fatalRetryTokens {
@@ -578,12 +589,14 @@ func isFatalRetryMessage(msg string) bool {
 	}
 	return false
 }
+
 var permissionTitleMap = map[string]string{
 	"bash": "Run shell command", "read": "Read files", "read_file": "Read files",
 	"write": "Write files", "write_file": "Write files", "create_file": "Write files",
 	"edit": "Edit files", "apply_patch": "Edit files", "apply_diff": "Edit files",
 	"external_directory": "Access external directory",
 }
+
 func humanReadablePermission(permission string) string {
 	if mapped, ok := permissionTitleMap[permission]; ok {
 		return mapped

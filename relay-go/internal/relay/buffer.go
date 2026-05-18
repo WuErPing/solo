@@ -3,8 +3,9 @@ package relay
 import (
 	"log/slog"
 
-	"github.com/WuErPing/solo/relay/internal/metrics"
 	"github.com/gorilla/websocket"
+
+	"github.com/WuErPing/solo/relay/internal/metrics"
 )
 
 type bufferedFrame struct {

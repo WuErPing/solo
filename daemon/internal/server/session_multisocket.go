@@ -6,8 +6,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/WuErPing/solo/protocol"
 	"github.com/gorilla/websocket"
+
+	"github.com/WuErPing/solo/protocol"
 )
 
 // socketEntry holds per-socket send state for the multi-socket model.

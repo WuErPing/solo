@@ -21,8 +21,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuErPing/solo/protocol"
 	"github.com/gorilla/websocket"
+
+	"github.com/WuErPing/solo/protocol"
 )
 
 // --- T1: attached socket receives messages ---
@@ -324,7 +325,6 @@ func TestSession_AttachSocket_GraceReplayDoesNotStallOnFullQueue(t *testing.T) {
 		t.Fatal("second AttachSocket goroutine did not return")
 	}
 }
-
 
 // --- T6: AttachSocket during grace cancels the grace timer ---
 

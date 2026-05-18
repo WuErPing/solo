@@ -446,9 +446,9 @@ func (n *noopTransport) Send(msg []byte) error {
 	return nil
 }
 
-func (n *noopTransport) Close()             {}
+func (n *noopTransport) Close()                 {}
 func (n *noopTransport) OnMessage(func([]byte)) {}
-func (n *noopTransport) OnClose(func())     {}
+func (n *noopTransport) OnClose(func())         {}
 
 func (n *noopTransport) sentCount() int {
 	n.mu.Lock()

@@ -10,8 +10,8 @@ type WorkspaceKind string
 
 const (
 	WorkspaceKindLocalCheckout WorkspaceKind = "local_checkout"
-	WorkspaceKindWorktree     WorkspaceKind = "worktree"
-	WorkspaceKindDirectory    WorkspaceKind = "directory"
+	WorkspaceKindWorktree      WorkspaceKind = "worktree"
+	WorkspaceKindDirectory     WorkspaceKind = "directory"
 )
 
 // PersistedWorkspaceRecord represents a workspace (working directory) in the registry.

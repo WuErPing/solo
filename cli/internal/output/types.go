@@ -44,8 +44,8 @@ type OutputOptions struct {
 type ColumnDef struct {
 	Header    string
 	FieldFunc func(item interface{}) string
-	Width     int  // minimum width; 0 = auto
-	Align     string // "left" (default) or "right"
+	Width     int                                         // minimum width; 0 = auto
+	Align     string                                      // "left" (default) or "right"
 	ColorFunc func(value string, item interface{}) string // returns color name or ""
 }
 

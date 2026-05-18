@@ -6,12 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
+
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/config"
 	"github.com/WuErPing/solo/daemon/internal/terminal"
 	"github.com/WuErPing/solo/daemon/internal/workspace"
 	"github.com/WuErPing/solo/protocol"
-	"github.com/gorilla/websocket"
 )
 
 // slowWritePingConn is a mock WSConn where WriteMessage simulates network
@@ -20,13 +21,13 @@ import (
 // few chances to fire. WriteControl is instant (as it would be with real
 // gorilla/websocket, which sends control frames out-of-band).
 type slowWritePingConn struct {
-	mu          sync.Mutex
-	readErr     chan error
-	readOnce    sync.Once
-	writeDelay  time.Duration // artificial delay per WriteMessage call
-	messages    [][]byte
-	pingTimes   []time.Time
-	closed      bool
+	mu         sync.Mutex
+	readErr    chan error
+	readOnce   sync.Once
+	writeDelay time.Duration // artificial delay per WriteMessage call
+	messages   [][]byte
+	pingTimes  []time.Time
+	closed     bool
 }
 
 func newSlowWritePingConn(writeDelay time.Duration) *slowWritePingConn {
@@ -71,7 +72,7 @@ func (c *slowWritePingConn) WriteControl(messageType int, data []byte, deadline 
 }
 
 func (c *slowWritePingConn) SetPongHandler(h func(appData string) error) {}
-func (c *slowWritePingConn) SetReadDeadline(t time.Time) error            { return nil }
+func (c *slowWritePingConn) SetReadDeadline(t time.Time) error           { return nil }
 
 func (c *slowWritePingConn) injectReadError(err error) {
 	c.readOnce.Do(func() { c.readErr <- err })

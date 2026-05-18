@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuErPing/solo/protocol"
 	"github.com/gorilla/websocket"
+
+	"github.com/WuErPing/solo/protocol"
 )
 
 // readSessionMessages reads messages from the WS connection until it finds one

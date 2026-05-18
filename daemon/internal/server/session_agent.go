@@ -6,9 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/protocol"
-	"github.com/google/uuid"
 )
 
 func (s *Session) handleCreateAgent(m *protocol.CreateAgentRequest) {
@@ -449,8 +450,7 @@ func (s *Session) handleWaitForFinish(m *protocol.WaitForFinishRequest) {
 	}
 
 	done := make(chan struct{}, 1)
-	var unsubscribe func()
-	unsubscribe = s.agentMgr.Subscribe(func(event agent.AgentEvent) {
+	var unsubscribe func() = s.agentMgr.Subscribe(func(event agent.AgentEvent) {
 		if event.Type != agent.EventAgentState || event.AgentID != m.AgentID || event.Agent == nil {
 			return
 		}

@@ -23,9 +23,9 @@ type WorktreeConfig struct {
 
 // WorktreeCreationIntent describes the kind of worktree operation.
 type WorktreeCreationIntent struct {
-	Kind        string // "branch-off" | "checkout-branch"
-	BaseBranch  string // for branch-off: the base to branch from
-	BranchName  string // for branch-off: the new branch; for checkout: the existing branch
+	Kind       string // "branch-off" | "checkout-branch"
+	BaseBranch string // for branch-off: the base to branch from
+	BranchName string // for branch-off: the new branch; for checkout: the existing branch
 }
 
 // CreateWorktreeResult is the full result of CreateSoloWorktree.

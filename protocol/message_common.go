@@ -190,13 +190,13 @@ type AgentPermissionResponse struct {
 // ProjectCheckoutLitePayload describes the checkout associated with an agent
 // directory entry. The shape mirrors Solo's ProjectCheckoutLitePayloadSchema.
 type ProjectCheckoutLitePayload struct {
-	Cwd                  string  `json:"cwd"`
-	IsGit                bool    `json:"isGit"`
-	CurrentBranch        *string `json:"currentBranch"`
-	RemoteURL            *string `json:"remoteUrl"`
-	WorktreeRoot         *string `json:"worktreeRoot,omitempty"`
+	Cwd                 string  `json:"cwd"`
+	IsGit               bool    `json:"isGit"`
+	CurrentBranch       *string `json:"currentBranch"`
+	RemoteURL           *string `json:"remoteUrl"`
+	WorktreeRoot        *string `json:"worktreeRoot,omitempty"`
 	IsSoloOwnedWorktree bool    `json:"isSoloOwnedWorktree"`
-	MainRepoRoot         *string `json:"mainRepoRoot"`
+	MainRepoRoot        *string `json:"mainRepoRoot"`
 }
 
 // ProjectPlacementPayload groups an agent under a project in the directory UI.
@@ -205,4 +205,3 @@ type ProjectPlacementPayload struct {
 	ProjectName string                     `json:"projectName"`
 	Checkout    ProjectCheckoutLitePayload `json:"checkout"`
 }
-

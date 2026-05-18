@@ -148,8 +148,8 @@ func readPIDFile() (int, error) {
 
 	// Try JSON format
 	var pidFile struct {
-		PID     int    `json:"pid"`
-		Listen  string `json:"listen,omitempty"`
+		PID    int    `json:"pid"`
+		Listen string `json:"listen,omitempty"`
 	}
 	if err := json.Unmarshal(data, &pidFile); err == nil && pidFile.PID > 0 {
 		return pidFile.PID, nil

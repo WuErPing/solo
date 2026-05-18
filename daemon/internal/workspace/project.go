@@ -15,13 +15,13 @@ const (
 
 // PersistedProjectRecord represents a project (git repo or directory) in the registry.
 type PersistedProjectRecord struct {
-	ProjectID   string     `json:"projectId"`
-	RootPath    string     `json:"rootPath"`
+	ProjectID   string      `json:"projectId"`
+	RootPath    string      `json:"rootPath"`
 	Kind        ProjectKind `json:"kind"`
-	DisplayName string     `json:"displayName"`
-	CreatedAt   time.Time  `json:"createdAt"`
-	UpdatedAt   time.Time  `json:"updatedAt"`
-	ArchivedAt  *time.Time `json:"archivedAt,omitempty"`
+	DisplayName string      `json:"displayName"`
+	CreatedAt   time.Time   `json:"createdAt"`
+	UpdatedAt   time.Time   `json:"updatedAt"`
+	ArchivedAt  *time.Time  `json:"archivedAt,omitempty"`
 }
 
 func (p PersistedProjectRecord) GetID() string { return p.ProjectID }

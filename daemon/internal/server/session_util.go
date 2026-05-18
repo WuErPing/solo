@@ -405,7 +405,7 @@ func buildSetupLog(commands []workspace.SetupCommandSnapshot) string {
 	var builder strings.Builder
 	for _, cmd := range commands {
 		if cmd.Status == "running" {
-			builder.WriteString(fmt.Sprintf("==> [%d] Running: %s\n", cmd.Index, cmd.Command))
+			fmt.Fprintf(&builder, "==> [%d] Running: %s\n", cmd.Index, cmd.Command)
 		} else {
 			exitCode := -1
 			if cmd.ExitCode != nil {
@@ -415,11 +415,11 @@ func buildSetupLog(commands []workspace.SetupCommandSnapshot) string {
 			if cmd.DurationMs != nil {
 				duration = *cmd.DurationMs
 			}
-			builder.WriteString(fmt.Sprintf("==> [%d] Running: %s\n", cmd.Index, cmd.Command))
+			fmt.Fprintf(&builder, "==> [%d] Running: %s\n", cmd.Index, cmd.Command)
 			if cmd.Log != "" {
 				builder.WriteString(cmd.Log)
 			}
-			builder.WriteString(fmt.Sprintf("<== [%d] Exit %d in %dms\n", cmd.Index, exitCode, duration))
+			fmt.Fprintf(&builder, "<== [%d] Exit %d in %dms\n", cmd.Index, exitCode, duration)
 		}
 	}
 	return builder.String()

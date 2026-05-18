@@ -13,8 +13,8 @@ import (
 type BaseSession struct {
 	mu sync.RWMutex
 
-	config  *protocol.AgentSessionConfig
-	logger  *slog.Logger
+	config   *protocol.AgentSessionConfig
+	logger   *slog.Logger
 	provider string
 
 	// Identity

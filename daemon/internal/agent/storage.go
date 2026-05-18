@@ -10,8 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/WuErPing/solo/protocol"
 	"github.com/google/uuid"
+
+	"github.com/WuErPing/solo/protocol"
 )
 
 // StoredAgentRecord is the on-disk JSON representation of an agent.

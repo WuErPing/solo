@@ -5,12 +5,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
+
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/config"
 	"github.com/WuErPing/solo/daemon/internal/terminal"
 	"github.com/WuErPing/solo/daemon/internal/workspace"
 	"github.com/WuErPing/solo/protocol"
-	"github.com/gorilla/websocket"
 )
 
 const testGracePeriod = 100 * time.Millisecond
@@ -330,11 +331,12 @@ func TestSession_ReplaceConn_AfterGraceExpired_ReturnsError(t *testing.T) {
 
 // mockActivityTracker is a minimal ActivityTracker for tests.
 type mockActivityTracker struct {
-	states []ClientPresenceState
+	states   []ClientPresenceState
 	onRemove func()
 }
 
-func (m *mockActivityTracker) UpdateActivity(sessionID string, appVisible bool, focusedAgentID string) {}
+func (m *mockActivityTracker) UpdateActivity(sessionID string, appVisible bool, focusedAgentID string) {
+}
 func (m *mockActivityTracker) Remove(sessionID string) {
 	if m.onRemove != nil {
 		m.onRemove()
