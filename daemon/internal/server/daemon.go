@@ -354,6 +354,7 @@ type WSServer struct {
 }
 
 // NewWSServer creates a new WebSocket server with agent dependencies.
+// Deprecated: use NewWSServerWithConfig
 func NewWSServer(cfg *config.Config, logger *slog.Logger, agentMgr *agent.AgentManager, timelineStore *agent.InMemoryTimelineStore, registry *agent.ProviderRegistry, workspaceStore *WorkspaceStore, terminalMgr *terminal.TerminalManager, projectReg *workspace.ProjectRegistry, workspaceReg *workspace.WorkspaceRegistry, gitSvc workspace.WorkspaceGitService, scriptMgr *workspace.ScriptManager, scriptProxy *workspace.ScriptProxy, pushTokenStore push.TokenStore, pusher push.Pusher, activityTracker ActivityTracker) *WSServer {
 	return &WSServer{
 		cfg:             cfg,

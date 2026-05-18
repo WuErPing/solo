@@ -103,12 +103,23 @@ func newTestSessionForPing(t *testing.T, conn WSConn) *Session {
 	scriptMgr := workspace.NewScriptManager()
 	scriptProxy := workspace.NewScriptProxy(logger, scriptMgr)
 
-	sess := NewSession(
+	sess := NewSessionWithConfig(
 		"test-client", string(protocol.ClientCLI), conn,
-		cfg, logger, agentMgr, timelineStore, registry,
-		workspaceStore, terminalMgr, projectReg, workspaceReg,
-		gitSvc, scriptMgr, scriptProxy,
-		func(msg protocol.WSOutboundMessage) {},
+		SessionConfig{
+			Config:        cfg,
+			Logger:        logger,
+			AgentMgr:      agentMgr,
+			TimelineStore: timelineStore,
+			Registry:      registry,
+			WorkspaceStore: workspaceStore,
+			TerminalMgr:    terminalMgr,
+			ProjectReg:     projectReg,
+			WorkspaceReg:   workspaceReg,
+			GitSvc:         gitSvc,
+			ScriptMgr:      scriptMgr,
+			ScriptProxy:    scriptProxy,
+			Broadcast:      func(msg protocol.WSOutboundMessage) {},
+		},
 	)
 	return sess
 }

@@ -137,6 +137,7 @@ type inboundQueueItem struct {
 }
 
 // NewSession creates a new session.
+// Deprecated: use NewSessionWithConfig
 func NewSession(clientID, clientType string, conn WSConn, cfg *config.Config, logger *slog.Logger, agentMgr *agent.AgentManager, timelineStore *agent.InMemoryTimelineStore, registry *agent.ProviderRegistry, workspaceStore *WorkspaceStore, terminalMgr *terminal.TerminalManager, projectReg *workspace.ProjectRegistry, workspaceReg *workspace.WorkspaceRegistry, gitSvc workspace.WorkspaceGitService, scriptMgr *workspace.ScriptManager, scriptProxy *workspace.ScriptProxy, broadcast func(protocol.WSOutboundMessage)) *Session {
 	sess := &Session{
 		clientID:       clientID,
