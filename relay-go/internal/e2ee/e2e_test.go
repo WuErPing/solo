@@ -15,10 +15,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
+
 	"github.com/WuErPing/solo/protocol"
 	"github.com/WuErPing/solo/relay/internal/e2ee"
 	"github.com/WuErPing/solo/relay/internal/relay"
-	"github.com/gorilla/websocket"
 )
 
 // wsTransport adapts a websocket.Conn to the e2ee.Transport interface.
@@ -418,7 +419,7 @@ func TestE2EWrongKeyCannotDecrypt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = attackerPub // not needed for this test
+	_ = attackerPub                                               // not needed for this test
 	attackerKey := e2ee.DeriveSharedKey(attackerSec, attackerPub) // wrong key
 
 	// Encrypt with correct key

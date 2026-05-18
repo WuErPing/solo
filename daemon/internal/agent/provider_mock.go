@@ -6,8 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/WuErPing/solo/protocol"
 	"github.com/google/uuid"
+
+	"github.com/WuErPing/solo/protocol"
 )
 
 // MockAgentClient is a test-only AgentClient that creates MockAgentSessions.

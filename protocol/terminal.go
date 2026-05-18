@@ -7,9 +7,9 @@ import "encoding/json"
 type TerminalStreamOpcode byte
 
 const (
-	TerminalOutput  TerminalStreamOpcode = 0x01
-	TerminalInput   TerminalStreamOpcode = 0x02
-	TerminalResize  TerminalStreamOpcode = 0x03
+	TerminalOutput   TerminalStreamOpcode = 0x01
+	TerminalInput    TerminalStreamOpcode = 0x02
+	TerminalResize   TerminalStreamOpcode = 0x03
 	TerminalSnapshot TerminalStreamOpcode = 0x04
 )
 
@@ -92,10 +92,10 @@ type TerminalCursor struct {
 
 // TerminalState represents the full state of a terminal (used in Snapshot opcode).
 type TerminalState struct {
-	Rows       int             `json:"rows"`
-	Cols       int             `json:"cols"`
+	Rows       int              `json:"rows"`
+	Cols       int              `json:"cols"`
 	Grid       [][]TerminalCell `json:"grid"`
 	Scrollback [][]TerminalCell `json:"scrollback"`
-	Cursor     TerminalCursor  `json:"cursor"`
-	Title      string          `json:"title,omitempty"`
+	Cursor     TerminalCursor   `json:"cursor"`
+	Title      string           `json:"title,omitempty"`
 }

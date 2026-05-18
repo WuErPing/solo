@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/WuErPing/solo/cli/internal/output"
 	"github.com/spf13/cobra"
+
+	"github.com/WuErPing/solo/cli/internal/output"
 )
 
 var daemonStatusCmd = &cobra.Command{

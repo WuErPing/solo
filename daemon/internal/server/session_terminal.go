@@ -336,4 +336,3 @@ func (s *Session) subscribeTerminalOutput(proc *terminal.TerminalProcess) {
 		coalescer.Stop()
 	})
 }
-

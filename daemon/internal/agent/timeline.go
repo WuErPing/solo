@@ -6,8 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/WuErPing/solo/protocol"
 	"github.com/google/uuid"
+
+	"github.com/WuErPing/solo/protocol"
 )
 
 const DefaultTimelineFetchLimit = 200
@@ -23,19 +24,19 @@ type TimelineItem struct {
 	// todo: TodoItems
 	// error: Message
 	// compaction: CompactionStatus, Trigger, PreTokens
-	Text          string                      `json:"text,omitempty"`
-	MessageID     string                      `json:"messageId,omitempty"`
-	CallID        string                      `json:"callId,omitempty"`
-	Name          string                      `json:"name,omitempty"`
-	Detail        interface{}                 `json:"detail,omitempty"`
-	Status        string                      `json:"status,omitempty"` // running|completed|failed|canceled
-	Error         interface{}                 `json:"error,omitempty"`
-	Metadata      map[string]interface{}      `json:"metadata,omitempty"`
-	TodoItems     []TodoItem                  `json:"items,omitempty"`
-	Message       string                      `json:"message,omitempty"` // for error type
-	CompactionStatus string                   `json:"compactionStatus,omitempty"`
-	Trigger       string                      `json:"trigger,omitempty"`
-	PreTokens     int                         `json:"preTokens,omitempty"`
+	Text             string                 `json:"text,omitempty"`
+	MessageID        string                 `json:"messageId,omitempty"`
+	CallID           string                 `json:"callId,omitempty"`
+	Name             string                 `json:"name,omitempty"`
+	Detail           interface{}            `json:"detail,omitempty"`
+	Status           string                 `json:"status,omitempty"` // running|completed|failed|canceled
+	Error            interface{}            `json:"error,omitempty"`
+	Metadata         map[string]interface{} `json:"metadata,omitempty"`
+	TodoItems        []TodoItem             `json:"items,omitempty"`
+	Message          string                 `json:"message,omitempty"` // for error type
+	CompactionStatus string                 `json:"compactionStatus,omitempty"`
+	Trigger          string                 `json:"trigger,omitempty"`
+	PreTokens        int                    `json:"preTokens,omitempty"`
 }
 
 type TodoItem struct {
@@ -45,8 +46,8 @@ type TodoItem struct {
 
 // TimelineRow is a timeline item with sequence number and timestamp.
 type TimelineRow struct {
-	Seq       int       `json:"seq"`
-	Timestamp string    `json:"timestamp"`
+	Seq       int          `json:"seq"`
+	Timestamp string       `json:"timestamp"`
 	Item      TimelineItem `json:"item"`
 }
 
@@ -390,7 +391,6 @@ func timelineItemFromMap(m map[string]interface{}) TimelineItem {
 	return ti
 }
 
-
 func (s *InMemoryTimelineStore) GetEpoch(agentID string) string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -402,15 +402,15 @@ func (s *InMemoryTimelineStore) GetEpoch(agentID string) string {
 
 // TimelineFetchResult is the result of a timeline fetch.
 type TimelineFetchResult struct {
-	Epoch       string        `json:"epoch"`
-	Direction   string        `json:"direction"`
-	Reset       bool          `json:"reset"`
-	StaleCursor bool          `json:"staleCursor"`
-	Gap         bool          `json:"gap"`
+	Epoch       string         `json:"epoch"`
+	Direction   string         `json:"direction"`
+	Reset       bool           `json:"reset"`
+	StaleCursor bool           `json:"staleCursor"`
+	Gap         bool           `json:"gap"`
 	Window      TimelineWindow `json:"window"`
-	HasOlder    bool          `json:"hasOlder"`
-	HasNewer    bool          `json:"hasNewer"`
-	Rows        []TimelineRow `json:"rows"`
+	HasOlder    bool           `json:"hasOlder"`
+	HasNewer    bool           `json:"hasNewer"`
+	Rows        []TimelineRow  `json:"rows"`
 }
 
 type TimelineWindow struct {

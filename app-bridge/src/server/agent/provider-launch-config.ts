@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { isCommandAvailable } from "../../utils/executable.js";
 import type { AgentProvider } from "./agent-sdk-types.js";
@@ -195,7 +196,6 @@ export function findExecutable(name: string): string | null {
   if (!trimmed) return null;
   if (trimmed.includes("/") || trimmed.includes("\\")) {
     try {
-      const { existsSync } = require("node:fs");
       return existsSync(trimmed) ? trimmed : null;
     } catch {
       return null;

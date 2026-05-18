@@ -347,10 +347,10 @@ type WorkspaceScript struct {
 
 // WorkspaceGitRuntime describes git state in a workspace.
 type WorkspaceGitRuntime struct {
-	CurrentBranch        *string `json:"currentBranch,omitempty"`
-	RemoteURL            *string `json:"remoteUrl,omitempty"`
+	CurrentBranch       *string `json:"currentBranch,omitempty"`
+	RemoteURL           *string `json:"remoteUrl,omitempty"`
 	IsSoloOwnedWorktree *bool   `json:"isSoloOwnedWorktree,omitempty"`
-	IsDirty              *bool   `json:"isDirty,omitempty"`
+	IsDirty             *bool   `json:"isDirty,omitempty"`
 }
 
 // WorkspaceGitHubRuntime describes GitHub state in a workspace.
@@ -476,4 +476,3 @@ type SetDaemonConfigResponsePayload struct {
 }
 
 func (m *SetDaemonConfigResponse) MsgType() string { return "set_daemon_config_response" }
-

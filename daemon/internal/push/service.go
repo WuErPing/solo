@@ -40,10 +40,10 @@ type expoPushMessage struct {
 
 // expoPushTicket represents the response from Expo Push API.
 type expoPushTicket struct {
-	Status  string             `json:"status"`
-	ID      string             `json:"id,omitempty"`
-	Message string             `json:"message,omitempty"`
-	Details *expoErrorDetails  `json:"details,omitempty"`
+	Status  string            `json:"status"`
+	ID      string            `json:"id,omitempty"`
+	Message string            `json:"message,omitempty"`
+	Details *expoErrorDetails `json:"details,omitempty"`
 }
 
 type expoErrorDetails struct {

@@ -514,8 +514,6 @@ func (s *claudeSession) StreamHistory(ctx context.Context) ([]AgentStreamEvent, 
 	return nil, nil
 }
 
-
-
 type claudeTranslator struct {
 	session *claudeSession
 	// streamedContentBlocks tracks the total character length of content that

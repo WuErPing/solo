@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuErPing/solo/protocol"
 	"github.com/gorilla/websocket"
+
+	"github.com/WuErPing/solo/protocol"
 )
 
 func newTestServer(t *testing.T) (*Server, *httptest.Server) {

@@ -4,14 +4,14 @@ package protocol
 const (
 	WSProtocolVersion int = 1
 
-	HelloTimeoutMs              = 15000
-	SessionDisconnectGraceMs    = 90000
+	HelloTimeoutMs           = 15000
+	SessionDisconnectGraceMs = 90000
 
 	WSCloseHelloTimeout         = 4001
 	WSCloseInvalidHello         = 4002
 	WSCloseIncompatibleProtocol = 4003
 
-	WSEndpoint = "/ws"
+	WSEndpoint           = "/ws"
 	RelayProtocolVersion = "2"
 )
 
@@ -40,8 +40,8 @@ const (
 type ProviderStatus string
 
 const (
-	ProviderReady      ProviderStatus = "ready"
-	ProviderLoading    ProviderStatus = "loading"
-	ProviderError      ProviderStatus = "error"
+	ProviderReady       ProviderStatus = "ready"
+	ProviderLoading     ProviderStatus = "loading"
+	ProviderError       ProviderStatus = "error"
 	ProviderUnavailable ProviderStatus = "unavailable"
 )

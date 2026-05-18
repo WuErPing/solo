@@ -6,17 +6,18 @@ import (
 	"os"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/WuErPing/solo/cli/internal/output"
 	"github.com/WuErPing/solo/protocol"
-	"github.com/spf13/cobra"
 )
 
 var (
-	agentLsAll       bool
-	agentLsStatus    string
-	agentLsCwd       string
-	agentLsLabel     []string
-	agentLsThinking  string
+	agentLsAll      bool
+	agentLsStatus   string
+	agentLsCwd      string
+	agentLsLabel    []string
+	agentLsThinking string
 )
 
 var agentLsCmd = &cobra.Command{

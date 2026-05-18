@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuErPing/solo/protocol"
 	"github.com/gorilla/websocket"
+
+	"github.com/WuErPing/solo/protocol"
 )
 
 // TestSession_CriticalSendMessage_ReturnsQuicklyAfterDisconnect verifies that
@@ -15,11 +16,13 @@ import (
 // Before the fix: runReadLoop closes sendQueue, then calls enterGrace().
 // Between close(sendQueue) and enterGrace(), IsInGrace() returns false, so
 // sendMessage() falls into the critical path:
-//   select {
-//   case sendQueue <- item:   ← panics or blocks (channel closed)
-//   case <-done:              ← done not closed yet
-//   case <-time.After(5s):   ← fires after 5 full seconds
-//   }
+//
+//	select {
+//	case sendQueue <- item:   ← panics or blocks (channel closed)
+//	case <-done:              ← done not closed yet
+//	case <-time.After(5s):   ← fires after 5 full seconds
+//	}
+//
 // This means each concurrent critical sendMessage() call blocks ~5s.
 //
 // After the fix: sendClosed atomic is set immediately after close(sendQueue),
@@ -58,8 +61,8 @@ func TestSession_CriticalSendMessage_ReturnsQuicklyAfterDisconnect(t *testing.T)
 			go sess.sendMessage(protocol.NewSessionMessage(&protocol.AgentStreamMessage{
 				Type: "agent_stream",
 				Payload: protocol.AgentStreamPayload{
-					AgentID: "agent-1",
-					Event:   map[string]interface{}{"type": "turn_completed"},
+					AgentID:   "agent-1",
+					Event:     map[string]interface{}{"type": "turn_completed"},
 					Timestamp: time.Now().UTC().Format(time.RFC3339),
 				},
 			}))

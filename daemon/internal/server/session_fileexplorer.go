@@ -263,4 +263,3 @@ func (s *Session) handleProjectIcon(m *protocol.ProjectIconRequest) {
 		Payload: payload,
 	}))
 }
-

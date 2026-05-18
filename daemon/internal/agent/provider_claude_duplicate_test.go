@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuErPing/solo/daemon/internal/agent/base"
-	"github.com/WuErPing/solo/protocol"
 	"log/slog"
 	"os"
+
+	"github.com/WuErPing/solo/daemon/internal/agent/base"
+	"github.com/WuErPing/solo/protocol"
 )
 
 func mustMarshal(t *testing.T, v interface{}) json.RawMessage {
@@ -214,11 +215,11 @@ func TestClaudeTranslator_AssistantMessageDuplicate_WithStartAndDelta(t *testing
 // than silently suppressed.
 //
 // This is a regression test for the bug where:
-// 1. content_block_start marks streamedContentBlocks[0] = true with partial text
-// 2. thinking_delta is dropped (never arrives at the translator)
-// 3. assistant message with the COMPLETE thinking block is suppressed because
-//    streamedContentBlocks[0] was already set
-// 4. Result: thinking content is permanently lost with no recovery path
+//  1. content_block_start marks streamedContentBlocks[0] = true with partial text
+//  2. thinking_delta is dropped (never arrives at the translator)
+//  3. assistant message with the COMPLETE thinking block is suppressed because
+//     streamedContentBlocks[0] was already set
+//  4. Result: thinking content is permanently lost with no recovery path
 func TestClaudeTranslator_ThinkingDeltaDropped_RecoversFromAssistantMessage(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	sess := &claudeSession{

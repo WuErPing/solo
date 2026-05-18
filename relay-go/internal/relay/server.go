@@ -10,10 +10,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/WuErPing/solo/protocol"
-	"github.com/WuErPing/solo/relay/internal/metrics"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/WuErPing/solo/protocol"
+	"github.com/WuErPing/solo/relay/internal/metrics"
 )
 
 const version = "relay-go-v1"

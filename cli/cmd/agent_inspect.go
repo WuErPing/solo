@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/spf13/cobra"
+
 	"github.com/WuErPing/solo/cli/internal/output"
 	"github.com/WuErPing/solo/protocol"
-	"github.com/spf13/cobra"
 )
 
 var agentInspectCmd = &cobra.Command{
@@ -48,7 +49,7 @@ func runAgentInspect(cmd *cobra.Command, args []string) error {
 	var fetchResp struct {
 		Payload struct {
 			Agent *protocol.AgentSnapshotPayload `json:"agent"`
-			Error *string `json:"error,omitempty"`
+			Error *string                        `json:"error,omitempty"`
 		} `json:"payload"`
 	}
 	json.Unmarshal(payload, &fetchResp)

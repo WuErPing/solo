@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuErPing/solo/protocol"
 	"github.com/gorilla/websocket"
+
+	"github.com/WuErPing/solo/protocol"
 )
 
 // TestEffectivePingTimeout_MobileGets60s verifies mobile clients use the

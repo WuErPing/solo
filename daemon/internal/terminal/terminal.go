@@ -13,8 +13,8 @@ import (
 )
 
 type ExitInfo struct {
-	Code    int
-	Signal  string
+	Code   int
+	Signal string
 }
 
 type OutputFunc func(data []byte)

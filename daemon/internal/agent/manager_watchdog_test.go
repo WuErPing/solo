@@ -63,23 +63,27 @@ func (s *watchdogMockSession) GetRuntimeInfo(_ context.Context) (*protocol.Agent
 func (s *watchdogMockSession) GetAvailableModes(_ context.Context) ([]protocol.AgentMode, error) {
 	return nil, nil
 }
-func (s *watchdogMockSession) GetCurrentMode(_ context.Context) (*string, error)  { return nil, nil }
-func (s *watchdogMockSession) SetMode(_ string) error                              { return nil }
-func (s *watchdogMockSession) SetModel(_ string) error                             { return nil }
-func (s *watchdogMockSession) SetThinkingOption(_ string) error                    { return nil }
+func (s *watchdogMockSession) GetCurrentMode(_ context.Context) (*string, error) { return nil, nil }
+func (s *watchdogMockSession) SetMode(_ string) error                            { return nil }
+func (s *watchdogMockSession) SetModel(_ string) error                           { return nil }
+func (s *watchdogMockSession) SetThinkingOption(_ string) error                  { return nil }
 func (s *watchdogMockSession) DescribePersistence() *protocol.AgentPersistenceHandle {
 	return &protocol.AgentPersistenceHandle{Provider: "watchdog-mock", SessionID: "watchdog-session"}
 }
-func (s *watchdogMockSession) GetPendingPermissions() []interface{}                                    { return nil }
-func (s *watchdogMockSession) ListCommands(_ context.Context) ([]protocol.AgentSlashCommand, error)    { return nil, nil }
-func (s *watchdogMockSession) StreamHistory(_ context.Context) ([]AgentStreamEvent, error)             { return nil, nil }
+func (s *watchdogMockSession) GetPendingPermissions() []interface{} { return nil }
+func (s *watchdogMockSession) ListCommands(_ context.Context) ([]protocol.AgentSlashCommand, error) {
+	return nil, nil
+}
+func (s *watchdogMockSession) StreamHistory(_ context.Context) ([]AgentStreamEvent, error) {
+	return nil, nil
+}
 
 type watchdogMockClient struct {
 	mu      sync.Mutex
 	session *watchdogMockSession
 }
 
-func (c *watchdogMockClient) Provider() string { return "watchdog-mock" }
+func (c *watchdogMockClient) Provider() string                    { return "watchdog-mock" }
 func (c *watchdogMockClient) IsAvailable(_ context.Context) error { return nil }
 func (c *watchdogMockClient) CreateSession(_ context.Context, _ *protocol.AgentSessionConfig) (AgentSession, error) {
 	c.mu.Lock()

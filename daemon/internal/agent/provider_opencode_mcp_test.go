@@ -45,5 +45,3 @@ func TestToOpenCodeMcpConfig_Remote(t *testing.T) {
 		t.Errorf("headers: got %v", headers)
 	}
 }
-
-

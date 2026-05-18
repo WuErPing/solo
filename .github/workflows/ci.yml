@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: Go
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module:
+          - protocol
+          - cli
+          - daemon
+          - relay-go
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.6'
+          cache: true
+
+      - name: Go mod verify
+        working-directory: ${{ matrix.module }}
+        run: go mod verify
+
+      - name: Go build
+        working-directory: ${{ matrix.module }}
+        run: go build -v ./...
+
+      - name: Go test
+        working-directory: ${{ matrix.module }}
+        run: go test -short -v -race -count=1 -timeout=10m ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.10
+          working-directory: ${{ matrix.module }}
+          args: --timeout=5m
+          only-new-issues: true
+
+  js:
+    name: JavaScript / TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint app
+        working-directory: app
+        run: npx expo lint --max-warnings 9999
+
+      - name: Lint app-bridge
+        working-directory: app-bridge
+        run: npx eslint src/
+
+      - name: Lint packages/highlight
+        working-directory: packages/highlight
+        run: npx eslint src/
+
+      - name: Typecheck packages/highlight
+        working-directory: packages/highlight
+        run: npx tsc --noEmit
+
+      - name: Test packages/highlight
+        working-directory: packages/highlight
+        run: npm test
+
+      # TODO: fix existing type errors and make these required
+      - name: Typecheck app (optional)
+        working-directory: app
+        run: npx tsc --noEmit
+        continue-on-error: true
+
+      - name: Typecheck app-bridge (optional)
+        working-directory: app-bridge
+        run: npx tsc --noEmit
+        continue-on-error: true

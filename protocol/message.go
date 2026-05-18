@@ -101,7 +101,6 @@ type SessionOutboundMessage interface {
 	MsgType() string
 }
 
-
 func init() {
 	// Register all inbound message types
 	RegisterInbound("ping", func() SessionInboundMessage { return &PingMessage{} })

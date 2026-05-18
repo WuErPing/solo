@@ -12,8 +12,8 @@ type NotificationPlan struct {
 //   - If any client is visible AND focused on the agent: no notification
 //   - If any client is online (visible, recent activity): in-app notification to most recent
 //   - If no clients are online:
-//     - reason != "error": push notification
-//     - reason == "error": no push (avoid spam)
+//   - reason != "error": push notification
+//   - reason == "error": no push (avoid spam)
 func ComputeNotificationPlan(states []ClientPresenceState, agentID string, reason string, nowMs int64) NotificationPlan {
 	var mostRecentIndex *int
 	var mostRecentTime int64 = -1

@@ -56,9 +56,9 @@ type openCodeSession struct {
 	selectedModelContextWindowMaxTokens int            // resolved from config model or assistant message
 
 	// Commands cache (preloaded in background for fast ListCommands)
-	cachedCommands   []protocol.AgentSlashCommand
-	commandsReadyCh  chan struct{} // closed when cachedCommands is populated
-	commandsMu       sync.RWMutex  // protects cachedCommands
+	cachedCommands  []protocol.AgentSlashCommand
+	commandsReadyCh chan struct{} // closed when cachedCommands is populated
+	commandsMu      sync.RWMutex  // protects cachedCommands
 
 	// SSE idle timeout: if no event received within this window, the connection
 	// is considered dead. Defaults to opencodeSSEReadIdleTimeout; overridable for tests.
@@ -570,7 +570,6 @@ func (s *openCodeSession) RespondPermission(requestID string, response protocol.
 
 	return nil
 }
-
 
 func (s *openCodeSession) GetRuntimeInfo(ctx context.Context) (*protocol.AgentRuntimeInfo, error) {
 	return s.base.GetRuntimeInfo(), nil

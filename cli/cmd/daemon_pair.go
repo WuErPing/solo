@@ -3,10 +3,11 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/WuErPing/solo/cli/internal/client"
-	"github.com/WuErPing/solo/cli/internal/output"
 	"github.com/skip2/go-qrcode"
 	"github.com/spf13/cobra"
+
+	"github.com/WuErPing/solo/cli/internal/client"
+	"github.com/WuErPing/solo/cli/internal/output"
 )
 
 var daemonPairCmd = &cobra.Command{

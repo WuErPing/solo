@@ -4,9 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
+
 	"github.com/WuErPing/solo/daemon/internal/terminal"
 	"github.com/WuErPing/solo/protocol"
-	"github.com/gorilla/websocket"
 )
 
 // TestSession_SendBinaryFrame_AfterAttachSocket_DoesNotPanic verifies that
