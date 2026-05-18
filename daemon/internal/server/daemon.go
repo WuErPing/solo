@@ -13,9 +13,11 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/config"
+	"github.com/WuErPing/solo/daemon/internal/metrics"
 	"github.com/WuErPing/solo/daemon/internal/push"
 	"github.com/WuErPing/solo/daemon/internal/relayclient"
 	"github.com/WuErPing/solo/daemon/internal/terminal"
@@ -157,6 +159,7 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 	mux.HandleFunc("/ws", ws.HandleWebSocket)
 	mux.HandleFunc("/api/health", handleHealth)
 	mux.HandleFunc("/api/status", handleStatus(cfg))
+	mux.Handle("/metrics", promhttp.Handler())
 	// Script proxy routes (matched by hostname)
 	mux.Handle("/", scriptProxy)
 
@@ -611,6 +614,7 @@ func (s *WSServer) handleNewConnection(conn WSConn) {
 		s.mu.Lock()
 		if s.sessions[clientID] == existingSess && !existingSess.IsInGrace() {
 			delete(s.sessions, clientID)
+			metrics.SessionsActive.Dec()
 		}
 		s.mu.Unlock()
 		s.logger.Info("client disconnected after session resume", "clientId", clientID)
@@ -663,15 +667,18 @@ func (s *WSServer) handleNewConnection(conn WSConn) {
 		s.mu.Lock()
 		if s.sessions[clientID] == sess {
 			delete(s.sessions, clientID)
+			metrics.SessionsActive.Dec()
 		}
 		s.mu.Unlock()
 	}
 
 	s.logger.Info("client connected", "clientId", clientID, "clientType", clientType)
+	metrics.ConnectionsTotal.Inc()
 
 	s.mu.Lock()
 	s.sessions[clientID] = sess
 	s.mu.Unlock()
+	metrics.SessionsActive.Inc()
 
 	sess.Run()
 
@@ -680,6 +687,7 @@ func (s *WSServer) handleNewConnection(conn WSConn) {
 	s.mu.Lock()
 	if s.sessions[clientID] == sess && !sess.IsInGrace() {
 		delete(s.sessions, clientID)
+		metrics.SessionsActive.Dec()
 	}
 	s.mu.Unlock()
 
