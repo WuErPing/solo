@@ -108,3 +108,33 @@ func GeneratePairingOffer(serverID, relayEndpoint, appBaseURL string) (string, e
 
 	return fmt.Sprintf("%s/#offer=%s", base, encoded), nil
 }
+
+// DecodePairingOffer extracts and decodes the ConnectionOfferV2 from a pairing URL.
+func DecodePairingOffer(url string) (ConnectionOfferV2, error) {
+	var offer ConnectionOfferV2
+
+	// Find the offer fragment
+	const prefix = "#offer="
+	idx := -1
+	for i := 0; i <= len(url)-len(prefix); i++ {
+		if url[i:i+len(prefix)] == prefix {
+			idx = i + len(prefix)
+			break
+		}
+	}
+	if idx == -1 {
+		return offer, fmt.Errorf("no offer fragment found in URL")
+	}
+
+	encoded := url[idx:]
+	jsonData, err := base64.RawURLEncoding.DecodeString(encoded)
+	if err != nil {
+		return offer, fmt.Errorf("decode base64: %w", err)
+	}
+
+	if err := json.Unmarshal(jsonData, &offer); err != nil {
+		return offer, fmt.Errorf("unmarshal offer: %w", err)
+	}
+
+	return offer, nil
+}
