@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/skip2/go-qrcode"
@@ -83,5 +84,13 @@ func runDaemonPair(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Fprintln(output.Stdout, url)
+
+	offer, err := client.DecodePairingOffer(url)
+	if err == nil {
+		offerJSON, _ := json.MarshalIndent(offer, "", "  ")
+		fmt.Fprintln(output.Stdout, "\nPairing link (plaintext):")
+		fmt.Fprintln(output.Stdout, string(offerJSON))
+	}
+
 	return nil
 }
