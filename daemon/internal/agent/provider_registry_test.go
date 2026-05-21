@@ -168,7 +168,7 @@ func TestBuiltinProviderDefinitions(t *testing.T) {
 	for _, d := range defs {
 		ids[d.ID] = true
 	}
-	expected := []string{"claude", "codex", "copilot", "opencode", "kimi", "pi"}
+	expected := []string{"claude", "codex", "opencode", "kimi"}
 	for _, id := range expected {
 		if !ids[id] {
 			t.Errorf("expected builtin provider %q", id)
