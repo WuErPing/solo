@@ -455,6 +455,7 @@ function createDefaultDeps(): HostRuntimeControllerDeps {
         clientType: isNative ? "mobile" : getIsElectron() ? "cli" : "browser",
         appVersion: resolveAppVersion() ?? undefined,
         runtimeGeneration,
+        reconnect: { enabled: false },
         ...(isDev ? { runtimeMetricsIntervalMs: 10_000 } : {}),
       };
       if (connection.type === "directSocket" || connection.type === "directPipe") {
@@ -796,6 +797,12 @@ export class HostRuntimeController {
 
       const fastest = available[0] ?? null;
       if (!fastest || fastest.connectionId === currentActiveConnectionId) {
+        if (fastest && this.snapshot.connectionStatus !== "online") {
+          await this.switchToConnection({
+            connectionId: fastest.connectionId,
+            expectedProbeVersion: requestVersion,
+          });
+        }
         this.switchCandidateConnectionId = null;
         this.switchCandidateHitCount = 0;
         return;
@@ -1071,9 +1078,6 @@ export class HostRuntimeController {
     }
 
     const nextGeneration = this.snapshot.clientGeneration + 1;
-    if (existingClient) {
-      existingClient.setReconnectEnabled(true);
-    }
     const client =
       existingClient ??
       this.deps.createClient({

@@ -26,14 +26,14 @@ func NewProcessManager(binaryPath string, logger *slog.Logger) *ProcessManager {
 }
 
 // Start launches a subprocess with the given arguments and working directory.
-// Returns stdout, stderr, and the command.
+// Returns stdout, stderr, stdin, and the command.
 //
 // IMPORTANT: The caller MUST call cmd.Wait() when the process exits to reap
 // it and prevent zombie/defunct processes. Use WaitForExit() for a convenient
 // helper.
-func (pm *ProcessManager) Start(ctx context.Context, args []string, cwd string, env []string) (io.ReadCloser, io.ReadCloser, *exec.Cmd, error) {
+func (pm *ProcessManager) Start(ctx context.Context, args []string, cwd string, env []string) (io.ReadCloser, io.ReadCloser, io.WriteCloser, *exec.Cmd, error) {
 	if pm.binaryPath == "" {
-		return nil, nil, nil, fmt.Errorf("binary path is empty")
+		return nil, nil, nil, nil, fmt.Errorf("binary path is empty")
 	}
 
 	cmd := exec.CommandContext(ctx, pm.binaryPath, args...)
@@ -42,19 +42,24 @@ func (pm *ProcessManager) Start(ctx context.Context, args []string, cwd string, 
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("stdout pipe: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("stdout pipe: %w", err)
 	}
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("stderr pipe: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("stderr pipe: %w", err)
+	}
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("stdin pipe: %w", err)
 	}
 
 	if err := cmd.Start(); err != nil {
-		return nil, nil, nil, fmt.Errorf("start process: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("start process: %w", err)
 	}
 
-	return stdout, stderr, cmd, nil
+	return stdout, stderr, stdin, cmd, nil
 }
 
 // WaitForExit waits for a process to exit and returns its exit code.

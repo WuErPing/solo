@@ -1,300 +1,283 @@
-# Android 构建与安装指南
+# Android 真机构建与发布指南
 
-本文档记录本项目 Android APK 的完整构建与安装流程，包括 EAS 云端构建和本地 Gradle 构建两种方式。
-
----
-
-## 目录
-
-1. [环境准备](#环境准备)
-2. [EAS 云端构建（推荐）](#eas-云端构建推荐)
-3. [本地 Gradle 构建](#本地-gradle-构建)
-4. [常见问题与修复](#常见问题与修复)
-5. [安装到设备](#安装到设备)
-6. [图标规范](#图标规范)
+> 适用场景：修改 JS/组件代码（如 About Solo 页面加 logo）后，将更新发布到 Android 真机。
 
 ---
 
-## 环境准备
+## 1. 项目构建体系概述
 
-### 必需环境
+本项目基于 **Expo + EAS (Expo Application Services)** 构建，支持三种方式将代码变更同步到真机：
 
-| 组件 | 版本 | 说明 |
-|---|---|---|
-| Java | 17 | OpenJDK 17 |
-| Android SDK | — | 需包含以下组件 |
-| — platform-tools | 37.0.0+ | `adb`、`fastboot` 等 |
-| — platforms;android-36 | API 36 | 编译目标平台 |
-| — build-tools;36.0.0 | 36.0.0 | 主要构建工具 |
-| — build-tools;35.0.0 | 35.0.0 | 部分依赖需要 |
-| — cmake;3.22.1 | 3.22.1 | React Native C++ 编译 |
-| — NDK | 27.0.12077973 (r27) | 原生代码编译 |
+| 方式 | 适用场景 | 是否需要重新安装 App | 耗时 |
+|------|---------|-------------------|------|
+| Metro Reload (`r`) | 本地开发调试 | 否 | 秒级 |
+| EAS Update (OTA) | JS/资源热更新，已安装用户自动接收 | 否 | 2-5 分钟 |
+| 本地 Gradle Build | 不走远程服务，本地构建并安装 | 是 | 3-10 分钟 |
+| EAS Build | 原生代码变更、生成新 APK、新用户安装 | 是 | 10-30 分钟 |
 
-### 环境变量
-
-```bash
-export ANDROID_HOME="$HOME/Library/Android/sdk"
-export ANDROID_SDK_ROOT="$ANDROID_HOME"
-export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.0.12077973"
-export PATH="$ANDROID_HOME/platform-tools:$PATH"
-```
-
-### 安装 SDK 组件（macOS）
-
-```bash
-# 1. 下载 Android Command Line Tools
-mkdir -p "$ANDROID_HOME/cmdline-tools"
-cd "$ANDROID_HOME/cmdline-tools"
-curl -L -o cmdline-tools.zip \
-  "https://dl.google.com/android/repository/commandlinetools-mac-11076708_latest.zip"
-unzip -q cmdline-tools.zip
-mv cmdline-tools latest
-
-# 2. 安装必需组件
-./latest/bin/sdkmanager --install \
-  "platform-tools" \
-  "platforms;android-36" \
-  "build-tools;36.0.0" \
-  "build-tools;35.0.0" \
-  "cmake;3.22.1"
-
-# 3. 安装 NDK（手动下载 DMG）
-# NDK r27: https://dl.google.com/android/repository/android-ndk-r27-darwin.dmg
-# 挂载后将 NDK 目录复制到 $ANDROID_HOME/ndk/27.0.12077973
-```
+关键配置文件：
+- `app/eas.json` — EAS 构建配置（development / production / production-apk）
+- `app/app.config.js` — Expo 应用配置（含 EAS Update URL、runtimeVersion）
+- `app/package.json` — 构建脚本定义
 
 ---
 
-## EAS 云端构建（推荐）
+## 2. 方式一：开发调试（Metro Reload）
 
-适合不想配置本地 Android 环境的场景。构建在 Expo 服务器上完成，产物通过链接下载。
+适用于：本地开发阶段，修改 React 组件/JS 代码后即时验证。
 
-### 配置
+### 前提条件
+- 真机已安装 **Development Client**（通过 `eas build --profile development` 构建并安装）
+- 电脑与真机处于同一局域网
+- Metro 开发服务器已启动（`npm run start` 或 `npx expo start`）
 
-`app/eas.json` 已配置 `development` profile：
+### 操作步骤
 
-```json
-{
-  "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal",
-      "channel": "development",
-      "env": { "APP_VARIANT": "development" },
-      "android": { "gradleCommand": ":app:assembleDebug" }
-    }
-  }
-}
+1. 修改代码（如在 About Solo 页面添加 logo 组件）
+2. 保存文件，Metro 自动重新编译
+3. 在终端或真机调试菜单中 **按 `r`**
+4. 真机自动 reload，立即看到最新效果
+
+### 调试快捷键（开发服务器运行时）
+
+```
+› Press a     │ open Android
+› shift+a     │ select an Android device or emulator
+› Press r     │ reload app
+› Press j     │ open debugger
+› Press m     │ toggle menu
+› shift+m     │ more tools
+› Press o     │ open project code in your editor
+› Press c     │ show project QR
 ```
 
-### 提交构建
+### 连接真机时的典型日志
+```
+› Opening on Android...
+› Opening exp+voice-mobile://expo-development-client/?url=http%3A%2F%2F192.168.0.146%3A8081 on PLT140
+```
+
+> 注意：此方式仅同步 JS Bundle 和资源文件变更。**如果修改了原生代码、AndroidManifest.xml、添加了原生依赖，必须重新构建 Development Client。**
+
+---
+
+## 3. 方式二：EAS Update（OTA 热更新）
+
+适用于：JS/组件/图片资源变更，需要推送给已安装 App 的用户（包括开发客户端和正式版）。
+
+### 原理
+- 项目已配置 `updates.url`（`app.config.js` 中指向 Expo Update 服务）
+- `runtimeVersion: { policy: "appVersion" }` 确保更新与原生运行时兼容
+- 设备启动或前台恢复时自动检查并下载更新
+
+### 操作步骤
 
 ```bash
 cd app
-npx eas build --platform android --profile development
+
+# 推送到 development 频道（开发客户端接收）
+npx eas-cli update --channel development --message "About Solo 添加 logo"
+
+# 推送到 production 频道（正式版用户接收）
+npx eas-cli update --channel production --message "About Solo 添加 logo"
 ```
 
-### 状态查询
+### 验证更新
+1. 确保终端显示 `Update published` 成功信息
+2. 真机上杀死 App 进程后重新打开
+3. 或在 App 内设置中手动触发"检查更新"
+4. 更新会在后台下载，下次启动或特定时机生效（取决于 App 的更新策略配置）
 
-```bash
-npx eas build:view <build-id>
-```
-
-### 特点
-
-- 无需本地 Android SDK
-- 自动管理签名证书（Keystore）
-- 构建排队时间取决于服务器负载（10~30 分钟）
-- 产物为 Debug APK，内置 `expo-dev-client`
+### 注意事项
+- EAS Update **仅支持 JS 和资源文件变更**，不支持原生代码/配置变更
+- 更新受 `runtimeVersion` 限制，如果后续升级了 Expo SDK 或原生依赖，可能需要重新构建原生包
+- 可通过 Expo Dashboard 查看更新发布历史和安装统计
 
 ---
 
-## 本地 Gradle 构建
+## 4. 方式三：EAS Build（重新构建安装包）
 
-适合需要快速迭代、调试原生代码或离线工作的场景。
+适用于：原生代码变更、生成新 APK 分发、新设备安装、Development Client 重建。
 
-### Debug 构建（开发客户端）
+### 构建配置（eas.json）
 
-```bash
-cd app/android
-./gradlew :app:assembleDebug --no-daemon
-```
+| Profile | 用途 | 输出 |
+|---------|------|------|
+| `development` | 开发调试客户端 | APK (Debug) |
+| `production` | Google Play 上架 | AAB |
+| `production-apk` | 内部分发/测试 | APK (Release) |
 
-产物：`app/android/app/build/outputs/apk/debug/app-debug.apk`
+### 操作步骤
 
-特点：
-- 包含 `expo-dev-client`
-- 可连接 Metro 开发服务器
-- 使用 debug 签名
-
-### Release 构建（生产版本）
-
-```bash
-cd app/android
-./gradlew :app:assembleRelease --no-daemon
-```
-
-产物：`app/android/app/build/outputs/apk/release/app-release.apk`
-
-特点：
-- 不包含开发客户端
-- 独立运行，无需 Metro
-- 当前使用 debug 签名（生产环境应配置独立 Keystore）
-
-### 首次构建时长
-
-- Debug：约 15~30 分钟（首次，需下载依赖）
-- Release：约 4~6 分钟（增量构建约 20~30 秒）
-
----
-
-## 常见问题与修复
-
-### 1. NDK 版本不匹配
-
-**错误**：
-```
-NDK from ndk.dir had version [27.0.12077973] which disagrees with android.ndkVersion [27.1.12297006]
-```
-
-**修复**：在 `app/android/gradle.properties` 中覆盖版本：
-
-```properties
-ndkVersion=27.0.12077973
-```
-
-### 2. react-native-unistyles 编译错误
-
-**错误**：
-```
-Unresolved reference 'CxxPart'
-'initHybrid' overrides nothing
-```
-
-**原因**：`react-native-unistyles` 3.2.4 需要 `react-native-nitro-modules` 0.35.5，但项目锁定在 0.33.8。
-
-**修复**：升级 `react-native-nitro-modules`：
-
+#### 4.1 构建开发版（Development Client）
 ```bash
 cd app
-npm install react-native-nitro-modules@0.35.5
+npx eas-cli build --profile development --platform android
 ```
+- 输出：Debug APK，支持 Development Client 协议
+- 用途：本地开发、真机调试
 
-### 3. SDK 组件缺失
+#### 4.2 构建生产版 APK（内部分发）
+```bash
+cd app
+npx eas-cli build --profile production-apk --platform android
+```
+- 输出：Release APK，可直接安装分发
+- 用途：内部测试、未上架前的用户分发
 
-构建过程中可能依次提示缺少以下组件，逐一安装即可：
+#### 4.3 构建生产版 AAB（Google Play 上架）
+```bash
+cd app
+npx eas-cli build --profile production --platform android
+```
+- 输出：AAB 文件，用于 Google Play Console 上传
+- `versionCode` 会自动递增（`autoIncrement: "versionCode"`）
+
+### 安装到真机
+
+1. EAS Build 完成后会提供下载链接或二维码
+2. 方式 A：直接下载 APK 到手机安装（需允许"未知来源"安装）
+3. 方式 B：通过 `adb` 安装
+   ```bash
+   adb install -r ./path/to/app-release.apk
+   ```
+4. 方式 C：使用 EAS 内部分发页面，扫码直接安装
+
+---
+
+## 5. 方式四：本地 Gradle 构建 + adb 安装
+
+适用于：**不想走远程 EAS 服务**，在本机直接构建 APK 并安装到真机。
+
+### 前提条件
+- Android SDK 已配置（`adb` 命令可用）
+- 真机已通过 USB 连接并开启调试模式
+- 项目已执行过 `prebuild`（`app/android` 目录存在）
+
+### 操作步骤
 
 ```bash
-# build-tools
-sdkmanager --install "build-tools;36.0.0"
-sdkmanager --install "build-tools;35.0.0"
+# 1. 进入 Android 项目目录
+cd app/android
 
-# platform
-sdkmanager --install "platforms;android-36"
+# 2. 本地构建 Release APK（使用 debug signing）
+./gradlew assembleRelease --no-daemon
 
-# platform-tools
-sdkmanager --install "platform-tools"
+# 3. 安装到真机
+adb install -r app/build/outputs/apk/release/app-release.apk
+```
 
-# cmake
-sdkmanager --install "cmake;3.22.1"
+### 构建输出
+- APK 路径：`app/android/app/build/outputs/apk/release/app-release.apk`
+- 当前 `build.gradle` 中 `release` 的 `signingConfig` 指向 `signingConfigs.debug`，因此本地可直接安装，无需额外 keystore
+
+### 优缺点
+
+| 优点 | 缺点 |
+|------|------|
+| 完全不走远程 EAS 服务 | 依赖本地 Android 开发环境 |
+| 构建速度快（3-5 分钟） | 仅基于现有 prebuild 配置，无法自动切换 variant |
+| 适合快速验证 Release 效果 | 正式分发仍需配置 release keystore |
+
+> 注意：如果修改了 `app.config.js` 中的原生配置（如 packageId、权限、插件），需要先用对应 variant 重新执行 `expo prebuild`。
+
+---
+
+## 6. 决策流程图
+
+```
+修改了 About Solo 页面（加 logo）
+           │
+           ▼
+┌─────────────────────┐
+│ 是否只改了 JS/组件/   │
+│ 图片资源？           │
+└─────────────────────┘
+     │           │
+    是          否
+     │           │
+     ▼           ▼
+┌──────────┐  ┌─────────────────┐
+│ 本地调试？ │  │ 修改了原生代码/  │
+└──────────┘  │ 原生依赖/配置？   │
+  │     │     └─────────────────┘
+ 是     否          │
+  │     │          是
+  ▼     ▼           │
+按 r   ┌──────────┐ ▼
+reload │不走远程？ │ ► EAS Build
+       └──────────┘ 远程构建 APK
+        │      │
+       是      否
+        │      │
+        ▼      ▼
+   本地 Gradle  EAS Update
+   assemble    OTA 推送
+   + adb
 ```
 
 ---
 
-## 安装到设备
+## 7. 常见问题
 
-### 通过 ADB 安装
+### Q1: 按 `r` reload 后没有看到修改？
+- 检查 Metro 终端是否有编译错误（红屏）
+- 确认保存了文件且 Metro 已完成打包
+- 尝试完全关闭 App 重新打开
+- 检查是否缓存了旧 Bundle：`npx expo start --clear`
+
+### Q2: EAS Update 推送后真机没收到？
+- 确认推送的 `channel` 与设备上 App 的 channel 一致
+- Development Client 使用 `development` channel，正式版使用 `production` channel
+- 更新下载是异步的，可能需要重启 App 1-2 次
+- 检查 `runtimeVersion` 是否匹配
+
+### Q3: 如何查看当前 App 的版本和更新状态？
+- 在 App 的 About/Settings 页面查看版本号
+- 或通过代码调用 `Updates.checkForUpdateAsync()` 主动检查
+
+### Q4: 构建失败怎么办？
+- 查看 EAS 构建日志，定位具体错误
+- 本地先验证：`npm run android:production` 或 `npm run android:development`
+- 检查 `eas.json` 中的 gradle 命令和 env 变量配置
+- 确保 monorepo 依赖已正确构建：`npm run build:workspace-deps`
+
+---
+
+## 8. 相关命令速查
 
 ```bash
-# 安装 Debug APK
-adb install app/android/app/build/outputs/apk/debug/app-debug.apk
+# 进入应用目录
+cd app
 
-# 安装 Release APK（覆盖安装）
+# 启动开发服务器
+npm run start
+
+# 本地构建并运行 Android（development debug）
+npm run android:development
+
+# 本地构建并运行 Android（production release）
+npm run android:production
+
+# EAS Update
+eas update --channel <development|production> --message "描述"
+
+# 本地 Gradle 构建 Release APK
+cd app/android && ./gradlew assembleRelease --no-daemon
+
+# adb 安装 APK
 adb install -r app/android/app/build/outputs/apk/release/app-release.apk
 
-# 完全卸载后重装（清除缓存）
-adb uninstall sh.solo
-adb install app/android/app/build/outputs/apk/release/app-release.apk
-```
+# EAS Build
+eas build --profile <development|production-apk|production> --platform android
 
-### 通过 Gradle 直接安装并运行
+# 查看 EAS 配置
+eas config
 
-```bash
-cd app/android
-./gradlew :app:installDebug
-./gradlew :app:installRelease
-```
-
-### 指定设备（多设备时）
-
-```bash
-adb -s <device-id> install app-release.apk
-```
-
-### 启动应用
-
-```bash
-# 启动到主界面
-adb shell am start -n sh.solo/.MainActivity
-
-# 启动开发客户端并连接 Metro
-adb shell am start -a android.intent.action.VIEW \
-  -d "exp+voice-mobile://expo-development-client/?url=http%3A%2F%2F<ip>%3A8082" \
-  sh.solo
+# 查看已发布的更新
+eas update:list
 ```
 
 ---
 
-## 图标规范
-
-### Android 自适应图标要求
-
-| 项目 | 规范 |
-|---|---|
-| 画布尺寸 | 1024×1024 px（源文件） |
-| 安全区域 | 画布中心直径 66% 的圆形区域 |
-| 内容放置 | 核心图形必须位于安全区域内 |
-| 比例 | 必须为 **1:1 正方形** |
-| 背景色 | 在 `app.config.js` 中配置 `backgroundColor` |
-
-### 本项目配置
-
-```javascript
-// app.config.js
-android: {
-  adaptiveIcon: {
-    backgroundColor: "#000000",
-    foregroundImage: "./assets/images/android-icon-foreground.png",
-  },
-}
-```
-
-### 图标处理流程
-
-原始素材 `icon.png` 为 **1088×608 横长方形**，需处理为正方形：
-
-1. **提取圆形区域**：从原图裁剪以太极图为中心的正方形区域
-2. **去除外围背景**：将太极图外部的白色背景替换为黑色（与背景色一致）
-3. **缩放到安全区域**：624×624 px（1024 的 61%），居中放置
-4. **生成多密度资源**：
-   - 前景图（108/162/216/324/432 dp）
-   - 普通图标 + 圆形图标（48/72/96/144/192 dp）
-
-### 注意
-
-- 不要提供非正方形的前景图，Android 自适应图标系统会裁剪异常
-- 图标资源需同步到 `android/app/src/main/res/mipmap-*/` 各密度目录
-- 修改源文件后需重新构建 APK，完全卸载安装以清除 launcher 缓存
-
----
-
-## 相关文件
-
-| 文件 | 说明 |
-|---|---|
-| `app/eas.json` | EAS 构建配置 |
-| `app/app.config.js` | Expo 项目配置（含图标、scheme） |
-| `app/android/app/build.gradle` | Android 应用构建配置 |
-| `app/android/gradle.properties` | Gradle 属性（NDK 版本覆盖等） |
-| `app/assets/images/android-icon-foreground.png` | Android 自适应图标前景 |
-| `app/assets/images/icon.png` | 通用应用图标源文件 |
+*文档基于项目当前配置生成，如有构建流程变更请同步更新。*

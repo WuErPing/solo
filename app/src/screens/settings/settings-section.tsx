@@ -4,7 +4,7 @@ import { StyleSheet } from "react-native-unistyles";
 import { settingsStyles } from "@/styles/settings";
 
 interface SettingsSectionProps {
-  title: string;
+  title: ReactNode;
   trailing?: ReactNode;
   testID?: string;
   style?: StyleProp<ViewStyle>;
@@ -27,7 +27,11 @@ export function SettingsSection({
   return (
     <View style={sectionStyle} testID={testID}>
       <View style={styles.header}>
-        <Text style={settingsStyles.sectionHeaderTitle}>{title}</Text>
+        {typeof title === "string" ? (
+          <Text style={settingsStyles.sectionHeaderTitle}>{title}</Text>
+        ) : (
+          title
+        )}
         {trailing}
       </View>
       <View style={styles.content}>{children}</View>

@@ -98,7 +98,7 @@ func (c *ClaudeAgentClient) ListClientCommands(ctx context.Context, cwd string) 
 
 // processManager abstracts process lifecycle for testability.
 type processManager interface {
-	Start(ctx context.Context, args []string, cwd string, env []string) (io.ReadCloser, io.ReadCloser, *exec.Cmd, error)
+	Start(ctx context.Context, args []string, cwd string, env []string) (io.ReadCloser, io.ReadCloser, io.WriteCloser, *exec.Cmd, error)
 	Stop(cmd *exec.Cmd, timeout time.Duration) error
 	Interrupt(cmd *exec.Cmd) error
 	Kill(cmd *exec.Cmd) error
@@ -291,19 +291,12 @@ func (s *claudeSession) Subscribe() <-chan AgentStreamEvent {
 // Must be called with s.mu held.
 func (s *claudeSession) startProcessLocked(ctx context.Context, prompt string) error {
 	args := s.buildArgs(prompt)
-	stdout, stderr, cmd, err := s.process.Start(ctx, args, s.base.Config().Cwd, s.buildEnv())
+	stdout, stderr, stdin, cmd, err := s.process.Start(ctx, args, s.base.Config().Cwd, s.buildEnv())
 	if err != nil {
 		return err
 	}
 
-	// Capture stdin for permission responses
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		s.base.Logger().Warn("failed to get stdin pipe", "error", err)
-	} else {
-		s.stdinPipe = stdin
-	}
-
+	s.stdinPipe = stdin
 	s.stdoutPipe = stdout
 	s.stderrPipe = stderr
 	s.cmd = cmd

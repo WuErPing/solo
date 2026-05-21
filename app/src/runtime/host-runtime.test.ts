@@ -1221,6 +1221,35 @@ describe("HostRuntimeController", () => {
     expect(controller.getSnapshot().probeByConnectionId).not.toBe(firstProbeMap);
     unsubscribe();
   });
+
+  it("reactivates the same connection when probe succeeds while in error state (single connection)", async () => {
+    const host = makeSingleConnectionHost("srv_test");
+    const clients: FakeDaemonClient[] = [];
+    const controller = new HostRuntimeController({
+      host,
+      deps: makeDeps({ "direct:srv_test:6767": 10 }, clients),
+    });
+
+    await controller.start({ autoProbe: false });
+    await controller.runProbeCycleNow();
+
+    expect(controller.getSnapshot().connectionStatus).toBe("online");
+    expect(controller.getSnapshot().activeConnectionId).toBe("direct:srv_test:6767");
+
+    // Simulate daemon closing the session (not a client-side close)
+    const activeClient = clients[clients.length - 1] as unknown as FakeDaemonClient;
+    activeClient.setConnectionState({ status: "disconnected", reason: "transport closed" });
+
+    expect(controller.getSnapshot().connectionStatus).toBe("error");
+
+    // Force immediate re-probe
+    clearProbeBackoff(controller);
+    await controller.runProbeCycleNow();
+
+    // Should recover back to online by reactivating the same connection
+    expect(controller.getSnapshot().connectionStatus).toBe("online");
+    expect(controller.getSnapshot().activeConnectionId).toBe("direct:srv_test:6767");
+  });
 });
 
 describe("HostRuntimeStore", () => {
