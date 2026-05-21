@@ -31,6 +31,7 @@ import {
 } from "lucide-react-native";
 import { SidebarHeaderRow } from "@/components/sidebar/sidebar-header-row";
 import { SidebarSeparator } from "@/components/sidebar/sidebar-separator";
+import { SoloLogo } from "@/components/icons/solo-logo";
 import { ScreenTitle } from "@/components/headers/screen-title";
 import { HeaderIconBadge } from "@/components/headers/header-icon-badge";
 import { SettingsSection } from "@/screens/settings/settings-section";
@@ -342,7 +343,14 @@ interface AboutSectionProps {
 
 function AboutSection({ appVersionText, isDesktopApp }: AboutSectionProps) {
   return (
-    <SettingsSection title="About Solo">
+    <SettingsSection
+      title={
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Text style={settingsStyles.sectionHeaderTitle}>About Solo</Text>
+          <SoloLogo size={16} />
+        </View>
+      }
+    >
       <View style={settingsStyles.card}>
         <View style={settingsStyles.row}>
           <View style={settingsStyles.rowContent}>

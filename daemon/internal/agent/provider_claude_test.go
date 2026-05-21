@@ -25,8 +25,8 @@ func newFakeProcessManager(stdout io.ReadCloser, stderr io.ReadCloser, cmd *exec
 	return &fakeProcessManager{stdout: stdout, stderr: stderr, cmd: cmd}
 }
 
-func (f *fakeProcessManager) Start(ctx context.Context, args []string, cwd string, env []string) (io.ReadCloser, io.ReadCloser, *exec.Cmd, error) {
-	return f.stdout, f.stderr, f.cmd, nil
+func (f *fakeProcessManager) Start(ctx context.Context, args []string, cwd string, env []string) (io.ReadCloser, io.ReadCloser, io.WriteCloser, *exec.Cmd, error) {
+	return f.stdout, f.stderr, nil, f.cmd, nil
 }
 
 func (f *fakeProcessManager) Stop(cmd *exec.Cmd, timeout time.Duration) error { return nil }
