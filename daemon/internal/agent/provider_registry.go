@@ -132,15 +132,6 @@ func BuiltinProviderDefinitions() []ProviderDefinition {
 			Voice: &ProviderVoiceConfig{Enabled: true, DefaultModeID: "auto", DefaultModel: "gpt-5.4-mini"},
 		},
 		{
-			ID: "copilot", Label: "Copilot", Description: "GitHub Copilot",
-			DefaultModeID: strPtr("https://agentclientprotocol.com/protocol/session-modes#agent"),
-			Modes: []ProviderModeDefinition{
-				{ID: "https://agentclientprotocol.com/protocol/session-modes#agent", Label: "Agent", Description: "Standard agent mode", Icon: "ShieldAlert", ColorTier: "moderate"},
-				{ID: "https://agentclientprotocol.com/protocol/session-modes#plan", Label: "Plan", Description: "Planning mode", Icon: "ShieldCheck", ColorTier: "planning"},
-				{ID: "https://agentclientprotocol.com/protocol/session-modes#autopilot", Label: "Autopilot", Description: "Full autopilot mode", Icon: "ShieldOff", ColorTier: "dangerous"},
-			},
-		},
-		{
 			ID: "opencode", Label: "OpenCode", Description: "OpenCode Agent",
 			DefaultModeID: strPtr("build"),
 			Modes: []ProviderModeDefinition{
@@ -157,11 +148,6 @@ func BuiltinProviderDefinitions() []ProviderDefinition {
 				{ID: "bypassPermissions", Label: "Bypass Permissions", Description: "Skip all permission prompts", Icon: "ShieldOff", ColorTier: "dangerous"},
 				{ID: "plan", Label: "Plan", Description: "Planning mode", Icon: "ShieldCheck", ColorTier: "planning"},
 			},
-		},
-		{
-			ID: "pi", Label: "Pi", Description: "Pi Direct Agent",
-			DefaultModeID: nil,
-			Modes:         []ProviderModeDefinition{},
 		},
 	}
 }
