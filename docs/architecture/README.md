@@ -1,11 +1,18 @@
-# Solo 系统架构概览
+# Solo System Architecture
 
-## 目录
+> **Back to**: [Documentation Index](../README.md)
 
-- [网络架构](network-architecture.md) - nginx-relay-daemon 网络路径
-- [组件说明](components.md) - 各组件详细说明
-- [数据流](data-flow.md) - 消息和数据流动
-- [部署架构](deployment.md) - 部署和运维
+## In This Directory
+
+- [Network Architecture](network-architecture.md) — Nginx → Relay → Daemon paths, E2EE, Pairing Link
+- [Components](components.md) — App, App-Bridge, Daemon, Relay, CLI, Protocol specs
+- [Data Flow](data-flow.md) — WS message flows, session lifecycle, heartbeat
+- [Deployment](deployment.md) — Systemd, Docker, Nginx config, env vars
+
+## Related
+
+- [Provider Integration Research](../providers/) — Kimi Wire vs ACP, Cursor-Agent plan
+- [Technical Analysis](../analysis/) — Host status check probe cycle deep-dive
 
 ## 系统架构图
 

@@ -1,29 +1,126 @@
-# Solo 文档
+# Solo — Documentation Index
 
-## 架构文档
+> **Purpose**: Persistent context base for Solo development, CI/CD, and architecture decisions.
+> **Last updated**: 2026-05-22
 
-- [架构概览](architecture/README.md)
-- [网络架构](architecture/network-architecture.md) - nginx-relay-daemon 网络路径详解
-- [组件说明](architecture/components.md) - 各组件详细说明
-- [数据流](architecture/data-flow.md) - 消息和数据流动
-- [部署架构](deployment.md) - 部署和运维指南
+---
 
-## 开发文档
-
-- [Android 构建指南](android-build-guide.md)
-- [Android 启动画面修复](android-splash-icon-fix.md)
-
-## 项目结构
+## Directory Structure
 
 ```
 docs/
-├── README.md                          # 本文档
-├── architecture/                      # 架构文档
-│   ├── README.md                      # 架构概览
-│   ├── network-architecture.md        # 网络架构
-│   ├── components.md                  # 组件说明
-│   ├── data-flow.md                   # 数据流
-│   └── deployment.md                  # 部署架构
-├── android-build-guide.md             # Android 构建指南
-└── android-splash-icon-fix.md         # Android 启动画面修复记录
+├── README.md                              ← You are here (master index)
+├── architecture/                          ← System architecture & design
+│   ├── README.md                          # Architecture overview & diagrams
+│   ├── components.md                      # Component specifications
+│   ├── data-flow.md                       # Message flows & session lifecycle
+│   ├── deployment.md                      # Deployment, Nginx, Systemd, Docker
+│   └── network-architecture.md            # Network paths, E2EE, Pairing Link
+├── product/                               ← Product feature analysis
+│   ├── features.md                        # Full product feature analysis
+│   └── ui-features.md                     # App UI screens, components, hooks
+├── providers/                             ← AI provider integration research
+│   ├── kimi-wire-vs-acp.md               # Kimi Wire vs ACP protocol comparison
+│   └── kimi-cursor-integration.md         # Kimi & Cursor-Agent integration plan
+└── analysis/                              ← Deep-dive technical analysis
+    └── host-status-check.md               # Host probe cycle & status machine
 ```
+
+---
+
+## 1 · Architecture
+
+System design, component contracts, and runtime behaviour.
+
+| Document | Type | Audience | Summary |
+|----------|------|----------|---------|
+| [Architecture Overview](architecture/README.md) | Reference | All | Layer diagram, component table, quick links |
+| [Components](architecture/components.md) | Reference | Dev | App · App-Bridge · Daemon · Relay · CLI · Protocol |
+| [Data Flow](architecture/data-flow.md) | Reference | Dev | WS message flow, E2EE handshake, session lifecycle, heartbeat |
+| [Network Architecture](architecture/network-architecture.md) | Deep-dive | Dev / Infra | Nginx → Relay → Daemon paths, port ACL, Pairing Link protocol |
+| [Deployment](architecture/deployment.md) | Runbook | Infra / CI | Systemd, Docker, Nginx config, env vars, monitoring, troubleshooting |
+
+**Key facts (always-on context)**:
+- Daemon listens `127.0.0.1:17612`; Relay listens `127.0.0.1:8081` (behind Nginx :443)
+- Production relay endpoint: `solo.up2ai.top:443` (never use raw IP:8081)
+- E2EE: X25519 key exchange + XSalsa20-Poly1305
+- Pairing Link format: `https://app.solo.sh/#offer={base64url(ConnectionOfferV2)}`
+
+---
+
+## 2 · Product
+
+Feature inventory and UI/UX analysis.
+
+| Document | Type | Summary |
+|----------|------|---------|
+| [Product Features](product/features.md) | Analysis | Full feature tree: Agent system, session, workspace, push, relay, CLI, tests, CI/CD |
+| [UI Features](product/ui-features.md) | Analysis | Screen map, component catalogue, contexts, hooks, stores, feature checklist |
+
+**Current completion**: ~78-85 %. Main gaps: GitHub integration, voice (TTS/STT), additional providers (Kimi, Codex, Copilot).
+
+---
+
+## 3 · Providers
+
+AI provider integration research and implementation plans.
+
+| Document | Type | Summary |
+|----------|------|---------|
+| [Kimi Wire vs ACP](providers/kimi-wire-vs-acp.md) | Comparison | Wire mode recommended for Solo (full Kimi feature set, stdio-only) |
+| [Kimi & Cursor-Agent Integration](providers/kimi-cursor-integration.md) | Implementation plan | Wire mode for Kimi; Print mode for Cursor-Agent; backend Go registration |
+
+**Currently implemented providers**: Claude (print/stream-json), OpenCode (SSE), Mock.
+
+---
+
+## 4 · Technical Analysis
+
+Deep dives into specific subsystems.
+
+| Document | Type | Summary |
+|----------|------|---------|
+| [Host Status Check](analysis/host-status-check.md) | Analysis | Probe cycle (2-30 s), adaptive switching, state machine conflict, grace-period fix |
+
+---
+
+## 5 · Build & CI/CD Quick Reference
+
+> Full commands live in `Makefile` and `.github/workflows/ci.yml`.
+
+### Build targets
+
+| Target | Command | Output |
+|--------|---------|--------|
+| Darwin binaries | `make darwin` | `output/darwin/{solo,solo-relay,solo-cli}` |
+| Linux binaries | `make linux` | `output/linux/{solo,solo-relay,solo-cli}` |
+| Dev (daemon + web) | `make dev` | daemon :17612 + Expo :19000 |
+| Deploy relay | `make deploy-solo-relay` | scp + systemctl restart |
+
+### CI pipeline (`.github/workflows/ci.yml`)
+
+| Job | Steps |
+|-----|-------|
+| `go` (matrix: protocol, cli, daemon, relay-go) | `go mod verify` → `go build` → `go test -short -race` → `golangci-lint v2.10` |
+| `js` | `npm ci` → lint (app, app-bridge, highlight) → typecheck (optional) → test highlight |
+
+### Tech stack summary
+
+| Layer | Stack |
+|-------|-------|
+| Backend | Go 1.25 · gorilla/websocket · creack/pty · slog |
+| Frontend | Expo 54 · React Native 0.81 · React 19 · TypeScript |
+| State | Zustand · @tanstack/react-query · React Context |
+| Crypto | X25519 + XSalsa20-Poly1305 (E2EE) |
+| Deploy | Systemd · Docker · Nginx + Let's Encrypt |
+| CI | GitHub Actions · golangci-lint v2 · ESLint |
+
+---
+
+## 6 · How to Use These Docs
+
+1. **Starting a feature** → read the relevant Architecture doc first, then check Product for existing coverage.
+2. **Adding a provider** → read `providers/` docs for protocol decisions, then `architecture/components.md` § Daemon.
+3. **Debugging connectivity** → `architecture/network-architecture.md` (port ACL, common misconfig) + `architecture/deployment.md` (troubleshooting).
+4. **CI/CD changes** → check § 5 above + `Makefile` + `.github/workflows/ci.yml`.
+5. **Agent/context boot** → the `solo-dev-base` skill (`.agents/skills/solo-dev-base/SKILL.md`) loads key facts from this index automatically.
