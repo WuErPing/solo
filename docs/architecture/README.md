@@ -7,6 +7,7 @@
 - [Network Architecture](network-architecture.md) — Nginx → Relay → Daemon paths, E2EE, Pairing Link
 - [Components](components.md) — App, App-Bridge, Daemon, Relay, CLI, Protocol specs
 - [Data Flow](data-flow.md) — WS message flows, session lifecycle, heartbeat
+- [Timeline Design](timeline-design.md) — Head/Tail stream model, seq gate, bootstrap policy, catch-up
 - [Deployment](deployment.md) — Systemd, Docker, Nginx config, env vars
 
 ## Related
