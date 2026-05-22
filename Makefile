@@ -73,6 +73,7 @@ stop:
 	-pkill -f "expo start --web" 2>/dev/null || true
 	-pkill -f "output/darwin/solo$$" 2>/dev/null || true
 	@sleep 1
+	-pkill -9 -f "output/darwin/solo$$" 2>/dev/null || true
 	@echo "Done."
 
 stop-all:
@@ -82,6 +83,8 @@ stop-all:
 restart: darwin
 	@echo "Restarting solo daemon..."
 	-pkill -f "output/darwin/solo$$" 2>/dev/null || true
+	@sleep 1
+	-pkill -9 -f "output/darwin/solo$$" 2>/dev/null || true
 	@sleep 1
 	@$(OUTPUT)/darwin/solo > /tmp/solo-daemon.log 2>&1 & \
 	echo "Daemon started (PID: $$!), logs at /tmp/solo-daemon.log"

@@ -1,6 +1,6 @@
 import React, { useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import Markdown, { MarkdownIt } from "react-native-markdown-display";
+import Markdown, { MarkdownIt, renderRules, type ASTNode } from "react-native-markdown-display";
 import {
   ActivityIndicator,
   Image as RNImage,
@@ -23,6 +23,7 @@ import {
 } from "@getsolo/highlight";
 import { lineNumberGutterWidth } from "@/components/code-insets";
 import { isRenderedMarkdownFile } from "@/components/file-pane-render-mode";
+import { MermaidPreview } from "@/components/mermaid-preview";
 import { isWeb } from "@/constants/platform";
 import { createMarkdownStyles } from "@/styles/markdown-styles";
 import type { AttachmentMetadata } from "@/attachments/types";
@@ -175,6 +176,26 @@ function FilePreviewBody({
   const baseColor = isDark ? "#c9d1d9" : "#24292f";
   const markdownStyles = useMemo(() => createMarkdownStyles(theme), [theme]);
   const markdownParser = useMemo(() => MarkdownIt({ typographer: true, linkify: true }), []);
+  const markdownRules = useMemo(
+    () => ({
+      fence: (
+        node: ASTNode,
+        children: React.ReactNode[],
+        parentNodes: ASTNode[],
+        styles: Record<string, unknown>,
+        inheritedStyles = {},
+      ) => {
+        const sourceInfo = (node as ASTNode & { sourceInfo?: string }).sourceInfo;
+        if (sourceInfo === "mermaid") {
+          return (
+            <MermaidPreview key={node.key} source={node.content} isDark={isDark} />
+          );
+        }
+        return renderRules.fence!(node, children, parentNodes, styles, inheritedStyles);
+      },
+    }),
+    [isDark],
+  );
   const isMarkdownFile = preview?.kind === "text" && isRenderedMarkdownFile(filePath);
 
   const previewScrollRef = useRef<RNScrollView>(null);
@@ -232,7 +253,7 @@ function FilePreviewBody({
             scrollEventThrottle={16}
             showsVerticalScrollIndicator={!showDesktopWebScrollbar}
           >
-            <Markdown style={markdownStyles} markdownit={markdownParser}>
+            <Markdown style={markdownStyles} markdownit={markdownParser} rules={markdownRules}>
               {preview.content ?? ""}
             </Markdown>
           </RNScrollView>
