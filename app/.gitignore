@@ -40,6 +40,9 @@ yarn-error.*
 # vitest browser failure screenshots
 .vitest-screenshots/
 
+# vite-node debug dump
+.vite-node/
+
 app-example
 
 # generated native folders

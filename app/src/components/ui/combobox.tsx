@@ -172,6 +172,7 @@ export function SearchInput({
         onChangeText={onChangeText}
         autoCapitalize="none"
         autoCorrect={false}
+        autoComplete="off"
         onSubmitEditing={onSubmitEditing}
       />
     </View>
