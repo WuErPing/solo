@@ -3,6 +3,9 @@
 > 分析日期：2026-05-21
 > 仓库：/Users/wuerping/code/wuerping/solo
 > 分析范围：daemon (Go) + app-bridge (TS) + app (React Native)
+>
+> **Status update (2026-05-22)**: Kimi Wire mode provider is now **fully implemented** (`provider_kimi.go`, 758 LOC, 23 tests).
+> Cursor-Agent remains planned.
 
 ---
 
@@ -10,7 +13,7 @@
 
 | Provider | 当前状态 | 推荐集成方式 | 复杂度 |
 |---------|---------|------------|--------|
-| **Kimi** | 有前端/注册表静态定义，无 Go 实现 | **Wire 模式** (`kimi --wire`) | 中高 |
+| **Kimi** | **✅ 已实现** (JSON-RPC 2.0 stdio, EventPump) | **Wire 模式** (`kimi --wire`) | 中高 |
 | **Cursor-Agent** | 完全缺失 | **Print 模式** (`cursor agent --print --output-format stream-json`) | 中等 |
 
 ---
