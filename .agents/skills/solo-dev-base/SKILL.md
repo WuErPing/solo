@@ -7,7 +7,7 @@ description: Base development context for the Solo AI coding assistant platform.
 
 ## Overview
 
-Solo is a local-first AI coding assistant platform with a Go daemon, a cross-platform React Native/Expo app, a WebSocket relay, and a CLI. The system supports direct local connections and remote relay connections with end-to-end encryption (E2EE).
+Solo is a local-first AI coding assistant platform with a Go daemon, a cross-platform React Native/Expo app, a WebSocket relay, and a CLI. The system supports direct local connections and remote relay connections with end-to-end encryption (E2EE). It currently ships 4 built-in AI providers (Claude, Kimi, OpenCode, Codex) with Kimi integrated via JSON-RPC 2.0 Wire mode.
 
 ## When to Use
 
@@ -83,7 +83,7 @@ solo/
 
 | Layer | Technology |
 |-------|-----------|
-| **Backend** | Go 1.25, gorilla/websocket, creack/pty, slog |
+| **Backend** | Go 1.25, gorilla/websocket, creack/pty, slog, BurntSushi/toml |
 | **Frontend** | Expo 54, React Native 0.81, React 19, TypeScript |
 | **State** | Zustand, @tanstack/react-query, React Context |
 | **Styling** | Unistyles (dynamic theming) |
@@ -145,13 +145,16 @@ File: `.github/workflows/ci.yml`
 
 ## Currently Implemented Providers
 
-| Provider | Mode | Backend |
-|----------|------|---------|
-| Claude | Print (`--print --output-format stream-json`) | Go ✅ |
-| OpenCode | SSE (`/global/event`) | Go ✅ |
-| Mock | Test | Go ✅ |
+| Provider | Mode | Backend | Status |
+|----------|------|---------|--------|
+| Claude | Print (`--print --output-format stream-json`) | Go | ✅ Full |
+| Kimi | Wire (`kimi --wire`, JSON-RPC 2.0 stdio) | Go | ✅ Full (758 LOC, 23 tests) |
+| OpenCode | SSE (`/global/event`) | Go | ✅ Full |
+| Codex | Print (OpenAI) | — | ⚠️ Definition only, no backend |
+| Mock | Test | Go | ✅ Test only |
 
-**Planned**: Kimi (Wire mode), Cursor-Agent (Print mode). See `docs/providers/`.
+**Removed**: Copilot, Pi (removed from builtin registry).
+**Planned**: Cursor-Agent (Print mode). See `docs/providers/`.
 
 ## Documentation Index
 

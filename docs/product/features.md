@@ -26,12 +26,15 @@
 - **会话恢复**：从 persistence handle 恢复 Agent 状态
 
 #### 1.2 多 Provider 支持
-当前支持 3 个 Provider：
+当前内置 4 个 Provider（+ Mock 测试用）：
 - **Claude**：通过 CLI `--print --output-format stream-json` 集成
+- **Kimi**：Wire 模式 (`kimi --wire`)，JSON-RPC 2.0 stdio 通信，EventPump 事件泵，动态读取 `~/.kimi/config.toml` 模型列表（758 LOC，23 个单元测试）
 - **OpenCode**：SSE `/global/event` 事件流，完整支持 reasoning/thinking
+- **Codex**：仅注册表定义，无后端实现
 - **Mock**：测试用 Provider
 
-缺失 Provider（Paseo 有 9 个）：Kimi、Codex、Copilot、PI Direct、Generic ACP、ACP Agent
+已移除 Provider：Copilot、PI Direct
+缺失 Provider（Paseo 有 9 个）：Generic ACP、ACP Agent、Cursor-Agent（计划中）
 
 #### 1.3 流式事件处理
 - **Stream Coalescer**：200-500ms 动态窗口，减少 WS 消息量
@@ -198,7 +201,7 @@
 1. **GitHub 集成**：开发者工作流核心（Paseo 有 1,911 行实现）
 2. **Chat 系统**：多 Agent 协作场景
 3. **Voice/Speech**：TTS/STT、Dictation、Voice Runtime
-4. **更多 Provider**：Kimi、Codex、Copilot 等 6 个
+4. **更多 Provider**：Cursor-Agent、Generic ACP、ACP Agent
 
 ### 中优先级缺失
 5. **Schedule/Cron**：定时任务调度
@@ -213,7 +216,7 @@
 - **WebSocket**：gorilla/websocket
 - **PTY**：creack/pty
 - **加密**：E2EE（X25519 + XSalsa20-Poly1305）
-- **配置**：环境变量 + JSON 配置文件
+- **配置**：环境变量 + JSON 配置文件 + TOML (Kimi 模型读取)
 - **日志**：slog
 
 ### 前端
@@ -239,4 +242,4 @@ Solo 是一个功能完整的 AI 开发助手平台，核心功能包括：
 5. **安全中继**：E2EE 加密、CORS 保护
 6. **生产就绪**：测试覆盖、监控、CI/CD
 
-当前完成度约 **78-85%**，主要差距在 GitHub 集成、语音能力和更多 AI Provider 支持。
+当前完成度约 **80-87%**，主要差距在 GitHub 集成、语音能力和更多 AI Provider 支持。

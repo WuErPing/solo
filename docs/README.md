@@ -57,7 +57,7 @@ Feature inventory and UI/UX analysis.
 | [Product Features](product/features.md) | Analysis | Full feature tree: Agent system, session, workspace, push, relay, CLI, tests, CI/CD |
 | [UI Features](product/ui-features.md) | Analysis | Screen map, component catalogue, contexts, hooks, stores, feature checklist |
 
-**Current completion**: ~78-85 %. Main gaps: GitHub integration, voice (TTS/STT), additional providers (Kimi, Codex, Copilot).
+**Current completion**: ~80-87 %. Main gaps: GitHub integration, voice (TTS/STT), Cursor-Agent / ACP providers.
 
 ---
 
@@ -70,7 +70,9 @@ AI provider integration research and implementation plans.
 | [Kimi Wire vs ACP](providers/kimi-wire-vs-acp.md) | Comparison | Wire mode recommended for Solo (full Kimi feature set, stdio-only) |
 | [Kimi & Cursor-Agent Integration](providers/kimi-cursor-integration.md) | Implementation plan | Wire mode for Kimi; Print mode for Cursor-Agent; backend Go registration |
 
-**Currently implemented providers**: Claude (print/stream-json), OpenCode (SSE), Mock.
+**Currently implemented providers**: Claude (print/stream-json), Kimi (Wire mode, JSON-RPC 2.0 stdio), OpenCode (SSE), Codex (definition only), Mock (test).
+
+**Removed**: Copilot, Pi. **Planned**: Cursor-Agent (Print mode).
 
 ---
 
