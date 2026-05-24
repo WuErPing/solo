@@ -215,13 +215,14 @@ func TestPiTranslator_TextDelta(t *testing.T) {
 }
 
 // TestPiTranslator_ToolCall emits tool_call timeline events.
+// Pi uses 'toolcall_start' / 'toolcall_end' (no underscore) with 'partial' / 'toolCall' fields.
 func TestPiTranslator_ToolCall(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	sess := newTestPiSession(logger)
 	translator := &piTranslator{session: sess}
 
-	// tool_call_start
-	events, _, err := translator.Translate([]byte(`{"type":"message_update","assistantMessageEvent":{"type":"tool_call_start","toolCall":{"id":"tc-1","name":"read","arguments":"{\"file\":\"test.go\"}"}}}`), time.Now())
+	// toolcall_start with 'partial' field (Pi's actual format)
+	events, _, err := translator.Translate([]byte(`{"type":"message_update","assistantMessageEvent":{"type":"toolcall_start","contentIndex":1,"partial":{"type":"toolCall","id":"tc-1","name":"read","arguments":null}}}`), time.Now())
 	if err != nil {
 		t.Fatalf("Translate returned error: %v", err)
 	}
@@ -238,14 +239,14 @@ func TestPiTranslator_ToolCall(t *testing.T) {
 		t.Fatalf("expected status running, got %s", item.Status)
 	}
 	if item.Detail == nil {
-		t.Fatal("expected detail for tool_call_start")
+		t.Fatal("expected detail for toolcall_start")
 	}
 	if item.Error != nil {
 		t.Fatalf("expected nil error for running tool call, got %v", item.Error)
 	}
 
-	// tool_call_end
-	events, _, err = translator.Translate([]byte(`{"type":"message_update","assistantMessageEvent":{"type":"tool_call_end","toolCall":{"id":"tc-1","name":"read"}}}`), time.Now())
+	// toolcall_end with 'toolCall' field (Pi's actual format)
+	events, _, err = translator.Translate([]byte(`{"type":"message_update","assistantMessageEvent":{"type":"toolcall_end","contentIndex":1,"toolCall":{"type":"toolCall","id":"tc-1","name":"read","arguments":"{\"file\":\"test.go\"}"}}}`), time.Now())
 	if err != nil {
 		t.Fatalf("Translate returned error: %v", err)
 	}
@@ -259,7 +260,7 @@ func TestPiTranslator_ToolCall(t *testing.T) {
 		t.Fatalf("expected status completed, got %s", item.Status)
 	}
 	if item.Detail == nil {
-		t.Fatal("expected detail for tool_call_end")
+		t.Fatal("expected detail for toolcall_end")
 	}
 	if item.Error != nil {
 		t.Fatalf("expected nil error for completed tool call, got %v", item.Error)
@@ -351,6 +352,110 @@ func TestPiTerminalDetector_TurnEnd(t *testing.T) {
 	}
 }
 
+// TestPiTranslator_TurnEnd_WithText emits assistant_message from turn_end
+// when no text_delta was seen (tool-call turn pattern).
+func TestPiTranslator_TurnEnd_WithText(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	sess := newTestPiSession(logger)
+	translator := &piTranslator{session: sess}
+
+	events, isTerminal, err := translator.Translate([]byte(`{"type":"turn_end","message":{"role":"assistant","content":[{"type":"text","text":"Here is the result."}]}}`), time.Now())
+	if err != nil {
+		t.Fatalf("Translate returned error: %v", err)
+	}
+	if !isTerminal {
+		t.Fatal("expected turn_end to be terminal")
+	}
+	if len(events) != 2 {
+		t.Fatalf("expected 2 events (assistant_message + turn_completed), got %d", len(events))
+	}
+
+	// First event should be assistant_message
+	streamEvt := events[0].(AgentStreamEvent)
+	payload := streamEvt.Event.(map[string]interface{})
+	if payload["type"] != "timeline" {
+		t.Fatalf("expected timeline, got %v", payload["type"])
+	}
+	item := payload["item"].(TimelineItem)
+	if item.Type != "assistant_message" {
+		t.Fatalf("expected assistant_message, got %s", item.Type)
+	}
+	if item.Text != "Here is the result." {
+		t.Fatalf("expected text 'Here is the result.', got %s", item.Text)
+	}
+
+	// Second event should be turn_completed
+	streamEvt = events[1].(AgentStreamEvent)
+	payload = streamEvt.Event.(map[string]interface{})
+	if payload["type"] != "turn_completed" {
+		t.Fatalf("expected turn_completed, got %v", payload["type"])
+	}
+}
+
+// TestPiTranslator_TurnEnd_NoDuplicateText verifies that turn_end does NOT
+// emit assistant_message when text_delta was already emitted.
+func TestPiTranslator_TurnEnd_NoDuplicateText(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	sess := newTestPiSession(logger)
+	translator := &piTranslator{session: sess}
+
+	// text_delta sets textEmitted = true
+	_, _, err := translator.Translate([]byte(`{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"Hello"}}`), time.Now())
+	if err != nil {
+		t.Fatalf("Translate returned error: %v", err)
+	}
+
+	// turn_end should NOT emit assistant_message because text was already emitted
+	events, _, err := translator.Translate([]byte(`{"type":"turn_end","message":{"role":"assistant","content":[{"type":"text","text":"Hello"}]}}`), time.Now())
+	if err != nil {
+		t.Fatalf("Translate returned error: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event (turn_completed only), got %d", len(events))
+	}
+	streamEvt := events[0].(AgentStreamEvent)
+	payload := streamEvt.Event.(map[string]interface{})
+	if payload["type"] != "turn_completed" {
+		t.Fatalf("expected turn_completed, got %v", payload["type"])
+	}
+}
+
+// TestPiTranslator_MessageEnd_WithText emits assistant_message from message_end
+// when no text_delta was seen.
+func TestPiTranslator_MessageEnd_WithText(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	sess := newTestPiSession(logger)
+	translator := &piTranslator{session: sess}
+
+	// assistant message_start resets textEmitted
+	_, _, err := translator.Translate([]byte(`{"type":"message_start","message":{"role":"assistant","content":[]}}`), time.Now())
+	if err != nil {
+		t.Fatalf("Translate returned error: %v", err)
+	}
+
+	// message_end should emit assistant_message because no text_delta was seen
+	events, _, err := translator.Translate([]byte(`{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"Response text"}],"usage":{"input":1,"output":2,"totalTokens":3,"cost":{"total":0.001}}}}`), time.Now())
+	if err != nil {
+		t.Fatalf("Translate returned error: %v", err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("expected 2 events (assistant_message + usage_updated), got %d", len(events))
+	}
+
+	streamEvt := events[0].(AgentStreamEvent)
+	payload := streamEvt.Event.(map[string]interface{})
+	if payload["type"] != "timeline" {
+		t.Fatalf("expected timeline, got %v", payload["type"])
+	}
+	item := payload["item"].(TimelineItem)
+	if item.Type != "assistant_message" {
+		t.Fatalf("expected assistant_message, got %s", item.Type)
+	}
+	if item.Text != "Response text" {
+		t.Fatalf("expected text 'Response text', got %s", item.Text)
+	}
+}
+
 // TestPiTerminalEventValueIsDispatcherCritical verifies that the terminal
 // event emitted by the PI translator is recognized as critical by the dispatcher.
 func TestPiTerminalEventValueIsDispatcherCritical(t *testing.T) {
@@ -387,5 +492,134 @@ func TestPiTerminalEventValueIsDispatcherCritical(t *testing.T) {
 	}
 	if _, ok := interface{}(*terminal).(base.CriticalEvent); !ok {
 		t.Fatal("PI terminal AgentStreamEvent value must be dispatcher-critical")
+	}
+}
+
+// TestPiTranslator_TurnEnd_ToolUse_NotTerminal verifies that turn_end with
+// stopReason "toolUse" is NOT treated as terminal. This is the core bug: when
+// querying "date", Pi runs a tool (bash) and emits an intermediate turn_end
+// with stopReason="toolUse", followed by a second turn with the actual answer.
+// The translator must not stop processing at the intermediate turn_end.
+func TestPiTranslator_TurnEnd_ToolUse_NotTerminal(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	sess := newTestPiSession(logger)
+	translator := &piTranslator{session: sess}
+
+	events, isTerminal, err := translator.Translate([]byte(`{"type":"turn_end","message":{"role":"assistant","content":[{"type":"thinking","thinking":"thinking...","thinkingSignature":"reasoning_content"},{"type":"toolCall","id":"call_1","name":"bash","arguments":{"command":"date"}}],"stopReason":"toolUse"}}`), time.Now())
+	if err != nil {
+		t.Fatalf("Translate returned error: %v", err)
+	}
+	if isTerminal {
+		t.Fatal("turn_end with stopReason=toolUse must NOT be terminal — it is an intermediate turn before the final response")
+	}
+	// Should emit no turn_completed event for a toolUse turn
+	for _, raw := range events {
+		evt, ok := raw.(AgentStreamEvent)
+		if !ok {
+			continue
+		}
+		payload, ok := evt.Event.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if payload["type"] == "turn_completed" {
+			t.Fatal("turn_end with stopReason=toolUse must not emit turn_completed")
+		}
+	}
+}
+
+// TestPiTranslator_TurnEnd_Stop_IsTerminal verifies that turn_end with
+// stopReason "stop" IS treated as terminal (the final response turn).
+func TestPiTranslator_TurnEnd_Stop_IsTerminal(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	sess := newTestPiSession(logger)
+	translator := &piTranslator{session: sess}
+
+	events, isTerminal, err := translator.Translate([]byte(`{"type":"turn_end","message":{"role":"assistant","content":[{"type":"text","text":"Today is Sunday."}],"stopReason":"stop","usage":{"input":10,"output":5,"totalTokens":15,"cost":{"total":0.00001}}}}`), time.Now())
+	if err != nil {
+		t.Fatalf("Translate returned error: %v", err)
+	}
+	if !isTerminal {
+		t.Fatal("turn_end with stopReason=stop must be terminal")
+	}
+	// Should emit turn_completed
+	var gotTurnCompleted bool
+	for _, raw := range events {
+		evt, ok := raw.(AgentStreamEvent)
+		if !ok {
+			continue
+		}
+		payload, ok := evt.Event.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if payload["type"] == "turn_completed" {
+			gotTurnCompleted = true
+		}
+	}
+	if !gotTurnCompleted {
+		t.Fatal("turn_end with stopReason=stop must emit turn_completed")
+	}
+}
+
+// TestPiTranslator_TurnEnd_EmptyStopReason_IsTerminal verifies that turn_end
+// without stopReason (legacy/unknown) is still treated as terminal for
+// backwards compatibility.
+func TestPiTranslator_TurnEnd_EmptyStopReason_IsTerminal(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	sess := newTestPiSession(logger)
+	translator := &piTranslator{session: sess}
+
+	events, isTerminal, err := translator.Translate([]byte(`{"type":"turn_end"}`), time.Now())
+	if err != nil {
+		t.Fatalf("Translate returned error: %v", err)
+	}
+	if !isTerminal {
+		t.Fatal("turn_end without stopReason must remain terminal (backwards compat)")
+	}
+	_ = events
+}
+
+// TestPiTranslator_TurnStart_ResetsTurnState verifies that a new turn_start
+// resets the textEmitted state so the second turn in a tool-use sequence
+// correctly emits the assistant response.
+func TestPiTranslator_TurnStart_ResetsTurnState(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	sess := newTestPiSession(logger)
+	translator := &piTranslator{session: sess}
+
+	// Simulate: text_delta in turn 1 sets textEmitted=true
+	_, _, _ = translator.Translate([]byte(`{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"thinking text"}}`), time.Now())
+	if !translator.textEmitted {
+		t.Fatal("textEmitted should be true after text_delta")
+	}
+
+	// turn_start for second turn should reset textEmitted
+	_, _, _ = translator.Translate([]byte(`{"type":"turn_start"}`), time.Now())
+	if translator.textEmitted {
+		t.Fatal("textEmitted must be reset to false on turn_start")
+	}
+
+	// Now turn_end with text in message should emit assistant_message
+	events, _, _ := translator.Translate([]byte(`{"type":"turn_end","message":{"role":"assistant","content":[{"type":"text","text":"Today is Sunday, May 24 2026."}],"stopReason":"stop"}}`), time.Now())
+	var gotText bool
+	for _, raw := range events {
+		evt, ok := raw.(AgentStreamEvent)
+		if !ok {
+			continue
+		}
+		payload, ok := evt.Event.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if payload["type"] == "timeline" {
+			item, ok := payload["item"].(TimelineItem)
+			if ok && item.Type == "assistant_message" && item.Text == "Today is Sunday, May 24 2026." {
+				gotText = true
+			}
+		}
+	}
+	if !gotText {
+		t.Fatal("second turn's turn_end must emit the assistant_message text")
 	}
 }

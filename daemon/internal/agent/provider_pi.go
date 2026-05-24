@@ -129,6 +129,20 @@ type piSession struct {
 	nextTurnOrdinal int
 }
 
+// extractAssistantText extracts text content from a Pi assistant message.
+func extractAssistantText(msg *piMessage) string {
+	if msg == nil || msg.Role != "assistant" {
+		return ""
+	}
+	var parts []string
+	for _, c := range msg.Content {
+		if c.Type == "text" && c.Text != "" {
+			parts = append(parts, c.Text)
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
 func newPiSession(binaryPath string, config *protocol.AgentSessionConfig, logger *slog.Logger) *piSession {
 	return &piSession{
 		base:       base.NewBaseSession(piProviderName, config, logger),
@@ -438,7 +452,8 @@ func (s *piSession) StreamHistory(ctx context.Context) ([]AgentStreamEvent, erro
 // --- Pi Translator ---
 
 type piTranslator struct {
-	session *piSession
+	session     *piSession
+	textEmitted bool // true if text_delta was emitted for current assistant message
 }
 
 func (t *piTranslator) Translate(raw []byte, timestamp time.Time) ([]interface{}, bool, error) {
@@ -452,7 +467,7 @@ func (t *piTranslator) Translate(raw []byte, timestamp time.Time) ([]interface{}
 	}
 
 	events := t.translateEvent(msg, timestamp)
-	isTerminal := msg.Type == "turn_end"
+	isTerminal := msg.Type == "turn_end" && (msg.Message == nil || msg.Message.StopReason != "toolUse")
 	return events, isTerminal, nil
 }
 
@@ -474,9 +489,14 @@ func (t *piTranslator) translateEvent(msg piEvent, now time.Time) []interface{} 
 		})
 
 	case "agent_start", "turn_start":
-		// No-op for now.
+		// Reset per-turn text tracking so the second turn (after a tool call)
+		// correctly detects whether text was emitted.
+		t.textEmitted = false
 
 	case "message_start":
+		if msg.Message != nil && msg.Message.Role == "assistant" {
+			t.textEmitted = false
+		}
 		if msg.Message != nil && msg.Message.Role == "user" {
 			var textParts []string
 			for _, c := range msg.Message.Content {
@@ -497,18 +517,36 @@ func (t *piTranslator) translateEvent(msg piEvent, now time.Time) []interface{} 
 		}
 
 	case "message_end":
-		// Accumulate usage from the assistant message_end event.
-		if msg.Message != nil && msg.Message.Role == "assistant" && msg.Message.Usage != nil {
-			usage := t.buildUsage(msg.Message.Usage)
-			if usage != nil {
-				events = append(events, AgentStreamEvent{
-					Event: map[string]interface{}{
-						"type":     "usage_updated",
-						"provider": piProviderName,
-						"usage":    usage,
-					},
-					Timestamp: now,
-				})
+		if msg.Message != nil && msg.Message.Role == "assistant" {
+			// Emit the full text if no text_delta was seen for this message.
+			if !t.textEmitted {
+				text := extractAssistantText(msg.Message)
+				if text != "" {
+					events = append(events, AgentStreamEvent{
+						Event: map[string]interface{}{
+							"type":     "timeline",
+							"item":     TimelineItem{Type: "assistant_message", Text: text},
+							"provider": piProviderName,
+						},
+						Timestamp: now,
+					})
+				}
+			}
+			t.textEmitted = false
+
+			// Accumulate usage from the assistant message_end event.
+			if msg.Message.Usage != nil {
+				usage := t.buildUsage(msg.Message.Usage)
+				if usage != nil {
+					events = append(events, AgentStreamEvent{
+						Event: map[string]interface{}{
+							"type":     "usage_updated",
+							"provider": piProviderName,
+							"usage":    usage,
+						},
+						Timestamp: now,
+					})
+				}
 			}
 		}
 
@@ -518,6 +556,30 @@ func (t *piTranslator) translateEvent(msg piEvent, now time.Time) []interface{} 
 		}
 
 	case "turn_end":
+		// A turn_end with stopReason="toolUse" is an intermediate turn — Pi will
+		// start another turn with the actual assistant response after the tool runs.
+		// Do not emit turn_completed or text for intermediate turns.
+		if msg.Message != nil && msg.Message.StopReason == "toolUse" {
+			t.textEmitted = false
+			break
+		}
+
+		// Emit the full text if no text_delta was seen for the final assistant message.
+		if !t.textEmitted && msg.Message != nil {
+			text := extractAssistantText(msg.Message)
+			if text != "" {
+				events = append(events, AgentStreamEvent{
+					Event: map[string]interface{}{
+						"type":     "timeline",
+						"item":     TimelineItem{Type: "assistant_message", Text: text},
+						"provider": piProviderName,
+					},
+					Timestamp: now,
+				})
+			}
+		}
+		t.textEmitted = false
+
 		usage := t.buildUsage(msg.Usage)
 		if usage == nil && msg.Message != nil {
 			usage = t.buildUsage(msg.Message.Usage)
@@ -565,6 +627,7 @@ func (t *piTranslator) translateAssistantMessageEvent(evt *piAssistantMessageEve
 
 	case "text_delta":
 		if evt.Delta != "" {
+			t.textEmitted = true
 			events = append(events, AgentStreamEvent{
 				Event: map[string]interface{}{
 					"type":     "timeline",
@@ -575,19 +638,33 @@ func (t *piTranslator) translateAssistantMessageEvent(evt *piAssistantMessageEve
 			})
 		}
 
-	case "tool_call_start":
-		if evt.ToolCall != nil {
+	case "toolcall_start":
+		// Pi uses 'toolcall_start' (no underscore) with 'partial' field.
+		tc := evt.ToolCall
+		if tc == nil && evt.Partial != nil && evt.Partial.ID != "" {
+			tc = evt.Partial
+		}
+		if tc != nil {
 			events = append(events, AgentStreamEvent{
 				Event: map[string]interface{}{
 					"type":     "timeline",
-					"item":     TimelineItem{Type: "tool_call", CallID: evt.ToolCall.ID, Name: evt.ToolCall.Name, Detail: t.buildToolCallDetail(evt.ToolCall), Status: "running", Error: nil},
+					"item":     TimelineItem{Type: "tool_call", CallID: tc.ID, Name: tc.Name, Detail: t.buildToolCallDetail(tc), Status: "running", Error: nil},
 					"provider": piProviderName,
 				},
 				Timestamp: now,
 			})
 		}
 
-	case "tool_call_end":
+	case "toolcall_delta":
+		// Pi toolcall_delta carries incremental arguments in 'delta'.
+		// We accumulate them on the session so toolcall_end has the full args.
+		if evt.Delta != "" {
+			// For now, we don't emit intermediate tool_call events.
+			// The frontend will see running → completed when toolcall_end arrives.
+		}
+
+	case "toolcall_end":
+		// Pi uses 'toolcall_end' (no underscore) with 'toolCall' field.
 		if evt.ToolCall != nil {
 			events = append(events, AgentStreamEvent{
 				Event: map[string]interface{}{
@@ -679,9 +756,10 @@ type piEvent struct {
 }
 
 type piMessage struct {
-	Role    string         `json:"role"`
-	Content []piContent    `json:"content"`
-	Usage   *piUsage       `json:"usage"`
+	Role       string      `json:"role"`
+	Content    []piContent `json:"content"`
+	Usage      *piUsage    `json:"usage"`
+	StopReason string      `json:"stopReason"`
 }
 
 type piContent struct {
@@ -693,6 +771,7 @@ type piAssistantMessageEvent struct {
 	Type    string      `json:"type"`
 	Delta   string      `json:"delta"`
 	ToolCall *piToolCall `json:"toolCall"`
+	Partial  *piToolCall `json:"partial"`
 }
 
 type piToolCall struct {
