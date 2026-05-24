@@ -1,0 +1,55 @@
+codecov:
+  require_ci_to_pass: false
+
+comment:
+  layout: "diff, files, flags"
+  behavior: default
+  require_changes: false
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 5%
+        informational: true
+    patch:
+      default:
+        target: auto
+        threshold: 5%
+        informational: true
+
+flags:
+  js:
+    paths:
+      - app/src/
+      - app-bridge/src/
+    carryforward: true
+  go-protocol:
+    paths:
+      - protocol/
+    carryforward: true
+  go-cli:
+    paths:
+      - cli/
+    carryforward: true
+  go-daemon:
+    paths:
+      - daemon/
+    carryforward: true
+  go-relay-go:
+    paths:
+      - relay-go/
+    carryforward: true
+
+ignore:
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.spec.ts"
+  - "**/*.spec.tsx"
+  - "**/*.browser.test.ts"
+  - "**/e2e/**"
+  - "**/test-stubs/**"
+  - "**/vitest.setup.ts"
+  - "app/e2e/**"
+  - "app/maestro/**"

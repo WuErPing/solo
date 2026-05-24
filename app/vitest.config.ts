@@ -15,6 +15,17 @@ export default defineConfig({
   test: {
     environment: "node",
     exclude: [...configDefaults.exclude, "e2e/**"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json", "html", "lcov"],
+      exclude: [
+        ...configDefaults.exclude,
+        "e2e/**",
+        "**/*.config.*",
+        "test-stubs/**",
+        "vitest.setup.ts",
+      ],
+    },
     projects: [
       {
         extends: true,

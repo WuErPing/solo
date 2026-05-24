@@ -145,17 +145,18 @@ const styles = StyleSheet.create((theme) => ({
 function SheetBackground({ style }: BottomSheetBackgroundProps) {
   const { theme } = useUnistyles();
   const combinedStyle = useMemo(
-    () => [
-      style,
-      {
-        backgroundColor: theme.colors.surface1,
-        borderTopLeftRadius: theme.borderRadius.xl,
-        borderTopRightRadius: theme.borderRadius.xl,
-      },
-    ],
+    () =>
+      StyleSheet.flatten([
+        style,
+        {
+          backgroundColor: theme.colors.surface1,
+          borderTopLeftRadius: theme.borderRadius.xl,
+          borderTopRightRadius: theme.borderRadius.xl,
+        },
+      ]),
     [style, theme.colors.surface1, theme.borderRadius.xl],
   );
-  return <View style={combinedStyle} />;
+  return <View style={combinedStyle as any} />;
 }
 
 export interface AdaptiveModalSheetProps {
@@ -333,7 +334,7 @@ export const AdaptiveTextInput = forwardRef<TextInput, TextInputProps>(
     const isMobile = useIsCompactFormFactor();
 
     if (isMobile) {
-      return <BottomSheetTextInput ref={ref as unknown as Ref<never>} {...props} />;
+      return <BottomSheetTextInput ref={ref as unknown as Ref<never>} {...(props as any)} />;
     }
 
     return <TextInput ref={ref} {...props} />;
