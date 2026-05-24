@@ -35,6 +35,7 @@ type AgentRunResult struct {
 type EventPump struct {
 	logger     *slog.Logger
 	dispatcher EventDispatcher
+	provider   string
 }
 
 // NewEventPump creates a new event pump.
@@ -43,6 +44,11 @@ func NewEventPump(logger *slog.Logger, dispatcher EventDispatcher) *EventPump {
 		logger:     logger,
 		dispatcher: dispatcher,
 	}
+}
+
+// SetProvider sets the provider name for fallback events (turn_canceled, turn_failed, error).
+func (p *EventPump) SetProvider(provider string) {
+	p.provider = provider
 }
 
 // RunBlocking reads events until terminal state and returns the result.
@@ -108,8 +114,9 @@ func (p *EventPump) pump(
 		select {
 		case <-ctx.Done():
 			p.emitEvent(map[string]interface{}{
-				"type":   "turn_canceled",
-				"reason": "context_cancelled",
+				"type":     "turn_canceled",
+				"provider": p.provider,
+				"reason":   "context_cancelled",
 			})
 			return &AgentRunResult{Canceled: true}, ctx.Err()
 		default:
@@ -124,8 +131,9 @@ func (p *EventPump) pump(
 		if err != nil {
 			p.logger.Warn("event translation failed", "error", err, "line", string(line))
 			p.emitEvent(map[string]interface{}{
-				"type":  "error",
-				"error": err.Error(),
+				"type":     "error",
+				"provider": p.provider,
+				"error":    err.Error(),
 			})
 			continue
 		}
@@ -158,8 +166,9 @@ func (p *EventPump) pump(
 	// scan iterations), emit turn_canceled rather than turn_failed.
 	if ctx.Err() != nil {
 		p.emitEvent(map[string]interface{}{
-			"type":   "turn_canceled",
-			"reason": "context_cancelled",
+			"type":     "turn_canceled",
+			"provider": p.provider,
+			"reason":   "context_cancelled",
 		})
 		return &AgentRunResult{Canceled: true}, ctx.Err()
 	}
@@ -168,8 +177,9 @@ func (p *EventPump) pump(
 	if !terminalReached {
 		p.logger.Warn("event stream ended before terminal state")
 		p.emitEvent(map[string]interface{}{
-			"type":  "turn_failed",
-			"error": "event stream ended before reaching terminal state",
+			"type":     "turn_failed",
+			"provider": p.provider,
+			"error":    "event stream ended before reaching terminal state",
 		})
 		return &AgentRunResult{}, fmt.Errorf("event stream ended before terminal state")
 	}

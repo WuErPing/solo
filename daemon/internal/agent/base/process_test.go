@@ -20,12 +20,13 @@ func TestProcessManager_Start_ProcessExitsImmediately_NoZombie(t *testing.T) {
 	pm := NewProcessManager("/bin/sh", logger)
 
 	ctx := context.Background()
-	stdout, stderr, cmd, err := pm.Start(ctx, []string{"-c", "exit 42"}, "", nil)
+	stdout, stderr, stdin, cmd, err := pm.Start(ctx, []string{"-c", "exit 42"}, "", nil)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 	defer stdout.Close()
 	defer stderr.Close()
+	defer stdin.Close()
 
 	// Wait for process to exit
 	exitCode, waitErr := pm.WaitForExit(cmd)
@@ -53,11 +54,12 @@ func TestProcessManager_Start_ReadsStderrOnFailure(t *testing.T) {
 	pm := NewProcessManager("/bin/sh", logger)
 
 	ctx := context.Background()
-	stdout, stderr, cmd, err := pm.Start(ctx, []string{"-c", "echo 'fatal error' >&2; exit 1"}, "", nil)
+	stdout, stderr, stdin, cmd, err := pm.Start(ctx, []string{"-c", "echo 'fatal error' >&2; exit 1"}, "", nil)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 	defer stdout.Close()
+	defer stdin.Close()
 
 	// Drain stderr like production code does
 	pm.DrainStderr(stderr)
@@ -81,12 +83,13 @@ func TestProcessManager_Start_LongRunning_CanBeStopped(t *testing.T) {
 	pm := NewProcessManager("/bin/sh", logger)
 
 	ctx := context.Background()
-	stdout, stderr, cmd, err := pm.Start(ctx, []string{"-c", "sleep 30"}, "", nil)
+	stdout, stderr, stdin, cmd, err := pm.Start(ctx, []string{"-c", "sleep 30"}, "", nil)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 	defer stdout.Close()
 	defer stderr.Close()
+	defer stdin.Close()
 
 	// Stop should send signal and wait
 	err = pm.Stop(cmd, 500*time.Millisecond)
@@ -110,12 +113,13 @@ func TestProcessManager_Start_ContextCancellation_KillsProcess(t *testing.T) {
 	pm := NewProcessManager("/bin/sh", logger)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	stdout, stderr, cmd, err := pm.Start(ctx, []string{"-c", "sleep 30"}, "", nil)
+	stdout, stderr, stdin, cmd, err := pm.Start(ctx, []string{"-c", "sleep 30"}, "", nil)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 	defer stdout.Close()
 	defer stderr.Close()
+	defer stdin.Close()
 
 	cancel()
 
@@ -146,13 +150,14 @@ func TestProcessManager_Start_MultipleProcesses_NoZombies(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			ctx := context.Background()
-			stdout, stderr, cmd, err := pm.Start(ctx, []string{"-c", "echo hello"}, "", nil)
+			stdout, stderr, stdin, cmd, err := pm.Start(ctx, []string{"-c", "echo hello"}, "", nil)
 			if err != nil {
 				t.Errorf("Start failed: %v", err)
 				return
 			}
 			defer stdout.Close()
 			defer stderr.Close()
+			defer stdin.Close()
 
 			// Read stdout to avoid blocking
 			io.ReadAll(stdout)
@@ -188,10 +193,11 @@ func TestProcessManager_DrainStderr_CapturesAllLines(t *testing.T) {
 	pm := NewProcessManager("/bin/sh", logger)
 
 	ctx := context.Background()
-	_, stderr, cmd, err := pm.Start(ctx, []string{"-c", "echo 'line 1' >&2; echo 'line 2' >&2"}, "", nil)
+	_, stderr, stdin, cmd, err := pm.Start(ctx, []string{"-c", "echo 'line 1' >&2; echo 'line 2' >&2"}, "", nil)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
+	defer stdin.Close()
 
 	// DrainStderr closes stderr when done
 	pm.DrainStderr(stderr)
@@ -269,12 +275,13 @@ func TestProcessManager_WaitForExit_CleanExit_ReturnsZero(t *testing.T) {
 	pm := NewProcessManager("/bin/sh", logger)
 
 	ctx := context.Background()
-	stdout, stderr, cmd, err := pm.Start(ctx, []string{"-c", "echo hello"}, "", nil)
+	stdout, stderr, stdin, cmd, err := pm.Start(ctx, []string{"-c", "echo hello"}, "", nil)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 	defer stdout.Close()
 	defer stderr.Close()
+	defer stdin.Close()
 
 	// Read stdout to completion
 	io.ReadAll(stdout)

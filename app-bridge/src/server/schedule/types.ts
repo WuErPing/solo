@@ -36,13 +36,13 @@ export const ScheduleTargetSchema = z.discriminatedUnion("type", [
       webSearch: z.boolean().optional(),
       extra: z
         .object({
-          codex: z.record(z.unknown()).optional(),
-          claude: z.record(z.unknown()).optional(),
+          codex: z.record(z.string(), z.unknown()).optional(),
+          claude: z.record(z.string(), z.unknown()).optional(),
         })
         .partial()
         .optional(),
       systemPrompt: z.string().optional(),
-      mcpServers: z.record(z.unknown()).optional(),
+      mcpServers: z.record(z.string(), z.unknown()).optional(),
     }),
   }),
 ]);

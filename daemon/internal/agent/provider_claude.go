@@ -208,6 +208,7 @@ func (s *claudeSession) Run(ctx context.Context, text string, images []protocol.
 	}()
 
 	pump := base.NewEventPump(s.base.Logger(), s.dispatcher)
+	pump.SetProvider(claudeProviderName)
 	translator := &claudeTranslator{session: s, streamedContentBlocks: make(map[int]int)}
 	detector := &claudeTerminalDetector{session: s}
 
@@ -266,6 +267,7 @@ func (s *claudeSession) StartTurn(ctx context.Context, text string, images []pro
 	}()
 
 	pump := base.NewEventPump(s.base.Logger(), s.dispatcher)
+	pump.SetProvider(claudeProviderName)
 	translator := &claudeTranslator{session: s, streamedContentBlocks: make(map[int]int)}
 	detector := &claudeTerminalDetector{session: s}
 	pump.RunBackground(runCtx, stdoutPipe, translator, detector)
