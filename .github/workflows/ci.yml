@@ -131,8 +131,6 @@ jobs:
         working-directory: app
         run: npx tsc --noEmit
 
-      # TODO: migrate app-bridge from zod v3 API to zod v4 (39 type errors)
-      - name: Typecheck app-bridge (optional)
+      - name: Typecheck app-bridge
         working-directory: app-bridge
         run: npx tsc --noEmit
-        continue-on-error: true

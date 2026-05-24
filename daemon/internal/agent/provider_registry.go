@@ -149,6 +149,14 @@ func BuiltinProviderDefinitions() []ProviderDefinition {
 				{ID: "plan", Label: "Plan", Description: "Planning mode", Icon: "ShieldCheck", ColorTier: "planning"},
 			},
 		},
+		{
+			ID: "pi", Label: "Pi", Description: "Minimal terminal coding harness",
+			DefaultModeID: strPtr("default"),
+			Modes: []ProviderModeDefinition{
+				{ID: "default", Label: "Default", Description: "Standard mode", Icon: "ShieldCheck", ColorTier: "safe"},
+				{ID: "readOnly", Label: "Read Only", Description: "Read-only mode with no file modifications", Icon: "ShieldAlert", ColorTier: "moderate"},
+			},
+		},
 	}
 }
 

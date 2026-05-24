@@ -150,7 +150,7 @@ const AgentSelectOptionSchema = z.object({
   label: z.string(),
   description: z.string().optional(),
   isDefault: z.boolean().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const AgentFeatureToggleSchema = z.object({
@@ -185,7 +185,7 @@ const AgentModelDefinitionSchema: z.ZodType<AgentModelDefinition> = z.object({
   label: z.string(),
   description: z.string().optional(),
   isDefault: z.boolean().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   thinkingOptions: z.array(AgentSelectOptionSchema).optional(),
   defaultThinkingOptionId: z.string().optional(),
 });
@@ -225,19 +225,19 @@ const McpStdioServerConfigSchema = z.object({
   type: z.literal("stdio"),
   command: z.string(),
   args: z.array(z.string()).optional(),
-  env: z.record(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
 });
 
 const McpHttpServerConfigSchema = z.object({
   type: z.literal("http"),
   url: z.string(),
-  headers: z.record(z.string()).optional(),
+  headers: z.record(z.string(), z.string()).optional(),
 });
 
 const McpSseServerConfigSchema = z.object({
   type: z.literal("sse"),
   url: z.string(),
-  headers: z.record(z.string()).optional(),
+  headers: z.record(z.string(), z.string()).optional(),
 });
 
 const McpServerConfigSchema = z.discriminatedUnion("type", [
@@ -252,7 +252,7 @@ const AgentSessionConfigSchema = z.object({
   modeId: z.string().optional(),
   model: z.string().optional(),
   thinkingOptionId: z.string().optional(),
-  featureValues: z.record(z.unknown()).optional(),
+  featureValues: z.record(z.string(), z.unknown()).optional(),
   title: z.string().trim().min(1).max(MAX_EXPLICIT_AGENT_TITLE_CHARS).optional().nullable(),
   approvalPolicy: z.string().optional(),
   sandboxMode: z.string().optional(),
@@ -260,16 +260,16 @@ const AgentSessionConfigSchema = z.object({
   webSearch: z.boolean().optional(),
   extra: z
     .object({
-      codex: z.record(z.unknown()).optional(),
-      claude: z.record(z.unknown()).optional(),
+      codex: z.record(z.string(), z.unknown()).optional(),
+      claude: z.record(z.string(), z.unknown()).optional(),
     })
     .partial()
     .optional(),
   systemPrompt: z.string().optional(),
-  mcpServers: z.record(McpServerConfigSchema).optional(),
+  mcpServers: z.record(z.string(), McpServerConfigSchema).optional(),
 });
 
-const AgentPermissionUpdateSchema = z.record(z.unknown());
+const AgentPermissionUpdateSchema = z.record(z.string(), z.unknown());
 const AgentPermissionActionSchema = z.object({
   id: z.string(),
   label: z.string(),
@@ -282,7 +282,7 @@ export const AgentPermissionResponseSchema: z.ZodType<AgentPermissionResponse> =
   z.object({
     behavior: z.literal("allow"),
     selectedActionId: z.string().optional(),
-    updatedInput: z.record(z.unknown()).optional(),
+    updatedInput: z.record(z.string(), z.unknown()).optional(),
     updatedPermissions: z.array(AgentPermissionUpdateSchema).optional(),
   }),
   z.object({
@@ -295,7 +295,6 @@ export const AgentPermissionResponseSchema: z.ZodType<AgentPermissionResponse> =
 
 export const AgentPermissionRequestPayloadSchema: z.ZodType<
   AgentPermissionRequest,
-  z.ZodTypeDef,
   unknown
 > = z.object({
   id: z.string(),
@@ -304,11 +303,11 @@ export const AgentPermissionRequestPayloadSchema: z.ZodType<
   kind: z.enum(["tool", "plan", "question", "mode", "other"]),
   title: z.string().optional(),
   description: z.string().optional(),
-  input: z.record(z.unknown()).optional(),
+  input: z.record(z.string(), z.unknown()).optional(),
   detail: z.lazy(() => ToolCallDetailPayloadSchema).optional(),
   suggestions: z.array(AgentPermissionUpdateSchema).optional(),
   actions: z.array(AgentPermissionActionSchema).optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 const UnknownValueSchema = z.union([
@@ -347,7 +346,7 @@ const WorktreeSetupDetailPayloadSchema = z.object({
   truncated: z.boolean().optional(),
 });
 
-const ToolCallDetailPayloadSchema: z.ZodType<ToolCallDetail, z.ZodTypeDef, unknown> =
+const ToolCallDetailPayloadSchema: z.ZodType<ToolCallDetail, unknown> =
   z.discriminatedUnion("type", [
     WorktreeSetupDetailPayloadSchema,
     z.object({
@@ -468,7 +467,7 @@ const ToolCallCanceledPayloadSchema = ToolCallBasePayloadSchema.extend({
   error: z.null(),
 });
 
-const ToolCallTimelineItemPayloadSchema: z.ZodType<ToolCallTimelineItem, z.ZodTypeDef, unknown> =
+const ToolCallTimelineItemPayloadSchema: z.ZodType<ToolCallTimelineItem, unknown> =
   z.union([
     ToolCallRunningPayloadSchema,
     ToolCallCompletedPayloadSchema,
@@ -476,7 +475,7 @@ const ToolCallTimelineItemPayloadSchema: z.ZodType<ToolCallTimelineItem, z.ZodTy
     ToolCallCanceledPayloadSchema,
   ]);
 
-export const AgentTimelineItemPayloadSchema: z.ZodType<AgentTimelineItem, z.ZodTypeDef, unknown> =
+export const AgentTimelineItemPayloadSchema: z.ZodType<AgentTimelineItem, unknown> =
   z.union([
     z.object({
       type: z.literal("user_message"),
@@ -685,7 +684,7 @@ export const AudioPlayedMessageSchema = z.object({
 });
 
 const AgentDirectoryFilterSchema = z.object({
-  labels: z.record(z.string()).optional(),
+  labels: z.record(z.string(), z.string()).optional(),
   projectKeys: z.array(z.string()).optional(),
   statuses: z.array(AgentStatusSchema).optional(),
   includeArchived: z.boolean().optional(),
@@ -716,7 +715,7 @@ export const UpdateAgentRequestMessageSchema = z.object({
   type: z.literal("update_agent_request"),
   agentId: z.string(),
   name: z.string().optional(),
-  labels: z.record(z.string()).optional(),
+  labels: z.record(z.string(), z.string()).optional(),
   requestId: z.string(),
 });
 
@@ -971,11 +970,11 @@ export const CreateAgentRequestMessageSchema = z.object({
   worktreeName: z.string().optional(),
   initialPrompt: z.string().optional(),
   clientMessageId: z.string().optional(),
-  outputSchema: z.record(z.unknown()).optional(),
+  outputSchema: z.record(z.string(), z.unknown()).optional(),
   images: z.array(ImageAttachmentSchema).optional(),
   attachments: AgentAttachmentsSchema,
   git: GitSetupOptionsSchema.optional(),
-  labels: z.record(z.string()).default({}),
+  labels: z.record(z.string(), z.string()).default({}),
   requestId: z.string(),
 });
 
@@ -1532,7 +1531,7 @@ const ListCommandsDraftConfigSchema = z.object({
   modeId: z.string().optional(),
   model: z.string().optional(),
   thinkingOptionId: z.string().optional(),
-  featureValues: z.record(z.unknown()).optional(),
+  featureValues: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const ListProviderFeaturesRequestMessageSchema = z.object({
@@ -1753,7 +1752,7 @@ export const ActivityLogPayloadSchema = z.object({
   timestamp: z.coerce.date(),
   type: z.enum(["transcript", "assistant", "tool_call", "tool_result", "error", "system"]),
   content: z.string(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const ActivityLogMessageSchema = z.object({
@@ -2828,7 +2827,15 @@ export const PullRequestTimelineResponseSchema = z.object({
       githubFeaturesEnabled: z.boolean().optional().default(true),
     })
     .optional()
-    .default({}),
+    .default(() => ({
+      cwd: "",
+      prNumber: null,
+      items: [],
+      truncated: false,
+      error: null,
+      requestId: "",
+      githubFeaturesEnabled: true,
+    })),
 });
 
 export const CheckoutSwitchBranchResponseSchema = z.object({

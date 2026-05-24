@@ -140,6 +140,23 @@ const KIMI_MODES: AgentProviderModeDefinition[] = [
   },
 ];
 
+const PI_MODES: AgentProviderModeDefinition[] = [
+  {
+    id: "default",
+    label: "Default",
+    description: "Standard mode with all tools enabled",
+    icon: "ShieldCheck",
+    colorTier: "safe",
+  },
+  {
+    id: "readOnly",
+    label: "Read Only",
+    description: "Read-only mode with no file modifications",
+    icon: "ShieldAlert",
+    colorTier: "moderate",
+  },
+];
+
 const MOCK_LOAD_TEST_MODES: AgentProviderModeDefinition[] = [
   {
     id: "load-test",
@@ -204,8 +221,8 @@ export const AGENT_PROVIDER_DEFINITIONS: AgentProviderDefinition[] = [
     id: "pi",
     label: "Pi",
     description: "Minimal terminal-based coding agent with multi-provider LLM support",
-    defaultModeId: null,
-    modes: [],
+    defaultModeId: "default",
+    modes: PI_MODES,
   },
 ];
 

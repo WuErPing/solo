@@ -250,6 +250,7 @@ func (s *kimiSession) Run(ctx context.Context, text string, images []protocol.Im
 	}()
 
 	pump := base.NewEventPump(s.base.Logger(), s.dispatcher)
+	pump.SetProvider(kimiProviderName)
 	translator := &kimiWireTranslator{session: s}
 	detector := &kimiWireTerminalDetector{session: s}
 
@@ -299,6 +300,7 @@ func (s *kimiSession) StartTurn(ctx context.Context, text string, images []proto
 	}()
 
 	pump := base.NewEventPump(s.base.Logger(), s.dispatcher)
+	pump.SetProvider(kimiProviderName)
 	translator := &kimiWireTranslator{session: s}
 	detector := &kimiWireTerminalDetector{session: s}
 	go func() {
