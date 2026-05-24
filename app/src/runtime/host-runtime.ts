@@ -449,10 +449,14 @@ function createDefaultDeps(): HostRuntimeControllerDeps {
   return {
     createClient: ({ host, connection, clientId, runtimeGeneration }) => {
       const localTransportFactory = createDesktopLocalDaemonTransportFactory();
+      const clientType = (isNative ? "mobile" : getIsElectron() ? "cli" : "browser") as
+        | "mobile"
+        | "cli"
+        | "browser";
       const base = {
         suppressSendErrors: true,
         clientId,
-        clientType: isNative ? "mobile" : getIsElectron() ? "cli" : "browser",
+        clientType,
         appVersion: resolveAppVersion() ?? undefined,
         runtimeGeneration,
         reconnect: { enabled: false },

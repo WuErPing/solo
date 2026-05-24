@@ -37,9 +37,25 @@ jobs:
         working-directory: ${{ matrix.module }}
         run: go build -v ./...
 
-      - name: Go test
+      - name: Go test + coverage
         working-directory: ${{ matrix.module }}
-        run: go test -short -v -race -count=1 -timeout=10m ./...
+        run: go test -short -v -race -count=1 -timeout=10m -coverprofile=coverage.out ./...
+
+      - name: Upload Go coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ${{ matrix.module }}/coverage.out
+          flags: go-${{ matrix.module }}
+          fail_ci_if_error: false
+          verbose: true
+
+      - name: Upload Go coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-coverage-${{ matrix.module }}
+          path: ${{ matrix.module }}/coverage.out
+          retention-days: 14
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v7
@@ -84,12 +100,38 @@ jobs:
         working-directory: packages/highlight
         run: npm test
 
-      # TODO: fix existing type errors and make these required
-      - name: Typecheck app (optional)
+      - name: Test app (unit) + coverage
+        working-directory: app
+        run: npm run test -- --coverage
+
+      - name: Test app-bridge + coverage
+        working-directory: app-bridge
+        run: npm test -- --coverage
+
+      - name: Upload JS coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: app/coverage/lcov.info,app-bridge/coverage/lcov.info
+          flags: js
+          fail_ci_if_error: false
+          verbose: true
+
+      - name: Upload JS coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: js-coverage
+          path: |
+            app/coverage/
+            app-bridge/coverage/
+            packages/highlight/coverage/
+          retention-days: 14
+
+      - name: Typecheck app
         working-directory: app
         run: npx tsc --noEmit
-        continue-on-error: true
 
+      # TODO: migrate app-bridge from zod v3 API to zod v4 (39 type errors)
       - name: Typecheck app-bridge (optional)
         working-directory: app-bridge
         run: npx tsc --noEmit

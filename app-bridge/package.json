@@ -6,10 +6,17 @@
   "main": "src/shared/messages.ts",
   "types": "src/shared/messages.ts",
   "scripts": {
-    "lint": "eslint src/"
+    "lint": "eslint src/",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "base64-js": "^1.5.1",
     "tweetnacl": "^1.0.3"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.7",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.7"
   }
 }
