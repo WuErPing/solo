@@ -195,9 +195,26 @@ function appendUserMessage(
 
   const chunkSeed = chunk.trim() || chunk;
   const entryId = messageId ?? createUniqueTimelineId(state, "user", chunkSeed, timestamp);
-  const existingIndex = state.findIndex(
+
+  // Try to match by messageId first (for optimistic updates)
+  let existingIndex = state.findIndex(
     (entry) => entry.kind === "user_message" && entry.id === entryId,
   );
+
+  // Fallback: if no messageId was provided by the server, match by text content
+  // to prevent duplicate display when the server echoes back the user message
+  // without the client-generated messageId.
+  if (existingIndex < 0 && !messageId) {
+    existingIndex = state.findIndex(
+      (entry) =>
+        entry.kind === "user_message" &&
+        entry.text.trim() === chunk.trim() &&
+        // Only match recent messages (within 30 seconds) to avoid collapsing
+        // genuinely repeated user messages sent intentionally.
+        Math.abs(entry.timestamp.getTime() - timestamp.getTime()) < 30_000,
+    );
+  }
+
   const existing =
     existingIndex >= 0 && state[existingIndex]?.kind === "user_message"
       ? state[existingIndex]
@@ -206,9 +223,9 @@ function appendUserMessage(
 
   const nextItem: UserMessageItem = {
     kind: "user_message",
-    id: entryId,
+    id: existing?.id ?? entryId,
     text: chunk,
-    timestamp,
+    timestamp: existing && messageId ? timestamp : existing?.timestamp ?? timestamp,
     ...(preservedImages && preservedImages.length > 0 ? { images: preservedImages } : {}),
   };
 

@@ -42,7 +42,7 @@ type hangingAfterTerminalSession struct {
 	events chan AgentStreamEvent
 }
 
-func (s *hangingAfterTerminalSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) (*AgentRunResult, error) {
+func (s *hangingAfterTerminalSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
 	s.events <- AgentStreamEvent{
 		Event: map[string]interface{}{
 			"type":     "turn_completed",
@@ -54,7 +54,7 @@ func (s *hangingAfterTerminalSession) Run(ctx context.Context, text string, imag
 	return &AgentRunResult{SessionID: "session-hanging"}, nil
 }
 func (s *hangingAfterTerminalSession) StartTurn(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) (<-chan AgentStreamEvent, error) {
-	go s.Run(ctx, text, images, attachments)
+	go s.Run(ctx, text, images, attachments, "")
 	return s.events, nil
 }
 func (s *hangingAfterTerminalSession) Subscribe() <-chan AgentStreamEvent  { return s.events }
@@ -119,7 +119,7 @@ func TestAgentManagerMarksIdleWhenTerminalStreamEventArrivesBeforeRunReturns(t *
 	defer unsub()
 
 	runCtx, cancel := context.WithCancel(context.Background())
-	if err := manager.SendAgentMessage(runCtx, ag.ID, "hello", nil, nil); err != nil {
+	if err := manager.SendAgentMessage(runCtx, ag.ID, "hello", nil, nil, ""); err != nil {
 		t.Fatalf("SendAgentMessage: %v", err)
 	}
 
@@ -165,7 +165,7 @@ func (c *slowMockAgentClient) ListClientCommands(ctx context.Context, cwd string
 
 type slowMockAgentSession struct{}
 
-func (s *slowMockAgentSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) (*AgentRunResult, error) {
+func (s *slowMockAgentSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
 	<-ctx.Done()
 	return &AgentRunResult{SessionID: "slow-session"}, nil
 }
@@ -231,12 +231,12 @@ func TestSendAgentMessageRejectsWhenAlreadyRunning(t *testing.T) {
 
 	// First message starts running and blocks
 	ctx, cancel := context.WithCancel(context.Background())
-	if err := manager.SendAgentMessage(ctx, ag.ID, "hello", nil, nil); err != nil {
+	if err := manager.SendAgentMessage(ctx, ag.ID, "hello", nil, nil, ""); err != nil {
 		t.Fatalf("first SendAgentMessage: %v", err)
 	}
 
 	// Second message should be rejected while running
-	err = manager.SendAgentMessage(context.Background(), ag.ID, "hello again", nil, nil)
+	err = manager.SendAgentMessage(context.Background(), ag.ID, "hello again", nil, nil, "")
 	if err == nil {
 		t.Fatal("expected second SendAgentMessage to fail while running, got nil")
 	}

@@ -99,7 +99,7 @@ func TestClaudeSession_Run_RejectsConcurrentRun(t *testing.T) {
 	defer cancel1()
 
 	go func() {
-		sess.Run(ctx1, "first", nil, nil)
+		sess.Run(ctx1, "first", nil, nil, "")
 	}()
 
 	// Give first Run time to acquire the turn.
@@ -109,7 +109,7 @@ func TestClaudeSession_Run_RejectsConcurrentRun(t *testing.T) {
 	ctx2, cancel2 := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel2()
 
-	_, err := sess.Run(ctx2, "second", nil, nil)
+	_, err := sess.Run(ctx2, "second", nil, nil, "")
 	if err == nil {
 		t.Fatal("expected concurrent Run to fail, got nil")
 	}
@@ -130,7 +130,7 @@ func TestClaudeSession_StartTurn_RejectsWhenRunActive(t *testing.T) {
 	defer cancel()
 
 	go func() {
-		sess.Run(ctx, "first", nil, nil)
+		sess.Run(ctx, "first", nil, nil, "")
 	}()
 
 	time.Sleep(50 * time.Millisecond)
@@ -172,7 +172,7 @@ func TestClaudeSession_Run_SetsAndClearsActiveTurnID(t *testing.T) {
 	// Start Run; it blocks on the fake pipe.
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		sess.Run(ctx, "test", nil, nil)
+		sess.Run(ctx, "test", nil, nil, "")
 	}()
 
 	time.Sleep(50 * time.Millisecond)
@@ -211,14 +211,14 @@ func TestClaudeSession_Run_CapturesStdoutPipeUnderLock(t *testing.T) {
 	defer cancel()
 
 	go func() {
-		sess.Run(ctx, "first", nil, nil)
+		sess.Run(ctx, "first", nil, nil, "")
 	}()
 
 	time.Sleep(50 * time.Millisecond)
 
 	// Because the first Run holds the lock, a second Run must be rejected
 	// before it can overwrite stdoutPipe.
-	_, err := sess.Run(context.Background(), "second", nil, nil)
+	_, err := sess.Run(context.Background(), "second", nil, nil, "")
 	if err == nil {
 		t.Fatal("expected second Run to be rejected, got nil")
 	}
@@ -234,7 +234,7 @@ func TestClaudeSession_Close_ClearsActiveTurnID(t *testing.T) {
 	defer cancel()
 
 	go func() {
-		sess.Run(ctx, "test", nil, nil)
+		sess.Run(ctx, "test", nil, nil, "")
 	}()
 
 	time.Sleep(50 * time.Millisecond)
@@ -267,7 +267,7 @@ func TestClaudeSession_Interrupt_ClearsActiveTurnID(t *testing.T) {
 	defer cancel()
 
 	go func() {
-		sess.Run(ctx, "test", nil, nil)
+		sess.Run(ctx, "test", nil, nil, "")
 	}()
 
 	time.Sleep(50 * time.Millisecond)
@@ -294,7 +294,7 @@ func TestClaudeSession_ConcurrentRunAndInterrupt_NoRace(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		go func() {
-			sess.Run(ctx, "test", nil, nil)
+			sess.Run(ctx, "test", nil, nil, "")
 		}()
 
 		go func() {

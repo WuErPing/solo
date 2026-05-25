@@ -46,7 +46,7 @@ func TestPiIntegration_RealProcess(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	result, err := sess.Run(ctx, "hi", nil, nil)
+	result, err := sess.Run(ctx, "hi", nil, nil, "")
 	if err != nil {
 		t.Fatalf("run failed: %v", err)
 	}

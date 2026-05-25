@@ -484,7 +484,7 @@ func TestKimiSession_Run_SendsInitializeAndPrompt(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	_, err := sess.Run(ctx, "hello", nil, nil)
+	_, err := sess.Run(ctx, "hello", nil, nil, "")
 	if err != nil {
 		t.Fatalf("Run() = %v", err)
 	}
@@ -511,7 +511,7 @@ func TestKimiSession_Interrupt_SendsCancel(t *testing.T) {
 	}()
 
 	go func() {
-		sess.Run(context.Background(), "hello", nil, nil)
+		sess.Run(context.Background(), "hello", nil, nil, "")
 	}()
 
 	time.Sleep(50 * time.Millisecond)
@@ -616,7 +616,7 @@ func TestKimiSession_Run_RejectsConcurrentRun(t *testing.T) {
 	defer cancel1()
 
 	go func() {
-		sess.Run(ctx1, "first", nil, nil)
+		sess.Run(ctx1, "first", nil, nil, "")
 	}()
 
 	time.Sleep(50 * time.Millisecond)
@@ -624,7 +624,7 @@ func TestKimiSession_Run_RejectsConcurrentRun(t *testing.T) {
 	ctx2, cancel2 := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel2()
 
-	_, err := sess.Run(ctx2, "second", nil, nil)
+	_, err := sess.Run(ctx2, "second", nil, nil, "")
 	if err == nil {
 		t.Fatal("expected concurrent Run to fail, got nil")
 	}

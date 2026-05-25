@@ -28,7 +28,7 @@ func newWatchdogMockSession() *watchdogMockSession {
 	}
 }
 
-func (s *watchdogMockSession) Run(ctx context.Context, _ string, _ []protocol.ImageAttachment, _ []protocol.AgentAttachment) (*AgentRunResult, error) {
+func (s *watchdogMockSession) Run(ctx context.Context, _ string, _ []protocol.ImageAttachment, _ []protocol.AgentAttachment, _ string) (*AgentRunResult, error) {
 	select {
 	case <-s.interruptCh:
 		return &AgentRunResult{Canceled: true}, nil
@@ -49,7 +49,7 @@ func (s *watchdogMockSession) Interrupt(_ context.Context) error {
 
 func (s *watchdogMockSession) Subscribe() <-chan AgentStreamEvent { return s.events }
 func (s *watchdogMockSession) StartTurn(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) (<-chan AgentStreamEvent, error) {
-	go s.Run(ctx, text, images, attachments)
+	go s.Run(ctx, text, images, attachments, "")
 	return s.events, nil
 }
 func (s *watchdogMockSession) Close() error { return nil }
@@ -146,7 +146,7 @@ func TestSendAgentMessage_WatchdogInterruptsHangingRun(t *testing.T) {
 	defer unsub()
 
 	// Send a message; watchdogMockSession.Run() blocks until Interrupt() is called.
-	if err := manager.SendAgentMessage(context.Background(), ag.ID, "hang forever", nil, nil); err != nil {
+	if err := manager.SendAgentMessage(context.Background(), ag.ID, "hang forever", nil, nil, ""); err != nil {
 		t.Fatalf("SendAgentMessage: %v", err)
 	}
 

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -47,7 +48,7 @@ func TestTimelineStoreFetchTail(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		s.Append("agent-1", TimelineItem{
 			Type: "assistant_message",
-			Text: "msg",
+			Text: fmt.Sprintf("msg-%d", i),
 		})
 	}
 
@@ -68,7 +69,7 @@ func TestTimelineStoreFetchAfter(t *testing.T) {
 	s.Initialize("agent-1")
 
 	for i := 0; i < 10; i++ {
-		s.Append("agent-1", TimelineItem{Type: "assistant_message", Text: "msg"})
+		s.Append("agent-1", TimelineItem{Type: "assistant_message", Text: fmt.Sprintf("msg-%d", i)})
 	}
 
 	cursor := protocol.AgentTimelineCursor{Epoch: s.GetEpoch("agent-1"), Seq: 4}
@@ -86,7 +87,7 @@ func TestTimelineStoreFetchBefore(t *testing.T) {
 	s.Initialize("agent-1")
 
 	for i := 0; i < 10; i++ {
-		s.Append("agent-1", TimelineItem{Type: "assistant_message", Text: "msg"})
+		s.Append("agent-1", TimelineItem{Type: "assistant_message", Text: fmt.Sprintf("msg-%d", i)})
 	}
 
 	cursor := protocol.AgentTimelineCursor{Epoch: s.GetEpoch("agent-1"), Seq: 5}

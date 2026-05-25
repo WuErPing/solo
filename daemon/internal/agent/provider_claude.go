@@ -176,7 +176,7 @@ func (s *claudeSession) accumulateUsage(turn *protocol.AgentUsage) {
 	}
 }
 
-func (s *claudeSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) (*AgentRunResult, error) {
+func (s *claudeSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 
 	s.mu.Lock()
@@ -209,7 +209,7 @@ func (s *claudeSession) Run(ctx context.Context, text string, images []protocol.
 
 	pump := base.NewEventPump(s.base.Logger(), s.dispatcher)
 	pump.SetProvider(claudeProviderName)
-	translator := &claudeTranslator{session: s, streamedContentBlocks: make(map[int]int)}
+	translator := &claudeTranslator{session: s, streamedContentBlocks: make(map[int]int), messageID: messageID}
 	detector := &claudeTerminalDetector{session: s}
 
 	result, err := pump.RunBlocking(runCtx, stdoutPipe, translator, detector)
@@ -268,7 +268,7 @@ func (s *claudeSession) StartTurn(ctx context.Context, text string, images []pro
 
 	pump := base.NewEventPump(s.base.Logger(), s.dispatcher)
 	pump.SetProvider(claudeProviderName)
-	translator := &claudeTranslator{session: s, streamedContentBlocks: make(map[int]int)}
+	translator := &claudeTranslator{session: s, streamedContentBlocks: make(map[int]int), messageID: ""}
 	detector := &claudeTerminalDetector{session: s}
 	pump.RunBackground(runCtx, stdoutPipe, translator, detector)
 
@@ -510,7 +510,8 @@ func (s *claudeSession) StreamHistory(ctx context.Context) ([]AgentStreamEvent, 
 }
 
 type claudeTranslator struct {
-	session *claudeSession
+	session   *claudeSession
+	messageID string
 	// streamedContentBlocks tracks the total character length of content that
 	// has been emitted via stream_event messages for each block index.
 	// When the subsequent assistant message arrives, blocks at these indices
@@ -546,7 +547,7 @@ func (t *claudeTranslator) translateMessage(msg sdkMessage, now time.Time) []int
 	case "system":
 		events = t.translateSystemMessage(msg, now)
 	case "user":
-		events = t.translateUserMessage(msg, now)
+		events = t.translateUserMessage(msg, now, t.messageID)
 	case "assistant":
 		events = t.translateAssistantMessage(msg, now)
 	case "stream_event":
@@ -645,7 +646,7 @@ func (t *claudeTranslator) translateSystemMessage(msg sdkMessage, now time.Time)
 	return events
 }
 
-func (t *claudeTranslator) translateUserMessage(msg sdkMessage, now time.Time) []interface{} {
+func (t *claudeTranslator) translateUserMessage(msg sdkMessage, now time.Time, messageID string) []interface{} {
 	if msg.Message == nil {
 		return nil
 	}
@@ -668,7 +669,7 @@ func (t *claudeTranslator) translateUserMessage(msg sdkMessage, now time.Time) [
 	return []interface{}{AgentStreamEvent{
 		Event: map[string]interface{}{
 			"type":     "timeline",
-			"item":     TimelineItem{Type: "user_message", Text: strings.Join(textParts, "\n")},
+			"item":     TimelineItem{Type: "user_message", Text: strings.Join(textParts, "\n"), MessageID: messageID},
 			"provider": claudeProviderName,
 		},
 		Timestamp: now,

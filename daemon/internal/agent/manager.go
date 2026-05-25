@@ -41,7 +41,7 @@ type AgentClient interface {
 // AgentSession is the interface for an active agent session.
 type AgentSession interface {
 	// Run starts a prompt and blocks until completion.
-	Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) (*AgentRunResult, error)
+	Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) (*AgentRunResult, error)
 
 	// StartTurn starts a non-blocking turn, returning events via channel.
 	StartTurn(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) (<-chan AgentStreamEvent, error)
@@ -440,7 +440,7 @@ func (m *AgentManager) CancelAgentRun(ctx context.Context, agentID string) error
 }
 
 // SendAgentMessage sends a prompt to a running agent.
-func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) error {
+func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) error {
 	agent := m.GetAgent(agentID)
 	if agent == nil {
 		return fmt.Errorf("agent %s not found", agentID)
@@ -489,7 +489,7 @@ func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, tex
 			}
 		})
 		defer watchdog.Stop()
-		_, err := session.Run(ctx, text, images, attachments)
+		_, err := session.Run(ctx, text, images, attachments, messageID)
 		m.refreshSessionMetadata(ctx, agent, session)
 		if err != nil {
 			agent.SetError(err.Error())
