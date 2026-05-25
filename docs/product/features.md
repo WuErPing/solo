@@ -1,6 +1,6 @@
 # Solo - 产品功能详细分析
 
-> 分析日期：2026-05-20
+> 分析日期：2026-05-25
 > 仓库：/Users/wuerping/code/wuerping/solo
 > 版本：v0.1.0
 
@@ -41,6 +41,8 @@
 - **Coalescer Flush**：关键事件强制刷新机制
 - **Duplicate 检测**：字符长度跟踪 + content_block_delta 索引标记
 - **Dispatcher 优先级**：Critical / SemiCritical / Normal 三级队列
+- **MessageID 传播**：所有 provider（Claude、Kimi、OpenCode、Pi、Mock）在生成 `user_message` 时携带唯一 `MessageID`，用于后端 timeline 幂等去重
+- **Timeline Deduplication**：`InMemoryTimelineStore.Append()` 按类型精确比较最后一条记录（`MessageID` → `Text` → `CallID+Status`），防止多端同步时重复写入
 
 #### 1.4 Agent 监控
 - **Agent Watchdog**：35min 超时中断卡住任务
@@ -63,6 +65,7 @@
 - **Timeline Hydration**：从 provider 懒加载历史
 - **Activity Tracker**：客户端活动追踪
 - **Attention Policy**：Agent 状态变更时向所有 Session 广播
+- **Multi-client Sync**：多个 Session 共用全局 timeline store，后端幂等写入 + 客户端 seq gate 确保一致性
 
 #### 2.3 消息处理
 - **user_message 处理**：非 coalescable 事件直接存储和转发
@@ -131,6 +134,7 @@
 - **Projects Screen**：项目管理
 - **Sessions Screen**：会话历史
 - **Settings Screen**：设置管理
+- **Mermaid Preview**：Markdown 文件面板内嵌 Mermaid 图表实时渲染
 
 #### 6.2 连接管理
 - **Host 管理**：添加/编辑/删除主机
@@ -168,9 +172,13 @@
 ### 8. 测试覆盖
 
 #### 8.1 测试规模
-- **Daemon 测试文件**：76 个（Go）
-- **App 测试文件**：大量（TypeScript）
-- **E2E 测试**：relay timeout、direct-tcp reconnect、user_message 回归
+- **App 单元测试**：~366 个测试文件，**1282 个测试用例**（Vitest），已接入 CI
+- **App browser 测试**：1 个文件（Chromium via Playwright），未接入 CI
+- **App-bridge 测试**：3 个文件，**32 个测试用例**（Vitest），已接入 CI
+- **Daemon 测试文件**：~80 个（Go），已接入 CI
+- **Relay-go 测试文件**：~6 个（Go），已接入 CI
+- **E2E 测试**：22 个 `.spec.ts`（Playwright），**nightly 运行**
+- **Maestro 移动端**：~20 个 YAML flow，ad-hoc / 未接入 CI
 
 #### 8.2 关键测试域
 - Agent：dispatcher、coalescer、reasoning/window、duplicate 检测
@@ -187,9 +195,13 @@
 - **npm Workspace**：app、app-bridge、packages/highlight
 
 #### 9.2 CI/CD
-- **GitHub Actions**：go test、js lint
-- **golangci-lint**：v2 配置，formatters 和 revive 规则
-- **ESLint**：app-bridge 和 highlight 配置
+- **GitHub Actions `ci.yml`**：
+  - `go` job（matrix: protocol/cli/daemon/relay-go）：build + `go test -short -race -coverprofile` + golangci-lint v2.10 + Codecov upload
+  - `js` job：lint（app/app-bridge/highlight）+ typecheck（强制，0 errors）+ test（highlight/app/app-bridge）+ Codecov upload
+- **GitHub Actions `e2e-nightly.yml`**：每天 02:00 UTC 自动运行 Playwright E2E，失败保留 trace/screenshot/video 7 天
+- **Codecov**：`codecov.yml` 配置 flags（js / go-*）+ informational mode，需 `CODECOV_TOKEN` Secret
+- **golangci-lint**：v2.10，`.golangci.yml` 配置 formatters 和 revive 规则
+- **ESLint**：app（expo lint）、app-bridge、highlight 分别配置
 
 #### 9.3 监控
 - **Prometheus 指标**：sessions、connections、messages
@@ -242,4 +254,4 @@ Solo 是一个功能完整的 AI 开发助手平台，核心功能包括：
 5. **安全中继**：E2EE 加密、CORS 保护
 6. **生产就绪**：测试覆盖、监控、CI/CD
 
-当前完成度约 **80-87%**，主要差距在 GitHub 集成、语音能力和更多 AI Provider 支持。
+当前完成度约 **80-87%**，主要差距在 GitHub 集成、语音（TTS/STT）和更多 AI Provider（Cursor-Agent、Generic ACP）支持。

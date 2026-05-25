@@ -1,7 +1,7 @@
 # Solo — Documentation Index
 
 > **Purpose**: Persistent context base for Solo development, CI/CD, and architecture decisions.
-> **Last updated**: 2026-05-22
+> **Last updated**: 2026-05-25
 
 ---
 
@@ -15,7 +15,8 @@ docs/
 │   ├── components.md                      # Component specifications
 │   ├── data-flow.md                       # Message flows & session lifecycle
 │   ├── deployment.md                      # Deployment, Nginx, Systemd, Docker
-│   └── network-architecture.md            # Network paths, E2EE, Pairing Link
+│   ├── network-architecture.md            # Network paths, E2EE, Pairing Link
+│   └── timeline-design.md                 # Head/Tail model, seq gate, deduplication
 ├── product/                               ← Product feature analysis
 │   ├── features.md                        # Full product feature analysis
 │   └── ui-features.md                     # App UI screens, components, hooks
@@ -23,7 +24,8 @@ docs/
 │   ├── kimi-wire-vs-acp.md               # Kimi Wire vs ACP protocol comparison
 │   └── kimi-cursor-integration.md         # Kimi & Cursor-Agent integration plan
 └── analysis/                              ← Deep-dive technical analysis
-    └── host-status-check.md               # Host probe cycle & status machine
+    ├── host-status-check.md               # Host probe cycle & status machine
+    └── test-suite-analysis.md             # Full test suite inventory, CI gaps, coverage report
 ```
 
 ---
@@ -83,6 +85,7 @@ Deep dives into specific subsystems.
 | Document | Type | Summary |
 |----------|------|---------|
 | [Host Status Check](analysis/host-status-check.md) | Analysis | Probe cycle (2-30 s), adaptive switching, state machine conflict, grace-period fix |
+| [Test Suite Analysis](analysis/test-suite-analysis.md) | Analysis | Test inventory (~366 app unit, ~80 Go, 22 E2E), CI coverage, Codecov integration |
 
 ---
 

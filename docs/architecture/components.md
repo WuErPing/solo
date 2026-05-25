@@ -174,7 +174,7 @@ relay-go/
 - HTTP 服务器
 - WebSocket 升级
 - 健康检查端点 (`/health`)
-- 指标端点 (`/metrics`)
+- **Prometheus 指标端点 (`/metrics`)**：sessions、connections、messages 计数
 
 ### 4.2 Session
 
