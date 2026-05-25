@@ -1,6 +1,13 @@
 ---
 name: solo-dev-base
 description: Base development context for the Solo AI coding assistant platform. Provides architecture overview, tech stack, build commands, CI/CD reference, directory map, and development conventions. Use at the start of any Solo development task — feature work, bug fixes, provider integration, infrastructure changes, or code review.
+version: "2026-05-25"
+tags:
+  - solo
+  - architecture
+  - development
+  - onboarding
+  - context
 ---
 
 # Solo Dev Base
@@ -70,7 +77,7 @@ solo/
 │       ├── push/        # Expo push notifications
 │       └── config/      # JSON config (~/.solo/config.json)
 ├── relay-go/            # Go WebSocket relay server
-│   └── internal/relay/  # Server, session, control, buffer
+│   └── internal/relay/  # Server, session, control, buffer, metrics
 ├── cli/                 # Go CLI tool
 │   └── cmd/             # daemon, agent, provider subcommands
 ├── protocol/            # Shared Go protocol definitions
@@ -89,7 +96,7 @@ solo/
 | **Styling** | Unistyles (dynamic theming) |
 | **Terminal** | @xterm/xterm v6 |
 | **Crypto** | X25519 key exchange + XSalsa20-Poly1305 (E2EE) |
-| **CI** | GitHub Actions, golangci-lint v2, ESLint |
+| **CI** | GitHub Actions, golangci-lint v2, ESLint, Codecov |
 | **Deploy** | Systemd, Docker, Nginx + Let's Encrypt |
 
 ## Build & Dev Commands
@@ -126,8 +133,11 @@ File: `.github/workflows/ci.yml`
 
 | Job | Trigger | Steps |
 |-----|---------|-------|
-| `go` | push/PR to main | For each module (protocol, cli, daemon, relay-go): `go mod verify` → `go build` → `go test -short -race` → `golangci-lint v2.10` |
-| `js` | push/PR to main | `npm ci` → lint (app, app-bridge, highlight) → typecheck highlight → test highlight → optional typecheck app/app-bridge |
+| `go` | push/PR to main | For each module (protocol, cli, daemon, relay-go): `go mod verify` → `go build` → `go test -short -race -coverprofile` → `golangci-lint v2.10` → Codecov upload |
+| `js` | push/PR to main | `npm ci` → lint (app, app-bridge, highlight) → typecheck (mandatory, 0 errors) → test highlight → **test app (unit, 1282 tests)** → **test app-bridge (32 tests)** → Codecov upload |
+| `e2e-nightly` | daily 02:00 UTC + manual | Playwright E2E (22 specs) with daemon/relay/Metro globalSetup; failure artifacts retained 7 days |
+
+**Coverage**: JS via Vitest v8 → lcov → Codecov (app ~36 % stmt, app-bridge ~89 % stmt). Go via `-coverprofile=coverage.out` → Codecov.
 
 ## Key Network Facts
 
@@ -156,6 +166,15 @@ File: `.github/workflows/ci.yml`
 **Removed**: Copilot, Pi (removed from builtin registry).
 **Planned**: Cursor-Agent (Print mode). See `docs/providers/`.
 
+## Recent Architecture Changes
+
+1. **MessageID propagation** (2026-05-25): All providers now attach a unique `MessageID` to `user_message` events, enabling backend timeline deduplication across multiple concurrent sessions.
+2. **Timeline deduplication** (2026-05-25): `InMemoryTimelineStore.Append()` compares the last row by type-specific equality (`MessageID` → `Text` → `CallID+Status`) to prevent duplicate entries when N sessions emit the same event.
+3. **Multi-client sync test** (2026-05-25): Added `daemon/internal/server/multi_client_sync_test.go` (180 LOC) verifying concurrent session handling correctness.
+4. **Mermaid preview** (2026-05-24): Markdown file panes now render Mermaid diagrams inline.
+5. **App-bridge test suite** (2026-05-24): 3 test files covering base64, crypto, and path-utils (32 tests, ~300 ms).
+6. **CI overhaul** (2026-05-24): App unit tests (1282 tests) and app-bridge tests now run on every PR; nightly E2E workflow; Codecov integration.
+
 ## Documentation Index
 
 Full docs live in `docs/`. Read `docs/README.md` for the structured index.
@@ -171,7 +190,7 @@ Full docs live in `docs/`. Read `docs/README.md` for the structured index.
 
 1. **Go modules**: Each Go component (daemon, cli, relay-go, protocol) has its own `go.mod`. Use `go.work` at repo root for local development.
 2. **npm workspaces**: `app/`, `app-bridge/`, `packages/highlight/` are npm workspaces.
-3. **Testing**: Go tests use `-short -race` flags. JS tests use Vitest (app) and Jest (packages).
+3. **Testing**: Go tests use `-short -race` flags. JS tests use Vitest (app, app-bridge) and Jest (packages).
 4. **Linting**: Go uses `golangci-lint v2` with `.golangci.yml`. JS uses ESLint with per-workspace configs.
 5. **Commit style**: Conventional commits preferred.
 6. **E2E tests**: Playwright tests in `app/e2e/`, Maestro flows in `app/maestro/`.

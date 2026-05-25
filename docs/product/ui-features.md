@@ -1,6 +1,6 @@
 # Solo App UI 功能详细分析
 
-> 分析日期：2026-05-20
+> 分析日期：2026-05-25
 > 代码库：/Users/wuerping/code/wuerping/solo/app
 > 技术栈：React Native / Expo / TypeScript
 
@@ -103,9 +103,10 @@ app/
 - 实时流式输出显示
 - 多模态输入（文本 + 附件）
 - 代码块渲染与高亮
+- **Mermaid 图表预览**：Markdown 文件面板内实时渲染 Mermaid 流程图/时序图
 - 工具调用显示
 - 权限请求处理
-- 模型选择器
+- 模型选择器（Claude、Kimi、OpenCode）
 
 ### 2.5 设置（Settings）
 
@@ -163,6 +164,7 @@ app/
 | **输入提交** | `agent-input-submit.ts` | 输入提交逻辑 |
 | **附件药丸** | `attachment-pill.tsx` | 附件标签显示 |
 | **附件灯箱** | `attachment-lightbox.tsx` | 附件预览（图片、文件） |
+| **SearchInput** | `search-input.tsx` | 搜索输入框，已禁用浏览器 autocomplete 防止重复 suggestion overlay |
 
 ### 3.3 导航与布局
 

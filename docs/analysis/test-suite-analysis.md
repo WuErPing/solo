@@ -1,7 +1,7 @@
 # 测试集全景分析报告
 
 > 生成时间：2026-05-24
-> 更新时间：2026-05-24 (last: Task 3 zod v4 migration)
+> 更新时间：2026-05-25 (last: messageID propagation + timeline deduplication + multi-client sync test)
 > 分析范围：Solo 全项目（Go 后端 / TS 前端 / 移动端）
 
 ---
