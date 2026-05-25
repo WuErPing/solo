@@ -66,7 +66,7 @@ func (s *Session) handleCreateAgent(m *protocol.CreateAgentRequest) {
 
 	// Handle initial prompt if provided
 	if m.InitialPrompt != nil && *m.InitialPrompt != "" {
-		if err := s.agentMgr.SendAgentMessage(context.Background(), ag.ID, *m.InitialPrompt, nil, nil); err != nil {
+		if err := s.agentMgr.SendAgentMessage(context.Background(), ag.ID, *m.InitialPrompt, nil, nil, ""); err != nil {
 			s.logger.Warn("failed to send initial prompt", "agentId", ag.ID, "error", err)
 		}
 	}
@@ -231,7 +231,7 @@ func (s *Session) handleSendAgentMessage(m *protocol.SendAgentMessageRequest) {
 		logger.Info("send_agent_message_request resolved agent identifier")
 	}
 
-	if err := s.agentMgr.SendAgentMessage(context.Background(), agentID, m.Text, m.Images, m.Attachments); err != nil {
+	if err := s.agentMgr.SendAgentMessage(context.Background(), agentID, m.Text, m.Images, m.Attachments, stringPtrValue(m.MessageID)); err != nil {
 		logger.Warn("send_agent_message_request rejected", "error", err)
 		s.sendSendAgentMessageResponse(m.RequestID, agentID, false, err.Error())
 		return

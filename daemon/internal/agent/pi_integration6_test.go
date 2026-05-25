@@ -20,6 +20,6 @@ func TestPiIntegration_FullSessionRun(t *testing.T) {
 	defer cancel()
 	
 	start := time.Now()
-	result, err := sess.Run(ctx, "hi", nil, nil)
+	result, err := sess.Run(ctx, "hi", nil, nil, "")
 	t.Logf("run took %v, result=%+v, err=%v", time.Since(start), result, err)
 }

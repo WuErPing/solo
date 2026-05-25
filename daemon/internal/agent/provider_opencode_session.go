@@ -193,7 +193,7 @@ func (s *openCodeSession) createTurnID() string {
 	return fmt.Sprintf("opencode-turn-%d", s.nextTurnID)
 }
 
-func (s *openCodeSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) (*AgentRunResult, error) {
+func (s *openCodeSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 	turnID := s.createTurnID()
 	s.mu.Lock()

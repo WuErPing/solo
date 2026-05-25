@@ -64,7 +64,7 @@ func TestManualSSEFlow(t *testing.T) {
 	t.Log("Running prompt...")
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	result, err := sess.Run(ctx, "What is 2+2? Answer in one sentence.", nil, nil)
+	result, err := sess.Run(ctx, "What is 2+2? Answer in one sentence.", nil, nil, "")
 	if err != nil {
 		t.Fatalf("Run error: %v", err)
 	}

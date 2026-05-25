@@ -152,7 +152,7 @@ func newPiSession(binaryPath string, config *protocol.AgentSessionConfig, logger
 	}
 }
 
-func (s *piSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) (*AgentRunResult, error) {
+func (s *piSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 
 	s.mu.Lock()
@@ -184,7 +184,7 @@ func (s *piSession) Run(ctx context.Context, text string, images []protocol.Imag
 
 	pump := base.NewEventPump(s.base.Logger(), s.dispatcher)
 	pump.SetProvider(piProviderName)
-	translator := &piTranslator{session: s}
+	translator := &piTranslator{session: s, messageID: messageID}
 	detector := &piTerminalDetector{session: s}
 
 	result, err := pump.RunBlocking(runCtx, stdoutPipe, translator, detector)
@@ -243,7 +243,7 @@ func (s *piSession) StartTurn(ctx context.Context, text string, images []protoco
 
 	pump := base.NewEventPump(s.base.Logger(), s.dispatcher)
 	pump.SetProvider(piProviderName)
-	translator := &piTranslator{session: s}
+	translator := &piTranslator{session: s, messageID: ""}
 	detector := &piTerminalDetector{session: s}
 	go func() {
 		_, _ = pump.RunBlocking(runCtx, stdoutPipe, translator, detector)
@@ -454,6 +454,7 @@ func (s *piSession) StreamHistory(ctx context.Context) ([]AgentStreamEvent, erro
 type piTranslator struct {
 	session     *piSession
 	textEmitted bool // true if text_delta was emitted for current assistant message
+	messageID   string
 }
 
 func (t *piTranslator) Translate(raw []byte, timestamp time.Time) ([]interface{}, bool, error) {
@@ -508,7 +509,7 @@ func (t *piTranslator) translateEvent(msg piEvent, now time.Time) []interface{} 
 				events = append(events, AgentStreamEvent{
 					Event: map[string]interface{}{
 						"type":     "timeline",
-						"item":     TimelineItem{Type: "user_message", Text: strings.Join(textParts, "\n")},
+						"item":     TimelineItem{Type: "user_message", Text: strings.Join(textParts, "\n"), MessageID: t.messageID},
 						"provider": piProviderName,
 					},
 					Timestamp: now,

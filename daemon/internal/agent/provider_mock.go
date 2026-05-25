@@ -69,7 +69,7 @@ type MockAgentSession struct {
 	sessionID string
 }
 
-func (s *MockAgentSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) (*AgentRunResult, error) {
+func (s *MockAgentSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
 	if !s.emit(AgentStreamEvent{
 		Event: map[string]interface{}{
 			"type":      "thread_started",
@@ -84,7 +84,7 @@ func (s *MockAgentSession) Run(ctx context.Context, text string, images []protoc
 	if !s.emit(AgentStreamEvent{
 		Event: map[string]interface{}{
 			"type":     "timeline",
-			"item":     TimelineItem{Type: "user_message", Text: text},
+			"item":     TimelineItem{Type: "user_message", Text: text, MessageID: messageID},
 			"provider": "mock",
 		},
 		Timestamp: time.Now(),
@@ -123,7 +123,7 @@ func (s *MockAgentSession) Run(ctx context.Context, text string, images []protoc
 }
 
 func (s *MockAgentSession) StartTurn(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) (<-chan AgentStreamEvent, error) {
-	go s.Run(ctx, text, images, attachments)
+	go s.Run(ctx, text, images, attachments, "")
 	return s.events, nil
 }
 

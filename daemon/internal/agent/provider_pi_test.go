@@ -81,7 +81,7 @@ func TestPiSession_Run_RejectsConcurrentRun(t *testing.T) {
 	defer cancel1()
 
 	go func() {
-		sess.Run(ctx1, "first", nil, nil)
+		sess.Run(ctx1, "first", nil, nil, "")
 	}()
 
 	time.Sleep(50 * time.Millisecond)
@@ -89,7 +89,7 @@ func TestPiSession_Run_RejectsConcurrentRun(t *testing.T) {
 	ctx2, cancel2 := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel2()
 
-	_, err := sess.Run(ctx2, "second", nil, nil)
+	_, err := sess.Run(ctx2, "second", nil, nil, "")
 	if err == nil {
 		t.Fatal("expected concurrent Run to fail, got nil")
 	}

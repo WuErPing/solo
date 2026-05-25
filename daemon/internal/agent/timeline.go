@@ -102,6 +102,9 @@ func (s *InMemoryTimelineStore) Delete(agentID string) {
 }
 
 // Append adds a timeline item and returns the new row.
+// It is idempotent: when multiple sessions process the same stream event,
+// only the first call creates a row; subsequent calls with an identical
+// item return the existing row.
 func (s *InMemoryTimelineStore) Append(agentID string, item TimelineItem) TimelineRow {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -114,6 +117,18 @@ func (s *InMemoryTimelineStore) Append(agentID string, item TimelineItem) Timeli
 			NextSeq: 0,
 		}
 		s.states[agentID] = state
+	}
+
+	// Deduplicate against the most recent row.
+	// Multiple sessions may process the same stream event and call Append
+	// in quick succession. The second (and subsequent) calls find the row
+	// that the first session just added and return it instead of creating
+	// a duplicate.
+	if len(state.Rows) > 0 {
+		last := state.Rows[len(state.Rows)-1]
+		if timelineItemsEqual(last.Item, item) {
+			return last
+		}
 	}
 
 	row := TimelineRow{
@@ -462,6 +477,42 @@ func (item *TimelineItem) ToProtocolMap() map[string]interface{} {
 		}
 	}
 	return m
+}
+
+// timelineItemsEqual reports whether two timeline items are identical for
+// deduplication purposes. It is called inside Append to prevent duplicate rows
+// when multiple sessions process the same stream event.
+func timelineItemsEqual(a, b TimelineItem) bool {
+	if a.Type != b.Type {
+		return false
+	}
+	switch a.Type {
+	case "user_message":
+		if a.MessageID != "" && b.MessageID != "" {
+			return a.MessageID == b.MessageID
+		}
+		return a.Text == b.Text
+	case "assistant_message", "reasoning":
+		return a.Text == b.Text
+	case "tool_call":
+		return a.CallID == b.CallID && a.Status == b.Status
+	case "todo":
+		if len(a.TodoItems) != len(b.TodoItems) {
+			return false
+		}
+		for i := range a.TodoItems {
+			if a.TodoItems[i].Text != b.TodoItems[i].Text || a.TodoItems[i].Completed != b.TodoItems[i].Completed {
+				return false
+			}
+		}
+		return true
+	case "error":
+		return a.Message == b.Message
+	case "compaction":
+		return a.CompactionStatus == b.CompactionStatus && a.Trigger == b.Trigger
+	default:
+		return false
+	}
 }
 
 // FormatSeqRange returns a string like "5-8" for a range of sequence numbers.

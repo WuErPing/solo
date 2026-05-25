@@ -219,7 +219,7 @@ func newKimiSession(binaryPath string, config *protocol.AgentSessionConfig, logg
 	}
 }
 
-func (s *kimiSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) (*AgentRunResult, error) {
+func (s *kimiSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 
 	s.mu.Lock()

@@ -32,6 +32,6 @@ func TestPiIntegration_NoSubscribe(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	result, err := sess.Run(ctx, "hi", nil, nil)
+	result, err := sess.Run(ctx, "hi", nil, nil, "")
 	t.Logf("result=%+v err=%v", result, err)
 }

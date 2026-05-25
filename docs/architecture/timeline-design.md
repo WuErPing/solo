@@ -245,7 +245,64 @@ flowchart TD
 
 ---
 
-## 11. 设计亮点总结
+## 11. 后端存储与多端同步
+
+### 11.1 共享存储模型
+
+后端 `InMemoryTimelineStore` 是一个**全局共享单例**，所有 Session 共用同一个存储实例。Agent 运行产生的 `timeline` 事件通过以下链路写入存储：
+
+```
+Agent Session (dispatcher)
+  → subscribeToSession (workCh)
+    → agentMgr.handleStreamEvent
+      → m.emit(event)  ──→ Session A.handleStreamEvent ──→ timelineStore.Append
+                          → Session B.handleStreamEvent ──→ timelineStore.Append
+                          → Session C.handleStreamEvent ──→ timelineStore.Append
+```
+
+**关键问题**：`m.emit()` 是同步顺序调用所有 Session 的 subscriber。每个 Session 的 `handleStreamEvent` 在收到 `timeline` 事件时都会独立调用 `timelineStore.Append()`。如果有 N 个 Session 同时在线，同一个 timeline item 会被追加 **N 次**。
+
+### 11.2 重复问题的影响
+
+| 现象 | 根因 |
+|------|------|
+| 多端同时收到重复返回 | timelineStore 中同一 assistant_message 被追加多次，客户端 fetch timeline 时拿到重复数据 |
+| App 端缺失/混乱 Web 发的消息 | timeline 重复导致前端 head/tail 状态机同步逻辑错乱，乐观更新的 user_message 被覆盖或重复追加 |
+
+### 11.3 幂等性修复方案
+
+`timelineStore.Append()` 已实现幂等：追加前检查**最后一条记录**是否与当前 item 完全相同，相同则返回已有 row。
+
+```go
+func (s *InMemoryTimelineStore) Append(agentID string, item TimelineItem) TimelineRow {
+    // ...
+    if len(state.Rows) > 0 {
+        last := state.Rows[len(state.Rows)-1]
+        if timelineItemsEqual(last.Item, item) {
+            return last  // 返回已有记录，不创建重复
+        }
+    }
+    // 真正追加新 row
+}
+```
+
+`timelineItemsEqual` 按类型精确比较：
+- `user_message` → 优先比较 `MessageID`，否则比较 `Text`
+- `assistant_message` / `reasoning` → 比较 `Text`
+- `tool_call` → 比较 `CallID + Status`
+
+**为什么只检查最后一条就够了？**
+因为 `m.emit()` 同步顺序分发，多个 Session 对同一个事件的 `Append()` 在时间上几乎连续。第二个 Session 调用时，最后一条就是第一个 Session 刚刚追加的重复项。
+
+### 11.4 相关源码
+
+- `daemon/internal/agent/timeline.go` — `Append()` 幂等逻辑
+- `daemon/internal/agent/manager.go` — `emit()` 同步广播
+- `daemon/internal/server/session_agent_stream.go` — per-Session 的 `handleStreamEvent`
+
+---
+
+## 12. 设计亮点总结
 
 1. **Head/Tail 双缓冲**：将高频流式更新与低频历史提交分离，性能优异。
 2. **Seq + Epoch 严格排序**：通过单调序列号保证事件顺序，通过 epoch 隔离不同会话时代。
@@ -253,3 +310,4 @@ flowchart TD
 4. **Bootstrap 竞态安全**：初始化期间的 tail 响应会替换历史并记录 catch-up cursor，避免 race condition 导致的消息丢失。
 5. **批处理队列**：48ms 批处理窗口平衡了实时性与渲染性能。
 6. **乐观生命周期**：在流事件层面乐观更新 Agent 状态（running → completed），UI 响应更快。
+7. **后端存储幂等写入**：`Append()` 的去重机制确保多端同步时 timeline 数据不重复。
