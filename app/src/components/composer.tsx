@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { useState, useEffect, useRef, useCallback, useMemo, memo, type ReactElement } from "react";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { useIsCompactFormFactor } from "@/constants/layout";
+import { useIsCompactFormFactor , FOOTER_HEIGHT, MAX_CONTENT_WIDTH } from "@/constants/layout";
 import { useShallow } from "zustand/shallow";
 import {
   ArrowUp,
@@ -22,7 +22,6 @@ import {
 } from "lucide-react-native";
 import Animated from "react-native-reanimated";
 import { useQuery } from "@tanstack/react-query";
-import { FOOTER_HEIGHT, MAX_CONTENT_WIDTH } from "@/constants/layout";
 import { generateMessageId, type StreamItem } from "@/types/stream";
 import {
   AgentStatusBar,

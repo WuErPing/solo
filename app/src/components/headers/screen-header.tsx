@@ -1,6 +1,5 @@
 import { useMemo, type ReactNode } from "react";
-import type { LayoutChangeEvent } from "react-native";
-import { View, type StyleProp, type ViewStyle } from "react-native";
+import type { LayoutChangeEvent , View, type StyleProp, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import {

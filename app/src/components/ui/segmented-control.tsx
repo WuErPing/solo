@@ -1,6 +1,5 @@
 import { useCallback, useMemo, type ReactNode } from "react";
-import { Pressable, Text, View, type PressableStateCallbackType } from "react-native";
-import type { StyleProp, TextStyle, ViewStyle } from "react-native";
+import { Pressable, Text, View, type PressableStateCallbackType , StyleProp, TextStyle, ViewStyle } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 
 type SegmentedControlSize = "sm" | "md";

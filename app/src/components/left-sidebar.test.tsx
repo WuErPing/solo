@@ -173,7 +173,7 @@ vi.mock("@/components/sidebar/sidebar-header-row", () => ({
 }));
 
 vi.mock("./sidebar-workspace-list", () => ({
-  SidebarWorkspaceList: ({ projects }: { projects: Array<{ projectName: string }> }) =>
+  SidebarWorkspaceList: ({ projects }: { projects: { projectName: string }[] }) =>
     React.createElement(
       "div",
       { "data-testid": "sidebar-workspace-list" },

@@ -19,7 +19,7 @@ export interface PrHint {
   url: string;
   number: number;
   state: "open" | "merged" | "closed";
-  checks?: Array<{ name: string; status: string; url: string | null }>;
+  checks?: { name: string; status: string; url: string | null }[];
   checksStatus?: "none" | "pending" | "success" | "failure";
   reviewDecision?: "approved" | "changes_requested" | "pending" | null;
 }

@@ -27,7 +27,7 @@ interface IsAgentArchivingInput extends ArchiveAgentInput {
 }
 
 interface AgentsListQueryData {
-  entries?: Array<{ agent?: { id?: string | null } | null } | null>;
+  entries?: ({ agent?: { id?: string | null } | null } | null)[];
 }
 
 interface ArchivedAgentListCacheSnapshot {

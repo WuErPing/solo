@@ -26,7 +26,6 @@ import { useDictation } from "@/hooks/use-dictation";
 import { DictationOverlay } from "./dictation-controls";
 import { RealtimeVoiceOverlay } from "./realtime-voice-overlay";
 import type { DaemonClient } from "@server/client/daemon-client";
-import { useSessionStore } from "@/stores/session-store";
 import { useVoiceOptional } from "@/contexts/voice-context";
 import { useToast } from "@/contexts/toast-context";
 import { resolveVoiceUnavailableMessage } from "@/utils/server-info-capabilities";
@@ -34,8 +33,7 @@ import {
   collectImageFilesFromClipboardData,
   filesToImageAttachments,
 } from "@/utils/image-attachments-from-files";
-import type { AttachmentMetadata } from "@/attachments/types";
-import type { ComposerAttachment } from "@/attachments/types";
+import type { AttachmentMetadata , ComposerAttachment } from "@/attachments/types";
 import { focusWithRetries } from "@/utils/web-focus";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Shortcut } from "@/components/ui/shortcut";
@@ -1402,18 +1400,6 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const overlayTransition = useSharedValue(0);
     const sendAfterTranscriptRef = useRef(false);
     const valueRef = useRef(value);
-    const serverInfo = useSessionStore(
-      useCallback(
-        (state) => {
-          if (!voiceServerId) {
-            return null;
-          }
-          return state.sessions[voiceServerId]?.serverInfo ?? null;
-        },
-        [voiceServerId],
-      ),
-    );
-
     useEffect(() => {
       valueRef.current = value;
     }, [value]);

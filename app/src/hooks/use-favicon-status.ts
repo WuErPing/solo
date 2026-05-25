@@ -9,7 +9,7 @@ import { isNative } from "@/constants/platform";
 type FaviconStatus = "none" | "running" | "attention";
 type ColorScheme = "dark" | "light";
 
-/* eslint-disable @typescript-eslint/no-require-imports */
+ 
 const FAVICON_IMAGES: Record<ColorScheme, Record<FaviconStatus, { uri: string } | number>> = {
   dark: {
     none: require("../../assets/images/favicon-dark.png"),
@@ -22,7 +22,7 @@ const FAVICON_IMAGES: Record<ColorScheme, Record<FaviconStatus, { uri: string } 
     attention: require("../../assets/images/favicon-light-attention.png"),
   },
 };
-/* eslint-enable @typescript-eslint/no-require-imports */
+ 
 
 function deriveFaviconStatus(
   agents: ReturnType<typeof useAggregatedAgents>["agents"],

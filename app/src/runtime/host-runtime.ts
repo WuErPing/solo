@@ -15,12 +15,11 @@ import {
   type HostConnection,
   type HostProfile,
 } from "@/types/host-connection";
-import { decodeOfferFragmentPayload, normalizeHostPort } from "@/utils/daemon-endpoints";
+import { decodeOfferFragmentPayload, normalizeHostPort , buildDaemonWebSocketUrl, buildRelayWebSocketUrl } from "@/utils/daemon-endpoints";
 import { resolveAppVersion } from "@/utils/app-version";
 import { ConnectionOfferSchema, type ConnectionOffer } from "@server/shared/connection-offer";
 import { shouldUseDesktopDaemon, startDesktopDaemon } from "@/desktop/daemon/desktop-daemon";
 import { connectToDaemon } from "@/utils/test-daemon-connection";
-import { buildDaemonWebSocketUrl, buildRelayWebSocketUrl } from "@/utils/daemon-endpoints";
 import { getOrCreateClientId } from "@/utils/client-id";
 import {
   selectBestConnection,
@@ -31,7 +30,7 @@ import {
   buildLocalDaemonTransportUrl,
   createDesktopLocalDaemonTransportFactory,
 } from "@/desktop/daemon/desktop-daemon-transport";
-import { getIsElectron, isDev, isNative, isWeb } from "@/constants/platform";
+import { getIsElectron, isDev, isNative } from "@/constants/platform";
 import { replaceFetchedAgentDirectory } from "@/utils/agent-directory-sync";
 import { useSessionStore } from "@/stores/session-store";
 
@@ -913,7 +912,7 @@ export class HostRuntimeController {
   private updateSnapshot(patch: HostRuntimeSnapshotPatch): void {
     const preservedPatch: HostRuntimeSnapshotPatch = { ...patch };
     let hasChanged = this.host.serverId !== this.snapshot.serverId;
-    for (const key of Object.keys(patch) as Array<keyof HostRuntimeSnapshotPatch>) {
+    for (const key of Object.keys(patch) as (keyof HostRuntimeSnapshotPatch)[]) {
       const incomingValue = patch[key];
       if (equal(this.snapshot[key], incomingValue)) {
         setSnapshotPatchField(preservedPatch, key, this.snapshot[key]);

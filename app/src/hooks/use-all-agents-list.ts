@@ -1,11 +1,10 @@
 import { useCallback, useMemo } from "react";
-import { useHosts } from "@/runtime/host-runtime";
-import { useSessionStore, type Agent } from "@/stores/session-store";
-import {
+import { useHosts ,
   getHostRuntimeStore,
   useHostRuntimeConnectionStatus,
   useHostRuntimeIsDirectoryLoading,
 } from "@/runtime/host-runtime";
+import { useSessionStore, type Agent } from "@/stores/session-store";
 import type { AggregatedAgent, AggregatedAgentsResult } from "@/hooks/use-aggregated-agents";
 
 function toAggregatedAgent(params: {

@@ -730,7 +730,7 @@ export function reduceStreamUpdate(
  * Hydrate stream state from a batch of AgentManager stream events
  */
 export function hydrateStreamState(
-  events: Array<{ event: AgentStreamEventPayload; timestamp: Date }>,
+  events: { event: AgentStreamEventPayload; timestamp: Date }[],
   options?: { source?: StreamUpdateSource },
 ): StreamItem[] {
   const hydrated = events.reduce<StreamItem[]>((state, { event, timestamp }) => {

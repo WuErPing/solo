@@ -870,11 +870,11 @@ function getInlineCodeAutoLinkUrl(
     return null;
   }
 
-  const matches = markdownParser.linkify.match(trimmed) as Array<{
+  const matches = markdownParser.linkify.match(trimmed) as {
     index: number;
     lastIndex: number;
     url: string;
-  }> | null;
+  }[] | null;
   if (!matches || matches.length !== 1) {
     return null;
   }

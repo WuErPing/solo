@@ -74,7 +74,7 @@ function normalizeDraftCommandConfig(
 }
 
 function mapDirectorySuggestionsToEntries(payload: {
-  entries?: Array<{ path: string; kind: string }>;
+  entries?: { path: string; kind: string }[];
   directories?: string[];
 }): DirectorySuggestionEntry[] {
   if (Array.isArray(payload.entries) && payload.entries.length > 0) {

@@ -12,8 +12,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { useIsCompactFormFactor } from "@/constants/layout";
-import { WORKSPACE_SECONDARY_HEADER_HEIGHT } from "@/constants/layout";
+import { useIsCompactFormFactor , WORKSPACE_SECONDARY_HEADER_HEIGHT } from "@/constants/layout";
 import { Fonts } from "@/constants/theme";
 import * as Clipboard from "expo-clipboard";
 import { SvgXml } from "react-native-svg";
@@ -38,8 +37,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useFileExplorerActions } from "@/hooks/use-file-explorer-actions";
-import { buildWorkspaceExplorerStateKey } from "@/hooks/use-file-explorer-actions";
+import { useFileExplorerActions , buildWorkspaceExplorerStateKey } from "@/hooks/use-file-explorer-actions";
 import { usePanelStore, type SortOption } from "@/stores/panel-store";
 import { formatTimeAgo } from "@/utils/time";
 import { buildAbsoluteExplorerPath } from "@/utils/explorer-paths";

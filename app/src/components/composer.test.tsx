@@ -1,5 +1,4 @@
-import React, { useState } from "react";
-import { act } from "react";
+import React, { useState , act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { JSDOM } from "jsdom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -504,7 +503,7 @@ vi.mock("@/components/ui/combobox", () => ({
     anchorRef,
   }: {
     open?: boolean;
-    options: Array<{ id: string; label: string; description?: string }>;
+    options: { id: string; label: string; description?: string }[];
     renderOption?: (input: {
       option: { id: string; label: string; description?: string };
       selected: boolean;

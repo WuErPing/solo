@@ -1,7 +1,6 @@
-import React from "react";
+import React, { act } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { createRoot } from "react-dom/client";
-import { act } from "react";
 import { JSDOM } from "jsdom";
 import { MermaidPreview } from "./mermaid-preview.web";
 

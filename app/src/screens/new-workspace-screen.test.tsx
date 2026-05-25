@@ -1,5 +1,4 @@
-import React from "react";
-import { act } from "react";
+import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { JSDOM } from "jsdom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -485,7 +484,7 @@ vi.mock("@/components/ui/combobox", () => ({
     onSelect,
   }: {
     open?: boolean;
-    options: Array<{ id: string; label: string }>;
+    options: { id: string; label: string }[];
     renderOption?: (input: {
       option: { id: string; label: string };
       selected: boolean;

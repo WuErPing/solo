@@ -16,11 +16,19 @@ import { isWeb as platformIsWeb } from "@/constants/platform";
 import { ArrowLeft, ChevronDown, ChevronRight, Search, Star } from "lucide-react-native";
 import type { AgentModelDefinition, AgentProvider } from "@server/server/agent/agent-sdk-types";
 import type { AgentProviderDefinition } from "@server/server/agent/provider-manifest";
-const IS_WEB = platformIsWeb;
 
 import { Combobox, ComboboxItem, type ComboboxOption } from "@/components/ui/combobox";
+import { getProviderIcon } from "@/components/provider-icons";
+import {
+  buildModelRows,
+  buildSelectedTriggerLabel,
+  matchesSearch,
+  resolveProviderLabel,
+  type SelectorModelRow,
+} from "./combined-model-selector.utils";
+const IS_WEB = platformIsWeb;
 
-const EMPTY_COMBOBOX_OPTIONS: ReadonlyArray<ComboboxOption> = [];
+const EMPTY_COMBOBOX_OPTIONS: readonly ComboboxOption[] = [];
 
 function noop() {}
 
@@ -53,14 +61,6 @@ function backButtonStyle({ hovered, pressed }: PressableStateCallbackType & { ho
     pressed && styles.backButtonPressed,
   ];
 }
-import { getProviderIcon } from "@/components/provider-icons";
-import {
-  buildModelRows,
-  buildSelectedTriggerLabel,
-  matchesSearch,
-  resolveProviderLabel,
-  type SelectorModelRow,
-} from "./combined-model-selector.utils";
 
 // TODO: this should be configured per provider in the provider manifest
 const PROVIDERS_WITH_MODEL_DESCRIPTIONS = new Set(["opencode", "pi"]);
@@ -152,7 +152,7 @@ function sortFavoritesFirst(
 
 function groupRowsByProvider(
   rows: SelectorModelRow[],
-): Array<{ providerId: string; providerLabel: string; rows: SelectorModelRow[] }> {
+): { providerId: string; providerLabel: string; rows: SelectorModelRow[] }[] {
   const grouped = new Map<
     string,
     { providerId: string; providerLabel: string; rows: SelectorModelRow[] }
@@ -384,7 +384,7 @@ function GroupedProviderRows({
   onDrillDown,
   viewKind,
 }: {
-  groupedRows: Array<{ providerId: string; providerLabel: string; rows: SelectorModelRow[] }>;
+  groupedRows: { providerId: string; providerLabel: string; rows: SelectorModelRow[] }[];
   selectedProvider: string;
   selectedModel: string;
   favoriteKeys: Set<string>;

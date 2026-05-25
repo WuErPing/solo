@@ -2,9 +2,9 @@ import type { DaemonClient } from "@server/client/daemon-client";
 import type { WorkspaceTabDescriptor } from "@/screens/workspace/workspace-tabs-types";
 
 export interface BulkClosableTabGroups {
-  agentTabs: Array<{ tabId: string; agentId: string }>;
-  terminalTabs: Array<{ tabId: string; terminalId: string }>;
-  otherTabs: Array<{ tabId: string }>;
+  agentTabs: { tabId: string; agentId: string }[];
+  terminalTabs: { tabId: string; terminalId: string }[];
+  otherTabs: { tabId: string }[];
 }
 
 interface CloseWorkspaceTabWithCleanupInput {

@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import React from "react";
 
 // SOLO-TODO: Voice/Dictation removed - stub context
 

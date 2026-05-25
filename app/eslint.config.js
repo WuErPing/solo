@@ -8,6 +8,28 @@ module.exports = defineConfig([
     files: ["**/*.test.{ts,tsx}"],
     rules: {
       "react/display-name": "off",
+      "import/first": "off",
+    },
+  },
+  {
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          vars: "all",
+          args: "none",
+          ignoreRestSiblings: true,
+          caughtErrors: "all",
+          varsIgnorePattern: "^_",
+          argsIgnorePattern: "^_",
+        },
+      ],
+      "@typescript-eslint/no-empty-object-type": [
+        "warn",
+        {
+          allowInterfaces: "with-single-extends",
+        },
+      ],
     },
   },
   {

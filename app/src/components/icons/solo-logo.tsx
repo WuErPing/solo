@@ -7,7 +7,7 @@ interface SoloLogoProps {
 }
 
 export function SoloLogo({ size = 64, color }: SoloLogoProps) {
-  const { theme } = useUnistyles();
+  useUnistyles();
 
   const style: ImageStyle = {
     width: size,

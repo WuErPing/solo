@@ -82,7 +82,7 @@ jobs:
 
       - name: Lint app
         working-directory: app
-        run: npx expo lint --max-warnings 9999
+        run: npx expo lint --max-warnings 0
 
       - name: Lint app-bridge
         working-directory: app-bridge

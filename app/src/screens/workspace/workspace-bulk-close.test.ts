@@ -81,7 +81,7 @@ describe("workspace bulk close helpers", () => {
       makeFileTab("/repo/README.md"),
     ]);
     const closedTabIds: string[] = [];
-    const cleanupCalls: Array<{ tabId: string; target?: WorkspaceTabDescriptor["target"] }> = [];
+    const cleanupCalls: { tabId: string; target?: WorkspaceTabDescriptor["target"] }[] = [];
     const closeItems = vi.fn(async () => ({
       agents: [{ agentId: "a1", archivedAt: "2026-04-01T04:00:00.000Z" }],
       terminals: [
@@ -130,7 +130,7 @@ describe("workspace bulk close helpers", () => {
       makeFileTab("/repo/README.md"),
     ]);
     const closedTabIds: string[] = [];
-    const cleanupCalls: Array<{ tabId: string; target?: WorkspaceTabDescriptor["target"] }> = [];
+    const cleanupCalls: { tabId: string; target?: WorkspaceTabDescriptor["target"] }[] = [];
     const warn = vi.fn();
 
     await closeBulkWorkspaceTabs({

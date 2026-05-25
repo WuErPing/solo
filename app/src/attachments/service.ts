@@ -63,7 +63,7 @@ export async function persistAttachmentFromFileUri(input: {
 
 export async function encodeAttachmentsForSend(
   attachments: readonly AttachmentMetadata[] | undefined,
-): Promise<Array<{ data: string; mimeType: string }> | undefined> {
+): Promise<{ data: string; mimeType: string }[] | undefined> {
   if (!attachments || attachments.length === 0) {
     return undefined;
   }

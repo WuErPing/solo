@@ -190,7 +190,7 @@ function selectWorkspaceStructureProjects(
   const byProject = new Map<
     string,
     WorkspaceStructureProject & {
-      workspaces: Array<{ workspaceId: string; workspaceName: string; workspaceKey: string }>;
+      workspaces: { workspaceId: string; workspaceName: string; workspaceKey: string }[];
     }
   >();
 
@@ -206,7 +206,7 @@ function selectWorkspaceStructureProjects(
         workspaceKeys: [],
         workspaces: [],
       } satisfies WorkspaceStructureProject & {
-        workspaces: Array<{ workspaceId: string; workspaceName: string; workspaceKey: string }>;
+        workspaces: { workspaceId: string; workspaceName: string; workspaceKey: string }[];
       });
 
     project.workspaces.push({

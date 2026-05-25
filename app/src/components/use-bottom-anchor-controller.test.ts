@@ -74,7 +74,7 @@ function createFrameScheduler() {
       }
     },
     flushFrame() {
-      const due: Array<() => void> = [];
+      const due: (() => void)[] = [];
       for (const [id, task] of Array.from(tasks.entries())) {
         if (task.cancelled) {
           tasks.delete(id);

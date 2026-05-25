@@ -225,8 +225,8 @@ function syncPickerPrAttachment(input: {
 }
 
 function computePickerOptionData(
-  branchDetails: ReadonlyArray<{ name: string; committerDate: number }>,
-  prItems: ReadonlyArray<GitHubSearchItem>,
+  branchDetails: readonly { name: string; committerDate: number }[],
+  prItems: readonly GitHubSearchItem[],
 ): PickerOptionData {
   const idMap = new Map<string, PickerItem>();
 
