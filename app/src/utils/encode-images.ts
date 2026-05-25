@@ -5,6 +5,6 @@ type ImageInput = AttachmentMetadata;
 
 export async function encodeImages(
   images?: ImageInput[],
-): Promise<Array<{ data: string; mimeType: string }> | undefined> {
+): Promise<{ data: string; mimeType: string }[] | undefined> {
   return await encodeAttachmentsForSend(images);
 }

@@ -287,7 +287,7 @@ export interface SessionState {
   // Queued messages
   queuedMessages: Map<
     string,
-    Array<{ id: string; text: string; attachments: ComposerAttachment[] }>
+    { id: string; text: string; attachments: ComposerAttachment[] }[]
   >;
 }
 
@@ -408,10 +408,10 @@ interface SessionStoreActions {
   setQueuedMessages: (
     serverId: string,
     value:
-      | Map<string, Array<{ id: string; text: string; attachments: ComposerAttachment[] }>>
+      | Map<string, { id: string; text: string; attachments: ComposerAttachment[] }[]>
       | ((
-          prev: Map<string, Array<{ id: string; text: string; attachments: ComposerAttachment[] }>>,
-        ) => Map<string, Array<{ id: string; text: string; attachments: ComposerAttachment[] }>>),
+          prev: Map<string, { id: string; text: string; attachments: ComposerAttachment[] }[]>,
+        ) => Map<string, { id: string; text: string; attachments: ComposerAttachment[] }[]>),
   ) => void;
 
   // Hydration

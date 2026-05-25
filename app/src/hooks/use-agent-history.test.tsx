@@ -159,7 +159,7 @@ afterEach(() => {
   useSessionStore.setState({ sessions: {}, agentLastActivity: new Map() });
 });
 
-function agentIds(agents: ReadonlyArray<{ id: string }>): string[] {
+function agentIds(agents: readonly { id: string }[]): string[] {
   return agents.map((agent) => agent.id);
 }
 

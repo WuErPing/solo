@@ -23,7 +23,7 @@ class FakeDaemonClient {
   public closeCalls = 0;
   public ensureConnectedCalls = 0;
   public fetchAgentsCalls: FetchAgentsOptions[] = [];
-  public fetchAgentsResponses: Array<Awaited<ReturnType<DaemonClient["fetchAgents"]>>> = [];
+  public fetchAgentsResponses: Awaited<ReturnType<DaemonClient["fetchAgents"]>>[] = [];
 
   async connect(): Promise<void> {
     this.connectCalls += 1;
@@ -349,9 +349,7 @@ function markStoreHostOnline(
 }
 
 function makeProbeMap(
-  entries: Array<
-    [string, HostRuntimeSnapshot["probeByConnectionId"] extends Map<string, infer T> ? T : never]
-  >,
+  entries: [string, HostRuntimeSnapshot["probeByConnectionId"] extends Map<string, infer T> ? T : never][],
 ): HostRuntimeSnapshot["probeByConnectionId"] {
   return new Map(entries);
 }

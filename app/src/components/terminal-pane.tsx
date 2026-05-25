@@ -46,7 +46,7 @@ const MODIFIER_LABELS = {
   alt: "Alt",
 } as const;
 
-const KEY_BUTTONS: Array<{ id: string; label: string; key: string }> = [
+const KEY_BUTTONS: { id: string; label: string; key: string }[] = [
   { id: "esc", label: "Esc", key: "Escape" },
   { id: "tab", label: "Tab", key: "Tab" },
   { id: "up", label: "↑", key: "ArrowUp" },
@@ -181,7 +181,7 @@ export function TerminalPane({
   const emulatorRef = useRef<TerminalEmulatorHandle>(null);
   const terminalIdRef = useRef<string>(terminalId);
   const pendingTerminalInputRef = useRef<PendingTerminalInput[]>([]);
-  const keyboardRefitTimeoutsRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  const keyboardRefitTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const lastAutoFocusKeyRef = useRef<string | null>(null);
   const initialSnapshot = workspaceTerminalSession.snapshots.get({ terminalId });
 
@@ -673,7 +673,7 @@ export function TerminalPane({
         <View style={styles.keyboardContainer} testID="terminal-virtual-keyboard">
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.keyboardRow}>
-              {(Object.keys(MODIFIER_LABELS) as Array<keyof ModifierState>).map((modifier) => (
+              {(Object.keys(MODIFIER_LABELS) as (keyof ModifierState)[]).map((modifier) => (
                 <ModifierButton
                   key={modifier}
                   modifier={modifier}

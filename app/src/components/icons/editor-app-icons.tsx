@@ -13,7 +13,7 @@ interface EditorAppIconProps {
   color?: string;
 }
 
-/* eslint-disable @typescript-eslint/no-require-imports */
+ 
 const EDITOR_APP_IMAGES: Record<KnownEditorTargetId, ImageSourcePropType> = {
   cursor: require("../../../assets/images/editor-apps/cursor.png"),
   vscode: require("../../../assets/images/editor-apps/vscode.png"),
@@ -23,7 +23,7 @@ const EDITOR_APP_IMAGES: Record<KnownEditorTargetId, ImageSourcePropType> = {
   explorer: require("../../../assets/images/editor-apps/file-explorer.png"),
   "file-manager": require("../../../assets/images/editor-apps/file-explorer.png"),
 };
-/* eslint-enable @typescript-eslint/no-require-imports */
+ 
 
 export function hasBundledEditorAppIcon(editorId: EditorTargetId): editorId is KnownEditorTargetId {
   return isKnownEditorTargetId(editorId);

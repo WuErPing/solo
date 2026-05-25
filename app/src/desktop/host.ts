@@ -15,10 +15,10 @@ export interface DesktopDialogOpenOptions {
   defaultPath?: string;
   directory?: boolean;
   multiple?: boolean;
-  filters?: Array<{
+  filters?: {
     name: string;
     extensions: string[];
-  }>;
+  }[];
 }
 
 export interface DesktopDialogBridge {

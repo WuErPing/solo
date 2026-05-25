@@ -152,7 +152,7 @@ function removeWorktreeFromCachedLists(input: { serverId: string; worktreePath: 
 
 interface WorktreeArchiveSnapshot {
   workspace: WorkspaceDescriptor | null;
-  worktreeLists: Array<[QueryKey, unknown]>;
+  worktreeLists: [QueryKey, unknown][];
 }
 
 function isWorktreeListQuery(input: { queryKey: QueryKey; serverId: string }): boolean {

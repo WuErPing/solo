@@ -149,7 +149,7 @@ describe("terminal emulator runtime in a real browser", () => {
     await waitFor({ predicate: () => mounted.sizes.length > 0 });
 
     const terminal = getBrowserTerminal();
-    const refreshCalls: Array<[number, number]> = [];
+    const refreshCalls: [number, number][] = [];
     const originalRefresh = terminal.refresh.bind(terminal);
     terminal.refresh = (start, end) => {
       refreshCalls.push([start, end]);

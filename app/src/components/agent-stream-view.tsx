@@ -19,7 +19,7 @@ import {
   type PressableStateCallbackType,
 } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { useIsCompactFormFactor } from "@/constants/layout";
+import { useIsCompactFormFactor , MAX_CONTENT_WIDTH } from "@/constants/layout";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import Animated, {
@@ -73,7 +73,6 @@ import {
   type BottomAnchorLocalRequest,
   type BottomAnchorRouteRequest,
 } from "./use-bottom-anchor-controller";
-import { MAX_CONTENT_WIDTH } from "@/constants/layout";
 import { normalizeInlinePathTarget } from "@/utils/inline-path";
 import { resolveWorkspaceIdByExecutionDirectory } from "@/utils/workspace-execution";
 import { prepareWorkspaceTab } from "@/utils/workspace-navigation";

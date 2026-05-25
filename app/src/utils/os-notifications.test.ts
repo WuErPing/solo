@@ -9,7 +9,7 @@ interface MockNotificationOptions {
 interface MockNotificationInstance {
   title: string;
   options?: MockNotificationOptions;
-  clickListeners: Array<(event: Event) => void>;
+  clickListeners: ((event: Event) => void)[];
   addEventListener: (event: string, listener: (event: Event) => void) => void;
   close: ReturnType<typeof vi.fn>;
 }
@@ -105,7 +105,7 @@ describe("sendOsNotification", () => {
     class MockNotification implements MockNotificationInstance {
       static permission = "granted";
       static requestPermission = vi.fn(async () => "granted");
-      clickListeners: Array<(event: Event) => void> = [];
+      clickListeners: ((event: Event) => void)[] = [];
       close = vi.fn();
 
       constructor(
@@ -165,7 +165,7 @@ describe("sendOsNotification", () => {
     class MockNotification implements MockNotificationInstance {
       static permission = "granted";
       static requestPermission = vi.fn(async () => "granted");
-      clickListeners: Array<(event: Event) => void> = [];
+      clickListeners: ((event: Event) => void)[] = [];
       close = vi.fn();
 
       constructor(
@@ -224,7 +224,7 @@ describe("sendOsNotification", () => {
     class MockNotification implements MockNotificationInstance {
       static permission = "granted";
       static requestPermission = vi.fn(async () => "granted");
-      clickListeners: Array<(event: Event) => void> = [];
+      clickListeners: ((event: Event) => void)[] = [];
       close = vi.fn();
 
       constructor(

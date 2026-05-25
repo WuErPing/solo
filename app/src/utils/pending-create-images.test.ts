@@ -5,13 +5,13 @@ import { mergePendingCreateImages } from "./pending-create-images";
 function userMessage(params: {
   id: string;
   text: string;
-  images?: Array<{
+  images?: {
     id: string;
     storageType: "native-file";
     storageKey: string;
     mimeType: string;
     createdAt: number;
-  }>;
+  }[];
 }): StreamItem {
   return {
     kind: "user_message",

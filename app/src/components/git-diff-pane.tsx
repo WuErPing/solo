@@ -27,7 +27,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { useIsCompactFormFactor } from "@/constants/layout";
+import { useIsCompactFormFactor , WORKSPACE_SECONDARY_HEADER_HEIGHT } from "@/constants/layout";
 import {
   AlignJustify,
   Archive,
@@ -63,7 +63,6 @@ import {
   lightHighlightColors,
   type HighlightStyle as HighlightStyleKey,
 } from "@getsolo/highlight";
-import { WORKSPACE_SECONDARY_HEADER_HEIGHT } from "@/constants/layout";
 import { Fonts } from "@/constants/theme";
 import { shouldAnchorHeaderBeforeCollapse } from "@/utils/git-diff-scroll";
 import {

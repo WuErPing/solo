@@ -111,8 +111,8 @@ export function buildSplitDiffRows(file: ParsedDiffFile): SplitDiffRow[] {
       content: hunk.lines[0]?.type === "header" ? hunk.lines[0].content : "@@",
     });
 
-    let pendingRemovals: Array<{ line: DiffLine; oldLineNumber: number }> = [];
-    let pendingAdditions: Array<{ line: DiffLine; newLineNumber: number }> = [];
+    let pendingRemovals: { line: DiffLine; oldLineNumber: number }[] = [];
+    let pendingAdditions: { line: DiffLine; newLineNumber: number }[] = [];
 
     const flushPendingRows = () => {
       const pairCount = Math.max(pendingRemovals.length, pendingAdditions.length);

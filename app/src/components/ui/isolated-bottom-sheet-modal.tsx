@@ -4,8 +4,7 @@ import {
   type BottomSheetModalProps,
 } from "@gorhom/bottom-sheet";
 import { Portal } from "@gorhom/portal";
-import React, { createContext, useContext } from "react";
-import { forwardRef, useCallback, useEffect, useRef } from "react";
+import React, { createContext, useContext , forwardRef, useCallback, useEffect, useRef } from "react";
 import type { ElementRef } from "react";
 
 type GorhomBottomSheetModalMethods = ElementRef<typeof GorhomBottomSheetModal>;

@@ -56,7 +56,7 @@ function normalizeTransportMessage(message: string | null | undefined): string |
   return trimmed;
 }
 
-function formatTechnicalTransportDetails(details: Array<string | null>): string | null {
+function formatTechnicalTransportDetails(details: (string | null)[]): string | null {
   const unique = Array.from(
     new Set(
       details

@@ -17,7 +17,7 @@ import type {
   AgentAttachment,
   AgentStreamEventPayload,
   SessionOutboundMessage,
-} from "@server/shared/messages";
+ GitSetupOptions } from "@server/shared/messages";
 import { parseServerInfoStatusPayload } from "@server/shared/messages";
 import {
   buildAgentAttentionNotificationPayload,
@@ -26,9 +26,7 @@ import {
 } from "@server/shared/agent-attention-notification";
 import type { AgentLifecycleStatus } from "@server/shared/agent-lifecycle";
 import type { DaemonClient } from "@server/client/daemon-client";
-import type { AgentSessionConfig } from "@server/server/agent/agent-sdk-types";
-import type { GitSetupOptions } from "@server/shared/messages";
-import type { AgentPermissionResponse } from "@server/server/agent/agent-sdk-types";
+import type { AgentSessionConfig , AgentPermissionResponse } from "@server/server/agent/agent-sdk-types";
 import { getHostRuntimeStore, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
 import { useVoiceAudioEngineOptional, useVoiceRuntimeOptional } from "@/contexts/voice-context";
 import type { AudioPlaybackSource } from "@/voice/audio-engine-types";
@@ -83,7 +81,7 @@ function hasAgentUsageChanged(
   incomingUsage: Agent["lastUsage"] | undefined,
   currentUsage: Agent["lastUsage"] | undefined,
 ): boolean {
-  const keys: Array<keyof NonNullable<Agent["lastUsage"]>> = [
+  const keys: (keyof NonNullable<Agent["lastUsage"]>)[] = [
     "inputTokens",
     "outputTokens",
     "cachedInputTokens",
@@ -1783,7 +1781,7 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
         return;
       }
       const trimmedPrompt = initialPrompt.trim();
-      let imagesData: Array<{ data: string; mimeType: string }> | undefined;
+      let imagesData: { data: string; mimeType: string }[] | undefined;
       try {
         imagesData = await encodeImages(images);
       } catch (error) {

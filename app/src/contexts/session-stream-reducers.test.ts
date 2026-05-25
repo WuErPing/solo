@@ -943,7 +943,7 @@ describe("createAgentStreamReducerQueue", () => {
 
   it("coalesces multiple events for one agent into one scheduled commit", () => {
     const scheduler = createManualScheduler();
-    const commits: Array<{ agentId: string; headText: string; cursorEndSeq: number | null }> = [];
+    const commits: { agentId: string; headText: string; cursorEndSeq: number | null }[] = [];
     let currentTail: StreamItem[] = [];
     let currentHead: StreamItem[] = [];
 

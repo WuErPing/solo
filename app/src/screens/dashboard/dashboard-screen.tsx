@@ -59,7 +59,7 @@ function StatusCard({
   isActive: boolean;
   onPress: () => void;
 }) {
-  const { theme } = useUnistyles();
+  useUnistyles();
 
   return (
     <Pressable
@@ -138,7 +138,7 @@ export function DashboardScreen() {
   const { theme } = useUnistyles();
   const insets = useSafeAreaInsets();
   const isCompact = useIsCompactFormFactor();
-  const { agents, isLoading, isInitialLoad, isRevalidating, refreshAll } = useAggregatedAgents();
+  const { agents, isInitialLoad, isRevalidating, refreshAll } = useAggregatedAgents();
 
   const [selectedBucket, setSelectedBucket] = useState<SidebarStateBucket | null>(null);
 

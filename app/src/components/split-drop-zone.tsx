@@ -108,7 +108,7 @@ export function resolveSplitDropPosition(input: {
     { position: "right", distance: input.width - input.x },
     { position: "top", distance: input.y },
     { position: "bottom", distance: input.height - input.y },
-  ] satisfies Array<{ position: Exclude<SplitDropZonePosition, "center">; distance: number }>;
+  ] satisfies { position: Exclude<SplitDropZonePosition, "center">; distance: number }[];
   distances.sort((left, right) => left.distance - right.distance);
   return distances[0]?.position ?? "center";
 }

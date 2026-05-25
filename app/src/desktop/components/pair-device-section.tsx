@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo , useState } from "react";
 import { ActivityIndicator, Image, Text, TextInput, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import * as QRCode from "qrcode";
@@ -8,7 +8,6 @@ import { RotateCw, Copy, Check } from "lucide-react-native";
 import { settingsStyles } from "@/styles/settings";
 import { Button } from "@/components/ui/button";
 import { getDesktopDaemonPairing, shouldUseDesktopDaemon } from "@/desktop/daemon/desktop-daemon";
-import { useState } from "react";
 
 type PairingViewState =
   | { tag: "loading" }

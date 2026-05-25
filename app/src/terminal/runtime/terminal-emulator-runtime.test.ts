@@ -73,11 +73,11 @@ function createRuntimeWithTerminal(): {
   terminal: StubTerminal & {
     resetCalls: number;
   };
-  writeCallbacks: Array<() => void>;
+  writeCallbacks: (() => void)[];
   writeTexts: string[];
 } {
   const runtime = new TerminalEmulatorRuntime();
-  const writeCallbacks: Array<() => void> = [];
+  const writeCallbacks: (() => void)[] = [];
   const writeTexts: string[] = [];
   let resetCalls = 0;
 

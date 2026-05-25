@@ -9,8 +9,8 @@ import {
 interface TerminalSnapshot {
   rows: number;
   cols: number;
-  grid: Array<Array<{ char: string }>>;
-  scrollback: Array<Array<{ char: string }>>;
+  grid: { char: string }[][];
+  scrollback: { char: string }[][];
   cursor: { row: number; col: number };
 }
 
@@ -22,8 +22,8 @@ class FakeTerminalStreamClient implements TerminalStreamControllerClient {
   private readonly listeners = new Set<(event: TerminalStreamEvent) => void>();
   public subscribeCalls: string[] = [];
   public unsubscribeCalls: string[] = [];
-  public resizeCalls: Array<{ terminalId: string; rows: number; cols: number }> = [];
-  public nextSubscribeResults: Array<{ terminalId: string; error?: string | null }> = [];
+  public resizeCalls: { terminalId: string; rows: number; cols: number }[] = [];
+  public nextSubscribeResults: { terminalId: string; error?: string | null }[] = [];
 
   async subscribeTerminal(terminalId: string) {
     this.subscribeCalls.push(terminalId);
@@ -61,8 +61,8 @@ class FakeTerminalStreamClient implements TerminalStreamControllerClient {
 
 function createHarness(input?: { client?: FakeTerminalStreamClient }) {
   const client = input?.client ?? new FakeTerminalStreamClient();
-  const outputs: Array<{ terminalId: string; text: string }> = [];
-  const snapshots: Array<{ terminalId: string; text: string }> = [];
+  const outputs: { terminalId: string; text: string }[] = [];
+  const snapshots: { terminalId: string; text: string }[] = [];
   const statuses: TerminalStreamControllerStatus[] = [];
   const controller = new TerminalStreamController({
     client,

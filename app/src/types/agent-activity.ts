@@ -74,19 +74,19 @@ export interface ToolCallUpdate {
 
 export interface Plan {
   kind: "plan";
-  entries: Array<{
+  entries: {
     content: string;
     status: "pending" | "in_progress" | "completed";
     priority: "high" | "medium" | "low";
-  }>;
+  }[];
 }
 
 export interface AvailableCommandsUpdate {
   kind: "available_commands_update";
-  availableCommands: Array<{
+  availableCommands: {
     name: string;
     description: string;
-  }>;
+  }[];
 }
 
 export interface CurrentModeUpdate {
@@ -180,7 +180,7 @@ function toMergedToolCall(toolCall: ToolCallAccumulator): MergedToolCall {
 interface ApplyToolCallUpdateArgs {
   update: ToolCall | ToolCallUpdate;
   timestamp: Date;
-  result: Array<GroupedActivity | null>;
+  result: (GroupedActivity | null)[];
   toolCallsById: Map<string, ToolCallAccumulator>;
 }
 
@@ -288,7 +288,7 @@ function createAccumulatorFromToolCallUpdate(
 }
 
 function insertNewToolCall(args: {
-  result: Array<GroupedActivity | null>;
+  result: (GroupedActivity | null)[];
   toolCallsById: Map<string, ToolCallAccumulator>;
   accumulator: ToolCallAccumulator;
 }): void {
@@ -297,7 +297,7 @@ function insertNewToolCall(args: {
 }
 
 export function groupActivities(activities: AgentActivity[]): GroupedActivity[] {
-  const result: Array<GroupedActivity | null> = [];
+  const result: (GroupedActivity | null)[] = [];
   const toolCallsById = new Map<string, ToolCallAccumulator>();
   let currentTextGroup: TextGroup | null = null;
 

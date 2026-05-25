@@ -11,8 +11,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type Ref,
 } from "react";
-import type { DOMProps } from "expo/dom";
-import { useDOMImperativeHandle, type DOMImperativeFactory } from "expo/dom";
+import type { DOMProps , useDOMImperativeHandle, type DOMImperativeFactory } from "expo/dom";
 import "@xterm/xterm/css/xterm.css";
 import type { ITheme } from "@xterm/xterm";
 import type { TerminalState } from "@server/shared/messages";
@@ -79,7 +78,7 @@ interface ViewportMetrics {
 }
 
 function buildXtermThemeKey(theme: ITheme): string {
-  const values: Array<string> = [
+  const values: string[] = [
     theme.background,
     theme.foreground,
     theme.cursor,
@@ -133,6 +132,7 @@ interface TerminalEmulatorProps {
 }
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   interface Window {}
 }
 
