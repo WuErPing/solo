@@ -149,7 +149,7 @@ File: `.github/workflows/ci.yml`
 | 19000 | Expo dev | 0.0.0.0 | Dev only |
 
 - **Production relay endpoint**: `solo.up2ai.top:443` (NEVER use raw IP:8081)
-- **Pairing Link**: `https://app.solo.sh/#offer={base64url(ConnectionOfferV2)}`
+- **Pairing Link**: `https://solo.up2ai.top/#offer={base64url(ConnectionOfferV2)}`
 - **Config file**: `~/.solo/config.json`
 - **Daemon keypair**: `~/.solo/daemon-keypair.json`
 

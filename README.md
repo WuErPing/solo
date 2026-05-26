@@ -165,7 +165,7 @@ See [`docs/providers/`](docs/providers/) for provider integration research and p
 ## Security
 
 - **End-to-End Encryption**: All communication between client and daemon is encrypted using X25519 key exchange + XSalsa20-Poly1305.
-- **Pairing Link**: Secure pairing via `https://app.solo.sh/#offer={base64url(ConnectionOfferV2)}`.
+- **Pairing Link**: Secure pairing via `https://solo.up2ai.top/#offer={base64url(ConnectionOfferV2)}`.
 
 ---
 

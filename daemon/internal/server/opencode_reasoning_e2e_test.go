@@ -34,7 +34,7 @@ func newTestWSServerWithOpenCode(t *testing.T) (*WSServer, *httptest.Server, boo
 		SoloHome:   t.TempDir(),
 		ServerID:   "test-server",
 		Version:    "0.1.0",
-		AppBaseURL: "https://app.solo.sh",
+		AppBaseURL: "https://solo.up2ai.top",
 	}
 	logger := newTestLogger()
 

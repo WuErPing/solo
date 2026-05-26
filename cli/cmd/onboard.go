@@ -159,7 +159,7 @@ func generatePairingURL(home string) (string, error) {
 	}
 
 	relayEndpoint := "relay.solo.sh:443"
-	appBaseURL := "https://app.solo.sh"
+	appBaseURL := "https://solo.up2ai.top"
 
 	if cfg := client.LoadDaemonConfig(home); cfg != nil {
 		if cfg.RelayPublicEndpoint != "" {

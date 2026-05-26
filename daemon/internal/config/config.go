@@ -92,9 +92,9 @@ func DefaultConfig() *Config {
 		RelayPublicEndpoint: "relay.solo.sh:443",
 		MCPEnabled:          true,
 		MCPInjectIntoAgents: false,
-		CORSOrigins:         nil,
+		CORSOrigins:         []string{"https://solo.up2ai.top", "http://localhost:19000"},
 		Hostnames:           nil,
-		AppBaseURL:          "https://app.solo.sh",
+		AppBaseURL:          "https://solo.up2ai.top",
 		Supervised:          false,
 		Version:             "0.1.0",
 	}
