@@ -112,9 +112,9 @@ func (c *watchdogMockClient) ListClientCommands(_ context.Context, _ string) ([]
 // Before the fix: maxAgentRunDuration does not exist and there is no watchdog
 // in SendAgentMessage; the agent stays in LifecycleRunning indefinitely.
 func TestSendAgentMessage_WatchdogInterruptsHangingRun(t *testing.T) {
-	origDuration := maxAgentRunDuration // compile error until var is added
-	maxAgentRunDuration = 150 * time.Millisecond
-	defer func() { maxAgentRunDuration = origDuration }()
+	origDuration := maxAgentRunDuration.Load()
+	maxAgentRunDuration.Store(int64(150 * time.Millisecond))
+	defer func() { maxAgentRunDuration.Store(origDuration) }()
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	storage := NewAgentStorage(t.TempDir(), logger)
@@ -151,7 +151,7 @@ func TestSendAgentMessage_WatchdogInterruptsHangingRun(t *testing.T) {
 	}
 
 	// Agent must leave LifecycleRunning within watchdog window + 500ms buffer.
-	deadline := time.After(maxAgentRunDuration + 500*time.Millisecond)
+	deadline := time.After(time.Duration(maxAgentRunDuration.Load()) + 500*time.Millisecond)
 	for {
 		select {
 		case status := <-updates:

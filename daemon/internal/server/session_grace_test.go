@@ -2,6 +2,7 @@ package server
 
 import (
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -107,9 +108,9 @@ func TestSession_GraceExpired_FullCleanup(t *testing.T) {
 	sess := newTestSessionGrace(t, conn, testGracePeriod)
 
 	// Track activity tracker cleanup
-	var trackerRemoveCalled bool
+	var trackerRemoveCalled atomic.Bool
 	sess.SetActivityTracker(&mockActivityTracker{
-		onRemove: func() { trackerRemoveCalled = true },
+		onRemove: func() { trackerRemoveCalled.Store(true) },
 	})
 
 	done := make(chan struct{})
@@ -145,7 +146,7 @@ func TestSession_GraceExpired_FullCleanup(t *testing.T) {
 	}
 
 	// Verify activity tracker cleanup was called
-	if !trackerRemoveCalled {
+	if !trackerRemoveCalled.Load() {
 		t.Error("expected activity tracker Remove to be called after grace expires")
 	}
 }

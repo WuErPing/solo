@@ -50,9 +50,9 @@ func TestEffectivePingTimeout_NonMobileGets5s(t *testing.T) {
 // With the mobile 60s timeout it stays alive well past 10s.
 func TestMobileSession_PingTimeoutExtended_DoesNotDisconnectWithin10s(t *testing.T) {
 	// Override pingInterval to 100ms for speed
-	orig := pingInterval
-	pingInterval = 100 * time.Millisecond
-	defer func() { pingInterval = orig }()
+	orig := pingInterval.Load()
+	pingInterval.Store(int64(100 * time.Millisecond))
+	defer func() { pingInterval.Store(orig) }()
 
 	conn := newMockConn()
 	// Use a very short non-mobile timeout to confirm standard would disconnect fast

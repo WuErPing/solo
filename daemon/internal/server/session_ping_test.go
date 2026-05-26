@@ -139,9 +139,9 @@ func newTestSessionForPing(t *testing.T, conn WSConn) *Session {
 // time regardless of sendQueue traffic.
 func TestWritePump_PingNotStarvedBySendQueue(t *testing.T) {
 	// Use a short ping interval for test speed.
-	origPingInterval := pingInterval
-	pingInterval = 100 * time.Millisecond
-	defer func() { pingInterval = origPingInterval }()
+	origPingInterval := pingInterval.Load()
+	pingInterval.Store(int64(100 * time.Millisecond))
+	defer func() { pingInterval.Store(origPingInterval) }()
 
 	// WriteMessage takes 150ms — 1.5x pingInterval. With the old code,
 	// the select loop is stuck in WriteMessage longer than the ping
@@ -200,7 +200,7 @@ func TestWritePump_PingNotStarvedBySendQueue(t *testing.T) {
 	// but the ticker can also be missed entirely if the timing doesn't align.
 	// With the fix (independent pingLoop), the gap should be close to
 	// pingInterval (100ms), well under 3x.
-	maxAllowedGap := 3 * pingInterval
+	maxAllowedGap := 3 * time.Duration(pingInterval.Load())
 	for i := 1; i < len(times); i++ {
 		gap := times[i].Sub(times[i-1])
 		if gap > maxAllowedGap {

@@ -21,9 +21,9 @@ func TestAgentManager_DroppedEventCount_StartsAtZero(t *testing.T) {
 // then flood the session channel with non-critical events and assert the
 // drop counter increases.
 func TestAgentManager_DroppedEventCount_IncrementOnDrop(t *testing.T) {
-	orig := workChCapacity
-	workChCapacity = 1
-	defer func() { workChCapacity = orig }()
+	orig := workChCapacity.Load()
+	workChCapacity.Store(1)
+	defer func() { workChCapacity.Store(orig) }()
 
 	mgr := createTestManager(t)
 

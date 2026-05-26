@@ -341,8 +341,10 @@ func (s *Session) processLoop() {
 }
 
 // pingInterval is how often the server sends WebSocket ping frames.
-// var (not const) so tests can override it for fast execution.
-var pingInterval = 5 * time.Second
+// Atomic so tests can override it for fast execution without races.
+var pingInterval atomic.Int64
+
+func init() { pingInterval.Store(int64(5 * time.Second)) }
 
 // pingTimeout is the maximum time to wait for a pong response.
 // If no pong is received within this time after a ping, the read deadline
@@ -378,12 +380,12 @@ func (s *Session) setupPingPong() {
 
 	// When a pong is received, extend deadline to allow the next full ping-pong cycle.
 	pc.SetPongHandler(func(appData string) error {
-		return pc.SetReadDeadline(time.Now().Add(pingInterval + timeout))
+		return pc.SetReadDeadline(time.Now().Add(time.Duration(pingInterval.Load()) + timeout))
 	})
 
 	// Set initial read deadline to allow the first full ping-pong cycle:
 	// pingInterval (time until first ping is sent) + timeout (time for pong to arrive).
-	pc.SetReadDeadline(time.Now().Add(pingInterval + timeout))
+	pc.SetReadDeadline(time.Now().Add(time.Duration(pingInterval.Load()) + timeout))
 }
 
 // writePump drains the send queue and writes to the WebSocket.
@@ -424,12 +426,12 @@ func (s *Session) writePump() {
 // WriteControl is explicitly documented as concurrent-safe by gorilla/websocket,
 // so it can be called from this goroutine while writePump calls WriteMessage.
 func (s *Session) pingLoop(pc PingableConn) {
-	ticker := time.NewTicker(pingInterval)
+	ticker := time.NewTicker(time.Duration(pingInterval.Load()))
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			deadline := time.Now().Add(pingInterval)
+			deadline := time.Now().Add(time.Duration(pingInterval.Load()))
 			if err := pc.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
 				s.logger.Warn("ping failed, closing connection", "error", err)
 				go s.conn.Close()

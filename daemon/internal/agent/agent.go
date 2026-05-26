@@ -347,11 +347,23 @@ func (a *ManagedAgent) IsBusy() bool {
 	return a.Lifecycle == LifecycleInitializing || a.Lifecycle == LifecycleRunning
 }
 
-// IsActive returns true if the agent has an active session.
-func (a *ManagedAgent) IsActive() bool {
+// GetSession returns the current session under the read lock.
+func (a *ManagedAgent) GetSession() AgentSession {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	return a.Session != nil
+	return a.Session
+}
+
+// SetSession replaces the session under the write lock.
+func (a *ManagedAgent) SetSession(s AgentSession) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.Session = s
+}
+
+// IsActive returns true if the agent has an active session.
+func (a *ManagedAgent) IsActive() bool {
+	return a.GetSession() != nil
 }
 
 // ShortID returns the first 8 chars of the agent ID for display.

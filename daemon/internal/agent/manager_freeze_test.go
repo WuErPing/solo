@@ -18,12 +18,12 @@ import (
 // 500ms subscriberCriticalTimeout fires first and silently drops turn_completed.
 // The agent is forever stuck in LifecycleRunning.
 func TestSubscribeToSession_CriticalEventFallback_WhenWorkChFull(t *testing.T) {
-	origCap := workChCapacity
+	origCap := workChCapacity.Load()
 	origTimeout := criticalWorkChSendTimeout
-	workChCapacity = 1
+	workChCapacity.Store(1)
 	criticalWorkChSendTimeout = 50 * time.Millisecond
 	defer func() {
-		workChCapacity = origCap
+		workChCapacity.Store(origCap)
 		criticalWorkChSendTimeout = origTimeout
 	}()
 
@@ -87,12 +87,12 @@ func TestSubscribeToSession_CriticalEventFallback_WhenWorkChFull(t *testing.T) {
 }
 
 func TestSubscribeToSession_OpenCodeTerminalEventFallback_WhenWorkChFull(t *testing.T) {
-	origCap := workChCapacity
+	origCap := workChCapacity.Load()
 	origTimeout := criticalWorkChSendTimeout
-	workChCapacity = 1
+	workChCapacity.Store(1)
 	criticalWorkChSendTimeout = 50 * time.Millisecond
 	defer func() {
-		workChCapacity = origCap
+		workChCapacity.Store(origCap)
 		criticalWorkChSendTimeout = origTimeout
 	}()
 
@@ -162,12 +162,12 @@ func TestSubscribeToSession_OpenCodeTerminalEventFallback_WhenWorkChFull(t *test
 // This complements TestSubscribeToSession_CriticalEventFallback_WhenWorkChFull
 // by using a slow subscriber (not a slow workCh capacity) as the root cause.
 func TestSubscribeToSession_SlowSubscriberDoesNotStallWorkCh(t *testing.T) {
-	origCap := workChCapacity
+	origCap := workChCapacity.Load()
 	origTimeout := criticalWorkChSendTimeout
-	workChCapacity = 1
+	workChCapacity.Store(1)
 	criticalWorkChSendTimeout = 50 * time.Millisecond
 	defer func() {
-		workChCapacity = origCap
+		workChCapacity.Store(origCap)
 		criticalWorkChSendTimeout = origTimeout
 	}()
 
