@@ -99,8 +99,10 @@ type AgentRunResult struct {
 }
 
 // workChCapacity is the buffer size for the per-agent event work channel.
-// Exposed as a var so tests can reduce it to trigger drops.
-var workChCapacity = 256
+// Exposed as an atomic so tests can reduce it to trigger drops without races.
+var workChCapacity atomic.Int64
+
+func init() { workChCapacity.Store(256) }
 
 // semiCriticalWorkChTimeout is the blocking timeout for semi-critical events
 // (reasoning/thinking) in the subscribeToSession work channel send path.
@@ -119,8 +121,10 @@ var semiCriticalWorkChTimeout = 100 * time.Millisecond
 var criticalWorkChSendTimeout = 200 * time.Millisecond
 
 // maxAgentRunDuration is the maximum time a single agent run is allowed before
-// the watchdog fires an Interrupt(). Exposed as a var so tests can reduce it.
-var maxAgentRunDuration = 35 * time.Minute
+// the watchdog fires an Interrupt(). Exposed as an atomic so tests can reduce it without races.
+var maxAgentRunDuration atomic.Int64
+
+func init() { maxAgentRunDuration.Store(int64(35 * time.Minute)) }
 
 // AgentManager orchestrates all agent lifecycle operations.
 type AgentManager struct {
@@ -377,12 +381,12 @@ func (m *AgentManager) DeleteAgent(agentID string) error {
 		return fmt.Errorf("agent %s not found", agentID)
 	}
 
-	if agent.Session != nil {
-		agent.Session.Close()
+	if sess := agent.GetSession(); sess != nil {
+		sess.Close()
 	}
 
 	agent.SetLifecycle(LifecycleClosed)
-	agent.Session = nil
+	agent.SetSession(nil)
 
 	m.storage.BeginDelete(agentID)
 	m.storage.Remove(agentID)
@@ -403,9 +407,9 @@ func (m *AgentManager) ArchiveAgent(agentID string) error {
 		return fmt.Errorf("agent %s not found", agentID)
 	}
 
-	if agent.Session != nil {
-		agent.Session.Close()
-		agent.Session = nil
+	if sess := agent.GetSession(); sess != nil {
+		sess.Close()
+		agent.SetSession(nil)
 	}
 
 	agent.SetLifecycle(LifecycleClosed)
@@ -433,10 +437,11 @@ func (m *AgentManager) CancelAgentRun(ctx context.Context, agentID string) error
 	if agent == nil {
 		return fmt.Errorf("agent %s not found", agentID)
 	}
-	if agent.Session == nil {
+	sess := agent.GetSession()
+	if sess == nil {
 		return fmt.Errorf("agent %s has no active session", agentID)
 	}
-	return agent.Session.Interrupt(ctx)
+	return sess.Interrupt(ctx)
 }
 
 // SendAgentMessage sends a prompt to a running agent.
@@ -445,7 +450,7 @@ func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, tex
 	if agent == nil {
 		return fmt.Errorf("agent %s not found", agentID)
 	}
-	if agent.Session == nil {
+	if agent.GetSession() == nil {
 		var err error
 		agent, err = m.ensureAgentSession(ctx, agent)
 		if err != nil {
@@ -458,7 +463,7 @@ func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, tex
 		return fmt.Errorf("agent %s is already running", agentID)
 	}
 
-	session := agent.Session
+	session := agent.GetSession()
 
 	agent.SetLifecycle(LifecycleRunning)
 	now := time.Now()
@@ -481,9 +486,9 @@ func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, tex
 				m.emitState(agent)
 			}
 		}()
-		watchdog := time.AfterFunc(maxAgentRunDuration, func() {
+		watchdog := time.AfterFunc(time.Duration(maxAgentRunDuration.Load()), func() {
 			m.logger.Warn("agent run watchdog fired, interrupting",
-				"agentId", agent.ID, "maxDuration", maxAgentRunDuration)
+				"agentId", agent.ID, "maxDuration", time.Duration(maxAgentRunDuration.Load()))
 			if err := session.Interrupt(context.Background()); err != nil {
 				m.logger.Warn("watchdog interrupt failed", "agentId", agent.ID, "error", err)
 			}
@@ -510,7 +515,7 @@ func (m *AgentManager) ensureAgentSession(ctx context.Context, agent *ManagedAge
 	if agent == nil {
 		return nil, fmt.Errorf("agent not found")
 	}
-	if agent.Session != nil {
+	if agent.GetSession() != nil {
 		return agent, nil
 	}
 
@@ -539,7 +544,7 @@ func (m *AgentManager) ensureAgentSession(ctx context.Context, agent *ManagedAge
 
 	m.mu.Lock()
 	current := m.agents[agent.ID]
-	if current != nil && current.Session != nil {
+	if current != nil && current.GetSession() != nil {
 		m.mu.Unlock()
 		_ = session.Close()
 		return current, nil
@@ -548,7 +553,7 @@ func (m *AgentManager) ensureAgentSession(ctx context.Context, agent *ManagedAge
 		agent = current
 	}
 	agent.Config = config
-	agent.Session = session
+	agent.SetSession(session)
 	agent.Persistence = attachPersistenceMetadata(session.DescribePersistence(), agent.Cwd, config)
 	agent.SetLifecycle(LifecycleIdle)
 	m.agents[agent.ID] = agent
@@ -754,7 +759,7 @@ func (m *AgentManager) HydrateTimeline(ctx context.Context, agentID string, stor
 		return fmt.Errorf("ensure session for history: %w", err)
 	}
 
-	events, err := agent.Session.StreamHistory(ctx)
+	events, err := agent.GetSession().StreamHistory(ctx)
 	if err != nil {
 		m.logger.Warn("StreamHistory failed, history unavailable", "agentId", agentID, "error", err)
 		return nil // non-fatal; return empty timeline
@@ -817,15 +822,16 @@ func (m *AgentManager) Subscribe(fn AgentEventFunc) func() {
 // subscriber channel to fill up. When the dispatcher's 500ms critical timeout
 // fires, turn_completed is silently dropped — the client never sees terminal state.
 func (m *AgentManager) subscribeToSession(agent *ManagedAgent) {
-	if agent.Session == nil {
+	sess := agent.GetSession()
+	if sess == nil {
 		return
 	}
-	ch := agent.Session.Subscribe()
+	ch := sess.Subscribe()
 	if ch == nil {
 		return
 	}
 
-	workCh := make(chan AgentStreamEvent, workChCapacity)
+	workCh := make(chan AgentStreamEvent, workChCapacity.Load())
 	go func() {
 		for event := range workCh {
 			m.handleStreamEvent(agent, event)

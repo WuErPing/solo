@@ -241,12 +241,12 @@ func (s *Session) writePumpFor(entry socketEntry) {
 // pingLoopFor sends periodic WebSocket ping frames for a specific socket.
 // Exits when the socket's done channel is closed (sendQueue closed by AttachSocket).
 func (s *Session) pingLoopFor(pc PingableConn, entry socketEntry) {
-	ticker := time.NewTicker(pingInterval)
+	ticker := time.NewTicker(time.Duration(pingInterval.Load()))
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			deadline := time.Now().Add(pingInterval)
+			deadline := time.Now().Add(time.Duration(pingInterval.Load()))
 			if err := pc.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
 				s.logger.Warn("socket ping failed", "socketId", entry.id, "error", err)
 				go entry.conn.Close()
@@ -269,10 +269,10 @@ func (s *Session) setupPingPongFor(entry socketEntry) {
 	timeout := s.effectivePingTimeout()
 	// On each pong, extend deadline to allow the next full ping-pong cycle.
 	pc.SetPongHandler(func(appData string) error {
-		return pc.SetReadDeadline(time.Now().Add(pingInterval + timeout))
+		return pc.SetReadDeadline(time.Now().Add(time.Duration(pingInterval.Load()) + timeout))
 	})
 	// Initial deadline covers the first full ping-pong cycle.
-	pc.SetReadDeadline(time.Now().Add(pingInterval + timeout))
+	pc.SetReadDeadline(time.Now().Add(time.Duration(pingInterval.Load()) + timeout))
 }
 
 // broadcastToSockets enqueues item to every currently attached socket.

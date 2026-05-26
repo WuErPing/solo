@@ -49,7 +49,7 @@ func TestProveIt_SessionWithActivityTrackerPushSends(t *testing.T) {
 	session.handleStreamEvent(event)
 	time.Sleep(50 * time.Millisecond)
 
-	if len(mockPusher.calls) == 0 {
+	if mockPusher.CallCount() == 0 {
 		t.Error("push was NOT sent even though activityTracker is set")
 	}
 }

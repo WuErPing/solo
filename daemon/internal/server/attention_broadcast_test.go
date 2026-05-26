@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 )
 
 type mockPusher struct {
+	mu    sync.Mutex
 	calls []mockPushCall
 }
 
@@ -22,8 +24,22 @@ type mockPushCall struct {
 }
 
 func (m *mockPusher) Send(tokens []string, payload push.NotificationPayload) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.calls = append(m.calls, mockPushCall{Tokens: tokens, Payload: payload})
 	return nil
+}
+
+func (m *mockPusher) CallCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.calls)
+}
+
+func (m *mockPusher) CallAt(i int) mockPushCall {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.calls[i]
 }
 
 func newCaptureSession() (*Session, *sendQueue) {
@@ -96,11 +112,11 @@ func TestSession_BroadcastAgentAttention_WithPush(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	if len(mockPusher.calls) != 1 {
-		t.Fatalf("expected 1 push call, got %d", len(mockPusher.calls))
+	if mockPusher.CallCount() != 1 {
+		t.Fatalf("expected 1 push call, got %d", mockPusher.CallCount())
 	}
 
-	call := mockPusher.calls[0]
+	call := mockPusher.CallAt(0)
 	if len(call.Tokens) != 1 || call.Tokens[0] != "token-1" {
 		t.Errorf("expected token-1, got %v", call.Tokens)
 	}
@@ -138,8 +154,8 @@ func TestSession_BroadcastAgentAttention_NoPushWhenFocused(t *testing.T) {
 
 	session.handleStreamEvent(event)
 
-	if len(mockPusher.calls) != 0 {
-		t.Fatalf("expected 0 push calls when focused, got %d", len(mockPusher.calls))
+	if mockPusher.CallCount() != 0 {
+		t.Fatalf("expected 0 push calls when focused, got %d", mockPusher.CallCount())
 	}
 }
 
@@ -171,8 +187,8 @@ func TestSession_BroadcastAgentAttention_NoPushWhenRecent(t *testing.T) {
 
 	session.handleStreamEvent(event)
 
-	if len(mockPusher.calls) != 0 {
-		t.Fatalf("expected 0 push calls when client is recent, got %d", len(mockPusher.calls))
+	if mockPusher.CallCount() != 0 {
+		t.Fatalf("expected 0 push calls when client is recent, got %d", mockPusher.CallCount())
 	}
 }
 
@@ -202,8 +218,8 @@ func TestSession_BroadcastAgentAttention_NoTokens(t *testing.T) {
 
 	session.handleStreamEvent(event)
 
-	if len(mockPusher.calls) != 0 {
-		t.Fatalf("expected 0 push calls with no tokens, got %d", len(mockPusher.calls))
+	if mockPusher.CallCount() != 0 {
+		t.Fatalf("expected 0 push calls with no tokens, got %d", mockPusher.CallCount())
 	}
 }
 
@@ -235,8 +251,8 @@ func TestSession_BroadcastAgentAttention_ErrorReason(t *testing.T) {
 
 	session.handleStreamEvent(event)
 
-	if len(mockPusher.calls) != 0 {
-		t.Fatalf("expected 0 push calls for error reason, got %d", len(mockPusher.calls))
+	if mockPusher.CallCount() != 0 {
+		t.Fatalf("expected 0 push calls for error reason, got %d", mockPusher.CallCount())
 	}
 }
 

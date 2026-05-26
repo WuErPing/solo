@@ -53,9 +53,10 @@ func TestPiIntegration_RealProcess(t *testing.T) {
 
 	t.Logf("result: sessionID=%s canceled=%v", result.SessionID, result.Canceled)
 
-	// Give the subscriber goroutine time to drain remaining events.
-	// The subscribe channel is not closed until sess.Close() is called.
-	time.Sleep(200 * time.Millisecond)
+	// Close the session to flush and close the subscriber channel,
+	// then wait for the collector goroutine to drain before reading events.
+	sess.Close()
+	<-done
 
 	t.Logf("total events: %d", len(events))
 

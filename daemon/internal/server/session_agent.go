@@ -536,19 +536,28 @@ func (s *Session) lastAssistantMessage(agentID string) *string {
 
 func (s *Session) handleAgentPermissionResponse(m *protocol.AgentPermissionResponseMessage) {
 	ag := s.agentMgr.GetAgent(m.AgentID)
-	if ag == nil || ag.Session == nil {
+	if ag == nil {
 		return
 	}
-	ag.Session.RespondPermission(m.RequestID, m.Response)
+	sess := ag.GetSession()
+	if sess == nil {
+		return
+	}
+	sess.RespondPermission(m.RequestID, m.Response)
 }
 
 func (s *Session) handleSetAgentMode(m *protocol.SetAgentModeRequest) {
 	ag := s.agentMgr.GetAgent(m.AgentID)
-	if ag == nil || ag.Session == nil {
+	if ag == nil {
 		s.sendRPCError(m.RequestID, "set_agent_mode_request", "agent not found or no session", nil)
 		return
 	}
-	if err := ag.Session.SetMode(m.ModeID); err != nil {
+	sess := ag.GetSession()
+	if sess == nil {
+		s.sendRPCError(m.RequestID, "set_agent_mode_request", "agent not found or no session", nil)
+		return
+	}
+	if err := sess.SetMode(m.ModeID); err != nil {
 		s.sendRPCError(m.RequestID, "set_agent_mode_request", err.Error(), nil)
 		return
 	}
@@ -578,7 +587,12 @@ func (s *Session) handleSetAgentMode(m *protocol.SetAgentModeRequest) {
 
 func (s *Session) handleSetAgentModel(m *protocol.SetAgentModelRequest) {
 	ag := s.agentMgr.GetAgent(m.AgentID)
-	if ag == nil || ag.Session == nil {
+	if ag == nil {
+		s.sendRPCError(m.RequestID, "set_agent_model_request", "agent not found or no session", nil)
+		return
+	}
+	sess := ag.GetSession()
+	if sess == nil {
 		s.sendRPCError(m.RequestID, "set_agent_model_request", "agent not found or no session", nil)
 		return
 	}
@@ -586,7 +600,7 @@ func (s *Session) handleSetAgentModel(m *protocol.SetAgentModelRequest) {
 	if m.ModelID != nil {
 		modelID = *m.ModelID
 	}
-	if err := ag.Session.SetModel(modelID); err != nil {
+	if err := sess.SetModel(modelID); err != nil {
 		s.sendRPCError(m.RequestID, "set_agent_model_request", err.Error(), nil)
 		return
 	}
@@ -629,7 +643,12 @@ func (s *Session) handleFetchAgentHistory(m *protocol.FetchAgentHistoryRequest) 
 
 func (s *Session) handleSetAgentThinking(m *protocol.SetAgentThinkingRequest) {
 	ag := s.agentMgr.GetAgent(m.AgentID)
-	if ag == nil || ag.Session == nil {
+	if ag == nil {
+		s.sendRPCError(m.RequestID, m.MsgType(), "agent not found or no session", nil)
+		return
+	}
+	sess := ag.GetSession()
+	if sess == nil {
 		s.sendRPCError(m.RequestID, m.MsgType(), "agent not found or no session", nil)
 		return
 	}
@@ -637,7 +656,7 @@ func (s *Session) handleSetAgentThinking(m *protocol.SetAgentThinkingRequest) {
 	if m.ThinkingOptionID != nil {
 		optionID = *m.ThinkingOptionID
 	}
-	if err := ag.Session.SetThinkingOption(optionID); err != nil {
+	if err := sess.SetThinkingOption(optionID); err != nil {
 		s.sendRPCError(m.RequestID, m.MsgType(), err.Error(), nil)
 		return
 	}
@@ -722,8 +741,10 @@ func (s *Session) handleListCommands(m *protocol.ListCommandsRequest) {
 	var err error
 
 	ag := s.agentMgr.GetAgent(m.AgentID)
-	if ag != nil && ag.Session != nil {
-		commands, err = ag.Session.ListCommands(context.Background())
+	if ag != nil {
+		if sess := ag.GetSession(); sess != nil {
+			commands, err = sess.ListCommands(context.Background())
+		}
 	} else if m.DraftConfig != nil {
 		// Fallback: list commands directly from the provider (no active session needed)
 		provider := m.DraftConfig.Provider

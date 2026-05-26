@@ -231,6 +231,17 @@ func TestSendAgentMessageRejectsWhenAlreadyRunning(t *testing.T) {
 
 	// First message starts running and blocks
 	ctx, cancel := context.WithCancel(context.Background())
+	updates := make(chan AgentEvent, 8)
+	unsub := manager.Subscribe(func(e AgentEvent) {
+		if e.AgentID == ag.ID {
+			select {
+			case updates <- e:
+			default:
+			}
+		}
+	})
+	defer unsub()
+
 	if err := manager.SendAgentMessage(ctx, ag.ID, "hello", nil, nil, ""); err != nil {
 		t.Fatalf("first SendAgentMessage: %v", err)
 	}
@@ -245,6 +256,18 @@ func TestSendAgentMessageRejectsWhenAlreadyRunning(t *testing.T) {
 	}
 
 	cancel()
+	// Wait for the background Run goroutine to finish so t.TempDir() can clean up.
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case e := <-updates:
+			if e.Agent != nil && e.Agent.ToSnapshot().Status != protocol.AgentRunning {
+				return
+			}
+		case <-deadline:
+			return
+		}
+	}
 }
 
 func waitForLifecycleStatus(t *testing.T, updates <-chan protocol.AgentLifecycleStatus, status protocol.AgentLifecycleStatus) {

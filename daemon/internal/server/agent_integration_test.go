@@ -1286,9 +1286,9 @@ func TestMobileSendAgentMessageRestoresInactiveAgentSession(t *testing.T) {
 	if ag == nil {
 		t.Fatalf("created agent %q not found", createdPayload.AgentID)
 	}
-	if ag.Session != nil {
-		_ = ag.Session.Close()
-		ag.Session = nil
+	if ag.GetSession() != nil {
+		_ = ag.GetSession().Close()
+		ag.SetSession(nil)
 	}
 
 	sendReq := protocol.WSInboundMessage{
