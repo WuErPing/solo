@@ -34,7 +34,7 @@ func runDaemonPair(cmd *cobra.Command, args []string) error {
 
 	// Resolve relay endpoint
 	relayEndpoint := "relay.solo.sh:443"
-	appBaseURL := "https://app.solo.sh"
+	appBaseURL := "https://solo.up2ai.top"
 
 	// Read config for relay settings
 	home := client.SoloHome()

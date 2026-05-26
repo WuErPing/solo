@@ -16,7 +16,7 @@ func TestDecodePairingOffer(t *testing.T) {
 
 	jsonData, _ := json.Marshal(offer)
 	encoded := base64.RawURLEncoding.EncodeToString(jsonData)
-	url := "https://app.solo.sh/#offer=" + encoded
+	url := "https://solo.up2ai.top/#offer=" + encoded
 
 	decoded, err := DecodePairingOffer(url)
 	if err != nil {
@@ -44,14 +44,14 @@ func TestDecodePairingOffer_InvalidURL(t *testing.T) {
 }
 
 func TestDecodePairingOffer_MissingOffer(t *testing.T) {
-	_, err := DecodePairingOffer("https://app.solo.sh/#other=xyz")
+	_, err := DecodePairingOffer("https://solo.up2ai.top/#other=xyz")
 	if err == nil {
 		t.Fatal("expected error for missing offer fragment")
 	}
 }
 
 func TestDecodePairingOffer_InvalidBase64(t *testing.T) {
-	_, err := DecodePairingOffer("https://app.solo.sh/#offer=!!!invalid-base64!!!")
+	_, err := DecodePairingOffer("https://solo.up2ai.top/#offer=!!!invalid-base64!!!")
 	if err == nil {
 		t.Fatal("expected error for invalid base64")
 	}

@@ -46,7 +46,7 @@ System design, component contracts, and runtime behaviour.
 - Daemon listens `127.0.0.1:17612`; Relay listens `127.0.0.1:8081` (behind Nginx :443)
 - Production relay endpoint: `solo.up2ai.top:443` (never use raw IP:8081)
 - E2EE: X25519 key exchange + XSalsa20-Poly1305
-- Pairing Link format: `https://app.solo.sh/#offer={base64url(ConnectionOfferV2)}`
+- Pairing Link format: `https://solo.up2ai.top/#offer={base64url(ConnectionOfferV2)}`
 
 ---
 

@@ -42,7 +42,7 @@ make dev
   "daemon": {
     "listen": "127.0.0.1:17612",
     "cors": {
-      "origins": ["http://localhost:19000"]
+      "origins": ["https://solo.up2ai.top", "http://localhost:19000"]
     }
   }
 }
@@ -359,7 +359,7 @@ EOF
 | `relay.enabled` | `true` | 是否启用 Relay |
 | `relay.endpoint` | `solo.up2ai.top:443` | Relay 连接地址 (Daemon → Relay) |
 | `relay.publicEndpoint` | `solo.up2ai.top:443` | Relay 公网地址 (用于 Pairing Link) |
-| `app.baseUrl` | `https://app.solo.sh` | 前端应用地址 (用于生成 Pairing Link) |
+| `app.baseUrl` | `https://solo.up2ai.top` | 前端应用地址 (用于生成 Pairing Link) |
 
 ### 生成 Pairing Link
 
@@ -368,7 +368,7 @@ EOF
 solo pair
 
 # 输出 Pairing Link 和 QR Code
-# https://app.solo.sh/#offer=eyJ2IjoyLCJzZXJ2ZXJJZCI6...
+# https://solo.up2ai.top/#offer=eyJ2IjoyLCJzZXJ2ZXJJZCI6...
 ```
 
 ## 环境变量
@@ -381,7 +381,7 @@ solo pair
 | `HOST` | 0.0.0.0 | 监听地址 |
 | `MAX_BUFFER` | 200 | 最大消息缓冲数 |
 | `LOG_LEVEL` | info | 日志级别 |
-| `ALLOWED_ORIGINS` | "" | CORS 白名单 |
+| `ALLOWED_ORIGINS` | `https://solo.up2ai.top,http://localhost:19000` | CORS 白名单 |
 
 ### Daemon
 

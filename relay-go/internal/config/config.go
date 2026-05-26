@@ -11,7 +11,7 @@ type Config struct {
 	Host           string
 	MaxBuffer      int
 	LogLevel       slog.Level
-	AllowedOrigins []string // CORS whitelist; empty = allow all (legacy behavior)
+	AllowedOrigins []string // CORS whitelist; empty = allow all (deprecated, use explicit origins)
 }
 
 func Load() Config {
@@ -20,7 +20,7 @@ func Load() Config {
 		Host:           envOrDefault("HOST", "0.0.0.0"),
 		MaxBuffer:      envOrDefaultInt("MAX_BUFFER", 200),
 		LogLevel:       parseLogLevel(envOrDefault("LOG_LEVEL", "info")),
-		AllowedOrigins: parseOrigins(envOrDefault("ALLOWED_ORIGINS", "")),
+		AllowedOrigins: parseOrigins(envOrDefault("ALLOWED_ORIGINS", "https://solo.up2ai.top,http://localhost:19000")),
 	}
 }
 

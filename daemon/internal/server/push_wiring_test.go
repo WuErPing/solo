@@ -88,7 +88,7 @@ func TestProveIt_WSServerHasActivityTracker(t *testing.T) {
 		SoloHome:   t.TempDir(),
 		ServerID:   "test-server",
 		Version:    "0.1.0",
-		AppBaseURL: "https://app.solo.sh",
+		AppBaseURL: "https://solo.up2ai.top",
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 

@@ -17,8 +17,11 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.RelayEndpoint != "relay.solo.sh:443" {
 		t.Errorf("RelayEndpoint: got %q", cfg.RelayEndpoint)
 	}
-	if cfg.AppBaseURL != "https://app.solo.sh" {
+	if cfg.AppBaseURL != "https://solo.up2ai.top" {
 		t.Errorf("AppBaseURL: got %q", cfg.AppBaseURL)
+	}
+	if len(cfg.CORSOrigins) != 2 || cfg.CORSOrigins[0] != "https://solo.up2ai.top" || cfg.CORSOrigins[1] != "http://localhost:19000" {
+		t.Errorf("CORSOrigins: got %v", cfg.CORSOrigins)
 	}
 }
 

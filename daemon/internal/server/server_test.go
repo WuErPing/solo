@@ -31,7 +31,7 @@ func newTestDaemon(t *testing.T) (*Daemon, string) {
 		Listen:     "127.0.0.1:0",
 		ServerID:   "test-server",
 		Version:    "0.1.0",
-		AppBaseURL: "https://app.solo.sh",
+		AppBaseURL: "https://solo.up2ai.top",
 	}
 	logger := newTestLogger()
 	d, err := NewDaemon(cfg, logger)
@@ -47,7 +47,7 @@ func newTestWSServer(t *testing.T) (*WSServer, *httptest.Server) {
 		SoloHome:   t.TempDir(),
 		ServerID:   "test-server",
 		Version:    "0.1.0",
-		AppBaseURL: "https://app.solo.sh",
+		AppBaseURL: "https://solo.up2ai.top",
 	}
 	logger := newTestLogger()
 
