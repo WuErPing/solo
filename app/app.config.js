@@ -51,7 +51,7 @@ export default {
     name: variant.name,
     slug: "voice-mobile",
     version: pkg.version,
-    orientation: "portrait",
+    orientation: "default",
     icon: "./assets/images/icon.png",
     scheme: "solo",
     userInterfaceStyle: "automatic",
