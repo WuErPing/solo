@@ -1,0 +1,196 @@
+# Solo
+
+Solo is an AI coding assistant platform that connects your local development environment with AI providers through a secure, end-to-end encrypted architecture. It consists of a local daemon, a relay server for remote connectivity, a cross-platform mobile/web app, and a CLI tool.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Client Layer                         │
+├─────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
+│  │   Web App   │  │ Mobile App  │  │    CLI      │         │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘         │
+└─────────┼────────────────┼────────────────┼────────────────┘
+          └────────────────┴────────────────┘
+                         │
+                ┌────────▼────────┐
+                │   App-Bridge    │
+                └────────┬────────┘
+                         │
+┌────────────────────────▼────────────────────────────────────┐
+│                     Network Layer                           │
+├─────────────────────────────────────────────────────────────┤
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │              Nginx (optional)                        │   │
+│  └────────────────────────┬────────────────────────────┘   │
+│                           │                                  │
+│  ┌────────────────────────▼────────────────────────────┐   │
+│  │            Relay Server (signaling relay)            │   │
+│  └────────────────────────┬────────────────────────────┘   │
+└───────────────────────────┼──────────────────────────────────┘
+                            │
+┌───────────────────────────▼──────────────────────────────────┐
+│                      Service Layer                           │
+├─────────────────────────────────────────────────────────────┤
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │              Daemon (core service)                   │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Core Components
+
+| Component | Directory | Language | Responsibility |
+|-----------|-----------|----------|----------------|
+| **App** | [`app/`](app/) | TypeScript / React Native | User interface (iOS, Android, Web) |
+| **App-Bridge** | [`app-bridge/`](app-bridge/) | TypeScript | Client-side communication library |
+| **Daemon** | [`daemon/`](daemon/) | Go | Core service — manages sessions, agents, and provider connections |
+| **Relay** | [`relay-go/`](relay-go/) | Go | Connection relay for remote/mobile access |
+| **CLI** | [`cli/`](cli/) | Go | Command-line tool for session and agent management |
+| **Protocol** | [`protocol/`](protocol/) | Go | Shared protocol definitions |
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Backend | Go 1.25 · gorilla/websocket · creack/pty · slog |
+| Frontend | Expo 54 · React Native 0.81 · React 19 · TypeScript |
+| State Management | Zustand · @tanstack/react-query · React Context |
+| Cryptography | X25519 key exchange + XSalsa20-Poly1305 (E2EE) |
+| Testing | Vitest · Playwright (E2E) · Go test |
+| Deployment | Systemd · Docker · Nginx + Let's Encrypt |
+| CI/CD | GitHub Actions · golangci-lint v2 · ESLint |
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- [Go](https://go.dev/) 1.25+
+- [Node.js](https://nodejs.org/) 20+
+- [Expo CLI](https://docs.expo.dev/get-started/installation/) (for mobile/web development)
+
+### Build
+
+```bash
+# Build all Darwin binaries (daemon, relay, CLI)
+make darwin
+
+# Build all Linux binaries
+make linux
+
+# Build everything
+make all
+```
+
+Output binaries are placed in `output/darwin/` and `output/linux/`.
+
+### Development
+
+```bash
+# Start daemon + web app together
+make dev
+
+# Start only the web app
+make dev-web
+
+# Start only the daemon (must build first)
+make dev-daemon
+
+# Restart the daemon
+make restart
+
+# Stop all dev processes
+make stop
+```
+
+- **Daemon** listens on `127.0.0.1:17612`
+- **Web app** runs on `http://localhost:19000`
+
+### Run Tests
+
+```bash
+# Go tests (all modules)
+cd protocol && go test -short -race ./...
+cd cli && go test -short -race ./...
+cd daemon && go test -short -race ./...
+cd relay-go && go test -short -race ./...
+
+# JavaScript / TypeScript tests
+npm run lint
+npm run test --workspaces --if-present
+```
+
+---
+
+## Project Structure
+
+```
+solo/
+├── app/                 # React Native / Expo application
+├── app-bridge/          # Client communication library
+├── cli/                 # Go CLI tool
+├── daemon/              # Go core service
+├── docs/                # Architecture & product documentation
+├── packages/highlight/  # Shared syntax highlighting package
+├── protocol/            # Go protocol definitions
+├── relay-go/            # Go relay server
+├── Makefile             # Build & development commands
+├── go.work              # Go workspace
+└── package.json         # Node.js workspace root
+```
+
+For detailed documentation, see [`docs/README.md`](docs/README.md).
+
+---
+
+## Supported AI Providers
+
+- **Claude** — print / stream-json mode
+- **Kimi** — Wire mode (JSON-RPC 2.0 over stdio)
+- **OpenCode** — SSE mode
+- **Codex** — definition only
+- **Mock** — for testing
+
+See [`docs/providers/`](docs/providers/) for provider integration research and planned additions.
+
+---
+
+## Security
+
+- **End-to-End Encryption**: All communication between client and daemon is encrypted using X25519 key exchange + XSalsa20-Poly1305.
+- **Pairing Link**: Secure pairing via `https://app.solo.sh/#offer={base64url(ConnectionOfferV2)}`.
+
+---
+
+## CI/CD
+
+The project uses GitHub Actions (`.github/workflows/ci.yml`) with the following jobs:
+
+| Job | Steps |
+|-----|-------|
+| **Go** (matrix: protocol, cli, daemon, relay-go) | `go mod verify` → `go build` → `go test -short -race` → `golangci-lint` |
+| **JS** | `npm ci` → lint → typecheck → test |
+
+---
+
+## Documentation
+
+- [Architecture Overview](docs/architecture/README.md)
+- [Component Specifications](docs/architecture/components.md)
+- [Data Flow & Session Lifecycle](docs/architecture/data-flow.md)
+- [Network Architecture](docs/architecture/network-architecture.md)
+- [Deployment Guide](docs/architecture/deployment.md)
+- [Product Features](docs/product/features.md)
+
+---
+
+## License
+
+[Add your license here]

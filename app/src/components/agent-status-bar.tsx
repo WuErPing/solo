@@ -55,7 +55,8 @@ import type {
   AgentModelDefinition,
   AgentProvider,
 } from "@server/server/agent/agent-sdk-types";
-import type { AgentProviderDefinition , getModeVisuals, type AgentModeColorTier } from "@server/server/agent/provider-manifest";
+import type { AgentProviderDefinition, AgentModeColorTier } from "@server/server/agent/provider-manifest";
+import { getModeVisuals } from "@server/server/agent/provider-manifest";
 import {
   getFeatureHighlightColor,
   getFeatureTooltip,

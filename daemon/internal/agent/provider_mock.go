@@ -61,7 +61,6 @@ func (m *MockAgentClient) ListClientCommands(ctx context.Context, cwd string) ([
 // MockAgentSession is a test-only AgentSession.
 type MockAgentSession struct {
 	mu        sync.Mutex
-	closeOnce sync.Once
 	events    chan AgentStreamEvent
 	mode      string
 	model     string
@@ -113,8 +112,6 @@ func (s *MockAgentSession) Run(ctx context.Context, text string, images []protoc
 		return &AgentRunResult{SessionID: s.sessionID, Canceled: true}, nil
 	}
 
-	s.closeEvents()
-
 	return &AgentRunResult{
 		SessionID: s.sessionID,
 		FinalText: fmt.Sprintf("Mock response to: %s", text),
@@ -123,6 +120,12 @@ func (s *MockAgentSession) Run(ctx context.Context, text string, images []protoc
 }
 
 func (s *MockAgentSession) StartTurn(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) (<-chan AgentStreamEvent, error) {
+	s.mu.Lock()
+	if s.closed {
+		s.closed = false
+		s.events = make(chan AgentStreamEvent, 64)
+	}
+	s.mu.Unlock()
 	go s.Run(ctx, text, images, attachments, "")
 	return s.events, nil
 }
@@ -134,7 +137,12 @@ func (s *MockAgentSession) Subscribe() <-chan AgentStreamEvent {
 func (s *MockAgentSession) Interrupt(ctx context.Context) error { return nil }
 
 func (s *MockAgentSession) Close() error {
-	s.closeEvents()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.closed {
+		s.closed = true
+		close(s.events)
+	}
 	return nil
 }
 
@@ -149,12 +157,12 @@ func (s *MockAgentSession) emit(event AgentStreamEvent) bool {
 }
 
 func (s *MockAgentSession) closeEvents() {
-	s.closeOnce.Do(func() {
-		s.mu.Lock()
-		defer s.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.closed {
 		s.closed = true
 		close(s.events)
-	})
+	}
 }
 
 func (s *MockAgentSession) RespondPermission(requestID string, response protocol.AgentPermissionResponse) error {
