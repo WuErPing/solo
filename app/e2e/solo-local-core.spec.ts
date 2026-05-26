@@ -5,6 +5,11 @@ import { expect, test, type Page } from "./fixtures";
 import { buildHostAgentDetailRoute, buildHostWorkspaceRoute } from "@/utils/host-routes";
 import { gotoAppShell, openSettings } from "./helpers/app";
 import { createNodeWebSocketFactory, type NodeWebSocketFactory } from "./helpers/node-ws-factory";
+import {
+  waitForTimelineText,
+  getServerId,
+  type CoreDaemonClient,
+} from "./helpers/daemon-client";
 import { createTempGitRepo } from "./helpers/workspace";
 import {
   expectFileTabOpen,
@@ -12,36 +17,6 @@ import {
   openFileExplorer,
   openFileFromExplorer,
 } from "./helpers/file-explorer";
-
-interface CoreDaemonClient {
-  connect(): Promise<void>;
-  close(): Promise<void>;
-  openProject(cwd: string): Promise<{
-    workspace: {
-      id: string;
-      name: string;
-      workspaceDirectory: string;
-      projectRootPath: string;
-    } | null;
-    error: string | null;
-  }>;
-  createAgent(input: {
-    provider?: "mock";
-    cwd?: string;
-    config?: {
-      provider: "mock";
-      cwd: string;
-      title?: string;
-    };
-    initialPrompt?: string;
-    labels?: Record<string, string>;
-  }): Promise<{ id: string; cwd: string; title?: string | null }>;
-  sendMessage(agentId: string, text: string): Promise<void>;
-  fetchAgentTimeline(agentId: string, options?: { direction?: "tail"; limit?: number }): Promise<{
-    entries: Array<{ item: unknown }>;
-  }>;
-  deleteAgent(agentId: string): Promise<void>;
-}
 
 function getDaemonWsUrl(): string {
   const daemonPort = process.env.E2E_DAEMON_PORT;
@@ -74,32 +49,8 @@ async function connectCoreDaemonClient(): Promise<CoreDaemonClient> {
   return client;
 }
 
-function getServerId(): string {
-  const serverId = process.env.E2E_SERVER_ID;
-  if (!serverId) {
-    throw new Error("E2E_SERVER_ID is not set.");
-  }
-  return serverId;
-}
-
 function workspaceRow(page: Page, serverId: string, workspaceId: string) {
   return page.getByTestId(`sidebar-workspace-row-${serverId}:${workspaceId}`).first();
-}
-
-async function waitForTimelineText(
-  client: CoreDaemonClient,
-  agentId: string,
-  text: string,
-): Promise<void> {
-  await expect
-    .poll(
-      async () => {
-        const timeline = await client.fetchAgentTimeline(agentId, { direction: "tail", limit: 50 });
-        return timeline.entries.some((entry) => JSON.stringify(entry.item).includes(text));
-      },
-      { timeout: 30_000 },
-    )
-    .toBe(true);
 }
 
 test.describe("Solo local web core interactions", () => {

@@ -72,7 +72,7 @@
 |------|------|--------------|
 | app 单元测试 | ~366 文件 | ✅ 是 |
 | app browser 测试 | 1 文件 | ❌ 否 |
-| Playwright E2E | 22 文件 | ⚠️ nightly |
+| Playwright E2E | 29 文件 | ⚠️ nightly |
 | Go 测试 | ~88 文件 | ✅ 是 |
 | packages/highlight | 3 文件 | ✅ 是 |
 | app-bridge 测试 | 3 文件 | ✅ 是 |
@@ -132,6 +132,11 @@
 8. **Go 测试工具化**
    - `newTestDaemon()`、`newTestWSServer()` 等 helper 在多个包中重复
    - 提取到 `daemon/internal/testutil`
+
+9. **Session ↔ Timeline E2E 覆盖** ✅ 已完成
+   - 新增 7 个 spec（10 个测试）：`multi-client-sync`、`reconnect-resilience`、`rapid-fire-messages`、`optimistic-dedup`、`grace-period-recovery`、`message-ordering`、`timeline-pagination`
+   - 覆盖：多客户端同步、断连恢复、快速消息、乐观去重、消息排序、分页查询
+   - 待补充：跨 provider 格式一致性（需真实 provider 环境）
 
 ### P3 — 长期优化（按需）
 
@@ -222,6 +227,7 @@
 | **P1-1: Go 覆盖率** | ✅ 完成 | `-coverprofile=coverage.out` |
 | **P1-1: Codecov 上传** | ✅ 配置完成 | 需 `CODECOV_TOKEN` Secret |
 | **P1-2: E2E nightly** | ✅ 完成 | 每天 02:00 UTC，workflow_dispatch |
+| **P2-3: Session-Timeline E2E** | ✅ 完成 | 7 specs, 10 tests |
 
 ### 5.3 P0/P1 关键修改文件
 

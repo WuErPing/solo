@@ -20,28 +20,12 @@ import { expect, test, type Page } from "./fixtures";
 import { buildHostAgentDetailRoute } from "@/utils/host-routes";
 import { gotoAppShell } from "./helpers/app";
 import { createNodeWebSocketFactory, type NodeWebSocketFactory } from "./helpers/node-ws-factory";
+import {
+  waitForTimelineItemType,
+  getServerId,
+  type CoreDaemonClient,
+} from "./helpers/daemon-client";
 import { createTempGitRepo } from "./helpers/workspace";
-
-interface CoreDaemonClient {
-  connect(): Promise<void>;
-  close(): Promise<void>;
-  createAgent(input: {
-    provider?: string;
-    cwd?: string;
-    config?: {
-      provider: string;
-      cwd: string;
-      title?: string;
-    };
-    initialPrompt?: string;
-    labels?: Record<string, string>;
-  }): Promise<{ id: string; cwd: string; title?: string | null }>;
-  sendMessage(agentId: string, text: string): Promise<void>;
-  fetchAgentTimeline(agentId: string, options?: { direction?: "tail"; limit?: number }): Promise<{
-    entries: Array<{ item: unknown }>;
-  }>;
-  deleteAgent(agentId: string): Promise<void>;
-}
 
 function getDaemonWsUrl(): string {
   const daemonPort = process.env.E2E_DAEMON_PORT;
@@ -72,47 +56,6 @@ async function connectCoreDaemonClient(): Promise<CoreDaemonClient> {
   });
   await client.connect();
   return client;
-}
-
-function getServerId(): string {
-  const serverId = process.env.E2E_SERVER_ID;
-  if (!serverId) {
-    throw new Error("E2E_SERVER_ID is not set.");
-  }
-  return serverId;
-}
-
-/**
- * Poll the agent timeline until an entry of the given type appears.
- * Returns the matching entry text or throws on timeout.
- */
-async function waitForTimelineItemType(
-  client: CoreDaemonClient,
-  agentId: string,
-  itemType: string,
-  timeoutMs = 60_000,
-): Promise<string> {
-  let lastEntries: Array<{ item: unknown }> = [];
-  await expect
-    .poll(
-      async () => {
-        const timeline = await client.fetchAgentTimeline(agentId, { direction: "tail", limit: 100 });
-        lastEntries = timeline.entries;
-        return timeline.entries.some((entry) => {
-          const item = entry.item as { type?: string };
-          return item?.type === itemType;
-        });
-      },
-      { timeout: timeoutMs, intervals: [1000, 2000, 3000] },
-    )
-    .toBe(true);
-
-  const match = lastEntries.find((e) => {
-    const item = e.item as { type?: string };
-    return item?.type === itemType;
-  });
-  const item = match?.item as { type?: string; text?: string };
-  return item?.text ?? "";
 }
 
 /**
