@@ -8,6 +8,7 @@
 - [Components](components.md) — App, App-Bridge, Daemon, Relay, CLI, Protocol specs
 - [Data Flow](data-flow.md) — WS message flows, session lifecycle, heartbeat
 - [Timeline Design](timeline-design.md) — Head/Tail stream model, seq gate, bootstrap policy, catch-up
+- [Session Memory Persistence](session-memory-persistence.md) — Turn recording hooks, TurnRecorder interface, file layout, migration path
 - [Deployment](deployment.md) — Systemd, Docker, Nginx config, env vars
 
 ## Related

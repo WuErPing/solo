@@ -16,6 +16,7 @@ docs/
 │   ├── data-flow.md                       # Message flows & session lifecycle
 │   ├── deployment.md                      # Deployment, Nginx, Systemd, Docker
 │   ├── network-architecture.md            # Network paths, E2EE, Pairing Link
+│   ├── session-memory-persistence.md      # Session turn recording & memory layer design
 │   └── timeline-design.md                 # Head/Tail model, seq gate, deduplication
 ├── product/                               ← Product feature analysis
 │   ├── features.md                        # Full product feature analysis
@@ -40,6 +41,7 @@ System design, component contracts, and runtime behaviour.
 | [Components](architecture/components.md) | Reference | Dev | App · App-Bridge · Daemon · Relay · CLI · Protocol |
 | [Data Flow](architecture/data-flow.md) | Reference | Dev | WS message flow, E2EE handshake, session lifecycle, heartbeat |
 | [Network Architecture](architecture/network-architecture.md) | Deep-dive | Dev / Infra | Nginx → Relay → Daemon paths, port ACL, Pairing Link protocol |
+| [Session Memory Persistence](architecture/session-memory-persistence.md) | Design | Dev | Hook points, TurnRecorder interface, file layout, migration path to DB / memory middleware |
 | [Deployment](architecture/deployment.md) | Runbook | Infra / CI | Systemd, Docker, Nginx config, env vars, monitoring, troubleshooting |
 
 **Key facts (always-on context)**:
