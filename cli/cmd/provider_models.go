@@ -25,7 +25,7 @@ func init() {
 
 func runProviderModels(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
-	c, err := newClient(ctx)
+	c, err := newClient(ctx, flagHost)
 	if err != nil {
 		return err
 	}
@@ -33,7 +33,7 @@ func runProviderModels(cmd *cobra.Command, args []string) error {
 
 	ps := c.ProvidersSnapshot()
 	if ps == nil {
-		fmt.Fprintln(output.Stdout, "No providers available")
+		fmt.Fprintln(cmdStdout, "No providers available")
 		return nil
 	}
 
@@ -54,10 +54,10 @@ func runProviderModels(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	opts := getOutputOpts()
+	opts := getOutputOpts(flagFormat, flagJSON, flagQuiet, flagNoHeaders, flagNoColor)
 
 	if opts.Format == output.FormatJSON || opts.Format == output.FormatYAML {
-		return output.Render(output.SingleResult(found.Models, nil), opts)
+		return output.Render(cmdStdout, output.SingleResult(found.Models, nil), opts)
 	}
 
 	// Table output
@@ -85,11 +85,11 @@ func runProviderModels(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(items) == 0 {
-		fmt.Fprintln(output.Stdout, "No models available")
+		fmt.Fprintln(cmdStdout, "No models available")
 		return nil
 	}
 
-	return output.Render(output.ListResult(items, schema), opts)
+		return output.Render(cmdStdout, output.ListResult(items, schema), opts)
 }
 
 type modelEntry struct {

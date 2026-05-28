@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -18,6 +19,11 @@ var (
 	flagQuiet     bool
 	flagNoHeaders bool
 	flagNoColor   bool
+
+	// cmdStdout and cmdStderr are the destinations for command output.
+	// They are package-level variables so tests can swap them for capture.
+	cmdStdout io.Writer = os.Stdout
+	cmdStderr io.Writer = os.Stderr
 )
 
 var rootCmd = &cobra.Command{
@@ -50,39 +56,38 @@ func Execute() {
 	}
 }
 
-// getOutputOpts resolves the output options from global flags.
-func getOutputOpts() output.OutputOptions {
-	noColor := flagNoColor
+// getOutputOpts resolves the output options from the provided flags.
+func getOutputOpts(format string, json bool, quiet bool, noHeaders bool, noColor bool) output.OutputOptions {
 	if noColor {
 		output.DisableColor()
 	}
-	if flagQuiet {
-		return output.OutputOptions{Format: output.FormatQuiet, NoHeaders: flagNoHeaders, NoColor: noColor}
+	if quiet {
+		return output.OutputOptions{Format: output.FormatQuiet, NoHeaders: noHeaders, NoColor: noColor}
 	}
-	if flagJSON {
-		return output.OutputOptions{Format: output.FormatJSON, NoHeaders: flagNoHeaders, NoColor: noColor}
+	if json {
+		return output.OutputOptions{Format: output.FormatJSON, NoHeaders: noHeaders, NoColor: noColor}
 	}
-	format, err := output.ParseOutputFormat(flagFormat)
+	f, err := output.ParseOutputFormat(format)
 	if err != nil {
-		fmt.Fprintln(output.Stderr, err.Error())
+		fmt.Fprintln(cmdStderr, err.Error())
 		os.Exit(1)
 	}
-	return output.OutputOptions{Format: format, NoHeaders: flagNoHeaders, NoColor: noColor}
+	return output.OutputOptions{Format: f, NoHeaders: noHeaders, NoColor: noColor}
 }
 
-// newClient creates a connected DaemonClient using the global --host flag.
-func newClient(ctx context.Context) (*client.DaemonClient, error) {
+// newClient creates a connected DaemonClient using the provided host.
+func newClient(ctx context.Context, host string) (*client.DaemonClient, error) {
 	clientID, err := client.GetOrCreateClientID()
 	if err != nil {
 		return nil, fmt.Errorf("get client ID: %w", err)
 	}
 
-	wsURL, err := client.ResolveHost(flagHost)
+	wsURL, err := client.ResolveHost(host)
 	if err != nil {
 		return nil, fmt.Errorf("resolve host: %w", err)
 	}
 
-	c, err := client.NewDaemonClient(ctx, flagHost, clientID)
+	c, err := client.NewDaemonClient(ctx, host, clientID)
 	if err != nil {
 		return nil, fmt.Errorf("connect to daemon at %s: %w\nStart the daemon with: solo daemon start", wsURL, err)
 	}

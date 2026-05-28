@@ -16,7 +16,7 @@
 | `daemon/` | Go | ~80 | `testing` | 单元、集成 |
 | `relay-go/` | Go | ~6 | `testing` | 单元、E2E（加密一致性） |
 | `protocol/` | Go | ~1 | `testing` | 单元 |
-| `cli/` | Go | ~1 | `testing` | 单元 |
+| `cli/` | Go | ~10 | `testing` | 单元 |
 | `packages/highlight/` | TS | 3 | Vitest | 单元 |
 | `app-bridge/` | TS | **3** | Vitest | 单元（新增） |
 | `app/maestro/` | YAML | ~20 | Maestro | 移动端 E2E（手动） |
@@ -228,8 +228,62 @@
 | **P1-1: Codecov 上传** | ✅ 配置完成 | 需 `CODECOV_TOKEN` Secret |
 | **P1-2: E2E nightly** | ✅ 完成 | 每天 02:00 UTC，workflow_dispatch |
 | **P2-3: Session-Timeline E2E** | ✅ 完成 | 7 specs, 10 tests |
+| **P2-4: Go CLI 全局状态解耦** | ✅ 完成 | output 包 + cmd 包依赖注入 |
+| **P2-5: Daemon 并发 Race 测试** | ✅ 完成 | Coalescer + AgentManager `-race` 测试 |
 
-### 5.3 P0/P1 关键修改文件
+### 5.3 P2 实施结果（TDD 重构：Go 测试可维护性 + 并发安全）
+
+**P2-4: Go CLI 全局状态解耦**
+- **问题**：`output.Render`/`RenderError` 依赖全局 `output.Stdout`/`Stderr`；`getOutputOpts`/`newClient` 依赖全局 flag 变量；20+ 命令文件直接引用 `output.Stdout`
+- **步骤 1（红）**：观察现有测试 — 大量 `oldStdout := output.Stdout; output.Stdout = &buf` 模式，测试间通过全局变量隐式耦合
+- **步骤 2（绿）**：
+  - `cli/internal/output/render.go`：`Render`/`RenderError`/`PrintResult` 增加显式 `io.Writer` 参数
+  - `cli/cmd/root.go`：`getOutputOpts` 和 `newClient` 改为参数化签名；引入 `cmdStdout`/`cmdStderr`（包级，测试可注入）
+  - 批量替换 `cli/cmd/*.go` 中所有 `output.Stdout` → `cmdStdout`
+- **步骤 3（验证）**：`go test ./cli/...` → 全部通过；`output_test.go` 新增 `TestRenderDoesNotDependOnGlobalStdout`
+
+**P2-5: Daemon 并发 Race 测试**
+- **问题**：`StreamCoalescer` 和 `AgentManager` 涉及 goroutine 和共享状态，但缺乏 `-race` 验证
+- **步骤 1（红）**：运行 `go test -race ./daemon/internal/agent/...` — 无并发测试覆盖高频并发路径
+- **步骤 2（绿）**：
+  - `coalescer_extra_test.go`：新增 `TestStreamCoalescerConcurrentHandleAndFlush`（10 goroutine Handle + FlushAll + FlushAndDiscard）、`TestStreamCoalescerConcurrentHandleAndFlushFor`
+  - `manager_extra_test.go`：新增 `TestAgentManagerConcurrentCreateDelete`（50 agent 并发创建删除）、`TestAgentManagerConcurrentCreateArchive`、`TestAgentManagerConcurrentReadWrite`
+- **步骤 3（验证）**：`go test -race -run "TestStreamCoalescerConcurrent|TestAgentManagerConcurrent" ./daemon/internal/agent/...` → 全部通过，0 data races
+
+**P2-6: relayclient 测试补充**
+- **问题**：`connectControl` (35.7%)、`controlReadPump` (50.0%)、`controlKeepalive` (52.9%) 覆盖率偏低
+- **步骤 1（红）**：观察现有测试 — 已覆盖 `handleControlMessage`、`buildControlURL`、`openDataSocket` 等，但缺少控制连接生命周期测试
+- **步骤 2（绿）**：`client_extra_test.go` 新增 8 个测试：
+  - `TestConnectControl_Success`：验证成功建立控制连接并启动 goroutine
+  - `TestConnectControl_FailureTriggersReconnect`：验证失败 dial 触发重连 timer
+  - `TestConnectControl_AlreadyStopped`：验证 stopped 时无操作
+  - `TestControlReadPump_ReceivesMessage`：验证文本消息被处理
+  - `TestControlReadPump_NonTextMessageIgnored`：验证二进制消息被忽略
+  - `TestControlReadPump_ScheduleReconnectOnClose`：验证异常关闭触发重连
+  - `TestStop_Idempotent`：验证 Stop 幂等性
+  - `TestStop_ClosesControlConn`：验证 Stop 关闭控制连接
+- **步骤 3（验证）**：覆盖率 65.3% → 75.2%，`go test -race` 通过
+
+**P2-7: agent/base 测试补充**
+- **问题**：`FindBinary` (0%) 未被测试
+- **步骤 1（红）**：`process_test.go` 无 `FindBinary` 测试
+- **步骤 2（绿）**：新增 4 个测试：
+  - `TestFindBinary_PathLookup`：PATH 回退查找
+  - `TestFindBinary_EnvVar`：环境变量优先
+  - `TestFindBinary_CommonPaths`：常见路径查找
+  - `TestFindBinary_NotFound`：未找到时返回错误
+- **步骤 3（验证）**：覆盖率 59.4% → 63.1%
+
+| 任务 | 状态 | 详情 |
+|------|------|------|
+| **P2-4: output 包去全局化** | ✅ 完成 | `Render(w, result, opts)` 显式 writer |
+| **P2-4: cmd 包依赖注入** | ✅ 完成 | `getOutputOpts`/`newClient` 参数化，`cmdStdout` 可注入 |
+| **P2-5: Coalescer 并发测试** | ✅ 完成 | 2 个 race 测试，`-race` 通过 |
+| **P2-5: AgentManager 并发测试** | ✅ 完成 | 3 个 race 测试，`-race` 通过 |
+| **P2-6: relayclient 测试补充** | ✅ 完成 | 5 个测试，`connectControl`/`controlReadPump`/`Stop` 路径覆盖，+9.9% |
+| **P2-7: agent/base 测试补充** | ✅ 完成 | `FindBinary` 4 个测试，+3.7% |
+
+### 5.4 P0/P1 关键修改文件
 
 **CI / 配置**
 - `.github/workflows/ci.yml` — CI 主配置（测试、覆盖率、Codecov）
@@ -274,4 +328,4 @@
 
 ## 7. 一句话总结
 
-> **P0 + P1 已完成：app 和 app-bridge 测试已接入 CI 并收集覆盖率，app typecheck 已强制，app-bridge zod v4 迁移完成且 typecheck 已强制，E2E 已 nightly 运行。当前 P2 待办：Browser 测试扩展、Go testutil 提取、Maestro CI 化。**
+> **P0 + P1 + P2（TDD 重构）已完成：app 和 app-bridge 测试已接入 CI 并收集覆盖率，app typecheck 已强制，app-bridge zod v4 迁移完成且 typecheck 已强制，E2E 已 nightly 运行。Go CLI 全局状态已解耦（output 显式 writer + cmd 参数化依赖），Daemon 并发组件已通过 `-race` 验证。当前 P3 待办：Browser 测试扩展、Go testutil 提取、Maestro CI 化。**

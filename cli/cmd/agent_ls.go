@@ -37,7 +37,7 @@ func init() {
 
 func runAgentLs(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
-	c, err := newClient(ctx)
+	c, err := newClient(ctx, flagHost)
 	if err != nil {
 		return err
 	}
@@ -161,7 +161,7 @@ func runAgentLs(cmd *cobra.Command, args []string) error {
 		},
 	}
 
-	return output.Render(output.ListResult(items, schema), getOutputOpts())
+	return output.Render(cmdStdout, output.ListResult(items, schema), getOutputOpts(flagFormat, flagJSON, flagQuiet, flagNoHeaders, flagNoColor))
 }
 
 type agentListItem struct {

@@ -29,7 +29,7 @@ func init() {
 
 func runAgentWait(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
-	c, err := newClient(ctx)
+	c, err := newClient(ctx, flagHost)
 	if err != nil {
 		return err
 	}
@@ -141,13 +141,13 @@ func runAgentWait(cmd *cobra.Command, args []string) error {
 }
 
 func printWaitResult(agentID, status string) {
-	opts := getOutputOpts()
+	opts := getOutputOpts(flagFormat, flagJSON, flagQuiet, flagNoHeaders, flagNoColor)
 	if opts.Format == output.FormatJSON || opts.Format == output.FormatYAML {
-		output.Render(output.SingleResult(map[string]string{
+		output.Render(cmdStdout, output.SingleResult(map[string]string{
 			"agentId": agentID,
 			"status":  status,
 		}, nil), opts)
 	} else {
-		fmt.Fprintf(output.Stdout, "Agent %s %s\n", shortenID(agentID), status)
+		fmt.Fprintf(cmdStdout, "Agent %s %s\n", shortenID(agentID), status)
 	}
 }

@@ -20,7 +20,7 @@ func init() {
 
 func runProviderLs(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
-	c, err := newClient(ctx)
+	c, err := newClient(ctx, flagHost)
 	if err != nil {
 		return err
 	}
@@ -28,14 +28,14 @@ func runProviderLs(cmd *cobra.Command, args []string) error {
 
 	ps := c.ProvidersSnapshot()
 	if ps == nil || len(ps.Entries) == 0 {
-		fmt.Fprintln(output.Stdout, "No providers available")
+		fmt.Fprintln(cmdStdout, "No providers available")
 		return nil
 	}
 
-	opts := getOutputOpts()
+	opts := getOutputOpts(flagFormat, flagJSON, flagQuiet, flagNoHeaders, flagNoColor)
 
 	if opts.Format == output.FormatJSON || opts.Format == output.FormatYAML {
-		return output.Render(output.SingleResult(ps.Entries, nil), opts)
+		return output.Render(cmdStdout, output.SingleResult(ps.Entries, nil), opts)
 	}
 
 	// Table output
@@ -72,7 +72,7 @@ func runProviderLs(cmd *cobra.Command, args []string) error {
 		})
 	}
 
-	return output.Render(output.ListResult(items, schema), opts)
+	return output.Render(cmdStdout, output.ListResult(items, schema), opts)
 }
 
 type providerEntry struct {

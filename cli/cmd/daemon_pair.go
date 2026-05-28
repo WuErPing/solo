@@ -66,9 +66,9 @@ func runDaemonPair(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	opts := getOutputOpts()
+	opts := getOutputOpts(flagFormat, flagJSON, flagQuiet, flagNoHeaders, flagNoColor)
 	if opts.Format == output.FormatJSON || opts.Format == output.FormatYAML {
-		return output.Render(output.SingleResult(map[string]string{
+		return output.Render(cmdStdout, output.SingleResult(map[string]string{
 			"relayEnabled": "true",
 			"url":          url,
 		}, nil), opts)
@@ -77,19 +77,19 @@ func runDaemonPair(cmd *cobra.Command, args []string) error {
 	// Render QR code to terminal
 	qr, err := qrcode.New(url, qrcode.Medium)
 	if err == nil {
-		fmt.Fprintln(output.Stdout, "\nScan to pair:")
-		fmt.Fprintln(output.Stdout, qr.ToSmallString(false))
+		fmt.Fprintln(cmdStdout, "\nScan to pair:")
+		fmt.Fprintln(cmdStdout, qr.ToSmallString(false))
 	} else {
-		fmt.Fprintln(output.Stdout, "\nScan to pair:")
+		fmt.Fprintln(cmdStdout, "\nScan to pair:")
 	}
 
-	fmt.Fprintln(output.Stdout, url)
+	fmt.Fprintln(cmdStdout, url)
 
 	offer, err := client.DecodePairingOffer(url)
 	if err == nil {
 		offerJSON, _ := json.MarshalIndent(offer, "", "  ")
-		fmt.Fprintln(output.Stdout, "\nPairing link (plaintext):")
-		fmt.Fprintln(output.Stdout, string(offerJSON))
+		fmt.Fprintln(cmdStdout, "\nPairing link (plaintext):")
+		fmt.Fprintln(cmdStdout, string(offerJSON))
 	}
 
 	return nil

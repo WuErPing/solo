@@ -33,7 +33,7 @@ func init() {
 
 func runAgentSend(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
-	c, err := newClient(ctx)
+	c, err := newClient(ctx, flagHost)
 	if err != nil {
 		return err
 	}
@@ -69,15 +69,15 @@ func runAgentSend(cmd *cobra.Command, args []string) error {
 		return &output.CommandError{Code: "SEND_FAILED", Message: extractRPCError(resp)}
 	}
 
-	opts := getOutputOpts()
+	opts := getOutputOpts(flagFormat, flagJSON, flagQuiet, flagNoHeaders, flagNoColor)
 	if opts.Format == output.FormatJSON || opts.Format == output.FormatYAML {
-		return output.Render(output.SingleResult(map[string]string{
+		return output.Render(cmdStdout, output.SingleResult(map[string]string{
 			"agentId": agentID,
 			"status":  "sent",
 		}, nil), opts)
 	}
 
-	fmt.Fprintf(output.Stdout, "Message sent to agent %s\n", shortenID(agentID))
+	fmt.Fprintf(cmdStdout, "Message sent to agent %s\n", shortenID(agentID))
 	return nil
 }
 

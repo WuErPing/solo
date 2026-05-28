@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -315,24 +314,14 @@ func upsertRegistries(
 	return ws, proj
 }
 
-// gitRun executes a git command in the given directory.
+// gitRun executes a git command in the given directory via gitCmd.
 func gitRun(dir string, args ...string) error {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	return cmd.Run()
+	return getGitCmd().Run(dir, args...)
 }
 
-// gitOutput executes a git command and returns its stdout.
+// gitOutput executes a git command and returns its stdout via gitCmd.
 func gitOutput(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	out, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	return string(out), nil
+	return getGitCmd().Output(dir, args...)
 }
 
 // DeleteWorktree removes a git worktree.

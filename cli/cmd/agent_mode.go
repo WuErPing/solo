@@ -26,7 +26,7 @@ func init() {
 
 func runAgentMode(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
-	c, err := newClient(ctx)
+	c, err := newClient(ctx, flagHost)
 	if err != nil {
 		return err
 	}
@@ -62,14 +62,14 @@ func runAgentMode(cmd *cobra.Command, args []string) error {
 		}
 
 		agent := fetchResp.Payload.Agent
-		opts := getOutputOpts()
+		opts := getOutputOpts(flagFormat, flagJSON, flagQuiet, flagNoHeaders, flagNoColor)
 
 		if opts.Format == output.FormatJSON || opts.Format == output.FormatYAML {
-			return output.Render(output.SingleResult(agent.AvailableModes, nil), opts)
+			return output.Render(cmdStdout, output.SingleResult(agent.AvailableModes, nil), opts)
 		}
 
 		if len(agent.AvailableModes) == 0 {
-			fmt.Fprintln(output.Stdout, "No modes available")
+			fmt.Fprintln(cmdStdout, "No modes available")
 			return nil
 		}
 
@@ -78,7 +78,7 @@ func runAgentMode(cmd *cobra.Command, args []string) error {
 			if agent.CurrentModeID != nil && *agent.CurrentModeID == mode.ID {
 				current = " (current)"
 			}
-			fmt.Fprintf(output.Stdout, "  %s\t%s%s\n", mode.ID, mode.Label, current)
+			fmt.Fprintf(cmdStdout, "  %s\t%s%s\n", mode.ID, mode.Label, current)
 		}
 		return nil
 	}
@@ -103,14 +103,14 @@ func runAgentMode(cmd *cobra.Command, args []string) error {
 		return &output.CommandError{Code: "MODE_FAILED", Message: extractRPCError(resp)}
 	}
 
-	opts := getOutputOpts()
+	opts := getOutputOpts(flagFormat, flagJSON, flagQuiet, flagNoHeaders, flagNoColor)
 	if opts.Format == output.FormatJSON || opts.Format == output.FormatYAML {
-		return output.Render(output.SingleResult(map[string]string{
+		return output.Render(cmdStdout, output.SingleResult(map[string]string{
 			"agentId": agentID,
 			"mode":    args[1],
 		}, nil), opts)
 	}
 
-	fmt.Fprintf(output.Stdout, "Agent %s mode set to %s\n", shortenID(agentID), args[1])
+	fmt.Fprintf(cmdStdout, "Agent %s mode set to %s\n", shortenID(agentID), args[1])
 	return nil
 }

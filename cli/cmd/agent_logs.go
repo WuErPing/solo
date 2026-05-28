@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/WuErPing/solo/cli/internal/output"
 	"github.com/WuErPing/solo/protocol"
 )
 
@@ -32,7 +31,7 @@ func init() {
 
 func runAgentLogs(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
-	c, err := newClient(ctx)
+	c, err := newClient(ctx, flagHost)
 	if err != nil {
 		return err
 	}
@@ -75,7 +74,7 @@ func runAgentLogs(cmd *cobra.Command, args []string) error {
 	json.Unmarshal(payload, &timeline)
 
 	if len(timeline.Payload.Entries) == 0 {
-		fmt.Fprintln(output.Stdout, "No activity to display.")
+		fmt.Fprintln(cmdStdout, "No activity to display.")
 		return nil
 	}
 
@@ -93,7 +92,7 @@ func runAgentLogs(cmd *cobra.Command, args []string) error {
 	streams := c.Subscribe("agent_stream")
 	defer c.Unsubscribe("agent_stream", streams)
 
-	fmt.Fprintln(output.Stdout, "\n--- streaming ---")
+	fmt.Fprintln(cmdStdout, "\n--- streaming ---")
 
 	for {
 		select {
@@ -151,16 +150,16 @@ func matchesLogFilter(itemType, filter string) bool {
 func printLogEntry(itemType, text, name string) {
 	switch itemType {
 	case "assistant_message":
-		fmt.Fprintf(output.Stdout, "  %s\n", text)
+		fmt.Fprintf(cmdStdout, "  %s\n", text)
 	case "reasoning":
-		fmt.Fprintf(output.Stdout, "  [Reasoning] %s\n", text)
+		fmt.Fprintf(cmdStdout, "  [Reasoning] %s\n", text)
 	case "tool_call":
-		fmt.Fprintf(output.Stdout, "  [Tool: %s]\n", name)
+		fmt.Fprintf(cmdStdout, "  [Tool: %s]\n", name)
 	case "error":
-		fmt.Fprintf(output.Stdout, "  [Error] %s\n", text)
+		fmt.Fprintf(cmdStdout, "  [Error] %s\n", text)
 	case "user_message":
-		fmt.Fprintf(output.Stdout, "  [User] %s\n", text)
+		fmt.Fprintf(cmdStdout, "  [User] %s\n", text)
 	default:
-		fmt.Fprintf(output.Stdout, "  [%s] %s\n", itemType, text)
+		fmt.Fprintf(cmdStdout, "  [%s] %s\n", itemType, text)
 	}
 }

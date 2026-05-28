@@ -3,7 +3,6 @@ package workspace
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -308,14 +307,5 @@ func deriveProjectSlug(remoteUrl *string, displayName string) string {
 
 // gitExec runs a git command in the given directory and returns its stdout.
 func gitExec(cwd string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = cwd
-	out, err := cmd.Output()
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			return "", fmt.Errorf("git %s: %s", args[0], string(exitErr.Stderr))
-		}
-		return "", fmt.Errorf("git %s: %w", args[0], err)
-	}
-	return string(out), nil
+	return getGitCmd().Output(cwd, args...)
 }

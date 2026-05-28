@@ -294,3 +294,46 @@ func TestProcessManager_WaitForExit_CleanExit_ReturnsZero(t *testing.T) {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
 	}
 }
+
+// TestFindBinary_PathLookup verifies FindBinary falls back to PATH lookup.
+func TestFindBinary_PathLookup(t *testing.T) {
+	path, err := FindBinary("sh", "NONEXISTENT_ENV_VAR", nil)
+	if err != nil {
+		t.Fatalf("expected sh in PATH, got: %v", err)
+	}
+	if path == "" {
+		t.Error("expected non-empty path")
+	}
+}
+
+// TestFindBinary_EnvVar verifies FindBinary uses env var when set and valid.
+func TestFindBinary_EnvVar(t *testing.T) {
+	t.Setenv("TEST_SOLO_BINARY_PATH", "/bin/sh")
+	path, err := FindBinary("nonexistent", "TEST_SOLO_BINARY_PATH", nil)
+	if err != nil {
+		t.Fatalf("expected env var path, got: %v", err)
+	}
+	if path != "/bin/sh" {
+		t.Errorf("expected /bin/sh, got %q", path)
+	}
+}
+
+// TestFindBinary_CommonPaths verifies FindBinary checks common paths.
+func TestFindBinary_CommonPaths(t *testing.T) {
+	// Use a path that definitely exists
+	path, err := FindBinary("nonexistent", "NONEXISTENT_ENV_VAR", []string{"/bin/sh"})
+	if err != nil {
+		t.Fatalf("expected common path to match, got: %v", err)
+	}
+	if path != "/bin/sh" {
+		t.Errorf("expected /bin/sh, got %q", path)
+	}
+}
+
+// TestFindBinary_NotFound verifies FindBinary returns error when binary is not found.
+func TestFindBinary_NotFound(t *testing.T) {
+	_, err := FindBinary("this-binary-definitely-does-not-exist-xyz", "NONEXISTENT_ENV_VAR", nil)
+	if err == nil {
+		t.Fatal("expected error for missing binary")
+	}
+}

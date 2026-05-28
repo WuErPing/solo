@@ -36,7 +36,7 @@ func runDaemonRestart(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 
 	// Try graceful restart via WebSocket
-	c, err := newClient(ctx)
+	c, err := newClient(ctx, flagHost)
 	if err != nil {
 		return &output.CommandError{
 			Code:    "DAEMON_NOT_RUNNING",
@@ -56,11 +56,11 @@ func runDaemonRestart(cmd *cobra.Command, args []string) error {
 		return &output.CommandError{Code: "RESTART_FAILED", Message: fmt.Sprintf("Failed to send restart: %v", err)}
 	}
 
-	opts := getOutputOpts()
+	opts := getOutputOpts(flagFormat, flagJSON, flagQuiet, flagNoHeaders, flagNoColor)
 	if opts.Format == output.FormatJSON || opts.Format == output.FormatYAML {
-		return output.Render(output.SingleResult(map[string]string{"status": "restarting"}, nil), opts)
+		return output.Render(cmdStdout, output.SingleResult(map[string]string{"status": "restarting"}, nil), opts)
 	}
 
-	fmt.Fprintln(output.Stdout, "Daemon restarting...")
+	fmt.Fprintln(cmdStdout, "Daemon restarting...")
 	return nil
 }
