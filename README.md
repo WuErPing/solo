@@ -162,6 +162,30 @@ See [`docs/providers/`](docs/providers/) for provider integration research and p
 
 ---
 
+## Session Memory
+
+The daemon persists every user/assistant turn of every session to disk as Markdown with YAML frontmatter, giving you a local, queryable transcript of everything Solo has done.
+
+- **Storage**: `~/.solo/memory/sessions/{YYYY-MM}/{sessionID}/turns/{seq:04d}-{role}.md`
+- **Index**: `~/.solo/memory/sessions.jsonl` (one JSONL line per session)
+- **Streaming**: an assistant streaming response is coalesced into a **single** `assistant.md` per logical turn — you never end up with dozens of files for one answer.
+- **Redaction**: OpenAI / GitHub / Anthropic / AWS tokens and common env-file secrets are replaced with `[redacted:<reason>]` before writing.
+- **Isolation**: the recorder runs behind a `SafeBridge` wrapper that recovers from panics and trips a circuit breaker on repeated failures, so a storage problem can never take down the daemon's main session loop.
+
+### Configuration
+
+Session memory is **on by default**. To opt out, add to `~/.solo/config.json`:
+
+```json
+{
+  "memory": { "enabled": false }
+}
+```
+
+Other knobs (`backend`, `root`, `retention_days`, `queue_size`, `overflow`, `redact.*`, `safe.failure_threshold`, `safe.failure_cooldown`) are documented in [`docs/product/session-memory-spec.md`](docs/product/session-memory-spec.md).
+
+---
+
 ## Security
 
 - **End-to-End Encryption**: All communication between client and daemon is encrypted using X25519 key exchange + XSalsa20-Poly1305.
@@ -188,6 +212,7 @@ The project uses GitHub Actions (`.github/workflows/ci.yml`) with the following 
 - [Network Architecture](docs/architecture/network-architecture.md)
 - [Deployment Guide](docs/architecture/deployment.md)
 - [Product Features](docs/product/features.md)
+- [Session Memory Spec](docs/product/session-memory-spec.md)
 
 ---
 
