@@ -20,6 +20,7 @@ docs/
 │   └── timeline-design.md                 # Head/Tail model, seq gate, deduplication
 ├── product/                               ← Product feature analysis
 │   ├── features.md                        # Full product feature analysis
+│   ├── session-memory-spec.md             # Session memory Phase-1 implementation spec
 │   └── ui-features.md                     # App UI screens, components, hooks
 ├── providers/                             ← AI provider integration research
 │   ├── kimi-wire-vs-acp.md               # Kimi Wire vs ACP protocol comparison
@@ -59,6 +60,7 @@ Feature inventory and UI/UX analysis.
 | Document | Type | Summary |
 |----------|------|---------|
 | [Product Features](product/features.md) | Analysis | Full feature tree: Agent system, session, workspace, push, relay, CLI, tests, CI/CD |
+| [Session Memory Spec](product/session-memory-spec.md) | Spec | Phase-1 implementation spec: TurnRecorder interface, FileTurnRecorder, hooks, redaction, tests |
 | [UI Features](product/ui-features.md) | Analysis | Screen map, component catalogue, contexts, hooks, stores, feature checklist |
 
 **Current completion**: ~80-87 %. Main gaps: GitHub integration, voice (TTS/STT), Cursor-Agent / ACP providers.

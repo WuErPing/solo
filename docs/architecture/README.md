@@ -11,6 +11,8 @@
 - [Session Memory Persistence](session-memory-persistence.md) — Turn recording hooks, TurnRecorder interface, file layout, migration path
 - [Deployment](deployment.md) — Systemd, Docker, Nginx config, env vars
 
+See also [`../product/session-memory-spec.md`](../product/session-memory-spec.md) for the Phase 1 implementation spec (M1–M6 shipped 2026-05-28).
+
 ## Related
 
 - [Provider Integration Research](../providers/) — Kimi Wire vs ACP, Cursor-Agent plan

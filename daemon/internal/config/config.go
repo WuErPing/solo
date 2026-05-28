@@ -26,6 +26,7 @@ type Config struct {
 	Supervised                   bool
 	Version                      string
 	CustomModels                 map[string][]CustomModelConfig // key = provider ID
+	Memory                       MemoryConfig
 }
 
 // PersistedConfig mirrors the on-disk config.json structure.
