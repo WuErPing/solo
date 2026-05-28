@@ -41,6 +41,7 @@ type Session struct {
 	pushTokenStore  push.TokenStore
 	activityTracker ActivityTracker
 	pusher          push.Pusher
+	memoryBridge    MemoryBridge
 
 	workspaces   map[string]*protocol.WorkspaceDescriptor
 	workspacesMu sync.RWMutex

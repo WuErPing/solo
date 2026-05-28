@@ -231,6 +231,10 @@ func (s *Session) handleSendAgentMessage(m *protocol.SendAgentMessageRequest) {
 		logger.Info("send_agent_message_request resolved agent identifier")
 	}
 
+	if s.memoryBridge != nil {
+		s.memoryBridge.OnUserTurn(s.clientID, agentID, m.Text)
+	}
+
 	if err := s.agentMgr.SendAgentMessage(context.Background(), agentID, m.Text, m.Images, m.Attachments, stringPtrValue(m.MessageID)); err != nil {
 		logger.Warn("send_agent_message_request rejected", "error", err)
 		s.sendSendAgentMessageResponse(m.RequestID, agentID, false, err.Error())

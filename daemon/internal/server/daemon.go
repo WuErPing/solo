@@ -43,6 +43,17 @@ type Daemon struct {
 	scriptProxy    *workspace.ScriptProxy
 	relayClient    *relayclient.Client
 	ln             net.Listener
+	memoryRecorder MemoryRecorder
+	memoryBridge   MemoryBridge
+}
+
+// MemoryRecorder is the minimal contract the daemon needs to flush/close
+// the session-memory recorder on shutdown. The canonical implementation
+// is memory.TurnRecorder; the narrow alias avoids pulling the full
+// memory package into server consumers that only need the interface.
+type MemoryRecorder interface {
+	Flush(ctx context.Context) error
+	Close() error
 }
 
 // NewDaemon creates and wires up all daemon services.
@@ -138,6 +149,27 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 	pusher := push.NewExpoPushService("", pushTokenStore, logger)
 	activityTracker := NewClientActivityTracker()
 
+	// Build session-memory feature (recorder + redactor + bridge).
+	// Enabled by default: a zero-value MemoryConfig runs the feature.
+	// Explicit false opts out. Build errors in auto-enable mode are
+	// logged and the feature is skipped so a fresh daemon always starts.
+	cfg.Memory.SoloHome = cfg.SoloHome
+	var memoryBridge MemoryBridge
+	var memoryRecorder MemoryRecorder
+	if cfg.Memory.IsEnabled() {
+		memoryFeature, err := buildMemoryFeature(cfg.Memory)
+		if err != nil {
+			if cfg.Memory.Enabled == nil {
+				logger.Warn("memory: feature disabled due to build error", "error", err)
+			} else {
+				return nil, err
+			}
+		} else if memoryFeature != nil {
+			memoryBridge = memoryFeature.Bridge
+			memoryRecorder = memoryFeature.Recorder
+		}
+	}
+
 	// Create WS server with dependencies
 	ws := NewWSServerWithConfig(DaemonConfig{
 		Config:          cfg,
@@ -155,6 +187,7 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 		PushTokenStore:  pushTokenStore,
 		Pusher:          pusher,
 		ActivityTracker: activityTracker,
+		MemoryBridge:    memoryBridge,
 	})
 
 	mux := http.NewServeMux()
@@ -179,6 +212,8 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 		gitSvc:         gitSvc,
 		scriptMgr:      scriptMgr,
 		scriptProxy:    scriptProxy,
+		memoryRecorder: memoryRecorder,
+		memoryBridge:   memoryBridge,
 		http: &http.Server{
 			Handler: mux,
 		},
@@ -260,6 +295,21 @@ func (d *Daemon) Stop(ctx context.Context) error {
 	d.ws.Close()
 	// Shutdown OpenCode server manager (terminates background server processes)
 	agent.ShutdownOpenCodeServerManager()
+	// Drain session-memory: flush any in-flight streaming chunks first,
+	// then drain the recorder's queue. Both are best-effort.
+	if d.memoryBridge != nil {
+		if err := d.memoryBridge.Close(); err != nil {
+			d.logger.Warn("memory: bridge close on shutdown failed", "error", err)
+		}
+	}
+	if d.memoryRecorder != nil {
+		if err := d.memoryRecorder.Flush(ctx); err != nil {
+			d.logger.Warn("memory: flush on shutdown failed", "error", err)
+		}
+		if err := d.memoryRecorder.Close(); err != nil {
+			d.logger.Warn("memory: close on shutdown failed", "error", err)
+		}
+	}
 	if err := d.http.Shutdown(ctx); err != nil {
 		return fmt.Errorf("HTTP shutdown error: %w", err)
 	}
@@ -347,6 +397,7 @@ type WSServer struct {
 	pushTokenStore  push.TokenStore
 	pusher          push.Pusher
 	activityTracker ActivityTracker
+	memoryBridge    MemoryBridge
 	done            chan struct{}
 	mu              sync.RWMutex
 	gracePeriod     time.Duration // override for SessionDisconnectGraceMs; 0 = use default
@@ -357,7 +408,7 @@ type WSServer struct {
 
 // NewWSServer creates a new WebSocket server with agent dependencies.
 // Deprecated: use NewWSServerWithConfig
-func NewWSServer(cfg *config.Config, logger *slog.Logger, agentMgr *agent.AgentManager, timelineStore *agent.InMemoryTimelineStore, registry *agent.ProviderRegistry, workspaceStore *WorkspaceStore, terminalMgr *terminal.TerminalManager, projectReg *workspace.ProjectRegistry, workspaceReg *workspace.WorkspaceRegistry, gitSvc workspace.WorkspaceGitService, scriptMgr *workspace.ScriptManager, scriptProxy *workspace.ScriptProxy, pushTokenStore push.TokenStore, pusher push.Pusher, activityTracker ActivityTracker) *WSServer {
+func NewWSServer(cfg *config.Config, logger *slog.Logger, agentMgr *agent.AgentManager, timelineStore *agent.InMemoryTimelineStore, registry *agent.ProviderRegistry, workspaceStore *WorkspaceStore, terminalMgr *terminal.TerminalManager, projectReg *workspace.ProjectRegistry, workspaceReg *workspace.WorkspaceRegistry, gitSvc workspace.WorkspaceGitService, scriptMgr *workspace.ScriptManager, scriptProxy *workspace.ScriptProxy, pushTokenStore push.TokenStore, pusher push.Pusher, activityTracker ActivityTracker, memoryBridge MemoryBridge) *WSServer {
 	return &WSServer{
 		cfg:             cfg,
 		logger:          logger,
@@ -375,6 +426,7 @@ func NewWSServer(cfg *config.Config, logger *slog.Logger, agentMgr *agent.AgentM
 		pushTokenStore:  pushTokenStore,
 		pusher:          pusher,
 		activityTracker: activityTracker,
+		memoryBridge:    memoryBridge,
 		done:            make(chan struct{}),
 	}
 }
@@ -397,6 +449,7 @@ type DaemonConfig struct {
 	PushTokenStore  push.TokenStore
 	Pusher          push.Pusher
 	ActivityTracker ActivityTracker
+	MemoryBridge    MemoryBridge
 }
 
 // NewWSServerWithConfig creates a new WebSocket server using a DaemonConfig.
@@ -417,6 +470,7 @@ func NewWSServerWithConfig(cfg DaemonConfig) *WSServer {
 		cfg.PushTokenStore,
 		cfg.Pusher,
 		cfg.ActivityTracker,
+		cfg.MemoryBridge,
 	)
 }
 
@@ -664,6 +718,7 @@ func (s *WSServer) handleNewConnection(conn WSConn) {
 	sess.SetPushTokenStore(s.pushTokenStore)
 	sess.SetPusher(s.pusher)
 	sess.SetActivityTracker(s.activityTracker)
+	sess.SetMemoryBridge(s.memoryBridge)
 
 	// Set callback so the session can remove itself from the map when grace expires.
 	sess.onGraceExpire = func() {

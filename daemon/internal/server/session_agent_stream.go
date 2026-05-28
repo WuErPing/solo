@@ -159,6 +159,7 @@ func (s *Session) pushActiveAgents() {
 }
 
 func (s *Session) sendAgentStream(agentID string, event interface{}, timestamp time.Time, seq *int, epoch *string) {
+	s.maybeRecordAssistantTurn(agentID, event)
 	s.sendMessage(protocol.NewSessionMessage(&protocol.AgentStreamMessage{
 		Type: "agent_stream",
 		Payload: protocol.AgentStreamPayload{

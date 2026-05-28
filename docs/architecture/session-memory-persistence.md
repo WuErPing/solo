@@ -55,8 +55,13 @@
 // daemon/internal/memory/recorder.go
 package memory
 
+// NOTE: the implemented contract is slightly tighter than this sketch —
+// see docs/product/session-memory-spec.md (FR-3) for the final shape,
+// which also drops projectRoot (turns now live under SoloHome) and adds
+// a Flush method for graceful shutdown.
 type TurnRecorder interface {
-    RecordTurn(ctx context.Context, projectRoot string, sessionID string, turn Turn) error
+    RecordTurn(ctx context.Context, sessionID string, turn Turn) error
+    Flush(ctx context.Context) error
     Close() error
 }
 
