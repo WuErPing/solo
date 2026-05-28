@@ -21,6 +21,21 @@ var CoalescableTimelineTypes = map[string]bool{
 	"tool_call":         true,
 }
 
+// Clock abstracts time.AfterFunc so tests can drive timer fires without sleeping.
+type Clock interface {
+	AfterFunc(d time.Duration, f func()) *time.Timer
+}
+
+// realClock is the production Clock backed by time.AfterFunc.
+type realClock struct{}
+
+func (realClock) AfterFunc(d time.Duration, f func()) *time.Timer {
+	return time.AfterFunc(d, f)
+}
+
+// defaultClock is the package-level singleton used by NewStreamCoalescer.
+var defaultClock Clock = realClock{}
+
 // pendingTextEntry is a buffered text item (assistant_message or reasoning).
 type pendingTextEntry struct {
 	Kind     string // "assistant_message" or "reasoning"
@@ -71,17 +86,27 @@ type StreamCoalescer struct {
 	buffers  map[string]*coalescerBuffer
 	windowMs time.Duration
 	onFlush  func(FlushPayload)
+	clock    Clock
 }
 
 // NewStreamCoalescer creates a new coalescer with the given window and callback.
+// Pass a non-nil clock to override timer behaviour (useful in tests).
 func NewStreamCoalescer(windowMs int, onFlush func(FlushPayload)) *StreamCoalescer {
+	return newStreamCoalescerWithClock(windowMs, onFlush, nil)
+}
+
+func newStreamCoalescerWithClock(windowMs int, onFlush func(FlushPayload), clk Clock) *StreamCoalescer {
 	if windowMs <= 0 {
 		windowMs = DefaultCoalesceWindowMs
+	}
+	if clk == nil {
+		clk = defaultClock
 	}
 	return &StreamCoalescer{
 		buffers:  make(map[string]*coalescerBuffer),
 		windowMs: time.Duration(windowMs) * time.Millisecond,
 		onFlush:  onFlush,
+		clock:    clk,
 	}
 }
 
@@ -155,7 +180,7 @@ func (c *StreamCoalescer) Handle(agentID string, eventType string, item Timeline
 		if item.Type == "reasoning" {
 			window = time.Duration(ReasoningCoalesceWindowMs) * time.Millisecond
 		}
-		buf.timer = time.AfterFunc(window, func() {
+		buf.timer = c.clock.AfterFunc(window, func() {
 			c.mu.Lock()
 			defer c.mu.Unlock()
 			if b, ok := c.buffers[agentID]; ok {

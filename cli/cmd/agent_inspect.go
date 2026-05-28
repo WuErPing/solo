@@ -23,7 +23,7 @@ func init() {
 
 func runAgentInspect(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
-	c, err := newClient(ctx)
+	c, err := newClient(ctx, flagHost)
 	if err != nil {
 		return err
 	}
@@ -62,10 +62,10 @@ func runAgentInspect(cmd *cobra.Command, args []string) error {
 	}
 
 	agent := fetchResp.Payload.Agent
-	opts := getOutputOpts()
+	opts := getOutputOpts(flagFormat, flagJSON, flagQuiet, flagNoHeaders, flagNoColor)
 
 	if opts.Format == output.FormatJSON || opts.Format == output.FormatYAML {
-		return output.Render(output.SingleResult(agent, nil), opts)
+		return output.Render(cmdStdout, output.SingleResult(agent, nil), opts)
 	}
 
 	// Table/key-value output
@@ -102,7 +102,7 @@ func runAgentInspect(cmd *cobra.Command, args []string) error {
 	}
 
 	for _, r := range rows {
-		fmt.Fprintf(output.Stdout, "%-*s  %s\n", maxKeyLen, r.Key, r.Value)
+		fmt.Fprintf(cmdStdout, "%-*s  %s\n", maxKeyLen, r.Key, r.Value)
 	}
 
 	return nil

@@ -32,7 +32,7 @@ func init() {
 
 func runAgentDelete(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
-	c, err := newClient(ctx)
+	c, err := newClient(ctx, flagHost)
 	if err != nil {
 		return err
 	}
@@ -65,15 +65,15 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 		return &output.CommandError{Code: "DELETE_FAILED", Message: extractRPCError(resp)}
 	}
 
-	opts := getOutputOpts()
+	opts := getOutputOpts(flagFormat, flagJSON, flagQuiet, flagNoHeaders, flagNoColor)
 	if opts.Format == output.FormatJSON || opts.Format == output.FormatYAML {
-		return output.Render(output.SingleResult(map[string]string{
+		return output.Render(cmdStdout, output.SingleResult(map[string]string{
 			"agentId": agentID,
 			"status":  "deleted",
 		}, nil), opts)
 	}
 
-	fmt.Fprintf(output.Stdout, "Agent %s deleted\n", shortenID(agentID))
+	fmt.Fprintf(cmdStdout, "Agent %s deleted\n", shortenID(agentID))
 	return nil
 }
 
@@ -115,11 +115,11 @@ func deleteMultipleAgents(ctx context.Context, c *client.DaemonClient) error {
 		}
 	}
 
-	opts := getOutputOpts()
+	opts := getOutputOpts(flagFormat, flagJSON, flagQuiet, flagNoHeaders, flagNoColor)
 	if opts.Format == output.FormatJSON || opts.Format == output.FormatYAML {
-		return output.Render(output.SingleResult(map[string]int{"deleted": deleted}, nil), opts)
+		return output.Render(cmdStdout, output.SingleResult(map[string]int{"deleted": deleted}, nil), opts)
 	}
 
-	fmt.Fprintf(output.Stdout, "Deleted %d agent(s)\n", deleted)
+	fmt.Fprintf(cmdStdout, "Deleted %d agent(s)\n", deleted)
 	return nil
 }

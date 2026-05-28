@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 )
 
@@ -123,6 +124,54 @@ func TestWSOutboundMarshal(t *testing.T) {
 	}
 	if parsed["type"] != "session" {
 		t.Errorf("expected type=session, got %v", parsed["type"])
+	}
+}
+
+func TestNewPongMessage(t *testing.T) {
+	msg := NewPongMessage()
+	if msg.Type != "pong" {
+		t.Errorf("Type: got %q, want pong", msg.Type)
+	}
+}
+
+func TestAllInboundMessageTypes(t *testing.T) {
+	for msgType := range inboundRegistry {
+		t.Run(msgType, func(t *testing.T) {
+			var raw json.RawMessage
+			if msgType == "clear_agent_attention" {
+				raw = json.RawMessage(`{"type":"clear_agent_attention","agentId":"a1"}`)
+			} else {
+				raw = json.RawMessage(fmt.Sprintf(`{"type":"%s"}`, msgType))
+			}
+			msg, err := DecodeSessionInboundMessage(raw)
+			if err != nil {
+				t.Fatalf("decode %s: %v", msgType, err)
+			}
+			if msg.MsgType() != msgType {
+				t.Errorf("MsgType: got %q, want %q", msg.MsgType(), msgType)
+			}
+		})
+	}
+}
+
+func TestDecodeSessionInboundMessageInvalidJSON(t *testing.T) {
+	_, err := DecodeSessionInboundMessage(json.RawMessage(`{invalid`))
+	if err == nil {
+		t.Error("expected error for invalid JSON")
+	}
+}
+
+func TestDecodeSessionInboundMessageMissingType(t *testing.T) {
+	_, err := DecodeSessionInboundMessage(json.RawMessage(`{"requestId":"r1"}`))
+	if err == nil {
+		t.Error("expected error for missing type field")
+	}
+}
+
+func TestClearAgentAttentionInvalidAgentID(t *testing.T) {
+	_, err := DecodeSessionInboundMessage(json.RawMessage(`{"type":"clear_agent_attention","agentId":123}`))
+	if err == nil {
+		t.Error("expected error for invalid agentId type")
 	}
 }
 

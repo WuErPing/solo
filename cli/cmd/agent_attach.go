@@ -25,7 +25,7 @@ func init() {
 
 func runAgentAttach(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
-	c, err := newClient(ctx)
+	c, err := newClient(ctx, flagHost)
 	if err != nil {
 		return err
 	}
@@ -39,7 +39,7 @@ func runAgentAttach(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(output.Stdout, "Attaching to agent %s...\n(Press Ctrl+C to detach)\n\n", shortenID(resolvedID))
+	fmt.Fprintf(cmdStdout, "Attaching to agent %s...\n(Press Ctrl+C to detach)\n\n", shortenID(resolvedID))
 
 	// Fetch existing timeline
 	printExistingTimeline(ctx, c, resolvedID)

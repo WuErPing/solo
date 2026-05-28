@@ -47,7 +47,7 @@ func init() {
 
 func runAgentRun(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
-	c, err := newClient(ctx)
+	c, err := newClient(ctx, flagHost)
 	if err != nil {
 		return err
 	}
@@ -108,15 +108,15 @@ func runAgentRun(cmd *cobra.Command, args []string) error {
 
 	if agentRunDetach {
 		// Just print the agent ID and return
-		opts := getOutputOpts()
+		opts := getOutputOpts(flagFormat, flagJSON, flagQuiet, flagNoHeaders, flagNoColor)
 		if opts.Format == output.FormatJSON || opts.Format == output.FormatYAML {
 			result := output.SingleResult(map[string]string{
 				"agentId": agentID,
 				"status":  "created",
 			}, nil)
-			return output.Render(result, opts)
+			return output.Render(cmdStdout, result, opts)
 		}
-		fmt.Fprintf(output.Stdout, "Agent %s created (detached)\n", shortenID(agentID))
+		fmt.Fprintf(cmdStdout, "Agent %s created (detached)\n", shortenID(agentID))
 		return nil
 	}
 
@@ -247,7 +247,7 @@ func renderRunResult(agent *protocol.AgentSnapshotPayload, status string) error 
 			}, Width: 20},
 		},
 	}
-	return output.Render(output.SingleResult(item, schema), getOutputOpts())
+	return output.Render(cmdStdout, output.SingleResult(item, schema), getOutputOpts(flagFormat, flagJSON, flagQuiet, flagNoHeaders, flagNoColor))
 }
 
 func printStreamEvent(event interface{}) {
@@ -267,26 +267,26 @@ func printStreamEvent(event interface{}) {
 	case "timeline":
 		printTimelineItem(evt.Item.Type, evt.Item.Text, evt.Item.Name)
 	case "permission_requested":
-		fmt.Fprintln(output.Stdout, "\n[Permission Required]")
+		fmt.Fprintln(cmdStdout, "\n[Permission Required]")
 	case "turn_failed":
-		fmt.Fprintln(output.Stdout, "\n[Turn Failed]")
+		fmt.Fprintln(cmdStdout, "\n[Turn Failed]")
 	case "attention_required":
-		fmt.Fprintln(output.Stdout, "\n[Attention Required]")
+		fmt.Fprintln(cmdStdout, "\n[Attention Required]")
 	}
 }
 
 func printTimelineItem(itemType, text, name string) {
 	switch itemType {
 	case "assistant_message":
-		fmt.Fprint(output.Stdout, text)
+		fmt.Fprint(cmdStdout, text)
 	case "reasoning":
-		fmt.Fprintf(output.Stdout, "\n[Reasoning] %s", text)
+		fmt.Fprintf(cmdStdout, "\n[Reasoning] %s", text)
 	case "tool_call":
-		fmt.Fprintf(output.Stdout, "\n[Tool: %s]", name)
+		fmt.Fprintf(cmdStdout, "\n[Tool: %s]", name)
 	case "error":
-		fmt.Fprintf(output.Stdout, "\n[Error] %s", text)
+		fmt.Fprintf(cmdStdout, "\n[Error] %s", text)
 	case "user_message":
-		fmt.Fprintf(output.Stdout, "\n[User] %s", text)
+		fmt.Fprintf(cmdStdout, "\n[User] %s", text)
 	}
 }
 

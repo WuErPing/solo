@@ -28,7 +28,7 @@ func init() {
 
 func runDaemonStop(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
-	c, err := newClient(ctx)
+	c, err := newClient(ctx, flagHost)
 	if err != nil {
 		return &output.CommandError{
 			Code:    "DAEMON_NOT_RUNNING",
@@ -47,11 +47,11 @@ func runDaemonStop(cmd *cobra.Command, args []string) error {
 		return &output.CommandError{Code: "STOP_FAILED", Message: fmt.Sprintf("Failed to send shutdown: %v", err)}
 	}
 
-	opts := getOutputOpts()
+	opts := getOutputOpts(flagFormat, flagJSON, flagQuiet, flagNoHeaders, flagNoColor)
 	if opts.Format == output.FormatJSON || opts.Format == output.FormatYAML {
-		return output.Render(output.SingleResult(map[string]string{"status": "stopped"}, nil), opts)
+		return output.Render(cmdStdout, output.SingleResult(map[string]string{"status": "stopped"}, nil), opts)
 	}
 
-	fmt.Fprintln(output.Stdout, "Daemon stopped")
+	fmt.Fprintln(cmdStdout, "Daemon stopped")
 	return nil
 }

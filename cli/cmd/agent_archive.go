@@ -25,7 +25,7 @@ func init() {
 
 func runAgentArchive(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
-	c, err := newClient(ctx)
+	c, err := newClient(ctx, flagHost)
 	if err != nil {
 		return err
 	}
@@ -50,14 +50,14 @@ func runAgentArchive(cmd *cobra.Command, args []string) error {
 		return &output.CommandError{Code: "ARCHIVE_FAILED", Message: extractRPCError(resp)}
 	}
 
-	opts := getOutputOpts()
+	opts := getOutputOpts(flagFormat, flagJSON, flagQuiet, flagNoHeaders, flagNoColor)
 	if opts.Format == output.FormatJSON || opts.Format == output.FormatYAML {
-		return output.Render(output.SingleResult(map[string]string{
+		return output.Render(cmdStdout, output.SingleResult(map[string]string{
 			"agentId": agentID,
 			"status":  "archived",
 		}, nil), opts)
 	}
 
-	fmt.Fprintf(output.Stdout, "Agent %s archived\n", shortenID(agentID))
+	fmt.Fprintf(cmdStdout, "Agent %s archived\n", shortenID(agentID))
 	return nil
 }

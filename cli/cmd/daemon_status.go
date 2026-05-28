@@ -21,7 +21,7 @@ func init() {
 
 func runDaemonStatus(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
-	c, err := newClient(ctx)
+	c, err := newClient(ctx, flagHost)
 	if err != nil {
 		return &output.CommandError{
 			Code:    "DAEMON_NOT_RUNNING",
@@ -34,7 +34,7 @@ func runDaemonStatus(cmd *cobra.Command, args []string) error {
 	si := c.ServerInfo()
 	ps := c.ProvidersSnapshot()
 
-	opts := getOutputOpts()
+	opts := getOutputOpts(flagFormat, flagJSON, flagQuiet, flagNoHeaders, flagNoColor)
 
 	if opts.Format == output.FormatJSON || opts.Format == output.FormatYAML {
 		result := map[string]interface{}{
@@ -51,15 +51,15 @@ func runDaemonStatus(cmd *cobra.Command, args []string) error {
 		if ps != nil {
 			result["providers"] = len(ps.Entries)
 		}
-		return output.Render(output.SingleResult(result, nil), opts)
+		return output.Render(cmdStdout, output.SingleResult(result, nil), opts)
 	}
 
 	// Human-readable output
-	fmt.Fprintf(output.Stdout, "Daemon is running\n")
+	fmt.Fprintf(cmdStdout, "Daemon is running\n")
 	if si != nil {
-		fmt.Fprintf(output.Stdout, "  Server ID: %s\n", si.ServerID)
+		fmt.Fprintf(cmdStdout, "  Server ID: %s\n", si.ServerID)
 		if si.Version != nil {
-			fmt.Fprintf(output.Stdout, "  Version:   %s\n", *si.Version)
+			fmt.Fprintf(cmdStdout, "  Version:   %s\n", *si.Version)
 		}
 	}
 	if ps != nil {
@@ -69,7 +69,7 @@ func runDaemonStatus(cmd *cobra.Command, args []string) error {
 				ready++
 			}
 		}
-		fmt.Fprintf(output.Stdout, "  Providers: %d (%d ready)\n", len(ps.Entries), ready)
+		fmt.Fprintf(cmdStdout, "  Providers: %d (%d ready)\n", len(ps.Entries), ready)
 	}
 
 	// Fetch agent count
@@ -93,7 +93,7 @@ func runDaemonStatus(cmd *cobra.Command, args []string) error {
 			} `json:"payload"`
 		}
 		json.Unmarshal(payload, &fr)
-		fmt.Fprintf(output.Stdout, "  Agents:    %d\n", len(fr.Payload.Entries))
+		fmt.Fprintf(cmdStdout, "  Agents:    %d\n", len(fr.Payload.Entries))
 	}
 
 	return nil

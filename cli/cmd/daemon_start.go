@@ -72,7 +72,7 @@ func runDaemonStart(cmd *cobra.Command, args []string) error {
 		fgCmd := exec.Command(daemonBin, execArgs...)
 		fgCmd.Stdout = os.Stdout
 		fgCmd.Stderr = os.Stderr
-		fmt.Fprintln(output.Stdout, "Starting daemon in foreground...")
+		fmt.Fprintln(cmdStdout, "Starting daemon in foreground...")
 		return fgCmd.Run()
 	}
 
@@ -81,7 +81,7 @@ func runDaemonStart(cmd *cobra.Command, args []string) error {
 		return &output.CommandError{Code: "DAEMON_START_FAILED", Message: fmt.Sprintf("Failed to start daemon: %v", err)}
 	}
 
-	fmt.Fprintf(output.Stdout, "Daemon starting (PID %d)...\n", pid)
+	fmt.Fprintf(cmdStdout, "Daemon starting (PID %d)...\n", pid)
 
 	// Wait for daemon to become healthy
 	host := resolveDaemonHost()
@@ -89,7 +89,7 @@ func runDaemonStart(cmd *cobra.Command, args []string) error {
 		return &output.CommandError{Code: "DAEMON_START_TIMEOUT", Message: "Daemon did not become healthy in time"}
 	}
 
-	fmt.Fprintf(output.Stdout, "Daemon is running at %s\n", host)
+	fmt.Fprintf(cmdStdout, "Daemon is running at %s\n", host)
 	return nil
 }
 
