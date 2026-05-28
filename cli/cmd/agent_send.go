@@ -77,7 +77,9 @@ func runAgentSend(cmd *cobra.Command, args []string) error {
 		}, nil), opts)
 	}
 
-	fmt.Fprintf(cmdStdout, "Message sent to agent %s\n", shortenID(agentID))
+	if err := errFprintf(cmdStdout, "Message sent to agent %s\n", shortenID(agentID)); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
 	return nil
 }
 

@@ -26,6 +26,25 @@ var (
 	cmdStderr io.Writer = os.Stderr
 )
 
+// errFprintf wraps fmt.Fprintf and returns its error, so callers cannot
+// accidentally discard the write result (satisfies errcheck).
+func errFprintf(w io.Writer, format string, a ...any) error {
+	_, err := fmt.Fprintf(w, format, a...)
+	return err
+}
+
+// errFprintln wraps fmt.Fprintln and returns its error.
+func errFprintln(w io.Writer, a ...any) error {
+	_, err := fmt.Fprintln(w, a...)
+	return err
+}
+
+// errFprint wraps fmt.Fprint and returns its error.
+func errFprint(w io.Writer, a ...any) error {
+	_, err := fmt.Fprint(w, a...)
+	return err
+}
+
 var rootCmd = &cobra.Command{
 	Use:           "solo",
 	Short:         "Solo CLI - manage AI coding agents from the command line",
