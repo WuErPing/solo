@@ -726,37 +726,49 @@ func TestMatchesLogFilter(t *testing.T) {
 
 func TestPrintLogEntry(t *testing.T) {
 	buf := captureOutput(t)
-	printLogEntry("assistant_message", "hello", "")
+	if err := printLogEntry("assistant_message", "hello", ""); err != nil {
+		t.Fatalf("printLogEntry: %v", err)
+	}
 	if !strings.Contains(buf.String(), "hello") {
 		t.Errorf("expected 'hello', got %q", buf.String())
 	}
 
 	buf.Reset()
-	printLogEntry("reasoning", "thinking", "")
+	if err := printLogEntry("reasoning", "thinking", ""); err != nil {
+		t.Fatalf("printLogEntry: %v", err)
+	}
 	if !strings.Contains(buf.String(), "[Reasoning]") {
 		t.Errorf("expected [Reasoning], got %q", buf.String())
 	}
 
 	buf.Reset()
-	printLogEntry("tool_call", "", "search")
+	if err := printLogEntry("tool_call", "", "search"); err != nil {
+		t.Fatalf("printLogEntry: %v", err)
+	}
 	if !strings.Contains(buf.String(), "[Tool: search]") {
 		t.Errorf("expected [Tool: search], got %q", buf.String())
 	}
 
 	buf.Reset()
-	printLogEntry("error", "oops", "")
+	if err := printLogEntry("error", "oops", ""); err != nil {
+		t.Fatalf("printLogEntry: %v", err)
+	}
 	if !strings.Contains(buf.String(), "[Error]") {
 		t.Errorf("expected [Error], got %q", buf.String())
 	}
 
 	buf.Reset()
-	printLogEntry("user_message", "hi", "")
+	if err := printLogEntry("user_message", "hi", ""); err != nil {
+		t.Fatalf("printLogEntry: %v", err)
+	}
 	if !strings.Contains(buf.String(), "[User]") {
 		t.Errorf("expected [User], got %q", buf.String())
 	}
 
 	buf.Reset()
-	printLogEntry("unknown", "x", "")
+	if err := printLogEntry("unknown", "x", ""); err != nil {
+		t.Fatalf("printLogEntry: %v", err)
+	}
 	if !strings.Contains(buf.String(), "[unknown]") {
 		t.Errorf("expected [unknown], got %q", buf.String())
 	}
@@ -765,7 +777,9 @@ func TestPrintLogEntry(t *testing.T) {
 func TestPrintWaitResult(t *testing.T) {
 	buf := captureOutput(t)
 	flagFormat = "table"
-	printWaitResult("agent-123", "idle")
+	if err := printWaitResult("agent-123", "idle"); err != nil {
+		t.Fatalf("printWaitResult: %v", err)
+	}
 	if !strings.Contains(buf.String(), "idle") {
 		t.Errorf("expected 'idle', got %q", buf.String())
 	}
@@ -773,19 +787,25 @@ func TestPrintWaitResult(t *testing.T) {
 
 func TestPrintTimelineItem(t *testing.T) {
 	buf := captureOutput(t)
-	printTimelineItem("assistant_message", "hello", "")
+	if err := printTimelineItem("assistant_message", "hello", ""); err != nil {
+		t.Fatalf("printTimelineItem: %v", err)
+	}
 	if buf.String() != "hello" {
 		t.Errorf("expected 'hello', got %q", buf.String())
 	}
 
 	buf.Reset()
-	printTimelineItem("tool_call", "", "search")
+	if err := printTimelineItem("tool_call", "", "search"); err != nil {
+		t.Fatalf("printTimelineItem: %v", err)
+	}
 	if !strings.Contains(buf.String(), "[Tool: search]") {
 		t.Errorf("expected [Tool: search], got %q", buf.String())
 	}
 
 	buf.Reset()
-	printTimelineItem("error", "oops", "")
+	if err := printTimelineItem("error", "oops", ""); err != nil {
+		t.Fatalf("printTimelineItem: %v", err)
+	}
 	if !strings.Contains(buf.String(), "[Error]") {
 		t.Errorf("expected [Error], got %q", buf.String())
 	}
@@ -793,25 +813,33 @@ func TestPrintTimelineItem(t *testing.T) {
 
 func TestPrintStreamEvent(t *testing.T) {
 	buf := captureOutput(t)
-	printStreamEvent(map[string]interface{}{"type": "timeline", "item": map[string]interface{}{"type": "assistant_message", "text": "hi"}})
+	if err := printStreamEvent(map[string]interface{}{"type": "timeline", "item": map[string]interface{}{"type": "assistant_message", "text": "hi"}}); err != nil {
+		t.Fatalf("printStreamEvent: %v", err)
+	}
 	if buf.String() != "hi" {
 		t.Errorf("expected 'hi', got %q", buf.String())
 	}
 
 	buf.Reset()
-	printStreamEvent(map[string]interface{}{"type": "permission_requested"})
+	if err := printStreamEvent(map[string]interface{}{"type": "permission_requested"}); err != nil {
+		t.Fatalf("printStreamEvent: %v", err)
+	}
 	if !strings.Contains(buf.String(), "[Permission Required]") {
 		t.Errorf("expected permission required, got %q", buf.String())
 	}
 
 	buf.Reset()
-	printStreamEvent(map[string]interface{}{"type": "turn_failed"})
+	if err := printStreamEvent(map[string]interface{}{"type": "turn_failed"}); err != nil {
+		t.Fatalf("printStreamEvent: %v", err)
+	}
 	if !strings.Contains(buf.String(), "[Turn Failed]") {
 		t.Errorf("expected turn failed, got %q", buf.String())
 	}
 
 	buf.Reset()
-	printStreamEvent(map[string]interface{}{"type": "attention_required"})
+	if err := printStreamEvent(map[string]interface{}{"type": "attention_required"}); err != nil {
+		t.Fatalf("printStreamEvent: %v", err)
+	}
 	if !strings.Contains(buf.String(), "[Attention Required]") {
 		t.Errorf("expected attention required, got %q", buf.String())
 	}

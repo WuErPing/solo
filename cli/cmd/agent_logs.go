@@ -74,13 +74,17 @@ func runAgentLogs(cmd *cobra.Command, args []string) error {
 	json.Unmarshal(payload, &timeline)
 
 	if len(timeline.Payload.Entries) == 0 {
-		fmt.Fprintln(cmdStdout, "No activity to display.")
+		if err := errFprintln(cmdStdout, "No activity to display."); err != nil {
+			return fmt.Errorf("write output: %w", err)
+		}
 		return nil
 	}
 
 	for _, entry := range timeline.Payload.Entries {
 		if matchesLogFilter(entry.Item.Type, agentLogsFilter) {
-			printLogEntry(entry.Item.Type, entry.Item.Text, entry.Item.Name)
+			if err := printLogEntry(entry.Item.Type, entry.Item.Text, entry.Item.Name); err != nil {
+				return fmt.Errorf("write log entry: %w", err)
+			}
 		}
 	}
 
@@ -92,7 +96,9 @@ func runAgentLogs(cmd *cobra.Command, args []string) error {
 	streams := c.Subscribe("agent_stream")
 	defer c.Unsubscribe("agent_stream", streams)
 
-	fmt.Fprintln(cmdStdout, "\n--- streaming ---")
+	if err := errFprintln(cmdStdout, "\n--- streaming ---"); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
 
 	for {
 		select {
@@ -120,7 +126,9 @@ func runAgentLogs(cmd *cobra.Command, args []string) error {
 			}
 			json.Unmarshal(evtData, &evt)
 			if evt.Type == "timeline" && matchesLogFilter(evt.Item.Type, agentLogsFilter) {
-				printLogEntry(evt.Item.Type, evt.Item.Text, evt.Item.Name)
+				if err := printLogEntry(evt.Item.Type, evt.Item.Text, evt.Item.Name); err != nil {
+					return fmt.Errorf("write log entry: %w", err)
+				}
 			}
 
 		case <-ctx.Done():
@@ -147,19 +155,19 @@ func matchesLogFilter(itemType, filter string) bool {
 	}
 }
 
-func printLogEntry(itemType, text, name string) {
+func printLogEntry(itemType, text, name string) error {
 	switch itemType {
 	case "assistant_message":
-		fmt.Fprintf(cmdStdout, "  %s\n", text)
+		return errFprintf(cmdStdout, "  %s\n", text)
 	case "reasoning":
-		fmt.Fprintf(cmdStdout, "  [Reasoning] %s\n", text)
+		return errFprintf(cmdStdout, "  [Reasoning] %s\n", text)
 	case "tool_call":
-		fmt.Fprintf(cmdStdout, "  [Tool: %s]\n", name)
+		return errFprintf(cmdStdout, "  [Tool: %s]\n", name)
 	case "error":
-		fmt.Fprintf(cmdStdout, "  [Error] %s\n", text)
+		return errFprintf(cmdStdout, "  [Error] %s\n", text)
 	case "user_message":
-		fmt.Fprintf(cmdStdout, "  [User] %s\n", text)
+		return errFprintf(cmdStdout, "  [User] %s\n", text)
 	default:
-		fmt.Fprintf(cmdStdout, "  [%s] %s\n", itemType, text)
+		return errFprintf(cmdStdout, "  [%s] %s\n", itemType, text)
 	}
 }

@@ -73,7 +73,9 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 		}, nil), opts)
 	}
 
-	fmt.Fprintf(cmdStdout, "Agent %s deleted\n", shortenID(agentID))
+	if err := errFprintf(cmdStdout, "Agent %s deleted\n", shortenID(agentID)); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
 	return nil
 }
 
@@ -120,6 +122,8 @@ func deleteMultipleAgents(ctx context.Context, c *client.DaemonClient) error {
 		return output.Render(cmdStdout, output.SingleResult(map[string]int{"deleted": deleted}, nil), opts)
 	}
 
-	fmt.Fprintf(cmdStdout, "Deleted %d agent(s)\n", deleted)
+	if err := errFprintf(cmdStdout, "Deleted %d agent(s)\n", deleted); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
 	return nil
 }

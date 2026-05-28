@@ -69,7 +69,9 @@ func runAgentMode(cmd *cobra.Command, args []string) error {
 		}
 
 		if len(agent.AvailableModes) == 0 {
-			fmt.Fprintln(cmdStdout, "No modes available")
+			if err := errFprintln(cmdStdout, "No modes available"); err != nil {
+				return fmt.Errorf("write output: %w", err)
+			}
 			return nil
 		}
 
@@ -78,7 +80,9 @@ func runAgentMode(cmd *cobra.Command, args []string) error {
 			if agent.CurrentModeID != nil && *agent.CurrentModeID == mode.ID {
 				current = " (current)"
 			}
-			fmt.Fprintf(cmdStdout, "  %s\t%s%s\n", mode.ID, mode.Label, current)
+			if err := errFprintf(cmdStdout, "  %s\t%s%s\n", mode.ID, mode.Label, current); err != nil {
+				return fmt.Errorf("write output: %w", err)
+			}
 		}
 		return nil
 	}
@@ -111,6 +115,8 @@ func runAgentMode(cmd *cobra.Command, args []string) error {
 		}, nil), opts)
 	}
 
-	fmt.Fprintf(cmdStdout, "Agent %s mode set to %s\n", shortenID(agentID), args[1])
+	if err := errFprintf(cmdStdout, "Agent %s mode set to %s\n", shortenID(agentID), args[1]); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
 	return nil
 }

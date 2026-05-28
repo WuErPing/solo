@@ -102,7 +102,9 @@ func runAgentInspect(cmd *cobra.Command, args []string) error {
 	}
 
 	for _, r := range rows {
-		fmt.Fprintf(cmdStdout, "%-*s  %s\n", maxKeyLen, r.Key, r.Value)
+		if err := errFprintf(cmdStdout, "%-*s  %s\n", maxKeyLen, r.Key, r.Value); err != nil {
+			return fmt.Errorf("write output: %w", err)
+		}
 	}
 
 	return nil

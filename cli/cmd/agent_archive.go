@@ -58,6 +58,8 @@ func runAgentArchive(cmd *cobra.Command, args []string) error {
 		}, nil), opts)
 	}
 
-	fmt.Fprintf(cmdStdout, "Agent %s archived\n", shortenID(agentID))
+	if err := errFprintf(cmdStdout, "Agent %s archived\n", shortenID(agentID)); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
 	return nil
 }

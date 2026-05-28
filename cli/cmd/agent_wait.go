@@ -73,8 +73,7 @@ func runAgentWait(cmd *cobra.Command, args []string) error {
 		if fetchResp.Payload.Agent != nil {
 			status := string(fetchResp.Payload.Agent.Status)
 			if status == "idle" || status == "error" || status == "closed" {
-				printWaitResult(agentID, status)
-				return nil
+				return printWaitResult(agentID, status)
 			}
 		}
 	}
@@ -101,8 +100,7 @@ func runAgentWait(cmd *cobra.Command, args []string) error {
 			if update.Agent.ID == agentID {
 				status := update.Agent.Status
 				if status == "idle" || status == "error" || status == "closed" {
-					printWaitResult(agentID, status)
-					return nil
+					return printWaitResult(agentID, status)
 				}
 			}
 
@@ -131,8 +129,7 @@ func runAgentWait(cmd *cobra.Command, args []string) error {
 				if fetchResp.Payload.Agent != nil {
 					status := string(fetchResp.Payload.Agent.Status)
 					if status == "idle" || status == "error" || status == "closed" {
-						printWaitResult(agentID, status)
-						return nil
+						return printWaitResult(agentID, status)
 					}
 				}
 			}
@@ -140,14 +137,16 @@ func runAgentWait(cmd *cobra.Command, args []string) error {
 	}
 }
 
-func printWaitResult(agentID, status string) {
+func printWaitResult(agentID, status string) error {
 	opts := getOutputOpts(flagFormat, flagJSON, flagQuiet, flagNoHeaders, flagNoColor)
 	if opts.Format == output.FormatJSON || opts.Format == output.FormatYAML {
-		output.Render(cmdStdout, output.SingleResult(map[string]string{
+		return output.Render(cmdStdout, output.SingleResult(map[string]string{
 			"agentId": agentID,
 			"status":  status,
 		}, nil), opts)
-	} else {
-		fmt.Fprintf(cmdStdout, "Agent %s %s\n", shortenID(agentID), status)
 	}
+	if err := errFprintf(cmdStdout, "Agent %s %s\n", shortenID(agentID), status); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
+	return nil
 }

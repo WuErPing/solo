@@ -39,10 +39,14 @@ func runAgentAttach(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(cmdStdout, "Attaching to agent %s...\n(Press Ctrl+C to detach)\n\n", shortenID(resolvedID))
+	if err := errFprintf(cmdStdout, "Attaching to agent %s...\n(Press Ctrl+C to detach)\n\n", shortenID(resolvedID)); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
 
 	// Fetch existing timeline
-	printExistingTimeline(ctx, c, resolvedID)
+	if err := printExistingTimeline(ctx, c, resolvedID); err != nil {
+		return fmt.Errorf("print timeline: %w", err)
+	}
 
 	// Subscribe to new events
 	streams := c.Subscribe("agent_stream")
@@ -63,7 +67,9 @@ func runAgentAttach(cmd *cobra.Command, args []string) error {
 			if stream.AgentID != resolvedID {
 				continue
 			}
-			printStreamEvent(stream.Event)
+			if err := printStreamEvent(stream.Event); err != nil {
+				return fmt.Errorf("write stream event: %w", err)
+			}
 
 		case <-ctx.Done():
 			return ctx.Err()
@@ -71,7 +77,7 @@ func runAgentAttach(cmd *cobra.Command, args []string) error {
 	}
 }
 
-func printExistingTimeline(ctx context.Context, c *client.DaemonClient, agentID string) {
+func printExistingTimeline(ctx context.Context, c *client.DaemonClient, agentID string) error {
 	req := &protocol.FetchAgentTimelineRequest{
 		Type:       "fetch_agent_timeline_request",
 		AgentID:    agentID,
@@ -83,7 +89,7 @@ func printExistingTimeline(ctx context.Context, c *client.DaemonClient, agentID 
 
 	resp, err := c.Request(ctx, req)
 	if err != nil {
-		return
+		return nil
 	}
 
 	payload, _ := json.Marshal(resp.Message)
@@ -101,8 +107,11 @@ func printExistingTimeline(ctx context.Context, c *client.DaemonClient, agentID 
 	json.Unmarshal(payload, &timeline)
 
 	for _, entry := range timeline.Payload.Entries {
-		printTimelineItem(entry.Item.Type, entry.Item.Text, entry.Item.Name)
+		if err := printTimelineItem(entry.Item.Type, entry.Item.Text, entry.Item.Name); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func fetchAndResolveAgentID(ctx context.Context, c *client.DaemonClient, idOrPrefix string) (string, error) {

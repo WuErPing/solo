@@ -74,7 +74,9 @@ func runAgentStop(cmd *cobra.Command, args []string) error {
 		}, nil), opts)
 	}
 
-	fmt.Fprintf(cmdStdout, "Agent %s stopped\n", shortenID(agentID))
+	if err := errFprintf(cmdStdout, "Agent %s stopped\n", shortenID(agentID)); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
 	return nil
 }
 
@@ -124,7 +126,9 @@ func stopMultipleAgents(ctx context.Context, c *client.DaemonClient) error {
 		return output.Render(cmdStdout, output.SingleResult(map[string]int{"stopped": stopped}, nil), opts)
 	}
 
-	fmt.Fprintf(cmdStdout, "Stopped %d agent(s)\n", stopped)
+	if err := errFprintf(cmdStdout, "Stopped %d agent(s)\n", stopped); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
 	return nil
 }
 

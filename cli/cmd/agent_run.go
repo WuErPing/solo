@@ -116,7 +116,9 @@ func runAgentRun(cmd *cobra.Command, args []string) error {
 			}, nil)
 			return output.Render(cmdStdout, result, opts)
 		}
-		fmt.Fprintf(cmdStdout, "Agent %s created (detached)\n", shortenID(agentID))
+		if err := errFprintf(cmdStdout, "Agent %s created (detached)\n", shortenID(agentID)); err != nil {
+			return fmt.Errorf("write output: %w", err)
+		}
 		return nil
 	}
 
@@ -250,7 +252,7 @@ func renderRunResult(agent *protocol.AgentSnapshotPayload, status string) error 
 	return output.Render(cmdStdout, output.SingleResult(item, schema), getOutputOpts(flagFormat, flagJSON, flagQuiet, flagNoHeaders, flagNoColor))
 }
 
-func printStreamEvent(event interface{}) {
+func printStreamEvent(event interface{}) error {
 	data, _ := json.Marshal(event)
 	var evt struct {
 		Type string `json:"type"`
@@ -265,29 +267,31 @@ func printStreamEvent(event interface{}) {
 
 	switch evt.Type {
 	case "timeline":
-		printTimelineItem(evt.Item.Type, evt.Item.Text, evt.Item.Name)
+		return printTimelineItem(evt.Item.Type, evt.Item.Text, evt.Item.Name)
 	case "permission_requested":
-		fmt.Fprintln(cmdStdout, "\n[Permission Required]")
+		return errFprintln(cmdStdout, "\n[Permission Required]")
 	case "turn_failed":
-		fmt.Fprintln(cmdStdout, "\n[Turn Failed]")
+		return errFprintln(cmdStdout, "\n[Turn Failed]")
 	case "attention_required":
-		fmt.Fprintln(cmdStdout, "\n[Attention Required]")
+		return errFprintln(cmdStdout, "\n[Attention Required]")
 	}
+	return nil
 }
 
-func printTimelineItem(itemType, text, name string) {
+func printTimelineItem(itemType, text, name string) error {
 	switch itemType {
 	case "assistant_message":
-		fmt.Fprint(cmdStdout, text)
+		return errFprint(cmdStdout, text)
 	case "reasoning":
-		fmt.Fprintf(cmdStdout, "\n[Reasoning] %s", text)
+		return errFprintf(cmdStdout, "\n[Reasoning] %s", text)
 	case "tool_call":
-		fmt.Fprintf(cmdStdout, "\n[Tool: %s]", name)
+		return errFprintf(cmdStdout, "\n[Tool: %s]", name)
 	case "error":
-		fmt.Fprintf(cmdStdout, "\n[Error] %s", text)
+		return errFprintf(cmdStdout, "\n[Error] %s", text)
 	case "user_message":
-		fmt.Fprintf(cmdStdout, "\n[User] %s", text)
+		return errFprintf(cmdStdout, "\n[User] %s", text)
 	}
+	return nil
 }
 
 func parseAgentCreatedResponse(resp *protocol.WSOutboundMessage) (string, error) {
