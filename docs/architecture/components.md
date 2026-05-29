@@ -82,7 +82,9 @@ daemon/
 ├── main.go              # 入口
 └── internal/
     ├── agent/           # Agent 管理
-    ├── config/          # 配置
+    ├── config/          # 配置（含 MemoryConfig）
+    ├── memory/          # 会话记忆：TurnRecorder / bridge / filebackend / redact
+    ├── memorysetup/     # 由 MemoryConfig 装配 recorder+redactor+bridge
     ├── metrics/         # 指标
     ├── pidlock/         # PID 锁
     ├── push/            # 推送通知
@@ -136,6 +138,24 @@ daemon/
 - 工作区管理
 - Git 集成
 - 脚本执行
+
+### 3.5 Session Memory (会话记忆)
+
+**目录**: `internal/memory/`（装配在 `internal/memorysetup/`）
+
+功能:
+- 将每个 user / assistant turn 持久化为 Markdown + YAML frontmatter
+- 落盘路径：`~/.solo/memory/sessions/{YYYY-MM}/{sessionID}/turns/{seq:04d}-{role}.md`，索引 `~/.solo/memory/sessions.jsonl`
+- 默认开启，opt-out：config.json `"memory": {"enabled": false}`
+
+核心结构:
+- `recorder.go` - `TurnRecorder` 稳定接口（Phase 1 实现为 `filebackend`）
+- `filebackend/` - 异步 channel writer + 目录布局 + `sessions.jsonl`
+- `redact/` - 写盘前脱敏（regex / env / multi，含 OpenAI/GitHub/Anthropic/AWS 默认模式）
+- `bridge/` - session→turn 桥接：seq/parent 链、流式 chunk 合并；`SafeBridge` 提供 panic recovery + 熔断
+- `internal/server/memorybridge*.go` - session 调度层 hook 注入
+
+详见 [Session Memory Persistence](session-memory-persistence.md) 与 [`../product/session-memory-spec.md`](../product/session-memory-spec.md)。
 
 ## 4. Relay (中继服务器)
 

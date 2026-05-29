@@ -2,9 +2,12 @@
 
 > 自动将用户输入与 agent 返回持久化为项目级 markdown 文档，为后续记忆、检索、复盘提供基础数据层。
 
-- 状态：Draft
+- 状态：**Implemented — Phase 1**（落地实现见 [`../product/session-memory-spec.md`](../product/session-memory-spec.md)）
 - 作者：Andy
 - 创建日期：2026-05-28
+- 最后修订：2026-05-29
+
+> 本文为设计来源。**实现已对部分决策收敛**，最显著的是存储位置从 `<project-root>/.solo/memory/` 改为固定的 **`~/.solo/memory/`**（SoloHome 下，多项目共享），下文 §4、§5、§7 已同步。权威实现规格以 [`session-memory-spec.md`](../product/session-memory-spec.md) 为准。
 
 ## 1. 目标
 
@@ -92,30 +95,28 @@ type Turn struct {
 ### 5.1 目录结构
 
 ```
-<project-root>/
-└── .solo/
-    └── memory/
-        ├── sessions.jsonl              # 会话级索引（轻量，便于检索）
-        └── sessions/
-            └── {YYYY-MM}/{session-id}/
-                ├── session.md          # 完整会话拼接视图（按需生成）
-                └── turns/
-                    ├── 0001-user.md
-                    ├── 0002-assistant.md
-                    └── 0003-user.md
+~/.solo/                                 # SoloHome（固定，多项目共享）
+└── memory/                              # 由 config.memory.root 控制，默认 "memory"
+    ├── sessions.jsonl                   # 会话级索引（轻量，便于检索）
+    └── sessions/
+        └── {YYYY-MM}/{session-id}/
+            └── turns/
+                ├── 0001-user.md
+                ├── 0002-assistant.md
+                └── 0003-user.md
 ```
 
 ### 5.2 设计要点
 
-- **复用 `.solo/`**：项目约定目录，降低心智负担；写入前自动补全 `.gitignore` 建议
+- **固定在 `~/.solo/` 下**：所有项目共享一个 memory 目录，避免污染项目工作区，也不再需要写入项目级 `.gitignore`
 - **`YYYY-MM/{session-id}/`** 分桶：避免单目录文件爆炸，便于按时间归档与清理
-- **序号前缀 `0001-`**：保留天然顺序，比时间戳排序更稳
+- **序号前缀 `{seq:04d}-`**（如 `0001-`）：保留天然顺序，比时间戳排序更稳
 - **一个 turn 一个文件**（而非整个 session 一个文件）：
   - 追加安全、并发无锁
   - 利于增量备份
   - 为后续 RAG chunking 天然切分
 - **frontmatter 用 YAML**：迁移到 DB 时直接映射为列
-- **`sessions.jsonl`** 做索引：字段包含 `id`、`title`、`started_at`、`turns_count`、`tags`；DB 化后这一层可移除
+- **`sessions.jsonl`** 做索引：字段包含 `id`、`title`、`startedAt`、`turnsCount`；DB 化后这一层可移除
 
 ### 5.3 turn 文件格式
 
@@ -143,24 +144,26 @@ parent: turn_01H...
 | 异步写入 | turn 通过 channel 投递给后台 writer goroutine，绝不阻塞 agent 循环 |
 | 失败隔离 | 写盘失败仅打 log + metric，不影响会话主流程 |
 | 幂等键 | turn ID 使用 ULID（有序 + 全局唯一），重放不产生重复 |
-| 脱敏 | 写入前过滤 `.env` 内容、API key 模式（复用现有 `security` 规则） |
-| 轮转/清理 | 保留策略（如 90 天 / 项目配额）内置于 `FileTurnRecorder` |
-| 配置开关 | `daemon/internal/config` 新增 `memory.enabled`、`memory.backend`、`memory.retention_days` |
+| 脱敏 | 写入前过滤 `.env` 内容、API key 模式（`redact` 包：regex / env / multi，内置 OpenAI/GitHub/Anthropic/AWS 模式）|
+| 轮转/清理 | 保留策略（`retention_days`，默认 90）内置于 `FileTurnRecorder` |
+| 配置开关 | `config.MemoryConfig`：`enabled`（`*bool`，nil/缺省即开启，opt-out）、`backend`、`root`、`retention_days`、`queue_size`、`overflow`、`redact.*`、`safe.*`（熔断阈值/冷却）|
+| 故障隔离 | `bridge.SafeBridge` 包裹：panic recovery + 连续失败计数熔断（默认 3 连败 / 30s 冷却），异常永不波及会话主流程 |
 
 ## 7. 配置示例
 
-```yaml
-# ~/.solo/config.yaml 或项目级 .solo/config.yaml
-memory:
-  enabled: true
-  backend: file            # file | sqlite | middleware
-  retention_days: 90
-  redact:
-    - env_files: true
-    - api_keys: true
-  file:
-    root: .solo/memory     # 相对于项目根
-    flush_interval_ms: 500
+存储在 `~/.solo/config.json`（**默认开启，无需配置**；以下仅示意 opt-out 与可调旋钮）：
+
+```json
+{
+  "memory": {
+    "enabled": false,
+    "backend": "file",
+    "root": "memory",
+    "retention_days": 90,
+    "queue_size": 1024,
+    "overflow": "block"
+  }
+}
 ```
 
 ## 8. 迁移路径
@@ -168,7 +171,7 @@ memory:
 ```
 FileTurnRecorder (now)
         │
-        ├──► SQLiteTurnRecorder：读旧 .solo/memory/ 一次性导入
+        ├──► SQLiteTurnRecorder：读旧 `~/.solo/memory/` 一次性导入
         │
         └──► MemoryMiddlewareRecorder：暴露 TurnRecorder 接口给插件
 ```
@@ -192,7 +195,9 @@ FileTurnRecorder (now)
 
 ## 10. 开放问题
 
-- 是否需要在 session 层记录 system prompt？（占 token 但信息量低）
-- `session.md` 是懒生成（按需）还是每次 turn 后追加？
-- 跨项目的"全局记忆"是否需要独立存储位置（如 `~/.solo/global-memory/`）？
-- 多 agent 并发时，parent 链如何准确重建？
+- 是否需要在 session 层记录 system prompt？（占 token 但信息量低）—— 仍开放
+- 多 agent 并发时，parent 链如何准确重建？—— 部分解决：`bridge` 维护 session-seq/parentID 链，复杂 subagent 场景待 Phase 2 验证
+
+**已收敛**：
+- `session.md` 懒生成？→ Phase 1 **不生成** session.md，只写 per-turn 文件
+- 跨项目"全局记忆"独立位置？→ 已收敛为固定 `~/.solo/memory/`（SoloHome 下，天然全局共享）
