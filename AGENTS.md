@@ -74,11 +74,36 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - [Security](.agents/rules/security.md) — E2EE, credentials, input validation, network
 - [Architecture](.agents/rules/architecture.md) — module boundaries, layers, protocol, data flow
 
+## CI Enforcement
+
+These rules are automatically enforced in GitHub Actions on every PR and push to `main`/`master`.
+
+**Go pipeline** (per module: `protocol`, `cli`, `daemon`, `relay-go`):
+- `go mod verify` — checksum validation
+- `go build ./...` — must compile without errors
+- `go test -short -race -count=1 -timeout=10m` — all tests pass, race-free
+- `golangci-lint` — lint with 5m timeout
+- Coverage uploaded to Codecov
+
+**JavaScript / TypeScript pipeline:**
+- `npm ci` — lockfile-pinned install
+- Lint: `expo lint --max-warnings 0` (app), `eslint src/` (app-bridge, packages/highlight)
+- Typecheck: `tsc --noEmit` (all TS packages)
+- Test: `npm test -- --coverage` (app, app-bridge), `npm test` (packages/highlight)
+- Coverage uploaded to Codecov
+
+**E2E pipeline** (nightly via cron + manual dispatch):
+- Playwright tests in `app/e2e/`
+- Runs against built workspace dependencies
+
+> All checks above must pass before merging. Run them locally before pushing.
+
 ## Quick Reference
 
 ```
 make darwin          # build all Go binaries
 make dev             # daemon :17612 + Expo web :19000
 go test -short -race ./...   # Go tests
-npm test             # JS tests (from app/)
+cd app && npm test   # app unit tests
+cd app-bridge && npm test  # bridge unit tests
 ```

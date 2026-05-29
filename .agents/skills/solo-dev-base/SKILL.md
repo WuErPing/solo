@@ -1,7 +1,7 @@
 ---
 name: solo-dev-base
 description: Base development context for the Solo AI coding assistant platform. Provides architecture overview, tech stack, build commands, CI/CD reference, directory map, and development conventions. Use at the start of any Solo development task — feature work, bug fixes, provider integration, infrastructure changes, or code review.
-version: "2026-05-25"
+version: "2026-05-29"
 tags:
   - solo
   - architecture
@@ -75,7 +75,9 @@ solo/
 │       ├── terminal/    # PTY terminal management
 │       ├── relayclient/ # Relay client + E2EE
 │       ├── push/        # Expo push notifications
-│       └── config/      # JSON config (~/.solo/config.json)
+│       ├── memory/      # Session memory: TurnRecorder, bridge, filebackend, redact
+│       ├── memorysetup/ # Wires MemoryConfig → recorder+redactor+bridge for the daemon
+│       └── config/      # JSON config (~/.solo/config.json), incl. MemoryConfig
 ├── relay-go/            # Go WebSocket relay server
 │   └── internal/relay/  # Server, session, control, buffer, metrics
 ├── cli/                 # Go CLI tool
@@ -168,12 +170,13 @@ File: `.github/workflows/ci.yml`
 
 ## Recent Architecture Changes
 
-1. **MessageID propagation** (2026-05-25): All providers now attach a unique `MessageID` to `user_message` events, enabling backend timeline deduplication across multiple concurrent sessions.
-2. **Timeline deduplication** (2026-05-25): `InMemoryTimelineStore.Append()` compares the last row by type-specific equality (`MessageID` → `Text` → `CallID+Status`) to prevent duplicate entries when N sessions emit the same event.
-3. **Multi-client sync test** (2026-05-25): Added `daemon/internal/server/multi_client_sync_test.go` (180 LOC) verifying concurrent session handling correctness.
-4. **Mermaid preview** (2026-05-24): Markdown file panes now render Mermaid diagrams inline.
-5. **App-bridge test suite** (2026-05-24): 3 test files covering base64, crypto, and path-utils (32 tests, ~300 ms).
-6. **CI overhaul** (2026-05-24): App unit tests (1282 tests) and app-bridge tests now run on every PR; nightly E2E workflow; Codecov integration.
+1. **Session memory Phase 1** (2026-05-29): Turns (user + assistant) are persisted as Markdown + YAML frontmatter under `~/.solo/memory/sessions/{YYYY-MM}/{sessionID}/turns/{seq:04d}-{role}.md`, indexed by `~/.solo/memory/sessions.jsonl`. New `daemon/internal/memory` module (`TurnRecorder` interface, `FileTurnRecorder` async writer, `Redactor` stack, `Bridge` for seq/parent chain + streaming-chunk accumulation, `SafeBridge` panic/circuit-breaker wrapper); `memorysetup` wires it from `config.MemoryConfig`; server hooks on `handleSendAgentMessage`/`sendAgentStream`. On by default (opt-out via `"memory": {"enabled": false}`). 434 tests across memory/bridge/filebackend/redact/memorysetup/config/server. See `docs/architecture/session-memory-persistence.md` and `docs/product/session-memory-spec.md`.
+2. **MessageID propagation** (2026-05-25): All providers now attach a unique `MessageID` to `user_message` events, enabling backend timeline deduplication across multiple concurrent sessions.
+3. **Timeline deduplication** (2026-05-25): `InMemoryTimelineStore.Append()` compares the last row by type-specific equality (`MessageID` → `Text` → `CallID+Status`) to prevent duplicate entries when N sessions emit the same event.
+4. **Multi-client sync test** (2026-05-25): Added `daemon/internal/server/multi_client_sync_test.go` (180 LOC) verifying concurrent session handling correctness.
+5. **Mermaid preview** (2026-05-24): Markdown file panes now render Mermaid diagrams inline.
+6. **App-bridge test suite** (2026-05-24): 3 test files covering base64, crypto, and path-utils (32 tests, ~300 ms).
+7. **CI overhaul** (2026-05-24): App unit tests (1282 tests) and app-bridge tests now run on every PR; nightly E2E workflow; Codecov integration.
 
 ## Documentation Index
 
@@ -185,6 +188,7 @@ Full docs live in `docs/`. Read `docs/README.md` for the structured index.
 | Product | `docs/product/` | Checking feature coverage, UI component inventory |
 | Providers | `docs/providers/` | Adding new AI providers |
 | Analysis | `docs/analysis/` | Deep-dives into specific subsystems |
+| Project Rules | `.agents/rules/` | Go/TS conventions, testing, security, architecture boundaries (indexed from `CLAUDE.md`) |
 
 ## Development Conventions
 
