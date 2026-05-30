@@ -1,7 +1,7 @@
 import { getDesktopHost } from "@/desktop/host";
 import { isWeb, isNative } from "@/constants/platform";
 
-export type DesktopPermissionKind = "notifications" | "microphone";
+export type DesktopPermissionKind = "notifications";
 
 export type DesktopPermissionState =
   | "granted"
@@ -19,29 +19,11 @@ export interface DesktopPermissionStatus {
 export interface DesktopPermissionSnapshot {
   checkedAt: number;
   notifications: DesktopPermissionStatus;
-  microphone: DesktopPermissionStatus;
 }
 
 interface NotificationConstructorLike {
   permission?: string;
   requestPermission?: () => Promise<string>;
-}
-
-interface MediaStreamTrackLike {
-  stop?: () => void;
-}
-
-interface MediaStreamLike {
-  getTracks?: () => MediaStreamTrackLike[];
-}
-
-interface NavigatorLike {
-  mediaDevices?: {
-    getUserMedia?: (constraints: { audio: boolean }) => Promise<MediaStreamLike>;
-  };
-  permissions?: {
-    query?: (descriptor: { name: string }) => Promise<{ state?: string }>;
-  };
 }
 
 export function shouldShowDesktopPermissionSection(): boolean {
@@ -52,34 +34,11 @@ function status(input: DesktopPermissionStatus): DesktopPermissionStatus {
   return input;
 }
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error && typeof error.message === "string") {
     return error.message;
   }
   return String(error);
-}
-
-function getErrorName(error: unknown): string | null {
-  if (!isObject(error)) {
-    return null;
-  }
-  const name = error.name;
-  return typeof name === "string" && name.length > 0 ? name : null;
-}
-
-function isPermissionsQueryRuntimeUnsupported(error: unknown): boolean {
-  const message = getErrorMessage(error);
-  if (
-    message.includes("Can only call Permissions.query on instances of Permissions") ||
-    message.includes("Illegal invocation")
-  ) {
-    return true;
-  }
-  return false;
 }
 
 function getWebNotificationConstructor(): NotificationConstructorLike | null {
@@ -94,17 +53,6 @@ function getWebNotificationConstructor(): NotificationConstructorLike | null {
     return null;
   }
   return NotificationConstructor as NotificationConstructorLike;
-}
-
-function getNavigatorLike(): NavigatorLike | null {
-  if (isNative) {
-    return null;
-  }
-  const webNavigator = (globalThis as { navigator?: unknown }).navigator;
-  if (!isObject(webNavigator)) {
-    return null;
-  }
-  return webNavigator as NavigatorLike;
 }
 
 function mapNotificationPermissionString(permission: string): DesktopPermissionStatus {
@@ -166,76 +114,6 @@ async function getNotificationPermissionStatus(): Promise<DesktopPermissionStatu
   });
 }
 
-async function getMicrophonePermissionStatus(): Promise<DesktopPermissionStatus> {
-  if (isNative) {
-    return status({
-      state: "unavailable",
-      detail: "Desktop microphone status is only available on web runtime.",
-    });
-  }
-
-  const webNavigator = getNavigatorLike();
-  if (!webNavigator) {
-    return status({
-      state: "unavailable",
-      detail: "Navigator is unavailable in this environment.",
-    });
-  }
-
-  const permissionsApi = webNavigator.permissions;
-  if (permissionsApi && typeof permissionsApi.query === "function") {
-    try {
-      const result = await permissionsApi.query({ name: "microphone" });
-      if (result?.state === "granted") {
-        return status({
-          state: "granted",
-          detail: "Microphone access is granted.",
-        });
-      }
-      if (result?.state === "denied") {
-        return status({
-          state: "denied",
-          detail: "Microphone access is denied in system settings.",
-        });
-      }
-      if (result?.state === "prompt") {
-        return status({
-          state: "prompt",
-          detail: "Microphone permission has not been granted yet.",
-        });
-      }
-      return status({
-        state: "unknown",
-        detail: `Unexpected microphone permission state: ${result?.state ?? "unknown"}`,
-      });
-    } catch (error) {
-      if (isPermissionsQueryRuntimeUnsupported(error)) {
-        return status({
-          state: "unknown",
-          detail:
-            "Microphone status API is unavailable in this runtime. Use Request to check access.",
-        });
-      }
-      return status({
-        state: "unknown",
-        detail: `Failed to query microphone status: ${getErrorMessage(error)}`,
-      });
-    }
-  }
-
-  if (typeof webNavigator.mediaDevices?.getUserMedia !== "function") {
-    return status({
-      state: "unavailable",
-      detail: "Microphone capture is unavailable in this environment.",
-    });
-  }
-
-  return status({
-    state: "unknown",
-    detail: "Permission status API is unavailable. Use Request to check access.",
-  });
-}
-
 async function requestNotificationPermissionStatus(): Promise<DesktopPermissionStatus> {
   if (isNative) {
     return status({
@@ -263,70 +141,17 @@ async function requestNotificationPermissionStatus(): Promise<DesktopPermissionS
   });
 }
 
-async function requestMicrophonePermissionStatus(): Promise<DesktopPermissionStatus> {
-  if (isNative) {
-    return status({
-      state: "unavailable",
-      detail: "Desktop microphone requests are only available on web runtime.",
-    });
-  }
-
-  const webNavigator = getNavigatorLike();
-  if (!webNavigator || typeof webNavigator.mediaDevices?.getUserMedia !== "function") {
-    return status({
-      state: "unavailable",
-      detail: "Microphone capture API is unavailable in this environment.",
-    });
-  }
-
-  try {
-    const stream = await webNavigator.mediaDevices.getUserMedia({ audio: true });
-    const tracks = stream && typeof stream.getTracks === "function" ? stream.getTracks() : [];
-    tracks.forEach((track) => {
-      if (typeof track.stop === "function") {
-        track.stop();
-      }
-    });
-    return await getMicrophonePermissionStatus();
-  } catch (error) {
-    const errorName = getErrorName(error);
-    if (errorName === "NotAllowedError" || errorName === "PermissionDeniedError") {
-      return status({
-        state: "denied",
-        detail: "Microphone permission was denied by the user or system.",
-      });
-    }
-    if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
-      return status({
-        state: "unavailable",
-        detail: "No microphone device was found.",
-      });
-    }
-    return status({
-      state: "unknown",
-      detail: `Failed to request microphone permission: ${getErrorMessage(error)}`,
-    });
-  }
-}
-
 export async function requestDesktopPermission(input: {
   kind: DesktopPermissionKind;
 }): Promise<DesktopPermissionStatus> {
-  if (input.kind === "notifications") {
-    return await requestNotificationPermissionStatus();
-  }
-  return await requestMicrophonePermissionStatus();
+  return await requestNotificationPermissionStatus();
 }
 
 export async function getDesktopPermissionSnapshot(): Promise<DesktopPermissionSnapshot> {
-  const [notifications, microphone] = await Promise.all([
-    getNotificationPermissionStatus(),
-    getMicrophonePermissionStatus(),
-  ]);
+  const notifications = await getNotificationPermissionStatus();
 
   return {
     checkedAt: Date.now(),
     notifications,
-    microphone,
   };
 }

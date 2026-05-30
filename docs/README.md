@@ -1,7 +1,7 @@
 # Solo — Documentation Index
 
 > **Purpose**: Persistent context base for Solo development, CI/CD, and architecture decisions.
-> **Last updated**: 2026-05-25
+> **Last updated**: 2026-05-29
 
 ---
 
@@ -12,6 +12,7 @@ docs/
 ├── README.md                              ← You are here (master index)
 ├── architecture/                          ← System architecture & design
 │   ├── README.md                          # Architecture overview & diagrams
+│   ├── agent-stall-detection.md           # Agent stuck-loop detection & grace fix
 │   ├── components.md                      # Component specifications
 │   ├── data-flow.md                       # Message flows & session lifecycle
 │   ├── deployment.md                      # Deployment, Nginx, Systemd, Docker
@@ -43,6 +44,7 @@ System design, component contracts, and runtime behaviour.
 | [Data Flow](architecture/data-flow.md) | Reference | Dev | WS message flow, E2EE handshake, session lifecycle, heartbeat |
 | [Network Architecture](architecture/network-architecture.md) | Deep-dive | Dev / Infra | Nginx → Relay → Daemon paths, port ACL, Pairing Link protocol |
 | [Session Memory Persistence](architecture/session-memory-persistence.md) | Design | Dev | Hook points, TurnRecorder interface, file layout, migration path to DB / memory middleware |
+| [Agent Stall Detection](architecture/agent-stall-detection.md) | Design | Dev | Inactivity & repetition detection, grace-period tightening, operational tuning |
 | [Deployment](architecture/deployment.md) | Runbook | Infra / CI | Systemd, Docker, Nginx config, env vars, monitoring, troubleshooting |
 
 **Key facts (always-on context)**:

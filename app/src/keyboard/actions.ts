@@ -8,12 +8,7 @@ export type KeyboardFocusScope =
 export type MessageInputKeyboardActionKind =
   | "focus"
   | "send"
-  | "queue"
-  | "dictation-toggle"
-  | "dictation-cancel"
-  | "dictation-confirm"
-  | "voice-toggle"
-  | "voice-mute-toggle";
+  | "queue";
 
 export type KeyboardActionId =
   | "agent.interrupt"

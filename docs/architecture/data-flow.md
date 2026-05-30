@@ -173,6 +173,52 @@ User ← App ← App-Bridge ← Relay ← Daemon ← Agent Manager ← Agent
 Agent → Agent Manager → Daemon → Relay → App-Bridge → App → UI Update
 ```
 
+### Agent 卡死检测流 (StallMonitor)
+
+```
+Agent Provider ──SSE events──► AgentManager.handleStreamEvent()
+                                      │
+                                      ▼
+                           StallMonitor.RecordEvent()
+                                      │
+                    ┌─────────────────┴─────────────────┐
+                    │ 每 30s 扫描                        │
+                    ▼                                    ▼
+         ┌─────────────────────┐            ┌─────────────────────┐
+         │  Inactivity Check   │            │  Repetition Check   │
+         │  > 2 min no events  │            │  ≥ 6 identical / 10 │
+         └──────────┬──────────┘            └──────────┬──────────┘
+                    │                                  │
+                    └────────────────┬─────────────────┘
+                                     ▼
+                          StallMonitor.interruptFn()
+                                     │
+                                     ▼
+                          AgentManager.CancelAgentRun()
+                                     │
+                                     ▼
+                          session.Interrupt()
+                                     │
+                                     ▼
+                          emit turn_failed / turn_canceled
+                                     │
+                                     ▼
+                           StallMonitor.UnregisterAgent()
+```
+
+**Grace 周期收紧：**
+
+```
+Session.expireGrace()
+  │
+  ▼
+hasRunningAgentsWithProgress()?  ← 既检查 LifecycleRunning，也检查最近 2 min 内是否有事件
+  │
+  ├─ YES → 延长 grace
+  │
+  └─ NO  → 结束 grace，执行 fullCleanup()
+```
+
 ## 推送通知流
 
 ```

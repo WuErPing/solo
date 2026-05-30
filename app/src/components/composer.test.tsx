@@ -109,12 +109,6 @@ const {
           serverId: string;
           hostname: string | null;
           version: string | null;
-          capabilities?: {
-            voice?: {
-              dictation: { enabled: boolean; reason: string };
-              voice: { enabled: boolean; reason: string };
-            };
-          };
         } | null;
         queuedMessages: Map<string, unknown[]>;
         agentStreamHead: Map<string, unknown[]>;
@@ -132,12 +126,6 @@ const {
           serverId: "server",
           hostname: "test",
           version: "0.0.0",
-          capabilities: {
-            voice: {
-              dictation: { enabled: true, reason: "" },
-              voice: { enabled: true, reason: "" },
-            },
-          },
         },
         queuedMessages: new Map(),
         agentStreamHead: new Map(),
@@ -210,12 +198,9 @@ vi.mock("lucide-react-native", () => {
     CornerDownLeft: createIcon("CornerDownLeft"),
     Square: createIcon("Square"),
     Pencil: createIcon("Pencil"),
-    AudioLines: createIcon("AudioLines"),
     CircleDot: createIcon("CircleDot"),
     GitPullRequest: createIcon("GitPullRequest"),
     X: createIcon("X"),
-    Mic: createIcon("Mic"),
-    MicOff: createIcon("MicOff"),
     Plus: createIcon("Plus"),
     Paperclip: createIcon("Paperclip"),
     Github: createIcon("Github"),
@@ -330,10 +315,6 @@ vi.mock("@/hooks/use-keyboard-shift-style", () => ({
   useKeyboardShiftStyle: () => ({ style: {} }),
 }));
 
-vi.mock("@/contexts/voice-context", () => ({
-  useVoiceOptional: () => null,
-}));
-
 vi.mock("@/contexts/toast-context", () => ({
   useToast: () => ({ error: vi.fn() }),
 }));
@@ -366,41 +347,6 @@ vi.mock("@/components/use-web-scrollbar", () => ({
 
 vi.mock("@/hooks/use-web-scrollbar-style", () => ({
   useWebScrollbarStyle: () => undefined,
-}));
-
-vi.mock("@/hooks/use-dictation", () => ({
-  useDictation: () => ({
-    isRecording: false,
-    isProcessing: false,
-    partialTranscript: "",
-    volume: 0,
-    duration: 0,
-    error: null,
-    status: "idle",
-    startDictation: vi.fn(),
-    cancelDictation: vi.fn(),
-    confirmDictation: vi.fn(),
-    retryFailedDictation: vi.fn(),
-    discardFailedDictation: vi.fn(),
-  }),
-}));
-
-vi.mock("@/utils/server-info-capabilities", () => ({
-  getVoiceReadinessState: ({
-    serverInfo,
-    mode,
-  }: {
-    serverInfo: {
-      capabilities?: {
-        voice?: {
-          dictation?: { enabled: boolean; reason: string };
-          voice?: { enabled: boolean; reason: string };
-        };
-      };
-    } | null;
-    mode: "dictation" | "voice";
-  }) => serverInfo?.capabilities?.voice?.[mode] ?? null,
-  resolveVoiceUnavailableMessage: () => null,
 }));
 
 vi.mock("@/components/ui/shortcut", () => ({
@@ -550,14 +496,6 @@ vi.mock("@/components/ui/combobox", () => ({
   ),
 }));
 
-vi.mock("./dictation-controls", () => ({
-  DictationOverlay: () => null,
-}));
-
-vi.mock("./realtime-voice-overlay", () => ({
-  RealtimeVoiceOverlay: () => null,
-}));
-
 let root: Root | null = null;
 let container: HTMLElement | null = null;
 let queryClient: QueryClient | null = null;
@@ -602,12 +540,6 @@ beforeEach(() => {
     serverId: "server",
     hostname: "test",
     version: "0.0.0",
-    capabilities: {
-      voice: {
-        dictation: { enabled: true, reason: "" },
-        voice: { enabled: true, reason: "" },
-      },
-    },
   };
   mockSessionState.sessions.server.agents = new Map([
     ["agent", { status: "idle", lastUsage: null }],
@@ -739,7 +671,7 @@ function dispatchAgentInterrupt() {
 
 function countMessageInputRenders(): number {
   return markScrollInvestigationRenderMock.mock.calls.filter(
-    ([componentId]) => componentId === "MessageInput:server:agent",
+    ([componentId]) => componentId === "MessageInput",
   ).length;
 }
 

@@ -12,7 +12,6 @@ import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { Buffer } from "buffer";
 import {
   ArrowLeft,
   Sun,
@@ -22,7 +21,6 @@ import {
   Settings,
   Server,
   Keyboard,
-  Stethoscope,
   Info,
   Shield,
   Puzzle,
@@ -69,8 +67,6 @@ import { useDesktopAppUpdater } from "@/desktop/updates/use-desktop-app-updater"
 import { formatVersionWithPrefix } from "@/desktop/updates/desktop-updates";
 import { resolveAppVersion } from "@/utils/app-version";
 import { settingsStyles } from "@/styles/settings";
-import { THINKING_TONE_NATIVE_PCM_BASE64 } from "@/utils/thinking-tone.native-pcm";
-import { useVoiceAudioEngineOptional } from "@/contexts/voice-context";
 import { HostPage, HostRenameButton } from "@/screens/settings/host-page";
 import ProjectsScreen from "@/screens/projects-screen";
 import ProjectSettingsScreen from "@/screens/project-settings-screen";
@@ -109,7 +105,6 @@ const SIDEBAR_SECTION_ITEMS: SidebarSectionItem[] = [
   { id: "shortcuts", label: "Shortcuts", icon: Keyboard, desktopOnly: true },
   { id: "integrations", label: "Integrations", icon: Puzzle, desktopOnly: true },
   { id: "permissions", label: "Permissions", icon: Shield, desktopOnly: true },
-  { id: "diagnostics", label: "Diagnostics", icon: Stethoscope },
   { id: "about", label: "About Solo", icon: Info },
 ];
 
@@ -290,46 +285,6 @@ function GeneralSection({
             onValueChange={handleSendBehaviorChange}
             options={SEND_BEHAVIOR_OPTIONS}
           />
-        </View>
-      </View>
-    </SettingsSection>
-  );
-}
-
-interface DiagnosticsSectionProps {
-  voiceAudioEngine: ReturnType<typeof useVoiceAudioEngineOptional>;
-  isPlaybackTestRunning: boolean;
-  playbackTestResult: string | null;
-  handlePlaybackTest: () => Promise<void>;
-}
-
-function DiagnosticsSection({
-  voiceAudioEngine,
-  isPlaybackTestRunning,
-  playbackTestResult,
-  handlePlaybackTest,
-}: DiagnosticsSectionProps) {
-  const handlePlayPress = useCallback(() => {
-    void handlePlaybackTest();
-  }, [handlePlaybackTest]);
-  return (
-    <SettingsSection title="Diagnostics">
-      <View style={settingsStyles.card}>
-        <View style={settingsStyles.row}>
-          <View style={settingsStyles.rowContent}>
-            <Text style={settingsStyles.rowTitle}>Test audio</Text>
-            {playbackTestResult ? (
-              <Text style={settingsStyles.rowHint}>{playbackTestResult}</Text>
-            ) : null}
-          </View>
-          <Button
-            variant="secondary"
-            size="sm"
-            onPress={handlePlayPress}
-            disabled={!voiceAudioEngine || isPlaybackTestRunning}
-          >
-            {isPlaybackTestRunning ? "Playing..." : "Play test"}
-          </Button>
         </View>
       </View>
     </SettingsSection>
@@ -745,13 +700,10 @@ export interface SettingsScreenProps {
 export default function SettingsScreen({ view }: SettingsScreenProps) {
   const router = useRouter();
   const { theme } = useUnistyles();
-  const voiceAudioEngine = useVoiceAudioEngineOptional();
   const { settings, isLoading: settingsLoading, updateSettings } = useAppSettings();
   const [isAddHostMethodVisible, setIsAddHostMethodVisible] = useState(false);
   const [isDirectHostVisible, setIsDirectHostVisible] = useState(false);
   const [isPasteLinkVisible, setIsPasteLinkVisible] = useState(false);
-  const [isPlaybackTestRunning, setIsPlaybackTestRunning] = useState(false);
-  const [playbackTestResult, setPlaybackTestResult] = useState<string | null>(null);
   const isDesktopApp = isElectronRuntime();
   const appVersion = resolveAppVersion();
   const appVersionText = formatVersionWithPrefix(appVersion);
@@ -775,35 +727,6 @@ export default function SettingsScreen({ view }: SettingsScreenProps) {
     },
     [updateSettings],
   );
-
-  const handlePlaybackTest = useCallback(async () => {
-    if (!voiceAudioEngine || isPlaybackTestRunning) {
-      return;
-    }
-
-    setIsPlaybackTestRunning(true);
-    setPlaybackTestResult(null);
-
-    try {
-      const bytes = Buffer.from(THINKING_TONE_NATIVE_PCM_BASE64, "base64");
-      await voiceAudioEngine.initialize();
-      voiceAudioEngine.stop();
-      await voiceAudioEngine.play({
-        type: "audio/pcm;rate=16000;bits=16",
-        size: bytes.byteLength,
-        async arrayBuffer() {
-          return Uint8Array.from(bytes).buffer;
-        },
-      });
-      setPlaybackTestResult(null);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error("[Settings] Playback test failed", error);
-      setPlaybackTestResult(`Playback failed: ${message}`);
-    } finally {
-      setIsPlaybackTestRunning(false);
-    }
-  }, [isPlaybackTestRunning, voiceAudioEngine]);
 
   const closeAddConnectionFlow = useCallback(() => {
     setIsAddHostMethodVisible(false);
@@ -967,15 +890,6 @@ export default function SettingsScreen({ view }: SettingsScreenProps) {
           return isDesktopApp ? <IntegrationsSection /> : null;
         case "permissions":
           return isDesktopApp ? <DesktopPermissionsSection /> : null;
-        case "diagnostics":
-          return (
-            <DiagnosticsSection
-              voiceAudioEngine={voiceAudioEngine}
-              isPlaybackTestRunning={isPlaybackTestRunning}
-              playbackTestResult={playbackTestResult}
-              handlePlaybackTest={handlePlaybackTest}
-            />
-          );
         case "about":
           return <AboutSection appVersionText={appVersionText} isDesktopApp={isDesktopApp} />;
       }

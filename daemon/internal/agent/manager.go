@@ -145,11 +145,13 @@ type AgentManager struct {
 	nextCoalescerFlushID uint64
 
 	droppedEventCount atomic.Int64
+
+	stallMonitor *StallMonitor
 }
 
 // NewAgentManager creates a new AgentManager.
 func NewAgentManager(storage *AgentStorage, registry *ProviderRegistry, logger *slog.Logger) *AgentManager {
-	return &AgentManager{
+	m := &AgentManager{
 		agents:              make(map[string]*ManagedAgent),
 		storage:             storage,
 		registry:            registry,
@@ -157,6 +159,14 @@ func NewAgentManager(storage *AgentStorage, registry *ProviderRegistry, logger *
 		subscribers:         make(map[uint64]AgentEventFunc),
 		coalescerFlushFuncs: make(map[uint64]func(agentID string)),
 	}
+	m.stallMonitor = NewStallMonitor(logger, m.stallInterrupt)
+	m.stallMonitor.Start()
+	return m
+}
+
+// stallInterrupt is the callback used by StallMonitor to cancel a stuck turn.
+func (m *AgentManager) stallInterrupt(agentID string) error {
+	return m.CancelAgentRun(context.Background(), agentID)
 }
 
 // RegisterCoalescerFlusher registers a function to be called when a critical
@@ -374,12 +384,27 @@ func (m *AgentManager) ListAllAgents() []*ManagedAgent {
 	return result
 }
 
+// HasRunningAgentsWithRecentProgress returns true if any agent is
+// LifecycleRunning AND has produced a stream event within the stall monitor's
+// inactivity threshold. Used by the session grace-period logic to avoid
+// extending grace for agents that are stuck but still report "running".
+func (m *AgentManager) HasRunningAgentsWithRecentProgress() bool {
+	for _, ag := range m.ListAgents() {
+		if ag.Lifecycle == LifecycleRunning && m.stallMonitor.HasRecentProgress(ag.ID) {
+			return true
+		}
+	}
+	return false
+}
+
 // DeleteAgent closes and removes an agent.
 func (m *AgentManager) DeleteAgent(agentID string) error {
 	agent := m.GetAgent(agentID)
 	if agent == nil {
 		return fmt.Errorf("agent %s not found", agentID)
 	}
+
+	m.stallMonitor.UnregisterAgent(agentID)
 
 	if sess := agent.GetSession(); sess != nil {
 		sess.Close()
@@ -406,6 +431,8 @@ func (m *AgentManager) ArchiveAgent(agentID string) error {
 	if agent == nil {
 		return fmt.Errorf("agent %s not found", agentID)
 	}
+
+	m.stallMonitor.UnregisterAgent(agentID)
 
 	if sess := agent.GetSession(); sess != nil {
 		sess.Close()
@@ -475,6 +502,8 @@ func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, tex
 	m.storage.ApplySnapshot(agent)
 	m.emitState(agent)
 
+	m.stallMonitor.RegisterAgent(agentID)
+
 	// Run in background
 	go func() {
 		defer func() {
@@ -495,6 +524,7 @@ func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, tex
 		})
 		defer watchdog.Stop()
 		_, err := session.Run(ctx, text, images, attachments, messageID)
+		m.stallMonitor.UnregisterAgent(agentID)
 		m.refreshSessionMetadata(ctx, agent, session)
 		if err != nil {
 			agent.SetError(err.Error())
@@ -932,6 +962,9 @@ func (m *AgentManager) forwardCriticalEventAsync(agent *ManagedAgent, event Agen
 
 // handleStreamEvent processes a stream event from an agent session.
 func (m *AgentManager) handleStreamEvent(agent *ManagedAgent, event AgentStreamEvent) {
+	// Feed progress tracker so stall detection knows the agent is alive.
+	m.stallMonitor.RecordEvent(agent.ID, event)
+
 	// Copy the event so async emit goroutines get their own copy.
 	// Without this, goroutines that write to stream.AgentID race with the
 	// caller's local variable which is still read below (applyTerminalStreamState).
@@ -975,6 +1008,7 @@ func (m *AgentManager) applyTerminalStreamState(agent *ManagedAgent, event Agent
 	eventType, _ := payload["type"].(string)
 	switch eventType {
 	case "turn_completed":
+		m.stallMonitor.UnregisterAgent(agent.ID)
 		if usage, ok := payload["usage"].(*protocol.AgentUsage); ok {
 			agent.mu.Lock()
 			agent.LastUsage = usage
@@ -984,6 +1018,7 @@ func (m *AgentManager) applyTerminalStreamState(agent *ManagedAgent, event Agent
 		agent.SetAttention(true, "finished")
 		m.emitAttentionRequired(agent, "finished")
 	case "turn_failed":
+		m.stallMonitor.UnregisterAgent(agent.ID)
 		errMsg := "agent turn failed"
 		if errValue, ok := payload["error"]; ok && errValue != nil {
 			errMsg = fmt.Sprint(errValue)
@@ -991,6 +1026,7 @@ func (m *AgentManager) applyTerminalStreamState(agent *ManagedAgent, event Agent
 		agent.SetError(errMsg)
 		m.emitAttentionRequired(agent, "error")
 	case "turn_canceled":
+		m.stallMonitor.UnregisterAgent(agent.ID)
 		agent.SetLifecycle(LifecycleIdle)
 	default:
 		return false

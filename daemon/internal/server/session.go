@@ -583,10 +583,11 @@ const maxGraceExtensions = 10
 func (s *Session) expireGrace() {
 	s.graceMu.Lock()
 
-	// If any agent is still running, extend grace instead of expiring.
-	// This prevents session cleanup when the turn outlasts the initial
-	// grace window (e.g. mobile client disconnects 7s into a 2-min turn).
-	if s.hasRunningAgents() && s.graceExtensions < maxGraceExtensions {
+	// If any agent is still running AND making progress, extend grace instead
+	// of expiring. This prevents session cleanup during long-running turns,
+	// but also prevents a stuck agent (repetitive output, no events) from
+	// keeping the session alive indefinitely.
+	if s.hasRunningAgentsWithProgress() && s.graceExtensions < maxGraceExtensions {
 		s.graceExtensions++
 		s.graceTimer = time.AfterFunc(s.gracePeriod, s.expireGrace)
 		s.graceMu.Unlock()
@@ -609,18 +610,14 @@ func (s *Session) expireGrace() {
 	s.logger.Info("session grace expired, fully cleaned up")
 }
 
-// hasRunningAgents returns true if any agent managed by this session's
-// agent manager is currently processing a turn (LifecycleRunning).
-func (s *Session) hasRunningAgents() bool {
+// hasRunningAgentsWithProgress returns true if any agent is
+// LifecycleRunning AND has produced stream events recently (i.e. is not
+// stalled). This prevents stuck agents from keeping the session alive.
+func (s *Session) hasRunningAgentsWithProgress() bool {
 	if s.agentMgr == nil {
 		return false
 	}
-	for _, ag := range s.agentMgr.ListAllAgents() {
-		if ag.Lifecycle == agent.LifecycleRunning {
-			return true
-		}
-	}
-	return false
+	return s.agentMgr.HasRunningAgentsWithRecentProgress()
 }
 
 // fullCleanup tears down all subscriptions and state. Called either on grace
