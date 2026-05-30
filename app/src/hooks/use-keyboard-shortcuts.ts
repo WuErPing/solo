@@ -134,31 +134,6 @@ export function useKeyboardShortcuts({
             id: "message-input.send",
             scope: "message-input",
           });
-        case "dictation-toggle":
-          return keyboardActionDispatcher.dispatch({
-            id: "message-input.dictation-toggle",
-            scope: "message-input",
-          });
-        case "dictation-cancel":
-          return keyboardActionDispatcher.dispatch({
-            id: "message-input.dictation-cancel",
-            scope: "message-input",
-          });
-        case "dictation-confirm":
-          return keyboardActionDispatcher.dispatch({
-            id: "message-input.dictation-confirm",
-            scope: "message-input",
-          });
-        case "voice-toggle":
-          return keyboardActionDispatcher.dispatch({
-            id: "message-input.voice-toggle",
-            scope: "message-input",
-          });
-        case "voice-mute-toggle":
-          return keyboardActionDispatcher.dispatch({
-            id: "message-input.voice-mute-toggle",
-            scope: "message-input",
-          });
         default:
           return false;
       }

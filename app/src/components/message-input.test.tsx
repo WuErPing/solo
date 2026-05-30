@@ -1,18 +1,11 @@
-import React, { createRef , act } from "react";
+import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { JSDOM } from "jsdom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MessageInput, type AttachmentMenuItem, type MessageInputRef } from "./message-input";
+import { MessageInput, type AttachmentMenuItem } from "./message-input";
 
 const EMPTY_ATTACHMENTS: React.ComponentProps<typeof MessageInput>["attachments"] = [];
-const EMPTY_ATTACHMENT_MENU_ITEMS: AttachmentMenuItem[] = [];
 const FAKE_CONNECTED_CLIENT = { isConnected: true } as never;
-
-const { startDictationMock, cancelDictationMock, confirmDictationMock } = vi.hoisted(() => ({
-  startDictationMock: vi.fn(),
-  cancelDictationMock: vi.fn(),
-  confirmDictationMock: vi.fn(),
-}));
 
 const { theme } = vi.hoisted(() => ({
   theme: {
@@ -59,8 +52,6 @@ vi.mock("lucide-react-native", () => {
     React.createElement("span", { ...props, "data-icon": name });
   return {
     ArrowUp: createIcon("ArrowUp"),
-    Mic: createIcon("Mic"),
-    MicOff: createIcon("MicOff"),
     CornerDownLeft: createIcon("CornerDownLeft"),
     Plus: createIcon("Plus"),
     Square: createIcon("Square"),
@@ -85,38 +76,13 @@ vi.mock("react-native-reanimated", () => ({
   withTiming: (value: unknown) => value,
 }));
 
-vi.mock("@/hooks/use-dictation", () => ({
-  useDictation: () => ({
-    isRecording: false,
-    isProcessing: false,
-    partialTranscript: "",
-    volume: 0,
-    duration: 0,
-    error: null,
-    status: "idle",
-    startDictation: startDictationMock,
-    cancelDictation: cancelDictationMock,
-    confirmDictation: confirmDictationMock,
-    retryFailedDictation: vi.fn(),
-    discardFailedDictation: vi.fn(),
-  }),
-}));
-
 vi.mock("@/stores/session-store", () => ({
   useSessionStore: (selector: (state: { sessions: Record<string, unknown> }) => unknown) =>
     selector({ sessions: {} }),
 }));
 
-vi.mock("@/contexts/voice-context", () => ({
-  useVoiceOptional: () => null,
-}));
-
 vi.mock("@/contexts/toast-context", () => ({
   useToast: () => ({ error: vi.fn() }),
-}));
-
-vi.mock("@/utils/server-info-capabilities", () => ({
-  resolveVoiceUnavailableMessage: () => null,
 }));
 
 vi.mock("@/components/use-web-scrollbar", () => ({
@@ -199,14 +165,6 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
   ),
 }));
 
-vi.mock("./dictation-controls", () => ({
-  DictationOverlay: () => null,
-}));
-
-vi.mock("./realtime-voice-overlay", () => ({
-  RealtimeVoiceOverlay: () => null,
-}));
-
 let root: Root | null = null;
 let container: HTMLElement | null = null;
 
@@ -223,9 +181,6 @@ beforeEach(() => {
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
-  startDictationMock.mockReset();
-  cancelDictationMock.mockReset();
-  confirmDictationMock.mockReset();
 });
 
 afterEach(() => {
@@ -338,56 +293,3 @@ describe("MessageInput attachments", () => {
   });
 });
 
-describe("MessageInput dictation shortcuts", () => {
-  it("does not poison the dictation toggle when readiness is temporarily false", () => {
-    const inputRef = createRef<MessageInputRef>();
-
-    act(() => {
-      root?.render(
-        <MessageInput
-          ref={inputRef}
-          value=""
-          onChangeText={vi.fn()}
-          onSubmit={vi.fn()}
-          attachments={EMPTY_ATTACHMENTS}
-          cwd="/repo"
-          attachmentMenuItems={EMPTY_ATTACHMENT_MENU_ITEMS}
-          client={FAKE_CONNECTED_CLIENT}
-          isAgentRunning={false}
-          isReadyForDictation={false}
-          onQueue={vi.fn()}
-        />,
-      );
-    });
-
-    act(() => {
-      inputRef.current?.runKeyboardAction("dictation-toggle");
-    });
-    expect(startDictationMock).not.toHaveBeenCalled();
-    expect(confirmDictationMock).not.toHaveBeenCalled();
-
-    act(() => {
-      root?.render(
-        <MessageInput
-          ref={inputRef}
-          value=""
-          onChangeText={vi.fn()}
-          onSubmit={vi.fn()}
-          attachments={EMPTY_ATTACHMENTS}
-          cwd="/repo"
-          attachmentMenuItems={EMPTY_ATTACHMENT_MENU_ITEMS}
-          client={FAKE_CONNECTED_CLIENT}
-          isAgentRunning={false}
-          isReadyForDictation
-          onQueue={vi.fn()}
-        />,
-      );
-    });
-    act(() => {
-      inputRef.current?.runKeyboardAction("dictation-toggle");
-    });
-
-    expect(startDictationMock).toHaveBeenCalledTimes(1);
-    expect(confirmDictationMock).not.toHaveBeenCalled();
-  });
-});

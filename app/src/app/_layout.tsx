@@ -47,7 +47,6 @@ import {
 } from "@/contexts/sidebar-animation-context";
 import { SidebarCalloutProvider } from "@/contexts/sidebar-callout-context";
 import { ToastProvider } from "@/contexts/toast-context";
-import { VoiceProvider } from "@/contexts/voice-context";
 import { initializeHostRuntime, type StartupNavigationTarget } from "@/app/host-runtime-bootstrap";
 import { shouldUseDesktopDaemon } from "@/desktop/daemon/desktop-daemon";
 import { listenToDesktopEvent } from "@/desktop/electron/events";
@@ -627,12 +626,12 @@ function ProvidersWrapper({ children }: { children: ReactNode }) {
   }, [settingsLoading, resolvedTheme, theme.colors.foreground, theme.colors.surface0]);
 
   return (
-    <VoiceProvider>
+    <>
       <OfferLinkListener upsertDaemonFromOfferUrl={upsertConnectionFromOfferUrl} />
       <HostSessionManager />
       <FaviconStatusSync />
       {children}
-    </VoiceProvider>
+    </>
   );
 }
 

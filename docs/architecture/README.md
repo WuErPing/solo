@@ -9,6 +9,7 @@
 - [Data Flow](data-flow.md) — WS message flows, session lifecycle, heartbeat
 - [Timeline Design](timeline-design.md) — Head/Tail stream model, seq gate, bootstrap policy, catch-up
 - [Session Memory Persistence](session-memory-persistence.md) — Turn recording hooks, TurnRecorder interface, file layout, migration path
+- [Agent Stall Detection](agent-stall-detection.md) — Inactivity & repetition detection, grace-period fix, operational tuning
 - [Deployment](deployment.md) — Systemd, Docker, Nginx config, env vars
 
 See also [`../product/session-memory-spec.md`](../product/session-memory-spec.md) for the Phase 1 implementation spec (M1–M6 shipped 2026-05-28).

@@ -45,7 +45,6 @@ import {
   Copy,
   TriangleAlertIcon,
   Scissors,
-  MicVocal,
   FileSymlink,
 } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -181,7 +180,6 @@ const MarkdownWithStableRenderer = Markdown as ComponentType<MarkdownWithStableR
 const ThemedMarkdown = withUnistyles(MarkdownWithStableRenderer);
 const markdownStyleMapping = (theme: Theme) => ({ style: createMarkdownStyles(theme) }) as never;
 
-const ThemedMicVocal = withUnistyles(MicVocal);
 const ThemedTodoCheckIcon = withUnistyles(Check);
 const ThemedFileSymlinkIcon = withUnistyles(FileSymlink);
 const ThemedTriangleAlertIcon = withUnistyles(TriangleAlertIcon);
@@ -1669,65 +1667,6 @@ export const AssistantMessage = memo(function AssistantMessage({
           />
         </AssistantMessageBlockContainer>
       ))}
-    </View>
-  );
-});
-
-interface SpeakMessageProps {
-  message: string;
-  timestamp: number;
-  disableOuterSpacing?: boolean;
-}
-
-const speakMessageStylesheet = StyleSheet.create((theme) => ({
-  container: {
-    paddingHorizontal: theme.spacing[2],
-    paddingVertical: theme.spacing[3],
-  },
-  containerSpacing: {
-    marginBottom: theme.spacing[4],
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[2],
-    marginBottom: theme.spacing[2],
-  },
-  headerLabel: {
-    fontFamily: Fonts.sans,
-    fontSize: 12,
-    fontWeight: "500",
-    color: theme.colors.foregroundMuted,
-  },
-  text: {
-    fontFamily: Fonts.sans,
-    fontSize: theme.fontSize.base,
-    lineHeight: 22,
-    color: theme.colors.foreground,
-  },
-}));
-
-export const SpeakMessage = memo(function SpeakMessage({
-  message,
-  timestamp: _timestamp,
-  disableOuterSpacing,
-}: SpeakMessageProps) {
-  const resolvedDisableOuterSpacing = useDisableOuterSpacing(disableOuterSpacing);
-  const containerStyle = useMemo(
-    () => [
-      speakMessageStylesheet.container,
-      !resolvedDisableOuterSpacing && speakMessageStylesheet.containerSpacing,
-    ],
-    [resolvedDisableOuterSpacing],
-  );
-
-  return (
-    <View testID="speak-message" style={containerStyle}>
-      <View style={speakMessageStylesheet.header}>
-        <ThemedMicVocal size={14} uniProps={foregroundMutedColorMapping} />
-        <Text style={speakMessageStylesheet.headerLabel}>Spoke</Text>
-      </View>
-      <Text style={speakMessageStylesheet.text}>{message}</Text>
     </View>
   );
 });

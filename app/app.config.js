@@ -65,7 +65,6 @@ export default {
     ios: {
       supportsTablet: true,
       infoPlist: {
-        NSMicrophoneUsageDescription: "This app needs access to the microphone for voice commands.",
         ITSAppUsesNonExemptEncryption: false,
       },
       bundleIdentifier: variant.packageId,
@@ -84,9 +83,6 @@ export default {
       // Allow HTTP connections for local network hosts (required for release builds)
       usesCleartextTraffic: true,
       permissions: [
-        "RECORD_AUDIO",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
         "CAMERA",
         "android.permission.CAMERA",
       ],
@@ -127,7 +123,6 @@ export default {
           color: "#20744A",
         },
       ],
-      "expo-audio",
       [
         "expo-build-properties",
         {

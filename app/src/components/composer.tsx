@@ -4,7 +4,6 @@ import {
   Text,
   ActivityIndicator,
   Image,
-  type PressableStateCallbackType,
 } from "react-native";
 import { useState, useEffect, useRef, useCallback, useMemo, memo, type ReactElement } from "react";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -14,7 +13,6 @@ import {
   ArrowUp,
   Square,
   Pencil,
-  AudioLines,
   CircleDot,
   GitPullRequest,
   Github,
@@ -28,7 +26,6 @@ import {
   DraftAgentStatusBar,
   type DraftAgentStatusBarProps,
 } from "./agent-status-bar";
-import { ContextWindowMeter } from "./context-window-meter";
 import { useImageAttachmentPicker } from "@/hooks/use-image-attachment-picker";
 import type { PickedImageAttachmentInput } from "@/hooks/image-attachment-picker";
 import { useSessionStore } from "@/stores/session-store";
@@ -43,15 +40,12 @@ import { ICON_SIZE, type Theme } from "@/styles/theme";
 import type { DraftCommandConfig } from "@/hooks/use-agent-commands-query";
 import { encodeImages } from "@/utils/encode-images";
 import { focusWithRetries } from "@/utils/web-focus";
-import { useVoiceOptional } from "@/contexts/voice-context";
-import { useToast } from "@/contexts/toast-context";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Shortcut } from "@/components/ui/shortcut";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
 import { Autocomplete } from "@/components/ui/autocomplete";
 import { useAgentAutocomplete } from "@/hooks/use-agent-autocomplete";
 import {
-  useHostRuntimeAgentDirectoryStatus,
   useHostRuntimeClient,
   useHostRuntimeIsConnected,
 } from "@/runtime/host-runtime";
@@ -77,7 +71,6 @@ import { splitComposerAttachmentsForSubmit } from "@/components/composer-attachm
 import { AttachmentPill } from "@/components/attachment-pill";
 import { AttachmentLightbox } from "@/components/attachment-lightbox";
 import { openExternalUrl } from "@/utils/open-external-url";
-import { useIsDictationReady } from "@/hooks/use-is-dictation-ready";
 
 interface QueuedMessage {
   id: string;
@@ -100,14 +93,6 @@ function resolveIsComposerLocked(
   isSubmitLoading: boolean,
 ): boolean {
   return submitBehavior === "preserve-and-lock" && isSubmitLoading;
-}
-
-function resolveIsVoiceModeForAgent(
-  voice: ReturnType<typeof useVoiceOptional>,
-  serverId: string,
-  agentId: string,
-): boolean {
-  return voice?.isVoiceModeForAgent(serverId, agentId) ?? false;
 }
 
 function resolveKeyboardPriority(isMessageInputFocused: boolean): number {
@@ -161,24 +146,11 @@ function buildCancelButtonStyle(isConnected: boolean, isCancellingAgent: boolean
   );
 }
 
-function buildRealtimeVoiceButtonStyle(
-  hovered: boolean | undefined,
-  voiceButtonDisabled: boolean,
-): object[] {
-  const hoveredStyle = hovered ? (styles.iconButtonHovered as object) : undefined;
-  const disabledStyle = voiceButtonDisabled ? (styles.buttonDisabled as object) : undefined;
-  return [styles.realtimeVoiceButton as object, hoveredStyle, disabledStyle].filter(
-    (value): value is object => Boolean(value),
-  );
-}
-
 function buildAgentStateSelector(serverId: string, agentId: string) {
   return (state: ReturnType<typeof useSessionStore.getState>) => {
     const agent = state.sessions[serverId]?.agents?.get(agentId) ?? null;
     return {
       status: agent?.status ?? null,
-      contextWindowMaxTokens: agent?.lastUsage?.contextWindowMaxTokens ?? null,
-      contextWindowUsedTokens: agent?.lastUsage?.contextWindowUsedTokens ?? null,
     };
   };
 }
@@ -206,17 +178,6 @@ function buildGithubSearchQueryOptions(args: BuildGithubSearchQueryOptionsArgs) 
     enabled,
     staleTime: 30_000,
   };
-}
-
-function renderContextWindowMeterSlot(
-  contextWindowMaxTokens: number | null,
-  contextWindowUsedTokens: number | null,
-): ReactElement {
-  const meter =
-    contextWindowMaxTokens !== null && contextWindowUsedTokens !== null ? (
-      <ContextWindowMeter maxTokens={contextWindowMaxTokens} usedTokens={contextWindowUsedTokens} />
-    ) : null;
-  return <View style={styles.contextWindowMeterSlot}>{meter}</View>;
 }
 
 interface RenderLeftContentArgs {
@@ -373,35 +334,6 @@ function renderComposerAttachmentPill(args: RenderComposerAttachmentPillArgs): R
   );
 }
 
-function resolveVoiceStartErrorMessage(error: unknown): string | null {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return null;
-}
-
-interface AttemptStartRealtimeVoiceArgs {
-  voice: ReturnType<typeof useVoiceOptional>;
-  isConnected: boolean;
-  hasAgent: boolean;
-  serverId: string;
-  agentId: string;
-  toastErrorRef: { current: (message: string) => void };
-}
-
-function attemptStartRealtimeVoice(args: AttemptStartRealtimeVoiceArgs): void {
-  const { voice, isConnected, hasAgent, serverId, agentId, toastErrorRef } = args;
-  if (!voice || !isConnected || !hasAgent) return;
-  if (voice.isVoiceSwitching) return;
-  if (voice.isVoiceModeForAgent(serverId, agentId)) return;
-  void voice.startVoice(serverId, agentId).catch((error) => {
-    console.error("[Composer] Failed to start voice mode", error);
-    const message = resolveVoiceStartErrorMessage(error);
-    if (message && message.trim().length > 0) {
-      toastErrorRef.current(message);
-    }
-  });
-}
-
 interface DispatchAgentMessageSendArgs {
   client: NonNullable<ReturnType<typeof useHostRuntimeClient>>;
   serverId: string;
@@ -543,7 +475,6 @@ function dispatchComposerKeyboardAction(args: DispatchComposerKeyboardActionArgs
   if (!isPaneFocused) return false;
 
   if (action.id === "agent.interrupt") {
-    if (messageInputRef.current?.runKeyboardAction("dictation-cancel")) return true;
     if (!isAgentRunning || isCancellingAgent || !isConnected) return false;
     handleCancelAgent();
     return true;
@@ -557,7 +488,7 @@ function dispatchComposerKeyboardAction(args: DispatchComposerKeyboardActionArgs
   const passthroughAction = resolveMessageInputPassthroughAction(action.id);
   if (!passthroughAction) return false;
   const result = messageInputRef.current?.runKeyboardAction(passthroughAction);
-  if (passthroughAction === "send" || passthroughAction === "dictation-confirm") {
+  if (passthroughAction === "send") {
     return result ?? false;
   }
   return true;
@@ -569,16 +500,6 @@ function resolveMessageInputPassthroughAction(
   switch (actionId) {
     case "message-input.send":
       return "send";
-    case "message-input.dictation-confirm":
-      return "dictation-confirm";
-    case "message-input.dictation-toggle":
-      return "dictation-toggle";
-    case "message-input.dictation-cancel":
-      return "dictation-cancel";
-    case "message-input.voice-toggle":
-      return "voice-toggle";
-    case "message-input.voice-mute-toggle":
-      return "voice-mute-toggle";
     default:
       return null;
   }
@@ -778,7 +699,7 @@ interface ComposerProps {
   onFocusInput?: (focus: () => void) => void;
   /** Optional draft context for listing commands before an agent exists. */
   commandDraftConfig?: DraftCommandConfig;
-  /** Called when a message is about to be sent (any path: keyboard, dictation, queued). */
+  /** Called when a message is about to be sent (any path: keyboard, queued). */
   onMessageSent?: () => void;
   onComposerHeightChange?: (height: number) => void;
   onAttentionInputFocus?: () => void;
@@ -793,16 +714,6 @@ const EMPTY_ARRAY: readonly QueuedMessage[] = [];
 const DESKTOP_MESSAGE_PLACEHOLDER = "Message the agent, tag @files, or use /commands and /skills";
 const MOBILE_MESSAGE_PLACEHOLDER = "Message, @files, /commands";
 const StableMessageInput = memo(MessageInput);
-
-function resolveContextWindowValues(
-  rawMax: number | null,
-  rawUsed: number | null,
-): { contextWindowMaxTokens: number | null; contextWindowUsedTokens: number | null } {
-  if (typeof rawMax === "number" && typeof rawUsed === "number") {
-    return { contextWindowMaxTokens: rawMax, contextWindowUsedTokens: rawUsed };
-  }
-  return { contextWindowMaxTokens: null, contextWindowUsedTokens: null };
-}
 
 interface ComposerCancelButtonProps {
   buttonIconSize: number;
@@ -867,88 +778,6 @@ function ComposerCancelButtonSlot({
   return <ComposerCancelButton {...rest} />;
 }
 
-interface ComposerVoiceModeButtonProps {
-  buttonIconSize: number;
-  handleToggleRealtimeVoice: () => void;
-  isConnected: boolean;
-  isVoiceSwitching: boolean;
-  realtimeVoiceButtonStyle: (
-    state: PressableStateCallbackType & { hovered?: boolean },
-  ) => (object | undefined)[];
-  voiceToggleKeys: ReturnType<typeof useShortcutKeys>;
-}
-
-interface ComposerRightControlsSlotProps extends ComposerVoiceModeButtonProps {
-  isVoiceModeForAgent: boolean;
-  hasAgent: boolean;
-  isAgentRunning: boolean;
-  hasSendableContent: boolean;
-  isProcessing: boolean;
-  cancelButton: ReactElement;
-}
-
-function ComposerRightControlsSlot({
-  isVoiceModeForAgent,
-  hasAgent,
-  isAgentRunning,
-  hasSendableContent,
-  isProcessing,
-  cancelButton,
-  ...voiceProps
-}: ComposerRightControlsSlotProps) {
-  const showVoiceModeButton = !isVoiceModeForAgent && hasAgent;
-  const shouldShowCancelButton = isAgentRunning && !hasSendableContent && !isProcessing;
-  if (!showVoiceModeButton && !shouldShowCancelButton) return null;
-  return (
-    <View style={styles.rightControls}>
-      {showVoiceModeButton ? <ComposerVoiceModeButton {...voiceProps} /> : null}
-      {cancelButton}
-    </View>
-  );
-}
-
-function ComposerVoiceModeButton({
-  buttonIconSize,
-  handleToggleRealtimeVoice,
-  isConnected,
-  isVoiceSwitching,
-  realtimeVoiceButtonStyle,
-  voiceToggleKeys,
-}: ComposerVoiceModeButtonProps) {
-  const shortcutNode = voiceToggleKeys ? (
-    <Shortcut chord={voiceToggleKeys} style={styles.tooltipShortcut} />
-  ) : null;
-  const renderTriggerContent = useCallback(
-    ({ hovered }: PressableStateCallbackType & { hovered?: boolean }) => {
-      if (isVoiceSwitching) {
-        return <ActivityIndicator size="small" color="white" />;
-      }
-      const colorMapping = hovered ? iconForegroundMapping : iconForegroundMutedMapping;
-      return <ThemedAudioLines size={buttonIconSize} uniProps={colorMapping} />;
-    },
-    [buttonIconSize, isVoiceSwitching],
-  );
-  return (
-    <Tooltip delayDuration={0} enabledOnDesktop enabledOnMobile={false}>
-      <TooltipTrigger
-        onPress={handleToggleRealtimeVoice}
-        disabled={!isConnected || isVoiceSwitching}
-        accessibilityLabel="Enable Voice mode"
-        accessibilityRole="button"
-        style={realtimeVoiceButtonStyle}
-      >
-        {renderTriggerContent}
-      </TooltipTrigger>
-      <TooltipContent side="top" align="center" offset={8}>
-        <View style={styles.tooltipRow}>
-          <Text style={styles.tooltipText}>Voice mode</Text>
-          {shortcutNode}
-        </View>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
 export function Composer({
   agentId,
   serverId,
@@ -982,18 +811,7 @@ export function Composer({
   const buttonIconSize = resolveComposerButtonIconSize();
   const client = useHostRuntimeClient(serverId);
   const isConnected = useHostRuntimeIsConnected(serverId);
-  const agentDirectoryStatus = useHostRuntimeAgentDirectoryStatus(serverId);
-  const toast = useToast();
-  const toastErrorRef = useRef(toast.error);
-  toastErrorRef.current = toast.error;
-  const voice = useVoiceOptional();
-  const voiceToggleKeys = useShortcutKeys("voice-toggle");
   const agentInterruptKeys = useShortcutKeys("agent-interrupt");
-  const isDictationReady = useIsDictationReady({
-    serverId,
-    isConnected,
-    agentDirectoryStatus,
-  });
 
   const { settings: appSettings } = useAppSettings();
 
@@ -1138,7 +956,6 @@ export function Composer({
   }, [onSubmitMessage]);
 
   const isAgentRunning = agentState.status === "running";
-  const hasAgent = agentState.status !== null;
 
   const updateQueue = useCallback(
     (updater: (current: QueuedMessage[]) => QueuedMessage[]) => {
@@ -1299,11 +1116,6 @@ export function Composer({
       "agent.interrupt",
       "message-input.focus",
       "message-input.send",
-      "message-input.dictation-toggle",
-      "message-input.dictation-cancel",
-      "message-input.dictation-confirm",
-      "message-input.voice-toggle",
-      "message-input.voice-mute-toggle",
     ],
     enabled: isPaneFocused,
     priority: resolveKeyboardPriority(isMessageInputFocused),
@@ -1314,19 +1126,6 @@ export function Composer({
   const { style: keyboardAnimatedStyle } = useKeyboardShiftStyle({
     mode: "translate",
   });
-
-  const isVoiceModeForAgent = resolveIsVoiceModeForAgent(voice, serverId, agentId);
-
-  const handleToggleRealtimeVoice = useCallback(() => {
-    attemptStartRealtimeVoice({
-      voice,
-      isConnected,
-      hasAgent,
-      serverId,
-      agentId,
-      toastErrorRef,
-    });
-  }, [agentId, hasAgent, isConnected, serverId, voice]);
 
   const handleEditQueuedMessage = useCallback(
     (id: string) => {
@@ -1381,14 +1180,6 @@ export function Composer({
     [isConnected, isCancellingAgent],
   );
 
-  const isVoiceSwitching = voice?.isVoiceSwitching ?? false;
-  const voiceButtonDisabled = !isConnected || isVoiceSwitching;
-  const realtimeVoiceButtonStyle = useCallback(
-    (state: PressableStateCallbackType & { hovered?: boolean }) =>
-      buildRealtimeVoiceButtonStyle(state.hovered, voiceButtonDisabled),
-    [voiceButtonDisabled],
-  );
-
   const cancelButton = useMemo(
     () => (
       <ComposerCancelButtonSlot
@@ -1416,49 +1207,7 @@ export function Composer({
     ],
   );
 
-  const isVoiceSwitchingValue = voice?.isVoiceSwitching ?? false;
-  const rightContent = useMemo(
-    () => (
-      <ComposerRightControlsSlot
-        isVoiceModeForAgent={isVoiceModeForAgent}
-        hasAgent={hasAgent}
-        isAgentRunning={isAgentRunning}
-        hasSendableContent={hasSendableContent}
-        isProcessing={isProcessing}
-        buttonIconSize={buttonIconSize}
-        handleToggleRealtimeVoice={handleToggleRealtimeVoice}
-        isConnected={isConnected}
-        isVoiceSwitching={isVoiceSwitchingValue}
-        realtimeVoiceButtonStyle={realtimeVoiceButtonStyle}
-        voiceToggleKeys={voiceToggleKeys}
-        cancelButton={cancelButton}
-      />
-    ),
-    [
-      buttonIconSize,
-      cancelButton,
-      handleToggleRealtimeVoice,
-      hasAgent,
-      hasSendableContent,
-      isAgentRunning,
-      isConnected,
-      isProcessing,
-      isVoiceModeForAgent,
-      isVoiceSwitchingValue,
-      realtimeVoiceButtonStyle,
-      voiceToggleKeys,
-    ],
-  );
-
-  const { contextWindowMaxTokens, contextWindowUsedTokens } = resolveContextWindowValues(
-    agentState.contextWindowMaxTokens,
-    agentState.contextWindowUsedTokens,
-  );
-
-  const beforeVoiceContent = useMemo(
-    () => renderContextWindowMeterSlot(contextWindowMaxTokens, contextWindowUsedTokens),
-    [contextWindowMaxTokens, contextWindowUsedTokens],
-  );
+  const rightContent = useMemo(() => cancelButton, [cancelButton]);
 
   const githubSearchQueryTrimmed = githubSearchQuery.trim();
   const githubSearchResultsQuery = useQuery(
@@ -1628,7 +1377,7 @@ export function Composer({
             {autocompletePopover}
             {attachmentPreviewList}
 
-            {/* MessageInput handles everything: text, dictation, attachments, all buttons */}
+            {/* MessageInput handles everything: text, attachments, all buttons */}
             <StableMessageInput
               ref={messageInputRef}
               value={userInput}
@@ -1646,17 +1395,13 @@ export function Composer({
               onAttachButtonRef={handleAttachButtonRef}
               onAddImages={addImages}
               client={client}
-              isReadyForDictation={isDictationReady}
               placeholder={messagePlaceholder}
               autoFocus={messageInputAutoFocus}
               autoFocusKey={`${serverId}:${agentId}`}
               disabled={isSubmitLoading}
               isPaneFocused={isPaneFocused}
               leftContent={leftContent}
-              beforeVoiceContent={beforeVoiceContent}
               rightContent={rightContent}
-              voiceServerId={serverId}
-              voiceAgentId={agentId}
               isAgentRunning={isAgentRunning}
               defaultSendBehavior={appSettings.sendBehavior}
               onQueue={handleQueue}
@@ -1737,31 +1482,6 @@ const styles = StyleSheet.create((theme: Theme) => ({
     alignItems: "center",
     justifyContent: "center",
     marginLeft: theme.spacing[1],
-  },
-  rightControls: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[1],
-  },
-  contextWindowMeterSlot: {
-    width: 28,
-    height: 28,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  realtimeVoiceButton: {
-    width: 28,
-    height: 28,
-    borderRadius: theme.borderRadius.full,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  realtimeVoiceButtonActive: {
-    backgroundColor: theme.colors.palette.green[600],
-    borderColor: theme.colors.palette.green[800],
-  },
-  iconButtonHovered: {
-    backgroundColor: theme.colors.surface2,
   },
   attachmentPreviewContainer: {
     flexDirection: "row",
@@ -1862,7 +1582,6 @@ const QUEUE_SEND_BUTTON_STYLE = [styles.queueActionButton, styles.queueSendButto
 const ThemedPencil = withUnistyles(Pencil);
 const ThemedGitPullRequest = withUnistyles(GitPullRequest);
 const ThemedCircleDot = withUnistyles(CircleDot);
-const ThemedAudioLines = withUnistyles(AudioLines);
 const ThemedPaperclip = withUnistyles(Paperclip);
 const ThemedGithub = withUnistyles(Github);
 
