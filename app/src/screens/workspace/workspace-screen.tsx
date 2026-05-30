@@ -2099,7 +2099,7 @@ function WorkspaceScreenContent({
           sessionId: providerSessionId,
         }) ?? null;
       if (!command) {
-        toast.error("Resume command not available");
+        toast.show("Resume command not available");
         return;
       }
       try {

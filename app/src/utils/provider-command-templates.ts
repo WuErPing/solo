@@ -20,6 +20,9 @@ export const PROVIDER_COMMAND_TEMPLATES: Record<
   kimi: {
     resume: "kimi --resume {sessionId}",
   },
+  opencode: {
+    resume: "opencode --session {sessionId}",
+  },
 };
 
 function renderTemplate(template: string, vars: Record<string, string>): string {
