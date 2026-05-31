@@ -523,13 +523,28 @@ func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, tex
 			}
 		})
 		defer watchdog.Stop()
-		_, err := session.Run(ctx, text, images, attachments, messageID)
+		result, err := session.Run(ctx, text, images, attachments, messageID)
 		m.stallMonitor.UnregisterAgent(agentID)
 		m.refreshSessionMetadata(ctx, agent, session)
 		if err != nil {
-			agent.SetError(err.Error())
-			m.storage.ApplySnapshot(agent)
-			m.emitState(agent)
+			// A canceled turn is not an error state. The event stream path already
+			// applied idle via turn_canceled; if that was missed, apply it here.
+			if result != nil && result.Canceled {
+				if agent.Lifecycle == protocol.AgentRunning {
+					agent.SetLifecycle(protocol.AgentIdle)
+					m.storage.ApplySnapshot(agent)
+					m.emitState(agent)
+				}
+				return
+			}
+			// If the event stream path already applied a terminal state (idle or
+			// error), don't overwrite it. This prevents the Run-return path from
+			// racing with applyTerminalStreamState.
+			if agent.Lifecycle == protocol.AgentRunning {
+				agent.SetError(err.Error())
+				m.storage.ApplySnapshot(agent)
+				m.emitState(agent)
+			}
 			return
 		}
 		agent.SetLifecycle(protocol.AgentIdle)
