@@ -406,7 +406,7 @@ func (m *FetchAgentHistoryResponse) MsgType() string { return "fetch_agent_histo
 // ProviderSnapshotEntry
 type ProviderSnapshotEntry struct {
 	Provider      string                 `json:"provider"`
-	Status        ProviderStatus         `json:"status"`
+	Status        string                 `json:"status"`
 	Enabled       bool                   `json:"enabled,omitempty"`
 	Error         string                 `json:"error,omitempty"`
 	Models        []AgentModelDefinition `json:"models,omitempty"`

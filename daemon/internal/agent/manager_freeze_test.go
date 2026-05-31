@@ -4,6 +4,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/WuErPing/solo/protocol"
 )
 
 // TestSubscribeToSession_CriticalEventFallback_WhenWorkChFull verifies that
@@ -16,7 +18,7 @@ import (
 // Before the fix: workCh <- event for critical events has no timeout, so the
 // drain goroutine blocks indefinitely when workCh is full. The dispatcher's
 // 500ms subscriberCriticalTimeout fires first and silently drops turn_completed.
-// The agent is forever stuck in LifecycleRunning.
+// The agent is forever stuck in protocol.AgentRunning.
 func TestSubscribeToSession_CriticalEventFallback_WhenWorkChFull(t *testing.T) {
 	origCap := workChCapacity.Load()
 	origTimeout := criticalWorkChSendTimeout
@@ -43,7 +45,7 @@ func TestSubscribeToSession_CriticalEventFallback_WhenWorkChFull(t *testing.T) {
 	ag := &ManagedAgent{
 		ID:          "freeze-test-agent",
 		Provider:    "mock",
-		Lifecycle:   LifecycleRunning,
+		Lifecycle:   protocol.AgentRunning,
 		Session:     mockSession,
 		subscribers: make(map[uint64]AgentEventFunc),
 	}
@@ -79,7 +81,7 @@ func TestSubscribeToSession_CriticalEventFallback_WhenWorkChFull(t *testing.T) {
 		ag.mu.RLock()
 		lc := ag.Lifecycle
 		ag.mu.RUnlock()
-		if lc == LifecycleIdle {
+		if lc == protocol.AgentIdle {
 			return
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -106,7 +108,7 @@ func TestSubscribeToSession_OpenCodeTerminalEventFallback_WhenWorkChFull(t *test
 	ag := &ManagedAgent{
 		ID:          "opencode-freeze-test-agent",
 		Provider:    opencodeProviderName,
-		Lifecycle:   LifecycleRunning,
+		Lifecycle:   protocol.AgentRunning,
 		Session:     mockSession,
 		subscribers: make(map[uint64]AgentEventFunc),
 	}
@@ -145,7 +147,7 @@ func TestSubscribeToSession_OpenCodeTerminalEventFallback_WhenWorkChFull(t *test
 		ag.mu.RLock()
 		lc := ag.Lifecycle
 		ag.mu.RUnlock()
-		if lc == LifecycleIdle {
+		if lc == protocol.AgentIdle {
 			return
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -184,7 +186,7 @@ func TestSubscribeToSession_SlowSubscriberDoesNotStallWorkCh(t *testing.T) {
 	ag := &ManagedAgent{
 		ID:          "slow-sub-test-agent",
 		Provider:    "mock",
-		Lifecycle:   LifecycleRunning,
+		Lifecycle:   protocol.AgentRunning,
 		Session:     mockSession,
 		subscribers: make(map[uint64]AgentEventFunc),
 	}
@@ -221,7 +223,7 @@ func TestSubscribeToSession_SlowSubscriberDoesNotStallWorkCh(t *testing.T) {
 		ag.mu.RLock()
 		lc := ag.Lifecycle
 		ag.mu.RUnlock()
-		if lc == LifecycleIdle {
+		if lc == protocol.AgentIdle {
 			return
 		}
 		time.Sleep(20 * time.Millisecond)

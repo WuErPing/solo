@@ -84,17 +84,17 @@ func TestManagedAgentSubscribeAndEmit(t *testing.T) {
 func TestManagedAgentIsBusy(t *testing.T) {
 	agent := NewManagedAgent("a1", "mock", "/tmp", nil, nil)
 
-	agent.Lifecycle = LifecycleIdle
+	agent.Lifecycle = protocol.AgentIdle
 	if agent.IsBusy() {
 		t.Error("expected not busy when idle")
 	}
 
-	agent.Lifecycle = LifecycleInitializing
+	agent.Lifecycle = protocol.AgentInitializing
 	if !agent.IsBusy() {
 		t.Error("expected busy when initializing")
 	}
 
-	agent.Lifecycle = LifecycleRunning
+	agent.Lifecycle = protocol.AgentRunning
 	if !agent.IsBusy() {
 		t.Error("expected busy when running")
 	}

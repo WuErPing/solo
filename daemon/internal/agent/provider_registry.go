@@ -179,7 +179,7 @@ func (r *ProviderRegistry) ToProviderSnapshotEntries() []protocol.ProviderSnapsh
 	for _, def := range defs {
 		entry := protocol.ProviderSnapshotEntry{
 			Provider:      def.ID,
-			Status:        protocol.ProviderReady,
+			Status:        "ready",
 			Enabled:       true,
 			Label:         def.Label,
 			Description:   def.Description,
@@ -188,11 +188,11 @@ func (r *ProviderRegistry) ToProviderSnapshotEntries() []protocol.ProviderSnapsh
 
 		if err, ok := avail[def.ID]; ok {
 			if err != nil {
-				entry.Status = protocol.ProviderUnavailable
+				entry.Status = "unavailable"
 				entry.Error = err.Error()
 			}
 		} else {
-			entry.Status = protocol.ProviderUnavailable
+			entry.Status = "unavailable"
 			entry.Error = "not registered"
 		}
 
@@ -220,7 +220,7 @@ func (r *ProviderRegistry) ToProviderSnapshotEntries() []protocol.ProviderSnapsh
 		}
 
 		// For providers with no static models (e.g. OpenCode), fetch live models
-		if len(models) == 0 && entry.Status == protocol.ProviderReady {
+		if len(models) == 0 && entry.Status == "ready" {
 			r.mu.RLock()
 			client, clientOK := r.clients[def.ID]
 			r.mu.RUnlock()

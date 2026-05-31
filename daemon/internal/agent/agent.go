@@ -8,17 +8,6 @@ import (
 	"github.com/WuErPing/solo/protocol"
 )
 
-// AgentLifecycle represents the lifecycle state of a managed agent.
-type AgentLifecycle string
-
-const (
-	LifecycleInitializing AgentLifecycle = "initializing"
-	LifecycleIdle         AgentLifecycle = "idle"
-	LifecycleRunning      AgentLifecycle = "running"
-	LifecycleError        AgentLifecycle = "error"
-	LifecycleClosed       AgentLifecycle = "closed"
-)
-
 // AttentionState tracks whether an agent requires user attention.
 type AttentionState struct {
 	Requires  bool
@@ -39,7 +28,7 @@ type ManagedAgent struct {
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 
-	Lifecycle         AgentLifecycle
+	Lifecycle         protocol.AgentStatus
 	CurrentModeID     *string
 	AvailableModes    []protocol.AgentMode
 	Features          []protocol.AgentFeature
@@ -80,7 +69,7 @@ func NewManagedAgent(id string, provider string, cwd string, config *protocol.Ag
 		Config:             config,
 		CreatedAt:          now,
 		UpdatedAt:          now,
-		Lifecycle:          LifecycleInitializing,
+		Lifecycle:          protocol.AgentInitializing,
 		Labels:             labels,
 		PendingPermissions: make(map[string]interface{}),
 		subscribers:        make(map[uint64]AgentEventFunc),
@@ -88,7 +77,7 @@ func NewManagedAgent(id string, provider string, cwd string, config *protocol.Ag
 }
 
 // SetLifecycle transitions the agent to a new lifecycle state.
-func (a *ManagedAgent) SetLifecycle(lifecycle AgentLifecycle) {
+func (a *ManagedAgent) SetLifecycle(lifecycle protocol.AgentStatus) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.Lifecycle = lifecycle
@@ -142,7 +131,7 @@ func (a *ManagedAgent) SetError(err string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.LastError = &err
-	a.Lifecycle = LifecycleError
+	a.Lifecycle = protocol.AgentError
 	a.UpdatedAt = time.Now()
 }
 
@@ -344,7 +333,7 @@ func (a *ManagedAgent) Emit(event AgentEvent) {
 func (a *ManagedAgent) IsBusy() bool {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	return a.Lifecycle == LifecycleInitializing || a.Lifecycle == LifecycleRunning
+	return a.Lifecycle == protocol.AgentInitializing || a.Lifecycle == protocol.AgentRunning
 }
 
 // GetSession returns the current session under the read lock.

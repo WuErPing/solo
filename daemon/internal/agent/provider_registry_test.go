@@ -125,12 +125,12 @@ func TestProviderRegistry_ToProviderSnapshotEntries(t *testing.T) {
 	for _, e := range entries {
 		if e.Provider == "claude" {
 			foundClaude = true
-			if e.Status != protocol.ProviderReady {
+			if e.Status != "ready" {
 				t.Errorf("expected claude ready, got %q", e.Status)
 			}
 		}
 		if e.Provider == "opencode" {
-			if e.Status != protocol.ProviderUnavailable {
+			if e.Status != "unavailable" {
 				t.Errorf("expected opencode unavailable, got %q", e.Status)
 			}
 		}

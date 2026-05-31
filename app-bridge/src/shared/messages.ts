@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AGENT_LIFECYCLE_STATUSES } from "./agent-lifecycle.js";
+import { AGENT_STATUSES } from "./agent-lifecycle.js";
 import { MAX_EXPLICIT_AGENT_TITLE_CHARS } from "../server/agent/agent-title-limits.js";
 import { AgentProviderSchema } from "../server/agent/provider-manifest.js";
 import { TOOL_CALL_ICON_NAMES } from "../server/agent/agent-sdk-types.js";
@@ -128,7 +128,7 @@ import type {
   AgentUsage,
 } from "../server/agent/agent-sdk-types.js";
 
-export const AgentStatusSchema = z.enum(AGENT_LIFECYCLE_STATUSES);
+export const AgentStatusSchema = z.enum(AGENT_STATUSES);
 
 const AgentModeSchema: z.ZodType<AgentMode> = z.object({
   id: z.string(),

@@ -121,7 +121,7 @@ func TestAgentManager_EmitAttentionRequired_OnTurnFailed(t *testing.T) {
 	}
 
 	// Verify error state
-	if ag.Lifecycle != LifecycleError {
+	if ag.Lifecycle != protocol.AgentError {
 		t.Errorf("expected lifecycle error, got %s", ag.Lifecycle)
 	}
 }

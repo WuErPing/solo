@@ -3,6 +3,8 @@ package agent
 import (
 	"testing"
 	"time"
+
+	"github.com/WuErPing/solo/protocol"
 )
 
 // TestAgentManager_DroppedEventCount_StartsAtZero verifies the counter
@@ -36,7 +38,7 @@ func TestAgentManager_DroppedEventCount_IncrementOnDrop(t *testing.T) {
 	ag := &ManagedAgent{
 		ID:        "drop-test-agent",
 		Provider:  "mock",
-		Lifecycle: LifecycleRunning,
+		Lifecycle: protocol.AgentRunning,
 		Session:   mockSession,
 	}
 

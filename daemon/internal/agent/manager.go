@@ -260,7 +260,7 @@ func (m *AgentManager) CreateAgent(ctx context.Context, config *protocol.AgentSe
 	}
 
 	// Transition to idle
-	agent.SetLifecycle(LifecycleIdle)
+	agent.SetLifecycle(protocol.AgentIdle)
 
 	// Store in memory
 	m.mu.Lock()
@@ -319,7 +319,7 @@ func (m *AgentManager) ResumeAgentFromPersistence(ctx context.Context, handle *p
 		ag.Persistence = effectiveHandle
 	}
 	m.refreshSessionMetadata(ctx, ag, session)
-	ag.SetLifecycle(LifecycleIdle)
+	ag.SetLifecycle(protocol.AgentIdle)
 
 	m.mu.Lock()
 	m.agents[agentID] = ag
@@ -385,12 +385,12 @@ func (m *AgentManager) ListAllAgents() []*ManagedAgent {
 }
 
 // HasRunningAgentsWithRecentProgress returns true if any agent is
-// LifecycleRunning AND has produced a stream event within the stall monitor's
+// protocol.AgentRunning AND has produced a stream event within the stall monitor's
 // inactivity threshold. Used by the session grace-period logic to avoid
 // extending grace for agents that are stuck but still report "running".
 func (m *AgentManager) HasRunningAgentsWithRecentProgress() bool {
 	for _, ag := range m.ListAgents() {
-		if ag.Lifecycle == LifecycleRunning && m.stallMonitor.HasRecentProgress(ag.ID) {
+		if ag.Lifecycle == protocol.AgentRunning && m.stallMonitor.HasRecentProgress(ag.ID) {
 			return true
 		}
 	}
@@ -410,7 +410,7 @@ func (m *AgentManager) DeleteAgent(agentID string) error {
 		sess.Close()
 	}
 
-	agent.SetLifecycle(LifecycleClosed)
+	agent.SetLifecycle(protocol.AgentClosed)
 	agent.SetSession(nil)
 
 	m.storage.BeginDelete(agentID)
@@ -439,7 +439,7 @@ func (m *AgentManager) ArchiveAgent(agentID string) error {
 		agent.SetSession(nil)
 	}
 
-	agent.SetLifecycle(LifecycleClosed)
+	agent.SetLifecycle(protocol.AgentClosed)
 	now := timeNowUTC().Format(time.RFC3339)
 	agent.mu.Lock()
 	agent.ArchivedAt = &now
@@ -486,13 +486,13 @@ func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, tex
 	}
 
 	// Prevent concurrent turns across all providers
-	if agent.Lifecycle == LifecycleRunning {
+	if agent.Lifecycle == protocol.AgentRunning {
 		return fmt.Errorf("agent %s is already running", agentID)
 	}
 
 	session := agent.GetSession()
 
-	agent.SetLifecycle(LifecycleRunning)
+	agent.SetLifecycle(protocol.AgentRunning)
 	now := time.Now()
 	agent.LastUserMessageAt = &now
 	agent.ClearAttentionUnlessPermission()
@@ -532,7 +532,7 @@ func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, tex
 			m.emitState(agent)
 			return
 		}
-		agent.SetLifecycle(LifecycleIdle)
+		agent.SetLifecycle(protocol.AgentIdle)
 		agent.SetAttention(true, "finished")
 		m.storage.ApplySnapshot(agent)
 		m.emitState(agent)
@@ -585,7 +585,7 @@ func (m *AgentManager) ensureAgentSession(ctx context.Context, agent *ManagedAge
 	agent.Config = config
 	agent.SetSession(session)
 	agent.Persistence = attachPersistenceMetadata(session.DescribePersistence(), agent.Cwd, config)
-	agent.SetLifecycle(LifecycleIdle)
+	agent.SetLifecycle(protocol.AgentIdle)
 	m.agents[agent.ID] = agent
 	m.mu.Unlock()
 
@@ -876,7 +876,7 @@ func (m *AgentManager) subscribeToSession(agent *ManagedAgent) {
 			// send here would block the dispatcher drain goroutine. The
 			// dispatcher's subscriberCriticalTimeout (500ms) would then fire
 			// and silently drop turn_completed, leaving the agent stuck in
-			// LifecycleRunning forever.
+			// protocol.AgentRunning forever.
 			// Fallback: apply terminal state directly, bypassing workCh.
 			select {
 			case workCh <- event:
@@ -1014,7 +1014,7 @@ func (m *AgentManager) applyTerminalStreamState(agent *ManagedAgent, event Agent
 			agent.LastUsage = usage
 			agent.mu.Unlock()
 		}
-		agent.SetLifecycle(LifecycleIdle)
+		agent.SetLifecycle(protocol.AgentIdle)
 		agent.SetAttention(true, "finished")
 		m.emitAttentionRequired(agent, "finished")
 	case "turn_failed":
@@ -1027,7 +1027,7 @@ func (m *AgentManager) applyTerminalStreamState(agent *ManagedAgent, event Agent
 		m.emitAttentionRequired(agent, "error")
 	case "turn_canceled":
 		m.stallMonitor.UnregisterAgent(agent.ID)
-		agent.SetLifecycle(LifecycleIdle)
+		agent.SetLifecycle(protocol.AgentIdle)
 	default:
 		return false
 	}
@@ -1135,7 +1135,7 @@ func recordToManagedAgent(r *StoredAgentRecord) *ManagedAgent {
 		RuntimeInfo:   storedToRuntimeInfo(r.RuntimeInfo),
 		CreatedAt:     createdAt,
 		UpdatedAt:     updatedAt,
-		Lifecycle:     AgentLifecycle(r.LastStatus),
+		Lifecycle:     protocol.AgentStatus(r.LastStatus),
 		CurrentModeID: r.LastModeID,
 		Features:      r.Features,
 		Persistence:   r.Persistence,

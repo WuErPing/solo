@@ -15,16 +15,31 @@ const (
 	RelayProtocolVersion = "2"
 )
 
-// AgentLifecycleStatus represents the possible lifecycle states of an agent.
-type AgentLifecycleStatus string
+// AgentStatus represents the possible lifecycle states of an agent.
+// This is the canonical type used across all layers.
+type AgentStatus string
 
 const (
-	AgentInitializing AgentLifecycleStatus = "initializing"
-	AgentIdle         AgentLifecycleStatus = "idle"
-	AgentRunning      AgentLifecycleStatus = "running"
-	AgentError        AgentLifecycleStatus = "error"
-	AgentClosed       AgentLifecycleStatus = "closed"
+	AgentInitializing AgentStatus = "initializing"
+	AgentIdle         AgentStatus = "idle"
+	AgentRunning      AgentStatus = "running"
+	AgentError        AgentStatus = "error"
+	AgentClosed       AgentStatus = "closed"
 )
+
+// IsTerminal returns true for states that cannot transition to other states.
+func (s AgentStatus) IsTerminal() bool {
+	return s == AgentError || s == AgentClosed
+}
+
+// IsActive returns true for states where the agent is ready to perform work.
+func (s AgentStatus) IsActive() bool {
+	return s == AgentRunning || s == AgentIdle
+}
+
+// AgentLifecycleStatus is a backward-compatible alias for AgentStatus.
+// Deprecated: use AgentStatus directly.
+type AgentLifecycleStatus = AgentStatus
 
 // ClientType identifies the type of client connecting.
 type ClientType string
@@ -36,12 +51,10 @@ const (
 	ClientMCP     ClientType = "mcp"
 )
 
-// ProviderStatus represents the availability status of an agent provider.
-type ProviderStatus string
-
+// Provider availability constants (used as plain strings in ProviderSnapshotEntry).
 const (
-	ProviderReady       ProviderStatus = "ready"
-	ProviderLoading     ProviderStatus = "loading"
-	ProviderError       ProviderStatus = "error"
-	ProviderUnavailable ProviderStatus = "unavailable"
+	ProviderReady       = "ready"
+	ProviderLoading     = "loading"
+	ProviderError       = "error"
+	ProviderUnavailable = "unavailable"
 )

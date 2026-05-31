@@ -1,4 +1,4 @@
-export const AGENT_LIFECYCLE_STATUSES = [
+export const AGENT_STATUSES = [
   "initializing",
   "idle",
   "running",
@@ -6,4 +6,7 @@ export const AGENT_LIFECYCLE_STATUSES = [
   "closed",
 ] as const;
 
-export type AgentLifecycleStatus = (typeof AGENT_LIFECYCLE_STATUSES)[number];
+export type AgentStatus = (typeof AGENT_STATUSES)[number];
+
+// Backward-compatible alias
+export type AgentLifecycleStatus = AgentStatus;
