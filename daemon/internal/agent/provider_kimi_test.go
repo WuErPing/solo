@@ -40,7 +40,7 @@ func TestKimiAgentClient_IsAvailable_BinaryNotFound(t *testing.T) {
 func TestKimiAgentClient_IsAvailable_BinaryFound(t *testing.T) {
 	// Create a temporary executable file to simulate kimi binary.
 	tmpDir := t.TempDir()
-	fakeBinary := filepath.Join(tmpDir, "kimi")
+	fakeBinary := filepath.Join(tmpDir, "kimi-cli")
 	if err := os.WriteFile(fakeBinary, []byte("#!/bin/sh\necho ok"), 0755); err != nil {
 		t.Fatalf("failed to create fake binary: %v", err)
 	}

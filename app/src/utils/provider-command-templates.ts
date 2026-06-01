@@ -18,7 +18,7 @@ export const PROVIDER_COMMAND_TEMPLATES: Record<
     resume: "claude --resume {sessionId}",
   },
   kimi: {
-    resume: "kimi --resume {sessionId}",
+    resume: "kimi-cli --resume {sessionId}",
   },
   opencode: {
     resume: "opencode --session {sessionId}",

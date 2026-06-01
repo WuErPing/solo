@@ -28,10 +28,10 @@ type KimiAgentClient struct {
 // NewKimiAgentClient creates a new Kimi agent client.
 func NewKimiAgentClient(binaryPath string, logger *slog.Logger) *KimiAgentClient {
 	if binaryPath == "" {
-		if p, err := base.FindBinary("kimi", "KIMI_PATH", []string{
-			"$HOME/.local/bin/kimi",
-			"/usr/local/bin/kimi",
-			"/opt/homebrew/bin/kimi",
+		if p, err := base.FindBinary("kimi-cli", "KIMI_PATH", []string{
+			"$HOME/.local/bin/kimi-cli",
+			"/usr/local/bin/kimi-cli",
+			"/opt/homebrew/bin/kimi-cli",
 		}); err == nil {
 			binaryPath = p
 		}
