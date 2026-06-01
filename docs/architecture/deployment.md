@@ -1,5 +1,7 @@
 # 部署架构
 
+> **Note**: Dockerfile, docker-compose.yml, nginx.conf, and systemd `.service` files are **not** currently tracked in this repository. Relay is deployed manually via `make deploy-solo-relay` (scp + systemctl restart). Mobile builds use EAS (Expo Application Services).
+
 ## 目录
 
 - [开发环境](#开发环境)

@@ -20,7 +20,7 @@ const (
 )
 
 // FileTurnRecorder persists turns as markdown files under
-// <BaseDir>/<root>/sessions/{YYYY-MM}/{sessionID}/turns/{seq:04d}-{role}.md
+// <BaseDir>/<root>/sessions/{YYYY-MM-DD}/{sessionID}/turns/{seq:04d}-{role}.md
 // and maintains a sessions.jsonl index at <BaseDir>/<root>/sessions.jsonl.
 //
 // In production, BaseDir is SoloHome (~/.solo) and root defaults to "memory",
@@ -200,8 +200,8 @@ func (r *FileTurnRecorder) drainFlushReqs() {
 // persistTurn writes one turn file and (on first sight) its session index
 // entry. Errors are swallowed here; M5 wires them into metrics.
 func (r *FileTurnRecorder) persistTurn(turn memory.Turn) {
-	ym := turn.Ts.Format("2006-01")
-	turnsDir := filepath.Join(r.cfg.BaseDir, r.cfg.Root, "sessions", ym, turn.SessionID, "turns")
+	ymd := turn.Ts.Format("2006-01-02")
+	turnsDir := filepath.Join(r.cfg.BaseDir, r.cfg.Root, "sessions", ymd, turn.SessionID, "turns")
 	if err := os.MkdirAll(turnsDir, dirPerm); err != nil {
 		return
 	}

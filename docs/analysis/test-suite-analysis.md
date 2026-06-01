@@ -12,11 +12,11 @@
 
 | Module | 语言 | 测试文件数 | 框架 | 测试类型 |
 |--------|------|-----------|------|---------|
-| `app/` | TS/TSX | ~366 | Vitest + Playwright | 单元、Browser、E2E |
-| `daemon/` | Go | ~80 | `testing` | 单元、集成 |
-| `relay-go/` | Go | ~6 | `testing` | 单元、E2E（加密一致性） |
-| `protocol/` | Go | ~1 | `testing` | 单元 |
-| `cli/` | Go | ~10 | `testing` | 单元 |
+| `app/` | TS/TSX | **207** | Vitest + Playwright | 单元、Browser、E2E |
+| `daemon/` | Go | **129** | `testing` | 单元、集成 |
+| `relay-go/` | Go | **8** | `testing` | 单元、E2E（加密一致性） |
+| `protocol/` | Go | **4** | `testing` | 单元 |
+| `cli/` | Go | **13** | `testing` | 单元 |
 | `packages/highlight/` | TS | 3 | Vitest | 单元 |
 | `app-bridge/` | TS | **3** | Vitest | 单元（新增） |
 | `app/maestro/` | YAML | ~20 | Maestro | 移动端 E2E（手动） |
@@ -32,7 +32,7 @@
 - **Vitest v3.2.4**：双项目配置
   - `unit` — Node 环境，`src/**/*.{test,spec}.{ts,tsx}`（排除 browser/e2e）
   - `browser` — 真实 Chromium（Playwright），`src/**/*.browser.{test,spec}.{ts,tsx}`
-- **Playwright E2E**：22 个 `.spec.ts`，自定义 `globalSetup`（自举 daemon + relay + Metro）
+- **Playwright E2E**：**30** 个 `.spec.ts`，自定义 `globalSetup`（自举 daemon + relay + Metro）
 - `vitest.setup.ts`：大量 React Native 生态 shim（unistyles、svg、expo-linking、xterm 等）
 - `pool: "forks"`：绕过 `process.send` 在 worker_threads 中的 stub 问题
 
@@ -70,10 +70,10 @@
 
 | 指标 | 数值 | 在 CI 中执行？ |
 |------|------|--------------|
-| app 单元测试 | ~366 文件 | ✅ 是 |
+| app 单元测试 | **207** 文件 | ✅ 是 |
 | app browser 测试 | 1 文件 | ❌ 否 |
-| Playwright E2E | 29 文件 | ⚠️ nightly |
-| Go 测试 | ~88 文件 | ✅ 是 |
+| Playwright E2E | **30** 文件 | ⚠️ nightly |
+| Go 测试 | **154** 文件 | ✅ 是 |
 | packages/highlight | 3 文件 | ✅ 是 |
 | app-bridge 测试 | 3 文件 | ✅ 是 |
 
@@ -171,9 +171,9 @@
 ### 5.1 TDD 实施过程
 
 **P0-1: CI 加入 app 单元测试**
-- 步骤 1（红）：观察现状 — app 有 366 个测试文件，CI 中未执行
+- 步骤 1（红）：观察现状 — app 有 207 个测试文件，CI 中未执行
 - 步骤 2（绿）：修改 `.github/workflows/ci.yml` 加入 `Test app (unit)` 步骤
-- 步骤 3（验证）：本地运行 `cd app && npm run test` → 203 passed, 1282 tests, 0 failures
+- 步骤 3（验证）：本地运行 `cd app && npm run test` → tests passed, 0 failures
 
 **P0-2: typecheck 强制**
 - 步骤 1（红）：运行 `cd app && npx tsc --noEmit` → 38 errors

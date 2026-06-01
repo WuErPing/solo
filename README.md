@@ -166,7 +166,7 @@ See [`docs/providers/`](docs/providers/) for provider integration research and p
 
 The daemon persists every user/assistant turn of every session to disk as Markdown with YAML frontmatter, giving you a local, queryable transcript of everything Solo has done.
 
-- **Storage**: `~/.solo/memory/sessions/{YYYY-MM}/{sessionID}/turns/{seq:04d}-{role}.md`
+- **Storage**: `~/.solo/memory/sessions/{YYYY-MM-DD}/{sessionID}/turns/{seq:04d}-{role}.md`
 - **Index**: `~/.solo/memory/sessions.jsonl` (one JSONL line per session)
 - **Streaming**: an assistant streaming response is coalesced into a **single** `assistant.md` per logical turn — you never end up with dozens of files for one answer.
 - **Redaction**: OpenAI / GitHub / Anthropic / AWS tokens and common env-file secrets are replaced with `[redacted:<reason>]` before writing.

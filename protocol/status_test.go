@@ -62,8 +62,8 @@ func TestAgentStatusIsActive(t *testing.T) {
 
 func TestAgentLifecycleStatusAlias(t *testing.T) {
 	// AgentLifecycleStatus is an alias of AgentStatus; assignments should work both ways
-	var als AgentLifecycleStatus = AgentIdle
-	var as AgentStatus = als
+	var als = AgentIdle
+	var as = als
 	if as != AgentIdle {
 		t.Errorf("alias round-trip failed: got %q", as)
 	}

@@ -1,6 +1,6 @@
 # Solo - 产品功能详细分析
 
-> 分析日期：2026-05-25
+> 分析日期：2026-06-01
 > 仓库：/Users/wuerping/code/wuerping/solo
 > 版本：v0.1.0
 
@@ -26,14 +26,16 @@
 - **会话恢复**：从 persistence handle 恢复 Agent 状态
 
 #### 1.2 多 Provider 支持
-当前内置 4 个 Provider（+ Mock 测试用）：
+当前内置 5 个 Provider（+ Mock 测试用）：
 - **Claude**：通过 CLI `--print --output-format stream-json` 集成
 - **Kimi**：Wire 模式 (`kimi --wire`)，JSON-RPC 2.0 stdio 通信，EventPump 事件泵，动态读取 `~/.kimi/config.toml` 模型列表（758 LOC，23 个单元测试）
 - **OpenCode**：SSE `/global/event` 事件流，完整支持 reasoning/thinking
-- **Codex**：仅注册表定义，无后端实现
+- **Pi**：Minimal terminal coding harness
 - **Mock**：测试用 Provider
 
-已移除 Provider：Copilot、PI Direct
+定义但无后端实现：**Codex**
+
+已移除 Provider：Copilot
 缺失 Provider（Paseo 有 9 个）：Generic ACP、ACP Agent、Cursor-Agent（计划中）
 
 #### 1.3 流式事件处理
@@ -172,12 +174,14 @@
 ### 8. 测试覆盖
 
 #### 8.1 测试规模
-- **App 单元测试**：~366 个测试文件，**1282 个测试用例**（Vitest），已接入 CI
+- **App 单元测试**：**207** 个测试文件（Vitest），已接入 CI
 - **App browser 测试**：1 个文件（Chromium via Playwright），未接入 CI
 - **App-bridge 测试**：3 个文件，**32 个测试用例**（Vitest），已接入 CI
-- **Daemon 测试文件**：~80 个（Go），已接入 CI
-- **Relay-go 测试文件**：~6 个（Go），已接入 CI
-- **E2E 测试**：22 个 `.spec.ts`（Playwright），**nightly 运行**
+- **Daemon 测试文件**：**129** 个（Go），已接入 CI
+- **Relay-go 测试文件**：**8** 个（Go），已接入 CI
+- **Protocol 测试文件**：**4** 个（Go），已接入 CI
+- **CLI 测试文件**：**13** 个（Go），已接入 CI
+- **E2E 测试**：**30** 个 `.spec.ts`（Playwright），**nightly 运行**
 - **Maestro 移动端**：~20 个 YAML flow，ad-hoc / 未接入 CI
 
 #### 8.2 关键测试域
@@ -209,17 +213,20 @@
 
 ## 缺失功能（与 Paseo 对比）
 
+### 已实现（此前标记为缺失）
+1. **GitHub 集成**：PR 状态查看、Git diff、分支切换、Workspace git actions
+2. **MCP 服务器**：Daemon 端完整实现，App 端设置页面有 "Automatically inject Solo MCP tools" 开关
+
 ### 高优先级缺失
-1. **GitHub 集成**：开发者工作流核心（Paseo 有 1,911 行实现）
-2. **Chat 系统**：多 Agent 协作场景
-3. **Voice/Speech**：TTS/STT、Dictation、Voice Runtime
-4. **更多 Provider**：Cursor-Agent、Generic ACP、ACP Agent
+1. **Chat 系统**：多 Agent 协作场景
+2. **Voice/Speech**：TTS/STT、Dictation、Voice Runtime（**已显式移除**）
+3. **更多 Provider**：Cursor-Agent、Generic ACP、ACP Agent
 
 ### 中优先级缺失
-5. **Schedule/Cron**：定时任务调度
-6. **Loop**：迭代工作流
-7. **Tasks 系统**：执行顺序管理
-8. **Workspace 归档**：归档管理
+4. **Schedule/Cron**：`app-bridge` 有 RPC schema 和类型定义，无前端 UI 和 Daemon 后端
+5. **Loop**：迭代工作流
+6. **Tasks 系统**：执行顺序管理
+7. **Workspace 归档**：归档管理
 
 ## 技术栈
 
@@ -235,7 +242,7 @@
 - **框架**：React Native / Expo
 - **语言**：TypeScript
 - **状态管理**：React Context + Hooks
-- **测试**：Jest / React Testing Library
+- **测试**：Vitest
 - **样式**：Unistyles
 
 ### 部署

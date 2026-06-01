@@ -145,7 +145,7 @@ daemon/
 
 功能:
 - 将每个 user / assistant turn 持久化为 Markdown + YAML frontmatter
-- 落盘路径：`~/.solo/memory/sessions/{YYYY-MM}/{sessionID}/turns/{seq:04d}-{role}.md`，索引 `~/.solo/memory/sessions.jsonl`
+- 落盘路径：`~/.solo/memory/sessions/{YYYY-MM-DD}/{sessionID}/turns/{seq:04d}-{role}.md`，索引 `~/.solo/memory/sessions.jsonl`
 - 默认开启，opt-out：config.json `"memory": {"enabled": false}`
 
 核心结构:
@@ -177,6 +177,7 @@ relay-go/
 │   └── main.go          # 入口
 └── internal/
     ├── config/          # 配置
+    ├── e2ee/            # 端到端加密
     ├── metrics/         # 指标
     └── relay/           # 核心实现
         ├── server.go    # HTTP/WebSocket 服务器

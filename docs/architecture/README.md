@@ -10,6 +10,7 @@
 - [Timeline Design](timeline-design.md) — Head/Tail stream model, seq gate, bootstrap policy, catch-up
 - [Session Memory Persistence](session-memory-persistence.md) — Turn recording hooks, TurnRecorder interface, file layout, migration path
 - [Agent Stall Detection](agent-stall-detection.md) — Inactivity & repetition detection, grace-period fix, operational tuning
+- [Push Notifications](push-notifications.md) — Push notification architecture and delivery flow
 - [Deployment](deployment.md) — Systemd, Docker, Nginx config, env vars
 
 See also [`../product/session-memory-spec.md`](../product/session-memory-spec.md) for the Phase 1 implementation spec (M1–M6 shipped 2026-05-28).
@@ -67,6 +68,7 @@ See also [`../product/session-memory-spec.md`](../product/session-memory-spec.md
 | **Relay** | `relay-go/` | Go | 连接中继 |
 | **CLI** | `cli/` | Go | 命令行工具 |
 | **Protocol** | `protocol/` | Go | 协议定义 |
+| **Highlight** | `packages/highlight/` | TypeScript | 语法高亮库 |
 
 ## 快速链接
 

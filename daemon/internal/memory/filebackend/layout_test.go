@@ -34,8 +34,8 @@ func TestFileLayout_PathComponents(t *testing.T) {
 		t.Fatalf("Flush: %v", err)
 	}
 
-	// Expected: <projectRoot>/.solo/memory/sessions/2026-05/sess-A/turns/0007-assistant.md
-	want := filepath.Join(proj, "memory", "sessions", "2026-05", "sess-A", "turns", "0007-assistant.md")
+	// Expected: <projectRoot>/.solo/memory/sessions/2026-05-28/sess-A/turns/0007-assistant.md
+	want := filepath.Join(proj, "memory", "sessions", "2026-05-28", "sess-A", "turns", "0007-assistant.md")
 	if _, err := os.Stat(want); err != nil {
 		// Walk to show what we actually produced.
 		var got []string
@@ -66,7 +66,7 @@ func TestFileLayout_DirectoryPermissions(t *testing.T) {
 	}
 
 	turnsDir := filepath.Join(proj, "memory", "sessions",
-		ts.Format("2006-01"), "sess-perm", "turns")
+		ts.Format("2006-01-02"), "sess-perm", "turns")
 	sessionDir := filepath.Dir(turnsDir)
 
 	for _, dir := range []string{turnsDir, sessionDir} {
@@ -95,8 +95,8 @@ func TestFileLayout_FilePermissions(t *testing.T) {
 	_ = r.RecordTurn(ctx, "sess-fmode", turn)
 	_ = r.Flush(ctx)
 
-	ym := ts.Format("2006-01")
-	path := filepath.Join(proj, "memory", "sessions", ym, "sess-fmode", "turns", "0001-user.md")
+	ymd := ts.Format("2006-01-02")
+	path := filepath.Join(proj, "memory", "sessions", ymd, "sess-fmode", "turns", "0001-user.md")
 	info, err := os.Stat(path)
 	if err != nil {
 		t.Fatalf("stat: %v", err)
@@ -128,8 +128,8 @@ func TestFileLayout_DuplicateTurnID_DoesNotOverwrite(t *testing.T) {
 	_ = r.RecordTurn(ctx, "sess-dup", second)
 	_ = r.Flush(ctx)
 
-	ym := ts.Format("2006-01")
-	path := filepath.Join(proj, "memory", "sessions", ym, "sess-dup", "turns", "0001-user.md")
+	ymd := ts.Format("2006-01-02")
+	path := filepath.Join(proj, "memory", "sessions", ymd, "sess-dup", "turns", "0001-user.md")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read: %v", err)
@@ -161,7 +161,7 @@ func TestTurnFile_ContainsFrontmatterFences(t *testing.T) {
 	_ = r.Flush(ctx)
 
 	path := filepath.Join(proj, "memory", "sessions",
-		"2026-05", "sess-fm", "turns", "0001-assistant.md")
+		"2026-05-28", "sess-fm", "turns", "0001-assistant.md")
 	data, _ := os.ReadFile(path)
 	s := string(data)
 

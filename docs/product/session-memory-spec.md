@@ -34,7 +34,7 @@ Phase 1 实现位于 `daemon/internal/memory*` + `daemon/internal/memorysetup` +
 
 ## Where data lives
 
-Turn 文件写在 **`~/.solo/memory/sessions/{YYYY-MM}/{sessionID}/turns/{seq:04d}-{role}.md`**（固定在 SoloHome 下，多项目共享一个 memory 目录）。`sessions.jsonl` 也在同目录。项目根目录**不再**被 memory 功能写入任何文件。
+Turn 文件写在 **`~/.solo/memory/sessions/{YYYY-MM-DD}/{sessionID}/turns/{seq:04d}-{role}.md`**（固定在 SoloHome 下，多项目共享一个 memory 目录）。`sessions.jsonl` 也在同目录。项目根目录**不再**被 memory 功能写入任何文件。
 
 ### 默认行为
 
@@ -172,7 +172,7 @@ var ErrClosed = errors.New("turn recorder closed")
 
 - 内部启动 **1 个 writer goroutine**，从 channel 消费 `Turn`。
 - channel 容量默认 **1024**，满时按配置策略处理（`block` 默认 / `error` 可选）。
-- 写盘路径：`~/.solo/memory/sessions/{YYYY-MM}/{sessionID}/turns/{seq:04d}-{role}.md`（固定在 SoloHome 下）
+- 写盘路径：`~/.solo/memory/sessions/{YYYY-MM-DD}/{sessionID}/turns/{seq:04d}-{role}.md`（固定在 SoloHome 下）
   - 例：`~/.solo/memory/sessions/2026-05/01J.../turns/0003-user.md`
 - 每写一个 turn，更新 `~/.solo/memory/sessions.jsonl`（追加一行 JSON）。
 - 文件存在时**不覆盖**（ULID + seq 天然唯一）。
@@ -425,7 +425,7 @@ Build 失败策略：
 
 ### 9.3 E2E 测试
 
-- 启动真实 daemon + CLI，跑一次 `solo agent run`，断言 `.solo/memory/sessions/{YYYY-MM}/*/turns/` 存在 ≥2 个 turn 文件，frontmatter 可解析，内容非空。
+- 启动真实 daemon + CLI，跑一次 `solo agent run`，断言 `.solo/memory/sessions/{YYYY-MM-DD}/*/turns/` 存在 ≥2 个 turn 文件，frontmatter 可解析，内容非空。
 
 ## 10. 验收标准
 

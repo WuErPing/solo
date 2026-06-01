@@ -4,8 +4,7 @@
 > 仓库：/Users/wuerping/code/wuerping/solo
 > 分析范围：daemon (Go) + app-bridge (TS) + app (React Native)
 >
-> **Status update (2026-05-22)**: Kimi Wire mode provider is now **fully implemented** (`provider_kimi.go`, 758 LOC, 23 tests).
-> Cursor-Agent remains planned.
+> **Status update (2026-06-01)**: Kimi Wire mode provider is **fully implemented** (`provider_kimi.go`, 758 LOC, 23 tests). Pi provider is also **implemented** (`provider_pi.go`). Cursor-Agent remains planned. Codex has registry definition only, no backend implementation.
 
 ---
 
@@ -20,19 +19,21 @@
 
 ## 二、现状深度分析
 
-### 2.1 Kimi — 有定义，无实现
+### 2.1 Kimi — 已实现
 
-#### 已存在的前端定义
+#### 实现概览
 
-- `daemon/internal/agent/provider_registry.go` — `BuiltinProviderDefinitions()` 中包含 `kimi` 的 ID/Label/Modes
-- `app-bridge/src/server/agent/provider-manifest.ts` — `KIMI_MODES` 和 `AGENT_PROVIDER_DEFINITIONS` 已定义
-- `app/src/utils/provider-command-templates.ts` — `kimi --resume {sessionId}` 命令模板
+- ✅ `daemon/internal/agent/provider_kimi.go` — **758 LOC**，Wire 模式，JSON-RPC 2.0 stdio，EventPump 事件泵
+- ✅ `daemon/internal/agent/provider_kimi_test.go` — **23 个单元测试**
+- ✅ `daemon/internal/agent/provider_registry.go` — `BuiltinProviderDefinitions()` 中包含 `kimi` 的 ID/Label/Modes
+- ✅ `app-bridge/src/server/agent/provider-manifest.ts` — `KIMI_MODES` 和 `AGENT_PROVIDER_DEFINITIONS` 已定义
+- ✅ `app/src/utils/provider-command-templates.ts` — `kimi --resume {sessionId}` 命令模板
 
-#### 缺失的后端实现
+#### 历史背景（实现前）
 
-- ❌ `daemon/internal/server/daemon.go` 中**未注册** Kimi 的 `AgentClient`
-- ❌ `daemon/internal/agent/` 下**没有** `provider_kimi.go`
-- ❌ `app/src/components/provider-icons.ts` 和 `icons/` 目录**没有** Kimi 图标
+> 以下内容记录实现前的调研，保留供参考：
+> - `kimi --print --output-format stream-json` 输出完整 JSON（非流式），体验差
+> - 最终选择 `kimi --wire`（JSON-RPC 2.0 over stdin/stdout）实现真正的双向流式通信
 
 #### CLI 调研结果
 

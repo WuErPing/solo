@@ -99,7 +99,7 @@ type Turn struct {
 └── memory/                              # 由 config.memory.root 控制，默认 "memory"
     ├── sessions.jsonl                   # 会话级索引（轻量，便于检索）
     └── sessions/
-        └── {YYYY-MM}/{session-id}/
+        └── {YYYY-MM-DD}/{session-id}/
             └── turns/
                 ├── 0001-user.md
                 ├── 0002-assistant.md
@@ -109,7 +109,7 @@ type Turn struct {
 ### 5.2 设计要点
 
 - **固定在 `~/.solo/` 下**：所有项目共享一个 memory 目录，避免污染项目工作区，也不再需要写入项目级 `.gitignore`
-- **`YYYY-MM/{session-id}/`** 分桶：避免单目录文件爆炸，便于按时间归档与清理
+- **`YYYY-MM-DD/{session-id}/`** 分桶：避免单目录文件爆炸，便于按时间归档与清理
 - **序号前缀 `{seq:04d}-`**（如 `0001-`）：保留天然顺序，比时间戳排序更稳
 - **一个 turn 一个文件**（而非整个 session 一个文件）：
   - 追加安全、并发无锁

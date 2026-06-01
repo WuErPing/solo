@@ -1,7 +1,7 @@
 # Solo — Documentation Index
 
 > **Purpose**: Persistent context base for Solo development, CI/CD, and architecture decisions.
-> **Last updated**: 2026-05-29
+> **Last updated**: 2026-06-01
 
 ---
 
@@ -17,18 +17,27 @@ docs/
 │   ├── data-flow.md                       # Message flows & session lifecycle
 │   ├── deployment.md                      # Deployment, Nginx, Systemd, Docker
 │   ├── network-architecture.md            # Network paths, E2EE, Pairing Link
+│   ├── push-notifications.md              # Push notification architecture
 │   ├── session-memory-persistence.md      # Session turn recording & memory layer design
 │   └── timeline-design.md                 # Head/Tail model, seq gate, deduplication
 ├── product/                               ← Product feature analysis
 │   ├── features.md                        # Full product feature analysis
+│   ├── product-analysis.md                # Optimization & feature suggestions
 │   ├── session-memory-spec.md             # Session memory Phase-1 implementation spec
 │   └── ui-features.md                     # App UI screens, components, hooks
 ├── providers/                             ← AI provider integration research
 │   ├── kimi-wire-vs-acp.md               # Kimi Wire vs ACP protocol comparison
 │   └── kimi-cursor-integration.md         # Kimi & Cursor-Agent integration plan
 └── analysis/                              ← Deep-dive technical analysis
-    ├── host-status-check.md               # Host probe cycle & status machine
-    └── test-suite-analysis.md             # Full test suite inventory, CI gaps, coverage report
+    ├── agent-provider-status-unification.md # Agent/provider status unification design
+    ├── app-agent-status-analysis.md         # App agent status & Copy button logic
+    ├── app-coverage-analysis.md             # App test coverage analysis
+    ├── app-lint-analysis.md                 # App lint capability analysis
+    ├── go-coverage-report.md                # Go backend coverage report
+    ├── host-status-check.md                 # Host probe cycle & status machine
+    ├── lint-capability-plan.md              # Lint tooling capability plan
+    ├── session-timeline-e2e-gaps.md         # Session timeline E2E test gaps
+    └── test-suite-analysis.md               # Full test suite inventory, CI gaps, coverage report
 ```
 
 ---
@@ -62,10 +71,11 @@ Feature inventory and UI/UX analysis.
 | Document | Type | Summary |
 |----------|------|---------|
 | [Product Features](product/features.md) | Analysis | Full feature tree: Agent system, session, workspace, push, relay, CLI, tests, CI/CD |
+| [Product Analysis](product/product-analysis.md) | Analysis | 10 major feature opportunities and 5 quick wins |
 | [Session Memory Spec](product/session-memory-spec.md) | Spec | Phase-1 implementation spec: TurnRecorder interface, FileTurnRecorder, hooks, redaction, tests |
 | [UI Features](product/ui-features.md) | Analysis | Screen map, component catalogue, contexts, hooks, stores, feature checklist |
 
-**Current completion**: ~80-87 %. Main gaps: GitHub integration, voice (TTS/STT), Cursor-Agent / ACP providers.
+**Current completion**: ~80-87 %. Main gaps: Chat system (multi-agent), Cursor-Agent / ACP providers.
 
 ---
 
@@ -78,9 +88,11 @@ AI provider integration research and implementation plans.
 | [Kimi Wire vs ACP](providers/kimi-wire-vs-acp.md) | Comparison | Wire mode recommended for Solo (full Kimi feature set, stdio-only) |
 | [Kimi & Cursor-Agent Integration](providers/kimi-cursor-integration.md) | Implementation plan | Wire mode for Kimi; Print mode for Cursor-Agent; backend Go registration |
 
-**Currently implemented providers**: Claude (print/stream-json), Kimi (Wire mode, JSON-RPC 2.0 stdio), OpenCode (SSE), Codex (definition only), Mock (test).
+**Currently implemented providers**: Claude (print/stream-json), Kimi (Wire mode, JSON-RPC 2.0 stdio), OpenCode (SSE), Pi (minimal terminal harness), Mock (test).
 
-**Removed**: Copilot, Pi. **Planned**: Cursor-Agent (Print mode).
+**Definition only (no backend)**: Codex.
+
+**Removed**: Copilot. **Planned**: Cursor-Agent (Print mode).
 
 ---
 
@@ -90,8 +102,15 @@ Deep dives into specific subsystems.
 
 | Document | Type | Summary |
 |----------|------|---------|
+| [Agent/Provider Status Unification](analysis/agent-provider-status-unification.md) | Design | OCP-based proposal to unify AgentLifecycleStatus, ProviderStatus across layers |
+| [App Agent Status Analysis](analysis/app-agent-status-analysis.md) | Analysis | App agent lifecycle states and Copy button display logic |
+| [App Coverage Analysis](analysis/app-coverage-analysis.md) | Analysis | App test coverage breakdown by module, gaps, and recommendations |
+| [App Lint Analysis](analysis/app-lint-analysis.md) | Analysis | App lint tooling analysis, rules, and capability gaps |
+| [Go Coverage Report](analysis/go-coverage-report.md) | Report | Go backend coverage by module (protocol, cli, daemon, relay-go) |
 | [Host Status Check](analysis/host-status-check.md) | Analysis | Probe cycle (2-30 s), adaptive switching, state machine conflict, grace-period fix |
-| [Test Suite Analysis](analysis/test-suite-analysis.md) | Analysis | Test inventory (~366 app unit, ~80 Go, 22 E2E), CI coverage, Codecov integration |
+| [Lint Capability Plan](analysis/lint-capability-plan.md) | Plan | Lint tooling roadmap and capability gap plan |
+| [Session Timeline E2E Gaps](analysis/session-timeline-e2e-gaps.md) | Analysis | Session timeline E2E test coverage gaps and remediation |
+| [Test Suite Analysis](analysis/test-suite-analysis.md) | Analysis | Test inventory (207 app unit, 154 Go, 30 E2E), CI coverage, Codecov integration |
 
 ---
 
@@ -119,8 +138,8 @@ Deep dives into specific subsystems.
 
 | Layer | Stack |
 |-------|-------|
-| Backend | Go 1.25 · gorilla/websocket · creack/pty · slog |
-| Frontend | Expo 54 · React Native 0.81 · React 19 · TypeScript |
+| Backend | Go 1.25.6 · gorilla/websocket · creack/pty · slog |
+| Frontend | Expo ^54.0.18 · React Native 0.81.5 · React 19.1.0 · TypeScript |
 | State | Zustand · @tanstack/react-query · React Context |
 | Crypto | X25519 + XSalsa20-Poly1305 (E2EE) |
 | Deploy | Systemd · Docker · Nginx + Let's Encrypt |
