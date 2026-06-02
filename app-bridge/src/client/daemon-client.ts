@@ -366,6 +366,10 @@ type ScheduleDeletePayload = Extract<
   SessionOutboundMessage,
   { type: "schedule/delete/response" }
 >["payload"];
+type ScheduleUpdatePayload = Extract<
+  SessionOutboundMessage,
+  { type: "schedule/update/response" }
+>["payload"];
 export type FetchAgentTimelinePayload = FetchAgentTimelineResponseMessage["payload"];
 
 export type FetchAgentTimelineDirection = FetchAgentTimelinePayload["direction"];
@@ -517,6 +521,24 @@ export interface CreateScheduleOptions {
 }
 export interface InspectScheduleOptions {
   id: string;
+  requestId?: string;
+}
+export interface UpdateScheduleOptions {
+  id: string;
+  prompt: string;
+  name?: string | null;
+  cadence:
+    | {
+        type: "every";
+        everyMs: number;
+      }
+    | {
+        type: "cron";
+        expression: string;
+      };
+  target: CreateScheduleOptions["target"];
+  maxRuns?: number;
+  expiresAt?: string;
   requestId?: string;
 }
 type ListAvailableEditorsPayload = ListAvailableEditorsResponseMessage["payload"];
@@ -3578,6 +3600,24 @@ export class DaemonClient {
         scheduleId: options.id,
       },
       responseType: "schedule/delete/response",
+      timeout: 10000,
+    });
+  }
+
+  async scheduleUpdate(options: UpdateScheduleOptions): Promise<ScheduleUpdatePayload> {
+    return this.sendCorrelatedSessionRequest({
+      requestId: options.requestId,
+      message: {
+        type: "schedule/update",
+        scheduleId: options.id,
+        prompt: options.prompt,
+        cadence: options.cadence,
+        target: options.target,
+        ...(options.name ? { name: options.name } : {}),
+        ...(typeof options.maxRuns === "number" ? { maxRuns: options.maxRuns } : {}),
+        ...(options.expiresAt ? { expiresAt: options.expiresAt } : {}),
+      },
+      responseType: "schedule/update/response",
       timeout: 10000,
     });
   }

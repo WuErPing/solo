@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/WuErPing/solo/daemon/internal/config"
 	"github.com/WuErPing/solo/daemon/internal/metrics"
 	"github.com/WuErPing/solo/daemon/internal/push"
+	"github.com/WuErPing/solo/daemon/internal/schedule"
 	"github.com/WuErPing/solo/daemon/internal/terminal"
 	"github.com/WuErPing/solo/daemon/internal/workspace"
 	"github.com/WuErPing/solo/protocol"
@@ -42,6 +44,8 @@ type Session struct {
 	activityTracker ActivityTracker
 	pusher          push.Pusher
 	memoryBridge    MemoryBridge
+	scheduleStore    *schedule.Store
+	scheduleExecutor *schedule.Executor
 
 	workspaces   map[string]*protocol.WorkspaceDescriptor
 	workspacesMu sync.RWMutex
@@ -161,6 +165,7 @@ func NewSession(clientID, clientType string, conn WSConn, cfg *config.Config, lo
 		slotToTerminal: make(map[byte]*terminal.TerminalProcess),
 		terminalToSlot: make(map[string]byte),
 		setupProgress:  make(map[string]*workspace.SetupProgressEvent),
+		scheduleStore:  schedule.NewStore(schedule.WithDataPath(filepath.Join(cfg.SoloHome, "schedules.json"))),
 		done:           make(chan struct{}),
 		gracePeriod:    time.Duration(protocol.SessionDisconnectGraceMs) * time.Millisecond,
 		sendQueue:      newSendQueue(),
@@ -255,6 +260,9 @@ func (s *Session) Run() {
 	// This prevents agent_stream events from being received for agents that
 	// are not yet in the store (which would cause messages to be invisible).
 	s.pushActiveAgents()
+
+	// Start the schedule executor
+	s.startScheduleExecutor()
 
 	// Send provider snapshot
 	s.sendProviderSnapshot()

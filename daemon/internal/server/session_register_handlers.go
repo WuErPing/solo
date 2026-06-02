@@ -91,6 +91,16 @@ func (s *Session) registerHandlers() {
 		m := msg.(*protocol.CheckoutStatusRequest)
 		s.sendRPCError(m.RequestID, m.MsgType(), "not implemented", nil)
 	})
+
+	// --- Schedule handlers (session_schedule.go) ---
+	r.Register("schedule/create", typeHandler(s.handleScheduleCreate))
+	r.Register("schedule/list", typeHandler(s.handleScheduleList))
+	r.Register("schedule/inspect", typeHandler(s.handleScheduleInspect))
+	r.Register("schedule/logs", typeHandler(s.handleScheduleLogs))
+	r.Register("schedule/pause", typeHandler(s.handleSchedulePause))
+	r.Register("schedule/resume", typeHandler(s.handleScheduleResume))
+	r.Register("schedule/delete", typeHandler(s.handleScheduleDelete))
+	r.Register("schedule/update", typeHandler(s.handleScheduleUpdate))
 }
 
 // typeHandler is a helper that converts a typed handler func into a messageHandler.

@@ -68,10 +68,32 @@ export const ScheduleDeleteRequestSchema = z.object({
   scheduleId: z.string(),
 });
 
+export const ScheduleUpdateRequestSchema = z.object({
+  type: z.literal("schedule/update"),
+  requestId: z.string(),
+  scheduleId: z.string(),
+  prompt: z.string().min(1),
+  name: z.string().optional(),
+  cadence: ScheduleCadenceSchema,
+  target: ScheduleCreateTargetSchema,
+  maxRuns: z.number().int().positive().optional(),
+  expiresAt: z.string().optional(),
+});
+
 export const ScheduleCreateResponseSchema = z.object({
   type: z.literal("schedule/create/response"),
   payload: z.object({
     requestId: z.string(),
+    schedule: ScheduleSummarySchema.nullable(),
+    error: z.string().nullable(),
+  }),
+});
+
+export const ScheduleUpdateResponseSchema = z.object({
+  type: z.literal("schedule/update/response"),
+  payload: z.object({
+    requestId: z.string(),
+    scheduleId: z.string(),
     schedule: ScheduleSummarySchema.nullable(),
     error: z.string().nullable(),
   }),

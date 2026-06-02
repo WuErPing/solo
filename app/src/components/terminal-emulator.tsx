@@ -11,7 +11,8 @@ import {
   type PointerEvent as ReactPointerEvent,
   type Ref,
 } from "react";
-import type { DOMProps, useDOMImperativeHandle, DOMImperativeFactory } from "expo/dom";
+import { useDOMImperativeHandle } from "expo/dom";
+import type { DOMProps, DOMImperativeFactory } from "expo/dom";
 import "@xterm/xterm/css/xterm.css";
 import type { ITheme } from "@xterm/xterm";
 import type { TerminalState } from "@server/shared/messages";

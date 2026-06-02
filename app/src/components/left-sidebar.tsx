@@ -1,5 +1,5 @@
 import { router, usePathname } from "expo-router";
-import { FolderPlus, LayoutDashboard, MessagesSquare, Settings } from "lucide-react-native";
+import { Calendar, FolderPlus, LayoutDashboard, MessagesSquare, Settings } from "lucide-react-native";
 import {
   type Dispatch,
   memo,
@@ -60,6 +60,7 @@ import { useWindowControlsPadding } from "@/utils/desktop-window";
 import {
   buildDashboardRoute,
   buildHostSessionsRoute,
+  buildSchedulesRoute,
   buildSettingsRoute,
   mapPathnameToServer,
 } from "@/utils/host-routes";
@@ -110,6 +111,7 @@ interface MobileSidebarProps extends SidebarSharedProps {
   isOpen: boolean;
   closeToAgent: () => void;
   handleViewMoreNavigate: () => void;
+  handleSchedulesNavigate: () => void;
   handleDashboardNavigate: () => void;
 }
 
@@ -117,6 +119,7 @@ interface DesktopSidebarProps extends SidebarSharedProps {
   insetsTop: number;
   isOpen: boolean;
   handleViewMore: () => void;
+  handleSchedulesNavigate: () => void;
   handleDashboardNavigate: () => void;
 }
 
@@ -233,6 +236,10 @@ export const LeftSidebar = memo(function LeftSidebar({
     router.push(buildHostSessionsRoute(activeServerId));
   }, [activeServerId]);
 
+  const handleSchedulesNavigate = useCallback(() => {
+    router.push(buildSchedulesRoute());
+  }, []);
+
   const handleDashboardNavigate = useCallback(() => {
     router.push(buildDashboardRoute());
   }, []);
@@ -281,6 +288,7 @@ export const LeftSidebar = memo(function LeftSidebar({
         handleOpenProject={handleOpenProjectMobile}
         handleSettings={handleSettingsMobile}
         handleViewMoreNavigate={handleViewMoreNavigate}
+        handleSchedulesNavigate={handleSchedulesNavigate}
         handleDashboardNavigate={handleDashboardNavigate}
       />
     );
@@ -294,6 +302,7 @@ export const LeftSidebar = memo(function LeftSidebar({
       handleOpenProject={handleOpenProjectDesktop}
       handleSettings={handleSettingsDesktop}
       handleViewMore={handleViewMoreNavigate}
+      handleSchedulesNavigate={handleSchedulesNavigate}
       handleDashboardNavigate={handleDashboardNavigate}
     />
   );
@@ -515,10 +524,12 @@ function MobileSidebar({
   isOpen,
   closeToAgent,
   handleViewMoreNavigate,
+  handleSchedulesNavigate,
   handleDashboardNavigate,
 }: MobileSidebarProps) {
   const pathname = usePathname();
   const isSessionsActive = pathname.includes("/sessions");
+  const isSchedulesActive = pathname.includes("/schedules");
   const {
     translateX,
     backdropOpacity,
@@ -550,6 +561,19 @@ function MobileSidebar({
     backdropOpacity,
     closeToAgent,
     handleViewMoreNavigate,
+    translateX,
+    windowWidth,
+  ]);
+
+  const handleSchedules = useCallback(() => {
+    translateX.value = -windowWidth;
+    backdropOpacity.value = 0;
+    closeToAgent();
+    handleSchedulesNavigate();
+  }, [
+    backdropOpacity,
+    closeToAgent,
+    handleSchedulesNavigate,
     translateX,
     windowWidth,
   ]);
@@ -696,6 +720,13 @@ function MobileSidebar({
               isActive={pathname === "/dashboard"}
               testID="sidebar-dashboard"
             />
+            <SidebarHeaderRow
+              icon={Calendar}
+              label="Schedules"
+              onPress={handleSchedules}
+              isActive={isSchedulesActive}
+              testID="sidebar-schedules"
+            />
 
             {isInitialLoad ? (
               <SidebarAgentListSkeleton />
@@ -759,10 +790,12 @@ function DesktopSidebar({
   insetsTop,
   isOpen,
   handleViewMore,
+  handleSchedulesNavigate,
   handleDashboardNavigate,
 }: DesktopSidebarProps) {
   const pathname = usePathname();
   const isSessionsActive = pathname.includes("/sessions");
+  const isSchedulesActive = pathname.includes("/schedules");
   const padding = useWindowControlsPadding("sidebar");
   const sidebarWidth = usePanelStore((state) => state.sidebarWidth);
   const setSidebarWidth = usePanelStore((state) => state.setSidebarWidth);
@@ -841,6 +874,13 @@ function DesktopSidebar({
             onPress={handleDashboardNavigate}
             isActive={pathname === "/dashboard"}
             testID="sidebar-dashboard"
+          />
+          <SidebarHeaderRow
+            icon={Calendar}
+            label="Schedules"
+            onPress={handleSchedulesNavigate}
+            isActive={isSchedulesActive}
+            testID="sidebar-schedules"
           />
         </View>
 

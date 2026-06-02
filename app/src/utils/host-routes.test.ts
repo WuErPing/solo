@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildHostAgentDetailRoute,
   buildHostRootRoute,
+  buildHostScheduleDetailRoute,
+  buildHostSchedulesRoute,
   buildHostWorkspaceOpenRoute,
   buildHostWorkspaceRoute,
   buildProjectSettingsRoute,
@@ -22,6 +24,32 @@ describe("parseHostAgentRouteFromPathname", () => {
       serverId: "local",
       agentId: "abc123",
     });
+  });
+});
+
+describe("buildHostSchedulesRoute", () => {
+  it("builds a schedules route for a server", () => {
+    expect(buildHostSchedulesRoute("local")).toBe("/h/local/schedules");
+  });
+
+  it("returns root for empty serverId", () => {
+    expect(buildHostSchedulesRoute("")).toBe("/");
+  });
+});
+
+describe("buildHostScheduleDetailRoute", () => {
+  it("builds a schedule detail route for a server and schedule", () => {
+    expect(buildHostScheduleDetailRoute("local", "schedule-1")).toBe(
+      "/h/local/schedules/schedule-1",
+    );
+  });
+
+  it("returns root for empty serverId", () => {
+    expect(buildHostScheduleDetailRoute("", "schedule-1")).toBe("/");
+  });
+
+  it("returns root for empty scheduleId", () => {
+    expect(buildHostScheduleDetailRoute("local", "")).toBe("/");
   });
 });
 
