@@ -8,10 +8,12 @@ export const ScheduleCadenceSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("every"),
     everyMs: z.number().int().positive(),
+    timezone: z.string().optional(),
   }),
   z.object({
     type: z.literal("cron"),
     expression: z.string().trim().min(1),
+    timezone: z.string().optional(),
   }),
 ]);
 export type ScheduleCadence = z.infer<typeof ScheduleCadenceSchema>;

@@ -18,6 +18,7 @@ import { useScheduleMutations } from "@/hooks/use-schedule-mutations";
 import { ScheduleCreateModal } from "@/components/schedule-create-modal";
 import { ScheduleEditModal } from "@/components/schedule-edit-modal";
 import { buildHostOpenProjectRoute, buildHostScheduleDetailRoute } from "@/utils/host-routes";
+import { cronFromUTC, describeCron, detectTimezone } from "@/utils/cron-timezone";
 import type { ScheduleSummary, ScheduleCadence, ScheduleStatus } from "@server/server/schedule/types";
 
 export function SchedulesScreen({
@@ -38,7 +39,12 @@ export function SchedulesScreen({
 
 function formatCadence(cadence: ScheduleCadence): string {
   if (cadence.type === "cron") {
-    return cadence.expression;
+    const tz = cadence.timezone || detectTimezone();
+    if (tz && tz !== "UTC") {
+      const localExpr = cronFromUTC(cadence.expression, tz);
+      return `${describeCron(localExpr)} (${tz})`;
+    }
+    return describeCron(cadence.expression);
   }
   const ms = cadence.everyMs;
   if (ms < 60000) {

@@ -8,12 +8,13 @@ import {
 import { useIsFocused } from "@react-navigation/native";
 import { router } from "expo-router";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { ArrowLeft, Calendar, Clock, CheckCircle, XCircle, Loader } from "lucide-react-native";
+import { ArrowLeft, Calendar, Clock, CheckCircle, XCircle, Loader, Globe } from "lucide-react-native";
 import { MenuHeader } from "@/components/headers/menu-header";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useScheduleInspect } from "@/hooks/use-schedule-inspect";
 import { buildHostSchedulesRoute } from "@/utils/host-routes";
+import { cronFromUTC, describeCron, detectTimezone } from "@/utils/cron-timezone";
 import type { ScheduleCadence, ScheduleRun, ScheduleStatus, StoredSchedule } from "@server/server/schedule/types";
 
 export function ScheduleDetailScreen({
@@ -32,21 +33,27 @@ export function ScheduleDetailScreen({
   return <ScheduleDetailScreenContent serverId={serverId} scheduleId={scheduleId} />;
 }
 
-function formatCadence(cadence: ScheduleCadence): string {
+function formatCadence(cadence: ScheduleCadence): { text: string; raw?: string; timezone?: string } {
   if (cadence.type === "cron") {
-    return cadence.expression;
+    const tz = cadence.timezone || detectTimezone();
+    if (tz && tz !== "UTC") {
+      const localExpr = cronFromUTC(cadence.expression, tz);
+      return { text: describeCron(localExpr), raw: cadence.expression, timezone: tz };
+    }
+    return { text: describeCron(cadence.expression), raw: cadence.expression };
   }
   const ms = cadence.everyMs;
+  let text: string;
   if (ms < 60000) {
-    return `Every ${ms / 1000}s`;
+    text = `Every ${ms / 1000}s`;
+  } else if (ms < 3600000) {
+    text = `Every ${Math.floor(ms / 60000)}m`;
+  } else if (ms < 86400000) {
+    text = `Every ${Math.floor(ms / 3600000)}h`;
+  } else {
+    text = `Every ${Math.floor(ms / 86400000)}d`;
   }
-  if (ms < 3600000) {
-    return `Every ${Math.floor(ms / 60000)}m`;
-  }
-  if (ms < 86400000) {
-    return `Every ${Math.floor(ms / 3600000)}h`;
-  }
-  return `Every ${Math.floor(ms / 86400000)}d`;
+  return { text };
 }
 
 function formatDuration(startedAt: string, endedAt: string | null): string {
@@ -65,6 +72,19 @@ function formatDuration(startedAt: string, endedAt: string | null): string {
 
 function formatTimestamp(iso: string): string {
   const date = new Date(iso);
+  const tz = detectTimezone();
+  if (tz && tz !== "UTC") {
+    return date.toLocaleString("zh-CN", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+  }
   return date.toLocaleString();
 }
 
@@ -198,7 +218,7 @@ function ScheduleDetailScreenContent({
   }
 
   const name = schedule.name ?? "Untitled";
-  const cadenceText = formatCadence(schedule.cadence);
+  const cadenceInfo = formatCadence(schedule.cadence);
 
   return (
     <View style={styles.container}>
@@ -219,7 +239,19 @@ function ScheduleDetailScreenContent({
 
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Cadence</Text>
-            <Text style={styles.detailValue}>{cadenceText}</Text>
+            <Text style={styles.detailValue}>{cadenceInfo.text}</Text>
+            {cadenceInfo.timezone ? (
+              <View style={styles.timezoneRow}>
+                <Globe size={12} color={theme.colors.foregroundMuted} />
+                <Text style={styles.timezoneText}>{cadenceInfo.timezone}</Text>
+              </View>
+            ) : null}
+            {cadenceInfo.raw ? (
+              <View style={styles.rawCronBox}>
+                <Text style={styles.rawCronLabel}>原始表达式 (UTC)</Text>
+                <Text style={styles.rawCronValue}>{cadenceInfo.raw}</Text>
+              </View>
+            ) : null}
           </View>
 
           {schedule.nextRunAt ? (
@@ -320,6 +352,34 @@ const styles = StyleSheet.create((theme) => ({
   detailValue: {
     color: theme.colors.foreground,
     fontSize: theme.fontSize.base,
+  },
+  timezoneRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1],
+    marginTop: theme.spacing[1],
+  },
+  timezoneText: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.xs,
+  },
+  rawCronBox: {
+    backgroundColor: theme.colors.surface2,
+    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing[3],
+    paddingVertical: theme.spacing[2],
+    marginTop: theme.spacing[2],
+    gap: theme.spacing[1],
+  },
+  rawCronLabel: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.xs,
+    fontWeight: "500",
+  },
+  rawCronValue: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
+    fontFamily: "monospace",
   },
   statusBadge: {
     flexDirection: "row",

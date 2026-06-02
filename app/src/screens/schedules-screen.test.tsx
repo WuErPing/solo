@@ -65,6 +65,21 @@ vi.mock("@react-navigation/native", () => ({
   useIsFocused: () => true,
 }));
 
+vi.mock("@/utils/cron-timezone", () => ({
+  detectTimezone: () => "UTC",
+  cronFromUTC: (expr: string) => expr,
+  describeCron: (expr: string) => {
+    const parts = expr.trim().split(/\s+/);
+    if (parts.length === 5) {
+      const [m, h, dom, mon, dow] = parts;
+      if (dom === "*" && mon === "*" && dow === "*" && /^\d+$/.test(h) && /^\d+$/.test(m)) {
+        return `每天 ${h.padStart(2, "0")}:${m.padStart(2, "0")}`;
+      }
+    }
+    return expr;
+  },
+}));
+
 vi.mock("expo-router", () => ({
   router: { navigate: vi.fn() },
 }));
@@ -266,7 +281,7 @@ describe("SchedulesScreen", () => {
       root?.render(<SchedulesScreen serverId="server-1" />);
     });
 
-    expect(container?.textContent).toContain("0 9 * * *");
+    expect(container?.textContent).toContain("每天 09:00");
   });
 
   it("shows interval for every cadence", () => {

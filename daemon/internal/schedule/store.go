@@ -110,7 +110,31 @@ func (st *Store) load() error {
 	}
 
 	st.schedules = data
+	st.fixupNextRunAt()
 	return nil
+}
+
+// fixupNextRunAt recomputes nextRunAt for active schedules on load.
+// This self-heals stale values from a previous buggy NextRunAt computation.
+func (st *Store) fixupNextRunAt() {
+	dirty := false
+	for _, s := range st.schedules {
+		if s.Status != "active" {
+			continue
+		}
+		next := computeNextRun(s.Cadence)
+		if next == nil && s.NextRunAt == nil {
+			continue
+		}
+		if next != nil && s.NextRunAt != nil && *next == *s.NextRunAt {
+			continue
+		}
+		s.NextRunAt = next
+		dirty = true
+	}
+	if dirty {
+		_ = st.save()
+	}
 }
 
 func (st *Store) Create(input protocol.ScheduleCreateRequest) (*protocol.StoredSchedule, error) {

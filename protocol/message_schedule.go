@@ -6,6 +6,7 @@ type ScheduleCadence struct {
 	Type       string `json:"type"` // "cron" | "every"
 	Expression string `json:"expression,omitempty"`
 	EveryMs    int    `json:"everyMs,omitempty"`
+	Timezone   string `json:"timezone,omitempty"` // IANA timezone name, e.g. "Asia/Shanghai". Defaults to UTC.
 }
 
 // --- Schedule Target ---

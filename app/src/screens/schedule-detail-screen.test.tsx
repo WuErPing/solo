@@ -70,6 +70,7 @@ vi.mock("lucide-react-native", () => ({
   CheckCircle: () => React.createElement("span", { "data-icon": "CheckCircle" }),
   XCircle: () => React.createElement("span", { "data-icon": "XCircle" }),
   Loader: () => React.createElement("span", { "data-icon": "Loader" }),
+  Globe: () => React.createElement("span", { "data-icon": "Globe" }),
 }));
 
 vi.mock("@/components/headers/menu-header", () => ({
@@ -112,6 +113,31 @@ vi.mock("@/hooks/use-schedule-inspect", () => ({
 
 vi.mock("@/utils/host-routes", () => ({
   buildHostSchedulesRoute: (serverId: string) => `/h/${serverId}/schedules`,
+}));
+
+vi.mock("@/utils/cron-timezone", () => ({
+  detectTimezone: () => "Asia/Shanghai",
+  cronFromUTC: (expr: string, tz: string) => {
+    if (tz === "Asia/Shanghai") {
+      const parts = expr.trim().split(/\s+/);
+      if (parts.length >= 2) {
+        const h = (parseInt(parts[1], 10) + 8) % 24;
+        parts[1] = String(h);
+      }
+      return parts.join(" ");
+    }
+    return expr;
+  },
+  describeCron: (expr: string) => {
+    const parts = expr.trim().split(/\s+/);
+    if (parts.length === 5) {
+      const [m, h, dom, mon, dow] = parts;
+      if (dom === "*" && mon === "*" && dow === "*" && /^\d+$/.test(h) && /^\d+$/.test(m)) {
+        return `每天 ${h.padStart(2, "0")}:${m.padStart(2, "0")}`;
+      }
+    }
+    return expr;
+  },
 }));
 
 function makeStoredSchedule(overrides: Record<string, unknown> = {}) {
@@ -288,5 +314,42 @@ describe("ScheduleDetailScreen", () => {
     });
 
     expect(container?.textContent).toContain("schedule not found");
+  });
+
+  it("converts UTC cron expression to local time for display", () => {
+    // UTC expression: "25 16 * * *" = 16:25 UTC = 00:25 Asia/Shanghai
+    inspectResult.current = makeInspectResult({
+      schedule: makeStoredSchedule({
+        cadence: { type: "cron", expression: "25 16 * * *", timezone: "Asia/Shanghai" },
+      }),
+    });
+
+    act(() => {
+      root?.render(<ScheduleDetailScreen serverId="server-1" scheduleId="schedule-1" />);
+    });
+
+    // Should show local time expression, not UTC
+    expect(container?.textContent).toContain("每天 00:25");
+    // Raw UTC expression should also be shown
+    expect(container?.textContent).toContain("25 16 * * *");
+  });
+
+  it("displays next run time in local timezone", () => {
+    // nextRunAt is 16:25 UTC = 00:25 next day in Asia/Shanghai
+    inspectResult.current = makeInspectResult({
+      schedule: makeStoredSchedule({
+        cadence: { type: "cron", expression: "25 16 * * *", timezone: "Asia/Shanghai" },
+        nextRunAt: "2026-06-03T16:25:00.000Z",
+      }),
+    });
+
+    act(() => {
+      root?.render(<ScheduleDetailScreen serverId="server-1" scheduleId="schedule-1" />);
+    });
+
+    const text = container?.textContent ?? "";
+    // Should show 00:25 (local), NOT 4:25 PM (UTC)
+    expect(text).toContain("00:25");
+    expect(text).not.toMatch(/4:25/);
   });
 });
