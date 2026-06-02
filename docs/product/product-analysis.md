@@ -9,14 +9,16 @@ Based on comprehensive codebase analysis of the Solo AI coding assistant platfor
 ## 10 Major Feature Opportunities
 
 ### 1. Schedule Management UI
-**Status**: Backend fully implemented, frontend missing
-**Location**: `app-bridge/src/server/schedule/`
+**Status**: ✅ Fully implemented
+**Location**: `app-bridge/src/server/schedule/`, `app/src/components/schedule-*.tsx`, `daemon/internal/schedule/`
 **Details**:
-- Full CRUD backend exists (`types.ts`, `rpc-schemas.ts`)
-- Supports cron/every cadence patterns
-- Can target existing agents or create new ones
-- **Gap**: No frontend screen or navigation for schedule management
-**Impact**: High - enables automated recurring tasks
+- Full CRUD backend with timezone-aware cron scheduling
+- Frontend UI: create/edit modals with frequency presets, time input, timezone display
+- Detail screen showing friendly cadence text (e.g. "每天 00:25") and UTC expression
+- List screen for schedule management and status monitoring
+- Timezone support: user local time input → UTC storage → local time display
+- Self-healing mechanism for stale stored values (fixupNextRunAt)
+**Impact**: High - enables automated recurring tasks with timezone awareness
 
 ### 2. MCP Server Configuration Interface
 **Status**: Protocol-level support, no UI
@@ -133,7 +135,7 @@ Based on comprehensive codebase analysis of the Solo AI coding assistant platfor
 
 | Feature | Impact | Effort | Priority |
 |---------|--------|--------|----------|
-| Schedule Management UI | High | Medium | **P1** |
+| ~~Schedule Management UI~~ | ~~High~~ | ~~Medium~~ | ✅ Done |
 | MCP Server Configuration | High | Medium | **P1** |
 | Session Persistence | Medium | Low | **P2** |
 | Feature Toggle Expansion | Medium | Low | **P2** |

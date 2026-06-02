@@ -32,10 +32,19 @@ The canonical persisted schedule record.
 
 ### `ScheduleCadence`
 
-Discriminated union of two recurrence patterns:
+Discriminated union of two recurrence patterns with optional timezone support:
 
-- **`{ type: "every", everyMs: number }`** — Fixed interval in milliseconds.
-- **`{ type: "cron", expression: string }`** — Standard cron expression string.
+- **`{ type: "every", everyMs: number, timezone?: string }`** — Fixed interval in milliseconds.
+- **`{ type: "cron", expression: string, timezone?: string }`** — Standard cron expression string.
+
+**Timezone Field**:
+- Optional IANA timezone name (e.g., "Asia/Shanghai", "America/New_York")
+- Defaults to UTC if not specified
+- Used for timezone-aware cron scheduling:
+  - User enters cron in local time
+  - Frontend converts to UTC for storage
+  - Backend evaluates UTC expression directly
+  - Display converts back to local time
 
 ### `ScheduleTarget`
 

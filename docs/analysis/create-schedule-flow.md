@@ -4,6 +4,25 @@
 
 End-to-end flow for creating a schedule in Solo's schedule subsystem. A schedule periodically executes a prompt against an agent using either a cron expression or a fixed interval.
 
+### Timezone-Aware Scheduling
+
+The schedule system implements timezone-aware cron scheduling:
+
+1. **User Input**: Users enter cron expressions in their local timezone (e.g., "每天 00:25" in Asia/Shanghai)
+2. **Storage**: Frontend converts local time to UTC for storage (`cronToUTC`)
+3. **Evaluation**: Backend evaluates UTC expressions directly (no double-conversion)
+4. **Display**: Frontend converts UTC back to local time for display (`cronFromUTC`)
+
+**Key Utilities** (in `app/src/utils/cron-timezone.ts`):
+- `detectTimezone()`: Detects user's IANA timezone (e.g., "Asia/Shanghai")
+- `cronToUTC(expression, timezone)`: Converts local cron to UTC
+- `cronFromUTC(expression, timezone)`: Converts UTC cron to local time
+- `describeCron(expression, timezone)`: Generates friendly description (e.g., "每天 00:25")
+
+**Backend Self-Healing**:
+- `fixupNextRunAt()` in `daemon/internal/schedule/store.go` recomputes `nextRunAt` for active schedules on load
+- Fixes stale values from previous buggy NextRunAt computation
+
 ---
 
 ## Flow Diagram

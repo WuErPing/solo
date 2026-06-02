@@ -104,7 +104,35 @@
 - **通知 Payload 构建**：Markdown stripping + 截断
 - **Token 清理**：自动清理无效 token
 
-### 5. Relay 中继系统
+### 5. 调度系统 (Schedule)
+
+#### 5.1 核心功能
+- **Cron 调度**：标准 cron 表达式支持
+- **固定间隔调度**：毫秒级间隔配置
+- **时区感知**：用户本地时区输入，UTC 存储，本地时间显示
+- **Agent 目标**：支持现有 Agent 或新建 Agent 执行
+- **执行历史**：完整运行记录追踪
+
+#### 5.2 前端实现
+- **创建模态框**：频率预设、时间输入、时区显示
+- **编辑模态框**：完整配置编辑能力
+- **详情屏幕**：友好调度文本（如"每天 00:25"）和 UTC 表达式显示
+- **列表屏幕**：调度任务管理和状态监控
+- **时间显示**：本地时区 24 小时格式（zh-CN locale）
+
+#### 5.3 后端实现
+- **协议层**：ScheduleCadence 包含 timezone 字段
+- **Cron 解析**：UTC 表达式直接评估，避免双重转换
+- **自愈机制**：fixupNextRunAt 修复存储的过期值
+- **持久化存储**：JSON 文件存储调度配置
+
+#### 5.4 工具函数
+- **detectTimezone**：检测用户 IANA 时区
+- **cronToUTC**：本地时区 cron 转 UTC
+- **cronFromUTC**：UTC cron 转本地时区
+- **describeCron**：生成友好调度描述文本
+
+### 6. Relay 中继系统
 
 #### 5.1 Go Relay (relay-go)
 - **WebSocket 中继**：控制通道 + 数据通道
@@ -114,14 +142,14 @@
 - **CORS 支持**：可配置跨域来源
 - **Prometheus 指标**：sessions、connections、messages 监控
 
-#### 5.2 连接适配
+#### 6.2 连接适配
 - **Relay 连接识别**：通过 E2EEConn 类型识别
 - **Layer 1 Ping 禁用**：避免与 E2EE 状态机冲突
 - **dataSocketOpenTimeout**：60s（防止长 thinking 阶段过早断开）
 
-### 6. App 客户端功能
+### 7. App 客户端功能
 
-#### 6.1 核心界面
+#### 7.1 核心界面
 - **Dashboard**：Agent 列表和状态概览
 - **Workspace Screen**：多标签工作区管理
   - 桌面标签行
@@ -138,25 +166,25 @@
 - **Settings Screen**：设置管理
 - **Mermaid Preview**：Markdown 文件面板内嵌 Mermaid 图表实时渲染
 
-#### 6.2 连接管理
+#### 7.2 连接管理
 - **Host 管理**：添加/编辑/删除主机
 - **连接方式**：直接连接、Relay 连接、QR 码配对
 - **连接状态**：实时状态指示器
 
-#### 6.3 输入系统
+#### 7.3 输入系统
 - **Composer**：多模态输入（文本、附件）
 - **Command Center**：命令中心
 - **附件管理**：附件预览、轻量查看
 
-### 7. CLI 工具
+### 8. CLI 工具
 
-#### 7.1 Daemon 管理
+#### 8.1 Daemon 管理
 - `solo daemon start`：启动 daemon
 - `solo daemon stop`：停止 daemon
 - `solo daemon restart`：重启 daemon
 - `solo daemon pair`：配对（生成链接和 QR 码）
 
-#### 7.2 Agent 管理
+#### 8.2 Agent 管理
 - `solo agent run`：运行 Agent
 - `solo agent ls`：列出 Agent
 - `solo agent attach`：附加到 Agent
@@ -167,13 +195,13 @@
 - `solo agent send`：发送消息
 - `solo agent mode`：切换模式
 
-#### 7.3 Provider 管理
+#### 8.3 Provider 管理
 - `solo provider ls`：列出 Provider
 - `solo provider models`：查看模型列表
 
-### 8. 测试覆盖
+### 9. 测试覆盖
 
-#### 8.1 测试规模
+#### 9.1 测试规模
 - **App 单元测试**：**207** 个测试文件（Vitest），已接入 CI
 - **App browser 测试**：1 个文件（Chromium via Playwright），未接入 CI
 - **App-bridge 测试**：3 个文件，**32 个测试用例**（Vitest），已接入 CI
@@ -184,21 +212,21 @@
 - **E2E 测试**：**30** 个 `.spec.ts`（Playwright），**nightly 运行**
 - **Maestro 移动端**：~20 个 YAML flow，ad-hoc / 未接入 CI
 
-#### 8.2 关键测试域
+#### 9.2 关键测试域
 - Agent：dispatcher、coalescer、reasoning/window、duplicate 检测
 - Server：grace integration、reconnect、race 条件
 - Relay：client、E2EE、control channel
 - Terminal：output race、coalescer
 - Workspace：registry、config、project
 
-### 9. 基础设施
+### 10. 基础设施
 
-#### 9.1 构建系统
+#### 10.1 构建系统
 - **Makefile**：多目标构建（daemon、relay、app）
 - **Go Workspace**：cli、daemon、protocol、relay-go
 - **npm Workspace**：app、app-bridge、packages/highlight
 
-#### 9.2 CI/CD
+#### 10.2 CI/CD
 - **GitHub Actions `ci.yml`**：
   - `go` job（matrix: protocol/cli/daemon/relay-go）：build + `go test -short -race -coverprofile` + golangci-lint v2.10 + Codecov upload
   - `js` job：lint（app/app-bridge/highlight）+ typecheck（强制，0 errors）+ test（highlight/app/app-bridge）+ Codecov upload
@@ -207,7 +235,7 @@
 - **golangci-lint**：v2.10，`.golangci.yml` 配置 formatters 和 revive 规则
 - **ESLint**：app（expo lint）、app-bridge、highlight 分别配置
 
-#### 9.3 监控
+#### 10.3 监控
 - **Prometheus 指标**：sessions、connections、messages
 - **日志系统**：slog（Go）、结构化日志
 
@@ -223,10 +251,9 @@
 3. **更多 Provider**：Cursor-Agent、Generic ACP、ACP Agent
 
 ### 中优先级缺失
-4. **Schedule/Cron**：`app-bridge` 有 RPC schema 和类型定义，无前端 UI 和 Daemon 后端
-5. **Loop**：迭代工作流
-6. **Tasks 系统**：执行顺序管理
-7. **Workspace 归档**：归档管理
+4. **Loop**：迭代工作流
+5. **Tasks 系统**：执行顺序管理
+6. **Workspace 归档**：归档管理
 
 ## 技术栈
 

@@ -31,8 +31,10 @@ docs/
 └── analysis/                              ← Deep-dive technical analysis
     ├── agent-provider-status-unification.md # Agent/provider status unification design
     ├── app-agent-status-analysis.md         # App agent status & Copy button logic
+    ├── app-bridge-schedule-module.md        # Schedule module type contract & RPC schema
     ├── app-coverage-analysis.md             # App test coverage analysis
     ├── app-lint-analysis.md                 # App lint capability analysis
+    ├── create-schedule-flow.md              # End-to-end schedule creation flow
     ├── go-coverage-report.md                # Go backend coverage report
     ├── host-status-check.md                 # Host probe cycle & status machine
     ├── lint-capability-plan.md              # Lint tooling capability plan
@@ -104,8 +106,10 @@ Deep dives into specific subsystems.
 |----------|------|---------|
 | [Agent/Provider Status Unification](analysis/agent-provider-status-unification.md) | Design | OCP-based proposal to unify AgentLifecycleStatus, ProviderStatus across layers |
 | [App Agent Status Analysis](analysis/app-agent-status-analysis.md) | Analysis | App agent lifecycle states and Copy button display logic |
+| [App-Bridge Schedule Module](analysis/app-bridge-schedule-module.md) | Analysis | Schedule module type contract, RPC schema, and domain models |
 | [App Coverage Analysis](analysis/app-coverage-analysis.md) | Analysis | App test coverage breakdown by module, gaps, and recommendations |
 | [App Lint Analysis](analysis/app-lint-analysis.md) | Analysis | App lint tooling analysis, rules, and capability gaps |
+| [Create Schedule Flow](analysis/create-schedule-flow.md) | Analysis | End-to-end schedule creation flow with timezone-aware cron scheduling |
 | [Go Coverage Report](analysis/go-coverage-report.md) | Report | Go backend coverage by module (protocol, cli, daemon, relay-go) |
 | [Host Status Check](analysis/host-status-check.md) | Analysis | Probe cycle (2-30 s), adaptive switching, state machine conflict, grace-period fix |
 | [Lint Capability Plan](analysis/lint-capability-plan.md) | Plan | Lint tooling roadmap and capability gap plan |
