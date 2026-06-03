@@ -8,6 +8,55 @@ Solo is an AI coding assistant platform that connects your local development env
 
 ## Architecture
 
+### Features
+
+- **Multi-provider AI agents** — Claude, Kimi, OpenCode, Pi, Codex, Mock
+- **Session memory** — persistent transcript of every turn with automatic secret redaction
+- **Cross-platform app** — iOS, Android, Web with React Native / Expo
+- **Workspace integration** — file explorer, terminal, Git branch switcher
+- **Tmux Dashboard** — detect and control AI agents running in tmux sessions
+- **Schedule Automation** — timezone-aware cron scheduling with friendly UI
+- **End-to-end encryption** — X25519 + XSalsa20-Poly1305 for all communication
+- **CLI & Relay** — command-line management and remote connectivity
+
+### App GUI
+
+```
+┌─────────────────────────────────┐
+│  ≡  Solo              🔔  ⚙️    │
+├─────────────────────────────────┤
+│  ┌─────┐  ┌─────┐  ┌─────┐     │
+│  │  3  │  │  1  │  │  5  │     │
+│  │ ●   │  │ ○   │  │ ✓   │     │
+│  │Active│  │Idle │  │Done │     │
+│  └─────┘  └─────┘  └─────┘     │
+├─────────────────────────────────┤
+│  📁  my-project                 │
+│  ▼  src/                        │
+│       ├─ components/            │
+│       └─ utils/                 │
+│  ▼  tests/                      │
+│       └─ e2e/                   │
+├─────────────────────────────────┤
+│  🖥️  Terminal                   │
+│  $ git status                   │
+│  On branch main                 │
+│  Your branch is up to date      │
+├─────────────────────────────────┤
+│  🤖  claude    ●  Running       │
+│  ┌─────────────────────────────┐│
+│  │ How can I help you today?   ││
+│  │                             ││
+│  └─────────────────────────────┘│
+│  ┌─────────────────────────────┐│
+│  │ > Refactor auth.ts to...    ││
+│  └─────────────────────────────┘│
+│            [ Send ]             │
+└─────────────────────────────────┘
+```
+
+### System Architecture
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        Client Layer                         │
@@ -36,10 +85,33 @@ Solo is an AI coding assistant platform that connects your local development env
                             │
 ┌───────────────────────────▼──────────────────────────────────┐
 │                      Service Layer                           │
+│                     Daemon (core service)                    │
 ├─────────────────────────────────────────────────────────────┤
 │  ┌─────────────────────────────────────────────────────┐   │
-│  │              Daemon (core service)                   │   │
-│  └─────────────────────────────────────────────────────┘   │
+│  │              WebSocket Server                        │   │
+│  │  ┌─────────────┐ ┌─────────────┐ ┌───────────────┐ │   │
+│  │  │   Session   │ │   Terminal  │ │   Workspace   │ │   │
+│  │  │   Manager   │ │   Manager   │ │    Manager    │ │   │
+│  │  └──────┬──────┘ └─────────────┘ └───────────────┘ │   │
+│  └─────────┼────────────────────────────────────────────┘   │
+│            │                                                  │
+│  ┌─────────▼────────────────────────────────────────────┐   │
+│  │              Agent Manager                           │   │
+│  │  ┌────────┐ ┌────────┐ ┌──────────┐ ┌─────┐        │   │
+│  │  │ Claude │ │  Kimi  │ │ OpenCode │ │  Pi │ Mock...│   │
+│  │  └────────┘ └────────┘ └──────────┘ └─────┘        │   │
+│  └─────────────────────────┬─────────────────────────────┘   │
+│                            │                                  │
+│  ┌─────────────────────────▼─────────────────────────────┐   │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌───────────────┐ │   │
+│  │  │Session Memory│ │Tmux Inspector│ │   Scheduler   │ │   │
+│  │  │(TurnRecorder │ │              │ │   (Cron)      │ │   │
+│  │  │ / Redaction) │ │              │ │               │ │   │
+│  │  └──────────────┘ └──────────────┘ └───────────────┘ │   │
+│  │  ┌──────────────┐ ┌──────────────┐                   │   │
+│  │  │Push Notifier │ │ Relay Client │                   │   │
+│  │  └──────────────┘ └──────────────┘                   │   │
+│  └───────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -157,6 +229,7 @@ For detailed documentation, see [`docs/README.md`](docs/README.md).
 - **Claude** — print / stream-json mode
 - **Kimi** — Wire mode (JSON-RPC 2.0 over stdio)
 - **OpenCode** — SSE mode
+- **Pi** — JSON stream mode (stdio)
 - **Codex** — definition only
 - **Mock** — for testing
 
@@ -220,6 +293,19 @@ Three-layer detection identifies agents even when `pane_current_command` reports
 | opencode | command / title |
 | qoder | command |
 | cursor | command |
+
+---
+
+## Schedule Automation
+
+Solo includes a timezone-aware cron scheduling system for running automated tasks with AI agents.
+
+- **Timezone-aware cron** — users input schedules in their local timezone; expressions are stored as UTC and evaluated directly in UTC to avoid double-conversion bugs
+- **Friendly UI** — create, edit, list, and view scheduled tasks with frequency presets, time inputs, and timezone display
+- **Readable descriptions** — cadences are shown in friendly text (e.g., "Daily at 00:25") alongside the raw UTC expression
+- **Agent targeting** — assign schedules to existing agents or create new ones for each run
+- **Execution history** — full run record tracking for every scheduled task
+- **Self-healing** — stale `nextRunAt` values are automatically repaired on daemon load
 
 ---
 
