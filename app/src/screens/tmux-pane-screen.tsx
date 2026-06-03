@@ -8,6 +8,20 @@ import { MenuHeader } from "@/components/headers/menu-header";
 import { useTmuxCapturePane } from "@/hooks/use-tmux-capture-pane";
 import { useHostRuntimeClient, getHostRuntimeStore } from "@/runtime/host-runtime";
 import { useTmuxAgentStore } from "@/stores/tmux-agent-store";
+import { isNative } from "@/constants/platform";
+
+// Strip Unicode box-drawing and block characters that render as garbage on
+// React Native's default monospace font.  These are purely decorative in TUI
+// apps (kimi, pi, etc.) so removing them keeps the text readable.
+function sanitizeForNative(text: string): string {
+  if (!isNative) return text;
+  // Strip ANSI escape sequences left over from tmux capture
+  // Then strip box-drawing (U+2500-257F), block elements (U+2580-259F),
+  // and braille patterns (U+2800-28FF) which render as garbage on mobile.
+  return text
+    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")
+    .replace(/[─-▟⠀-⣿]/g, "");
+}
 
 export function TmuxPaneScreen() {
   const { theme } = useUnistyles();
@@ -85,7 +99,7 @@ export function TmuxPaneScreen() {
           <Text style={styles.errorText}>{error}</Text>
         ) : (
           <Text style={styles.contentText}>
-            {content || "(empty pane)"}
+            {sanitizeForNative(content) || "(empty pane)"}
           </Text>
         )}
       </ScrollView>
