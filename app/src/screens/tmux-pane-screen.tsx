@@ -44,9 +44,10 @@ export function TmuxPaneScreen() {
   }, []);
 
   const getClient = useCallback(() => {
-    if (hookClient) return hookClient;
     if (!agent) return null;
-    return getHostRuntimeStore().getClient(agent.serverId);
+    // Always prefer the store client — it's the live reference.
+    // The hook value can be a stale/disposed client after reconnection.
+    return getHostRuntimeStore().getClient(agent.serverId) ?? hookClient;
   }, [hookClient, agent]);
 
   const handleBack = useCallback(() => {
