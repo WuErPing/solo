@@ -80,8 +80,12 @@ export function useIsolatedBottomSheetVisibility({
       }
 
       hasPresentedRef.current = true;
-      sheetRef.current?.present();
-      return;
+      // Defer present() to the next macrotask so @gorhom/bottom-sheet's native
+      // view has time to complete layout on mobile before the imperative call.
+      const timerId = setTimeout(() => {
+        sheetRef.current?.present();
+      }, 0);
+      return () => clearTimeout(timerId);
     }
 
     if (hasPresentedRef.current) {

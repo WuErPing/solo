@@ -2,7 +2,7 @@
 import { cleanup, render } from "@testing-library/react";
 import React from "react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   IsolatedBottomSheetModal,
   useIsolatedBottomSheetVisibility,
@@ -72,12 +72,17 @@ function Harness({ visible, onClose }: { visible: boolean; onClose: () => void }
 }
 
 describe("IsolatedBottomSheetModal", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
-  it("forces sheet isolation and keeps modal content mounted while hidden", () => {
+  it("forces sheet isolation and keeps modal content mounted while hidden", async () => {
     const onClose = vi.fn();
     const { getByTestId, rerender } = render(<Harness visible={false} onClose={onClose} />);
 
@@ -91,6 +96,10 @@ describe("IsolatedBottomSheetModal", () => {
     expect(modalMethods.present).not.toHaveBeenCalled();
 
     rerender(<Harness visible onClose={onClose} />);
+    // present() is deferred — not called synchronously on mount
+    expect(modalMethods.present).not.toHaveBeenCalled();
+    // wait for the deferred present() to fire
+    await vi.advanceTimersByTimeAsync(1);
     expect(modalMethods.present).toHaveBeenCalledTimes(1);
 
     rerender(<Harness visible={false} onClose={onClose} />);
@@ -98,13 +107,15 @@ describe("IsolatedBottomSheetModal", () => {
     expect(modalMethods.dismiss).not.toHaveBeenCalled();
 
     rerender(<Harness visible onClose={onClose} />);
+    await vi.advanceTimersByTimeAsync(1);
     expect(modalMethods.present).toHaveBeenCalledTimes(1);
     expect(modalMethods.snapToIndex).toHaveBeenCalledWith(0);
   });
 
-  it("only reports a user close when the sheet was visible", () => {
+  it("only reports a user close when the sheet was visible", async () => {
     const onClose = vi.fn();
     const { rerender } = render(<Harness visible onClose={onClose} />);
+    await vi.advanceTimersByTimeAsync(1);
 
     const latestProps = modalProps.mock.lastCall?.[0] as { onChange: (index: number) => void };
     latestProps.onChange(-1);
@@ -114,6 +125,23 @@ describe("IsolatedBottomSheetModal", () => {
     const closedProps = modalProps.mock.lastCall?.[0] as { onChange: (index: number) => void };
     closedProps.onChange(-1);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels deferred present when unmounted before frame fires", () => {
+    const onClose = vi.fn();
+    const { unmount } = render(<Harness visible onClose={onClose} />);
+
+    // present() is deferred — not yet called
+    expect(modalMethods.present).not.toHaveBeenCalled();
+
+    // unmount before the frame fires
+    unmount();
+
+    // advance past the deferred frame
+    vi.advanceTimersByTime(100);
+
+    // present() should never have been called
+    expect(modalMethods.present).not.toHaveBeenCalled();
   });
 
   it("allows nested sheets inside a parent sheet without creating a sibling provider", () => {

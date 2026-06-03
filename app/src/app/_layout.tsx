@@ -848,6 +848,7 @@ function RootStack() {
       <Stack.Screen name="h/[serverId]/sessions" />
       <Stack.Screen name="schedules" />
       <Stack.Screen name="tmux-dashboard" />
+      <Stack.Screen name="tmux-pane" />
       <Stack.Screen name="h/[serverId]/schedules" />
       <Stack.Screen name="h/[serverId]/open-project" />
       <Stack.Screen name="h/[serverId]/settings" />

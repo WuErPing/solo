@@ -92,6 +92,7 @@ vi.mock("lucide-react-native", () => {
     MessagesSquare: createIcon("MessagesSquare"),
     Plus: createIcon("Plus"),
     Settings: createIcon("Settings"),
+    Terminal: createIcon("Terminal"),
   };
 });
 

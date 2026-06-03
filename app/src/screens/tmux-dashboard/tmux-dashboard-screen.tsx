@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -7,21 +7,13 @@ import {
   RefreshControl,
 } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import {
-  Terminal,
-  Monitor,
-  Send,
-} from "lucide-react-native";
+import { Terminal, Monitor } from "lucide-react-native";
+import { router } from "expo-router";
 import { MenuHeader } from "@/components/headers/menu-header";
-import {
-  AdaptiveModalSheet,
-  AdaptiveTextInput,
-} from "@/components/adaptive-modal-sheet";
 import { useAggregatedTmuxAgents } from "@/hooks/use-tmux-agents";
-import { useTmuxCapturePane } from "@/hooks/use-tmux-capture-pane";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useStoreReady } from "@/app/_layout";
-import { useHostRuntimeClient } from "@/runtime/host-runtime";
+import { useTmuxAgentStore } from "@/stores/tmux-agent-store";
 import type { TmuxAgent } from "@/hooks/use-tmux-agents";
 
 interface AgentNameGroup {
@@ -101,118 +93,6 @@ function NameCard({
   );
 }
 
-function PaneContentModal({
-  agent,
-  onClose,
-}: {
-  agent: TmuxAgent;
-  onClose: () => void;
-}) {
-  const { theme } = useUnistyles();
-  const client = useHostRuntimeClient(agent.serverId);
-  const { content, isLoading, error } = useTmuxCapturePane(
-    agent.serverId,
-    agent.paneId,
-    true,
-  );
-  const [inputText, setInputText] = useState("");
-
-  const handleSend = useCallback(() => {
-    const trimmed = inputText.trim();
-    if (!trimmed || !client) return;
-    void client.tmuxSendKeys(agent.paneId, trimmed);
-    setInputText("");
-  }, [inputText, client, agent.paneId]);
-
-  const sendKey = useCallback(
-    (key: string) => {
-      if (!client) return;
-      void client.tmuxSendKeys(agent.paneId, key, false);
-    },
-    [client, agent.paneId],
-  );
-
-  return (
-    <AdaptiveModalSheet
-      title={agent.agentName}
-      subtitle={`${agent.sessionName} / ${agent.windowName}`}
-      visible
-      onClose={onClose}
-      snapPoints={["80%"]}
-      desktopMaxWidth={800}
-      scrollable={false}
-    >
-      <ScrollView
-        style={styles.paneContentScroll}
-        keyboardShouldPersistTaps="handled"
-      >
-        {isLoading && !content ? (
-          <Text style={styles.paneContentLoading}>Capturing pane content...</Text>
-        ) : error ? (
-          <Text style={styles.paneContentError}>{error}</Text>
-        ) : (
-          <Text style={styles.paneContentText} selectable>
-            {content || "(empty pane)"}
-          </Text>
-        )}
-      </ScrollView>
-      <View style={styles.keyButtonsRow}>
-        {[
-          { label: "↑", key: "Up" },
-          { label: "↓", key: "Down" },
-          { label: "←", key: "Left" },
-          { label: "→", key: "Right" },
-          { label: "Enter", key: "Enter" },
-          { label: "Esc", key: "Escape" },
-          { label: "Tab", key: "Tab" },
-          { label: "Ctrl+C", key: "C-c" },
-          { label: "1", key: "1" },
-          { label: "2", key: "2" },
-          { label: "3", key: "3" },
-          { label: "4", key: "4" },
-        ].map(({ label, key }) => (
-          <Pressable
-            key={key}
-            onPress={() => sendKey(key)}
-            style={({ pressed }) => [
-              styles.keyButton,
-              { borderColor: theme.colors.border },
-              pressed ? { backgroundColor: theme.colors.surface1 } : null,
-            ]}
-          >
-            <Text style={[styles.keyButtonLabel, { color: theme.colors.foreground }]}>
-              {label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-      <View style={styles.inputRow}>
-        <AdaptiveTextInput
-          style={[
-            styles.inputField,
-            { color: theme.colors.foreground, borderColor: theme.colors.border },
-          ]}
-          placeholder="Type a command..."
-          placeholderTextColor={theme.colors.foregroundMuted}
-          value={inputText}
-          onChangeText={setInputText}
-          onSubmitEditing={handleSend}
-          returnKeyType="send"
-        />
-        <Pressable
-          onPress={handleSend}
-          style={[
-            styles.sendButton,
-            { backgroundColor: theme.colors.primary },
-          ]}
-        >
-          <Send size={16} color={theme.colors.background} />
-        </Pressable>
-      </View>
-    </AdaptiveModalSheet>
-  );
-}
-
 export function TmuxDashboardScreen() {
   const { theme } = useUnistyles();
   const isCompact = useIsCompactFormFactor();
@@ -220,7 +100,7 @@ export function TmuxDashboardScreen() {
   const { agents, isLoading, isInitialLoad, error, refreshAll } =
     useAggregatedTmuxAgents();
   const [selectedName, setSelectedName] = useState<string | null>(null);
-  const [selectedAgent, setSelectedAgent] = useState<TmuxAgent | null>(null);
+  const setSelectedAgent = useTmuxAgentStore((s) => s.setSelectedAgent);
 
   const nameGroups = useMemo(() => {
     const map = new Map<string, number>();
@@ -239,6 +119,11 @@ export function TmuxDashboardScreen() {
 
   const handleNamePress = (name: string) => {
     setSelectedName((prev) => (prev === name ? null : name));
+  };
+
+  const handleAgentPress = (agent: TmuxAgent) => {
+    setSelectedAgent(agent);
+    router.push("/tmux-pane");
   };
 
   return (
@@ -303,19 +188,12 @@ export function TmuxDashboardScreen() {
               <AgentCard
                 key={`${agent.serverId}-${agent.paneId}-${index}`}
                 agent={agent}
-                onPress={() => setSelectedAgent(agent)}
+                onPress={() => handleAgentPress(agent)}
               />
             ))}
           </View>
         </ScrollView>
       )}
-
-      {selectedAgent ? (
-        <PaneContentModal
-          agent={selectedAgent}
-          onClose={() => setSelectedAgent(null)}
-        />
-      ) : null}
     </View>
   );
 }
@@ -440,73 +318,5 @@ const styles = StyleSheet.create((theme) => ({
   detailValue: {
     color: theme.colors.foreground,
     fontSize: 12,
-  },
-  paneContentScroll: {
-    flex: 1,
-    padding: 16,
-  },
-  paneContentLoading: {
-    color: theme.colors.foregroundMuted,
-    fontSize: 14,
-    textAlign: "center",
-    padding: 24,
-  },
-  paneContentError: {
-    color: theme.colors.destructive,
-    fontSize: 14,
-    textAlign: "center",
-    padding: 24,
-  },
-  paneContentText: {
-    fontFamily: "monospace",
-    fontSize: 12,
-    color: theme.colors.foreground,
-    lineHeight: 18,
-  },
-  keyButtonsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    gap: 6,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
-  keyButton: {
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    minWidth: 36,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  keyButtonLabel: {
-    fontSize: 12,
-    fontWeight: "500",
-  },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 8,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
-  inputField: {
-    flex: 1,
-    height: 40,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    fontSize: 14,
-  },
-  sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
   },
 }));
