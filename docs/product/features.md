@@ -151,6 +151,12 @@ Missing providers (Paseo has 9): Generic ACP, ACP Agent, Cursor-Agent (planned)
 
 #### 7.1 核心界面
 - **Dashboard**：Agent 列表和状态概览
+- **Tmux Dashboard**：自动检测 tmux 会话中的 AI 代理，提供交互式控制
+  - 三层代理检测（命令名 / 窗格标题 Unicode 归一化 / 子进程检查）
+  - 代理卡片按名称分组，支持筛选
+  - 窗格内容捕获（最近 500 行，5 秒自动刷新）
+  - 快捷操作按钮：方向键（↑↓←→）、Enter、Esc、Tab、Ctrl+C、数字键（1–4）
+  - 支持代理：claude、pi、kimi、kimi-cli、opencode、qoder、cursor
 - **Workspace Screen**：多标签工作区管理
   - 桌面标签行
   - Agent 可见性控制

@@ -38,6 +38,14 @@ import {
   ScheduleUpdateResponseSchema,
 } from "../server/schedule/rpc-schemas.js";
 import {
+  TmuxListAgentsRequestSchema,
+  TmuxListAgentsResponseSchema,
+  TmuxCapturePaneRequestSchema,
+  TmuxCapturePaneResponseSchema,
+  TmuxSendKeysRequestSchema,
+  TmuxSendKeysResponseSchema,
+} from "../server/tmux/rpc-schemas.js";
+import {
   LoopRunRequestSchema,
   LoopListRequestSchema,
   LoopInspectRequestSchema,
@@ -1737,6 +1745,9 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   ScheduleResumeRequestSchema,
   ScheduleDeleteRequestSchema,
   ScheduleUpdateRequestSchema,
+  TmuxListAgentsRequestSchema,
+  TmuxCapturePaneRequestSchema,
+  TmuxSendKeysRequestSchema,
   LoopRunRequestSchema,
   LoopListRequestSchema,
   LoopInspectRequestSchema,
@@ -3358,6 +3369,9 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   ScheduleResumeResponseSchema,
   ScheduleDeleteResponseSchema,
   ScheduleUpdateResponseSchema,
+  TmuxListAgentsResponseSchema,
+  TmuxCapturePaneResponseSchema,
+  TmuxSendKeysResponseSchema,
   LoopRunResponseSchema,
   LoopListResponseSchema,
   LoopInspectResponseSchema,

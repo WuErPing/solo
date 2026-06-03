@@ -16,6 +16,7 @@ app/
 ├── index.tsx                # Entry point (startup bootstrapping, redirect)
 ├── welcome.tsx              # Welcome page (first-time use)
 ├── dashboard.tsx            # Dashboard
+├── tmux-dashboard.tsx       # Tmux Dashboard (AI agent detection & control)
 ├── pair-scan.tsx            # QR code scanning / pairing
 ├── settings/
 │   ├── index.tsx            # Settings home
@@ -56,6 +57,7 @@ app/
 | Screen | File | Description |
 |--------|------|-------------|
 | **Dashboard** | `dashboard/dashboard-screen.tsx` | Main console, shows overview of all Agent statuses |
+| **Tmux Dashboard** | `tmux-dashboard/tmux-dashboard-screen.tsx` | Detect and interact with AI agents in tmux sessions |
 | **Project List** | `projects-screen.tsx` | View and manage all projects |
 | **Open Project** | `open-project-screen.tsx` | Select and open a project |
 | **Session List** | `sessions-screen.tsx` | View historical session records |
@@ -65,6 +67,14 @@ app/
 - Status filters (all, running, idle, error, needs permission)
 - Agent list (name, path, status, last activity time)
 - Quick actions (open workspace, view details)
+
+**Tmux Dashboard Details:**
+- Auto-detects AI agents in tmux sessions (claude, pi, kimi, kimi-cli, opencode, qoder, cursor)
+- Three-layer detection: command name, pane title (unicode normalization), child process inspection
+- Agent cards grouped by name with count badges; tap to filter by agent name
+- Tap agent card to open pane content modal (live terminal view, last 500 lines, auto-refreshes every 5s)
+- Quick-action key buttons: ↑↓←→, Enter, Esc, Tab, Ctrl+C, 1-4 (for TUI menu navigation)
+- Text input for sending commands (appends Enter automatically)
 
 ### 2.3 Workspace
 

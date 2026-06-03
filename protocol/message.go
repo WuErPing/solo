@@ -164,4 +164,7 @@ func init() {
 	RegisterInbound("schedule/resume", func() SessionInboundMessage { return &ScheduleResumeRequest{} })
 	RegisterInbound("schedule/delete", func() SessionInboundMessage { return &ScheduleDeleteRequest{} })
 	RegisterInbound("schedule/update", func() SessionInboundMessage { return &ScheduleUpdateRequest{} })
+	RegisterInbound("tmux/list_agents", func() SessionInboundMessage { return &TmuxListAgentsRequest{} })
+	RegisterInbound("tmux/capture_pane", func() SessionInboundMessage { return &TmuxCapturePaneRequest{} })
+	RegisterInbound("tmux/send_keys", func() SessionInboundMessage { return &TmuxSendKeysRequest{} })
 }

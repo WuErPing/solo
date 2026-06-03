@@ -370,6 +370,18 @@ type ScheduleUpdatePayload = Extract<
   SessionOutboundMessage,
   { type: "schedule/update/response" }
 >["payload"];
+type TmuxListAgentsPayload = Extract<
+  SessionOutboundMessage,
+  { type: "tmux/list_agents/response" }
+>["payload"];
+type TmuxCapturePanePayload = Extract<
+  SessionOutboundMessage,
+  { type: "tmux/capture_pane/response" }
+>["payload"];
+type TmuxSendKeysPayload = Extract<
+  SessionOutboundMessage,
+  { type: "tmux/send_keys/response" }
+>["payload"];
 export type FetchAgentTimelinePayload = FetchAgentTimelineResponseMessage["payload"];
 
 export type FetchAgentTimelineDirection = FetchAgentTimelinePayload["direction"];
@@ -3618,6 +3630,43 @@ export class DaemonClient {
         ...(options.expiresAt ? { expiresAt: options.expiresAt } : {}),
       },
       responseType: "schedule/update/response",
+      timeout: 10000,
+    });
+  }
+
+  async tmuxListAgents(requestId?: string): Promise<TmuxListAgentsPayload> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "tmux/list_agents",
+      },
+      responseType: "tmux/list_agents/response",
+      timeout: 10000,
+    });
+  }
+
+  async tmuxCapturePane(paneId: string, requestId?: string): Promise<TmuxCapturePanePayload> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "tmux/capture_pane",
+        paneId,
+      },
+      responseType: "tmux/capture_pane/response",
+      timeout: 10000,
+    });
+  }
+
+  async tmuxSendKeys(paneId: string, keys: string, sendEnter?: boolean, requestId?: string): Promise<TmuxSendKeysPayload> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "tmux/send_keys",
+        paneId,
+        keys,
+        ...(sendEnter === undefined ? {} : { sendEnter }),
+      },
+      responseType: "tmux/send_keys/response",
       timeout: 10000,
     });
   }

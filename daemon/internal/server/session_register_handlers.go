@@ -101,6 +101,11 @@ func (s *Session) registerHandlers() {
 	r.Register("schedule/resume", typeHandler(s.handleScheduleResume))
 	r.Register("schedule/delete", typeHandler(s.handleScheduleDelete))
 	r.Register("schedule/update", typeHandler(s.handleScheduleUpdate))
+
+	// --- Tmux handlers (session_tmux.go) ---
+	r.Register("tmux/list_agents", typeHandler(s.handleTmuxListAgents))
+	r.Register("tmux/capture_pane", typeHandler(s.handleTmuxCapturePane))
+	r.Register("tmux/send_keys", typeHandler(s.handleTmuxSendKeys))
 }
 
 // typeHandler is a helper that converts a typed handler func into a messageHandler.

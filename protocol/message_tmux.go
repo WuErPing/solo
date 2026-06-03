@@ -1,0 +1,85 @@
+package protocol
+
+// TmuxAgentInfo represents a single AI agent detected in a tmux pane.
+type TmuxAgentInfo struct {
+	SessionName string `json:"sessionName"`
+	WindowName  string `json:"windowName"`
+	PaneID      string `json:"paneId"`
+	PaneIndex   int    `json:"paneIndex"`
+	PanePID     int    `json:"panePid"`
+	AgentName   string `json:"agentName"`
+	CurrentCmd  string `json:"currentCmd"`
+	WorkingDir  string `json:"workingDir"`
+}
+
+// TmuxListAgentsRequest asks the daemon to scan tmux for AI agent panes.
+type TmuxListAgentsRequest struct {
+	Type      string `json:"type"`
+	RequestID string `json:"requestId"`
+}
+
+func (m TmuxListAgentsRequest) MsgType() string { return "tmux/list_agents" }
+
+// TmuxListAgentsResponse returns the detected agents.
+type TmuxListAgentsResponse struct {
+	Type    string                         `json:"type"`
+	Payload TmuxListAgentsResponsePayload  `json:"payload"`
+}
+
+func (m TmuxListAgentsResponse) MsgType() string { return "tmux/list_agents/response" }
+
+// TmuxListAgentsResponsePayload is the payload for TmuxListAgentsResponse.
+type TmuxListAgentsResponsePayload struct {
+	RequestID string          `json:"requestId"`
+	Agents    []TmuxAgentInfo `json:"agents"`
+	Error     *string         `json:"error"`
+}
+
+// TmuxCapturePaneRequest asks the daemon to capture the content of a tmux pane.
+type TmuxCapturePaneRequest struct {
+	Type      string `json:"type"`
+	PaneID    string `json:"paneId"`
+	RequestID string `json:"requestId"`
+}
+
+func (m TmuxCapturePaneRequest) MsgType() string { return "tmux/capture_pane" }
+
+// TmuxCapturePaneResponse returns the captured pane content.
+type TmuxCapturePaneResponse struct {
+	Type    string                          `json:"type"`
+	Payload TmuxCapturePaneResponsePayload  `json:"payload"`
+}
+
+func (m TmuxCapturePaneResponse) MsgType() string { return "tmux/capture_pane/response" }
+
+// TmuxCapturePaneResponsePayload is the payload for TmuxCapturePaneResponse.
+type TmuxCapturePaneResponsePayload struct {
+	RequestID string  `json:"requestId"`
+	Content   string  `json:"content"`
+	Error     *string `json:"error"`
+}
+
+// TmuxSendKeysRequest asks the daemon to send keystrokes to a tmux pane.
+type TmuxSendKeysRequest struct {
+	Type      string `json:"type"`
+	PaneID    string `json:"paneId"`
+	Keys      string `json:"keys"`
+	SendEnter *bool  `json:"sendEnter,omitempty"`
+	RequestID string `json:"requestId"`
+}
+
+func (m TmuxSendKeysRequest) MsgType() string { return "tmux/send_keys" }
+
+// TmuxSendKeysResponse confirms the keys were sent.
+type TmuxSendKeysResponse struct {
+	Type    string                       `json:"type"`
+	Payload TmuxSendKeysResponsePayload  `json:"payload"`
+}
+
+func (m TmuxSendKeysResponse) MsgType() string { return "tmux/send_keys/response" }
+
+// TmuxSendKeysResponsePayload is the payload for TmuxSendKeysResponse.
+type TmuxSendKeysResponsePayload struct {
+	RequestID string  `json:"requestId"`
+	Error     *string `json:"error"`
+}

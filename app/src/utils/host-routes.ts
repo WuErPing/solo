@@ -411,6 +411,10 @@ export function buildSchedulesRoute() {
   return "/schedules" as const;
 }
 
+export function buildTmuxDashboardRoute() {
+  return "/tmux-dashboard" as const;
+}
+
 export function buildSettingsRoute() {
   return "/settings" as const;
 }

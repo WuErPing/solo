@@ -1,5 +1,5 @@
 import { router, usePathname } from "expo-router";
-import { Calendar, FolderPlus, LayoutDashboard, MessagesSquare, Settings } from "lucide-react-native";
+import { Calendar, FolderPlus, LayoutDashboard, MessagesSquare, Settings, Terminal } from "lucide-react-native";
 import {
   type Dispatch,
   memo,
@@ -62,6 +62,7 @@ import {
   buildHostSessionsRoute,
   buildSchedulesRoute,
   buildSettingsRoute,
+  buildTmuxDashboardRoute,
   mapPathnameToServer,
 } from "@/utils/host-routes";
 import { SidebarAgentListSkeleton } from "./sidebar-agent-list-skeleton";
@@ -113,6 +114,7 @@ interface MobileSidebarProps extends SidebarSharedProps {
   handleViewMoreNavigate: () => void;
   handleSchedulesNavigate: () => void;
   handleDashboardNavigate: () => void;
+  handleTmuxDashboardNavigate: () => void;
 }
 
 interface DesktopSidebarProps extends SidebarSharedProps {
@@ -121,6 +123,7 @@ interface DesktopSidebarProps extends SidebarSharedProps {
   handleViewMore: () => void;
   handleSchedulesNavigate: () => void;
   handleDashboardNavigate: () => void;
+  handleTmuxDashboardNavigate: () => void;
 }
 
 export const LeftSidebar = memo(function LeftSidebar({
@@ -244,6 +247,10 @@ export const LeftSidebar = memo(function LeftSidebar({
     router.push(buildDashboardRoute());
   }, []);
 
+  const handleTmuxDashboardNavigate = useCallback(() => {
+    router.push(buildTmuxDashboardRoute());
+  }, []);
+
   const handleHostSelect = useCallback(
     (nextServerId: string) => {
       if (!nextServerId) {
@@ -290,6 +297,7 @@ export const LeftSidebar = memo(function LeftSidebar({
         handleViewMoreNavigate={handleViewMoreNavigate}
         handleSchedulesNavigate={handleSchedulesNavigate}
         handleDashboardNavigate={handleDashboardNavigate}
+        handleTmuxDashboardNavigate={handleTmuxDashboardNavigate}
       />
     );
   }
@@ -304,6 +312,7 @@ export const LeftSidebar = memo(function LeftSidebar({
       handleViewMore={handleViewMoreNavigate}
       handleSchedulesNavigate={handleSchedulesNavigate}
       handleDashboardNavigate={handleDashboardNavigate}
+      handleTmuxDashboardNavigate={handleTmuxDashboardNavigate}
     />
   );
 });
@@ -526,6 +535,7 @@ function MobileSidebar({
   handleViewMoreNavigate,
   handleSchedulesNavigate,
   handleDashboardNavigate,
+  handleTmuxDashboardNavigate,
 }: MobileSidebarProps) {
   const pathname = usePathname();
   const isSessionsActive = pathname.includes("/sessions");
@@ -727,6 +737,13 @@ function MobileSidebar({
               isActive={isSchedulesActive}
               testID="sidebar-schedules"
             />
+            <SidebarHeaderRow
+              icon={Terminal}
+              label="Tmux Dashboard"
+              onPress={handleTmuxDashboardNavigate}
+              isActive={pathname === "/tmux-dashboard"}
+              testID="sidebar-tmux-dashboard"
+            />
 
             {isInitialLoad ? (
               <SidebarAgentListSkeleton />
@@ -792,6 +809,7 @@ function DesktopSidebar({
   handleViewMore,
   handleSchedulesNavigate,
   handleDashboardNavigate,
+  handleTmuxDashboardNavigate,
 }: DesktopSidebarProps) {
   const pathname = usePathname();
   const isSessionsActive = pathname.includes("/sessions");
@@ -881,6 +899,13 @@ function DesktopSidebar({
             onPress={handleSchedulesNavigate}
             isActive={isSchedulesActive}
             testID="sidebar-schedules"
+          />
+          <SidebarHeaderRow
+            icon={Terminal}
+            label="Tmux Dashboard"
+            onPress={handleTmuxDashboardNavigate}
+            isActive={pathname === "/tmux-dashboard"}
+            testID="sidebar-tmux-dashboard"
           />
         </View>
 

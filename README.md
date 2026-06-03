@@ -188,6 +188,41 @@ Other knobs (`backend`, `root`, `retention_days`, `queue_size`, `overflow`, `red
 
 ---
 
+## Tmux Dashboard
+
+The app includes a Tmux Dashboard that automatically detects AI agents running in tmux sessions and provides interactive control.
+
+### Agent Detection
+
+Three-layer detection identifies agents even when `pane_current_command` reports a different process name (e.g., `node` for pi):
+
+1. **Command name** — matches `claude`, `pi`, `kimi`, `kimi-cli`, `opencode`, `qoder`, `cursor`
+2. **Pane title** — unicode normalization (e.g., `π` → `pi`) with word-boundary matching
+3. **Child process inspection** — `pgrep`/`ps` fallback for wrapped launchers
+
+### Features
+
+- **Agent cards** — grouped by agent name, tap to filter
+- **Pane content capture** — live terminal view (last 500 lines), auto-refreshes every 5 seconds
+- **Interactive control** — send text commands with Enter, or use quick-action buttons:
+  - Arrow keys (↑↓←→) for TUI menu navigation
+  - Enter, Esc, Tab, Ctrl+C for control
+  - Number keys (1–4) for TUI menu selection
+
+### Supported Agents
+
+| Agent | Detection Method |
+|-------|-----------------|
+| claude | command / title |
+| pi | command / title (π unicode) / child process |
+| kimi | command / title |
+| kimi-cli | command / title |
+| opencode | command / title |
+| qoder | command |
+| cursor | command |
+
+---
+
 ## Security
 
 - **End-to-End Encryption**: All communication between client and daemon is encrypted using X25519 key exchange + XSalsa20-Poly1305.
