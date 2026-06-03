@@ -1,41 +1,41 @@
-# Agent Provider 状态统一方案
+# Agent Provider Status Unification Plan
 
-## 现状分析
+## Current State Analysis
 
-当前代码存在**三套重复的状态定义**：
+The current codebase contains **three redundant state definitions**:
 
-### 1. 协议层 (`protocol/protocol.go`)
+### 1. Protocol Layer (`protocol/protocol.go`)
 - `AgentLifecycleStatus`: initializing, idle, running, error, closed
 - `ProviderStatus`: ready, loading, error, unavailable
 
-### 2. 内部实现层 (`daemon/internal/agent/agent.go`)
-- `AgentLifecycle`: initializing, idle, running, error, closed （与 AgentLifecycleStatus 值完全相同）
+### 2. Internal Implementation Layer (`daemon/internal/agent/agent.go`)
+- `AgentLifecycle`: initializing, idle, running, error, closed (identical values to AgentLifecycleStatus)
 
-### 3. 前端层 (`app-bridge/src/shared/agent-lifecycle.ts`)
-- `AGENT_LIFECYCLE_STATUSES` 数组定义
+### 3. Frontend Layer (`app-bridge/src/shared/agent-lifecycle.ts`)
+- `AGENT_LIFECYCLE_STATUSES` array definition
 
-### 核心问题
+### Core Problems
 
-- **重复定义**：`AgentLifecycle` 和 `AgentLifecycleStatus` 值完全相同，只是类型名不同
-- **差异外泄**：`ProviderStatus` 将不同 Provider 的底层差异（ready/loading/unavailable）暴露到协议层和上层代码
-- **职责混淆**：核心调度层需要同时理解 `AgentStatus` 和 `ProviderAvailabilityStatus`，并处理它们的组合逻辑
-- **扩展成本**：新增 Provider 时，需要修改协议层定义、核心调度逻辑、前端 UI 来适配新状态语义
+- **Redundant definitions**: `AgentLifecycle` and `AgentLifecycleStatus` have identical values but different type names
+- **Leakage of differences**: `ProviderStatus` exposes underlying Provider differences (ready/loading/unavailable) to the protocol layer and upper-level code
+- **Confused responsibilities**: The core scheduling layer must understand both `AgentStatus` and `ProviderAvailabilityStatus`, and handle their combination logic
+- **Extension cost**: Adding a new Provider requires modifying the protocol layer definition, core scheduling logic, and frontend UI to adapt to new state semantics
 
 ---
 
-## 设计原则：OCP 优先
+## Design Principle: OCP First
 
-**开闭原则在此场景下的核心含义**：不同 Agent Provider 之间的差异应尽可能少地泄漏到上层。
+**The core meaning of the Open/Closed Principle in this scenario**: Differences between Agent Providers should leak into upper layers as little as possible.
 
-> 新增一个 Provider（扩展）时，核心调度、协议层、前端 UI 不应该被修改（关闭）。
+> When adding a new Provider (extension), the core scheduler, protocol layer, and frontend UI should not be modified (closed).
 
-具体原则：
+Specific principles:
 
-1. **差异内聚**：Provider 特有的状态语义封装在各自实现内部
-2. **统一抽象**：上层只与一个稳定的状态接口交互
-3. **对扩展开放**：新增 Provider 只需实现统一接口，不触碰已有代码
-4. **对修改关闭**：核心层不感知、不处理 Provider 之间的状态差异
-5. **向后兼容**：保留旧类型别名，避免破坏性变更
+1. **Difference cohesion**: Provider-specific state semantics are encapsulated within their respective implementations
+2. **Unified abstraction**: Upper layers interact with only one stable state interface
+3. **Open for extension**: Adding a new Provider only requires implementing the unified interface, without touching existing code
+4. **Closed for modification**: The core layer does not perceive or handle state differences between Providers
+5. **Backward compatibility**: Preserve old type aliases to avoid breaking changes
 
 ---
 

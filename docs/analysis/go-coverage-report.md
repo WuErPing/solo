@@ -41,44 +41,44 @@
 
 ## Recent TDD Refactor (2026-05-27)
 
-### 1. output 包 — 消除全局 `Stdout`/`Stderr`
+### 1. output package — Eliminate Global `Stdout`/`Stderr`
 
-**问题**：`Render`/`RenderError`/`PrintResult` 直接依赖包级全局变量 `output.Stdout`/`output.Stderr`，测试必须通过修改全局状态来捕获输出，导致测试间隐式耦合。
+**Problem**: `Render`/`RenderError`/`PrintResult` directly depended on package-level global variables `output.Stdout`/`output.Stderr`. Tests had to capture output by modifying global state, causing implicit coupling between tests.
 
-**修改**：
-- 三个函数签名增加显式 `io.Writer` 参数：
+**Changes**:
+- Added explicit `io.Writer` parameter to three function signatures:
   - `Render(w io.Writer, result *CommandResult, opts OutputOptions) error`
   - `RenderError(w io.Writer, ce *CommandError, opts OutputOptions)`
   - `PrintResult(w io.Writer, result *CommandResult, opts OutputOptions) int`
-- `cli/internal/output/output_test.go` 完全移除全局变量替换逻辑，所有测试直接传入 `bytes.Buffer`
-- 新增 `TestRenderToWriter`、`TestRenderErrorToWriter`、`TestRenderDoesNotDependOnGlobalStdout` 验证无全局依赖
+- `cli/internal/output/output_test.go` completely removed global variable replacement logic; all tests now pass in `bytes.Buffer` directly
+- Added `TestRenderToWriter`, `TestRenderErrorToWriter`, `TestRenderDoesNotDependOnGlobalStdout` to verify no global dependency
 
-### 2. cmd 包 — 参数化依赖注入
+### 2. cmd package — Parameterized Dependency Injection
 
-**问题**：`getOutputOpts()` 和 `newClient(ctx)` 直接读取包级全局 flag 变量；`output.Stdout` 被 20+ 个命令文件直接引用。
+**Problem**: `getOutputOpts()` and `newClient(ctx)` directly read package-level global flag variables; `output.Stdout` was directly referenced by 20+ command files.
 
-**修改**：
+**Changes**:
 - `getOutputOpts(format string, json bool, quiet bool, noHeaders bool, noColor bool) output.OutputOptions`
 - `newClient(ctx context.Context, host string) (*client.DaemonClient, error)`
-- 引入 `cmdStdout io.Writer = os.Stdout` / `cmdStderr io.Writer = os.Stderr`（包级，测试可注入）
-- 批量替换所有命令文件中的 `output.Stdout` → `cmdStdout`，`output.Render(os.Stdout, ...)` → `output.Render(cmdStdout, ...)`
-- `root_test.go` 中 `getOutputOpts` 测试改为直接传参，不再修改全局 flag
+- Introduced `cmdStdout io.Writer = os.Stdout` / `cmdStderr io.Writer = os.Stderr` (package-level, injectable in tests)
+- Batch-replaced `output.Stdout` → `cmdStdout` and `output.Render(os.Stdout, ...)` → `output.Render(cmdStdout, ...)` across all command files
+- `root_test.go` tests for `getOutputOpts` changed to pass parameters directly instead of modifying global flags
 
-### 3. Daemon agent — 并发 Race 测试
+### 3. Daemon agent — Concurrent Race Tests
 
-**问题**：`StreamCoalescer` 和 `AgentManager` 涉及并发状态，但缺乏 `-race` 下的并发测试。
+**Problem**: `StreamCoalescer` and `AgentManager` involve concurrent state but lacked concurrency tests under `-race`.
 
-**新增测试**（`daemon/internal/agent/*_extra_test.go`）：
+**New tests** (`daemon/internal/agent/*_extra_test.go`):
 
-| 测试 | 场景 | 包 |
-|------|------|-----|
-| `TestStreamCoalescerConcurrentHandleAndFlush` | 10 goroutine 并发 `Handle` + `FlushAll` + `FlushAndDiscard` | coalescer |
-| `TestStreamCoalescerConcurrentHandleAndFlushFor` | 5 goroutine 并发 `Handle` + `FlushFor` | coalescer |
-| `TestAgentManagerConcurrentCreateDelete` | 5 goroutine 各创建 10 agent，再并发删除 50 个 | manager |
-| `TestAgentManagerConcurrentCreateArchive` | 3 goroutine 创建 + 1 goroutine 并发读取/归档 | manager |
-| `TestAgentManagerConcurrentReadWrite` | 10 goroutine 并发读取 + 5 goroutine 并发修改 agent 状态 | manager |
+| Test | Scenario | Package |
+|------|----------|---------|
+| `TestStreamCoalescerConcurrentHandleAndFlush` | 10 goroutines concurrently `Handle` + `FlushAll` + `FlushAndDiscard` | coalescer |
+| `TestStreamCoalescerConcurrentHandleAndFlushFor` | 5 goroutines concurrently `Handle` + `FlushFor` | coalescer |
+| `TestAgentManagerConcurrentCreateDelete` | 5 goroutines each create 10 agents, then concurrently delete 50 | manager |
+| `TestAgentManagerConcurrentCreateArchive` | 3 goroutines create + 1 goroutine concurrently reads/archives | manager |
+| `TestAgentManagerConcurrentReadWrite` | 10 goroutines concurrently read + 5 goroutines concurrently modify agent state | manager |
 
-**Race detector 验证**：全部通过 `go test -race`
+**Race detector verification**: All passed `go test -race`
 
 ## P0 TDD Session (2026-05-28)
 

@@ -1,50 +1,50 @@
-# Solo - 产品功能详细分析
+# Solo - Product Feature Detailed Analysis
 
-> 分析日期：2026-06-01
-> 仓库：/Users/wuerping/code/wuerping/solo
-> 版本：v0.1.0
+> Analysis Date: 2026-06-01
+> Repository: /Users/wuerping/code/wuerping/solo
+> Version: v0.1.0
 
-## 产品概述
+## Product Overview
 
-**Solo** 是一个 AI 驱动的开发助手平台，采用全栈架构设计：
+**Solo** is an AI-driven development assistant platform with a full-stack architecture:
 
-- **App** (React Native/Expo)：跨平台客户端（iOS/Android/Web）
-- **Daemon** (Go)：核心服务端，管理 AI Agent、会话、工作区
-- **CLI** (Go)：命令行工具，用于管理 daemon 和 agent
-- **Relay** (Go)：WebSocket 中继服务，支持端到端加密 (E2EE)
-- **Protocol** (Go)：通信协议定义
+- **App** (React Native/Expo): Cross-platform client (iOS/Android/Web)
+- **Daemon** (Go): Core server, manages AI Agents, sessions, workspaces
+- **CLI** (Go): Command-line tool for managing daemon and agents
+- **Relay** (Go): WebSocket relay service with end-to-end encryption (E2EE)
+- **Protocol** (Go): Communication protocol definitions
 
-## 核心功能模块
+## Core Feature Modules
 
 ### 1. AI Agent 系统
 
-#### 1.1 Agent 生命周期管理
-- **创建/删除/列出 Agent**：通过 CLI 或 App 管理 Agent
-- **启动/停止/附加**：支持后台运行和交互式会话
-- **状态管理**：initializing → idle ↔ running → error/closed
-- **持久化**：`~/.solo/agents/` JSON 存储
-- **会话恢复**：从 persistence handle 恢复 Agent 状态
+#### 1.1 Agent Lifecycle Management
+- **Create/Delete/List Agents**: Manage agents via CLI or App
+- **Start/Stop/Attach**: Support background execution and interactive sessions
+- **State Management**: initializing → idle ↔ running → error/closed
+- **Persistence**: `~/.solo/agents/` JSON storage
+- **Session Recovery**: Restore agent state from persistence handle
 
-#### 1.2 多 Provider 支持
-当前内置 5 个 Provider（+ Mock 测试用）：
-- **Claude**：通过 CLI `--print --output-format stream-json` 集成
-- **Kimi**：Wire 模式 (`kimi --wire`)，JSON-RPC 2.0 stdio 通信，EventPump 事件泵，动态读取 `~/.kimi/config.toml` 模型列表（758 LOC，23 个单元测试）
-- **OpenCode**：SSE `/global/event` 事件流，完整支持 reasoning/thinking
-- **Pi**：Minimal terminal coding harness
-- **Mock**：测试用 Provider
+#### 1.2 Multi-Provider Support
+Currently built-in 5 providers (+ Mock for testing):
+- **Claude**: Integrated via CLI `--print --output-format stream-json`
+- **Kimi**: Wire mode (`kimi --wire`), JSON-RPC 2.0 stdio communication, EventPump, dynamically reads `~/.kimi/config.toml` model list (758 LOC, 23 unit tests)
+- **OpenCode**: SSE `/global/event` event stream, full reasoning/thinking support
+- **Pi**: Minimal terminal coding harness
+- **Mock**: Test provider
 
-定义但无后端实现：**Codex**
+Defined but no backend implementation: **Codex**
 
-已移除 Provider：Copilot
-缺失 Provider（Paseo 有 9 个）：Generic ACP、ACP Agent、Cursor-Agent（计划中）
+Removed providers: Copilot
+Missing providers (Paseo has 9): Generic ACP, ACP Agent, Cursor-Agent (planned)
 
-#### 1.3 流式事件处理
-- **Stream Coalescer**：200-500ms 动态窗口，减少 WS 消息量
-- **Coalescer Flush**：关键事件强制刷新机制
-- **Duplicate 检测**：字符长度跟踪 + content_block_delta 索引标记
-- **Dispatcher 优先级**：Critical / SemiCritical / Normal 三级队列
-- **MessageID 传播**：所有 provider（Claude、Kimi、OpenCode、Pi、Mock）在生成 `user_message` 时携带唯一 `MessageID`，用于后端 timeline 幂等去重
-- **Timeline Deduplication**：`InMemoryTimelineStore.Append()` 按类型精确比较最后一条记录（`MessageID` → `Text` → `CallID+Status`），防止多端同步时重复写入
+#### 1.3 Streaming Event Processing
+- **Stream Coalescer**: 200-500ms dynamic window, reduces WS message volume
+- **Coalescer Flush**: Critical event forced flush mechanism
+- **Duplicate Detection**: Character length tracking + content_block_delta index marking
+- **Dispatcher Priority**: Critical / SemiCritical / Normal three-level queue
+- **MessageID Propagation**: All providers (Claude, Kimi, OpenCode, Pi, Mock) carry unique `MessageID` when generating `user_message`, used for backend timeline idempotent deduplication
+- **Timeline Deduplication**: `InMemoryTimelineStore.Append()` precisely compares the last record by type (`MessageID` → `Text` → `CallID+Status`), preventing duplicate writes during multi-device sync
 
 #### 1.4 Agent 监控
 - **Agent Watchdog**：35min 超时中断卡住任务

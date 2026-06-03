@@ -1,5 +1,7 @@
 # Solo
 
+📄 [中文版本](README.zh-CN.md)
+
 Solo is an AI coding assistant platform that connects your local development environment with AI providers through a secure, end-to-end encrypted architecture. It consists of a local daemon, a relay server for remote connectivity, a cross-platform mobile/web app, and a CLI tool.
 
 ---

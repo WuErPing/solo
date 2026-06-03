@@ -20,11 +20,11 @@ See also [`../product/session-memory-spec.md`](../product/session-memory-spec.md
 - [Provider Integration Research](../providers/) — Kimi Wire vs ACP, Cursor-Agent plan
 - [Technical Analysis](../analysis/) — Host status check probe cycle deep-dive
 
-## 系统架构图
+## System Architecture Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         客户端层                                  │
+│                         Client Layer                            │
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
 │  │   Web App    │  │  Mobile App  │  │    CLI       │         │
@@ -38,41 +38,41 @@ See also [`../product/session-memory-spec.md`](../product/session-memory-spec.md
                     └───────┬───────┘
                             │
 ┌───────────────────────────▼─────────────────────────────────────┐
-│                      网络传输层                                   │
+│                      Network Transport Layer                    │
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │                    Nginx (可选)                          │   │
+│  │                    Nginx (optional)                      │   │
 │  └─────────────────────────┬───────────────────────────────┘   │
 │                            │                                    │
 │  ┌─────────────────────────▼───────────────────────────────┐   │
-│  │              Relay Server (中继服务器)                    │   │
+│  │              Relay Server                               │   │
 │  └─────────────────────────┬───────────────────────────────┘   │
 └────────────────────────────┼────────────────────────────────────┘
                              │
 ┌────────────────────────────▼────────────────────────────────────┐
-│                      服务层                                       │
+│                      Service Layer                              │
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │              Daemon (守护进程)                           │   │
+│  │              Daemon                                     │   │
 │  └─────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## 核心组件
+## Core Components
 
-| 组件 | 目录 | 语言 | 职责 |
-|------|------|------|------|
-| **App** | `app/` | TypeScript/React Native | 用户界面 |
-| **App-Bridge** | `app-bridge/` | TypeScript | 客户端通信库 |
-| **Daemon** | `daemon/` | Go | 核心服务 |
-| **Relay** | `relay-go/` | Go | 连接中继 |
-| **CLI** | `cli/` | Go | 命令行工具 |
-| **Protocol** | `protocol/` | Go | 协议定义 |
-| **Highlight** | `packages/highlight/` | TypeScript | 语法高亮库 |
+| Component | Directory | Language | Responsibility |
+|-----------|-----------|----------|----------------|
+| **App** | `app/` | TypeScript/React Native | User Interface |
+| **App-Bridge** | `app-bridge/` | TypeScript | Client Communication Library |
+| **Daemon** | `daemon/` | Go | Core Service |
+| **Relay** | `relay-go/` | Go | Connection Relay |
+| **CLI** | `cli/` | Go | Command Line Tool |
+| **Protocol** | `protocol/` | Go | Protocol Definitions |
+| **Highlight** | `packages/highlight/` | TypeScript | Syntax Highlighting Library |
 
-## 快速链接
+## Quick Links
 
-- [网络架构详解](network-architecture.md)
-- [查看组件详情](components.md)
-- [了解数据流](data-flow.md)
-- [部署指南](deployment.md)
+- [Network Architecture Details](network-architecture.md)
+- [View Component Details](components.md)
+- [Learn about Data Flow](data-flow.md)
+- [Deployment Guide](deployment.md)

@@ -1,41 +1,41 @@
-# Kimi & Cursor-Agent Provider 集成分析与解决方案
+# Kimi & Cursor-Agent Provider Integration Analysis & Solution
 
-> 分析日期：2026-05-21
-> 仓库：/Users/wuerping/code/wuerping/solo
-> 分析范围：daemon (Go) + app-bridge (TS) + app (React Native)
+> Analysis date: 2026-05-21
+> Repo: /Users/wuerping/code/wuerping/solo
+> Scope: daemon (Go) + app-bridge (TS) + app (React Native)
 >
 > **Status update (2026-06-01)**: Kimi Wire mode provider is **fully implemented** (`provider_kimi.go`, 758 LOC, 23 tests). Pi provider is also **implemented** (`provider_pi.go`). Cursor-Agent remains planned. Codex has registry definition only, no backend implementation.
 
 ---
 
-## 一、执行摘要
+## 1. Executive Summary
 
-| Provider | 当前状态 | 推荐集成方式 | 复杂度 |
+| Provider | Current Status | Recommended Integration | Complexity |
 |---------|---------|------------|--------|
-| **Kimi** | **✅ 已实现** (JSON-RPC 2.0 stdio, EventPump) | **Wire 模式** (`kimi --wire`) | 中高 |
-| **Cursor-Agent** | 完全缺失 | **Print 模式** (`cursor agent --print --output-format stream-json`) | 中等 |
+| **Kimi** | **✅ Implemented** (JSON-RPC 2.0 stdio, EventPump) | **Wire mode** (`kimi --wire`) | Medium-High |
+| **Cursor-Agent** | Not implemented | **Print mode** (`cursor agent --print --output-format stream-json`) | Medium |
 
 ---
 
-## 二、现状深度分析
+## 2. Current State Deep Analysis
 
-### 2.1 Kimi — 已实现
+### 2.1 Kimi — Implemented
 
-#### 实现概览
+#### Implementation Overview
 
-- ✅ `daemon/internal/agent/provider_kimi.go` — **758 LOC**，Wire 模式，JSON-RPC 2.0 stdio，EventPump 事件泵
-- ✅ `daemon/internal/agent/provider_kimi_test.go` — **23 个单元测试**
-- ✅ `daemon/internal/agent/provider_registry.go` — `BuiltinProviderDefinitions()` 中包含 `kimi` 的 ID/Label/Modes
-- ✅ `app-bridge/src/server/agent/provider-manifest.ts` — `KIMI_MODES` 和 `AGENT_PROVIDER_DEFINITIONS` 已定义
-- ✅ `app/src/utils/provider-command-templates.ts` — `kimi --resume {sessionId}` 命令模板
+- ✅ `daemon/internal/agent/provider_kimi.go` — **758 LOC**, Wire mode, JSON-RPC 2.0 stdio, EventPump
+- ✅ `daemon/internal/agent/provider_kimi_test.go` — **23 unit tests**
+- ✅ `daemon/internal/agent/provider_registry.go` — `kimi` ID/Label/Modes in `BuiltinProviderDefinitions()`
+- ✅ `app-bridge/src/server/agent/provider-manifest.ts` — `KIMI_MODES` and `AGENT_PROVIDER_DEFINITIONS` defined
+- ✅ `app/src/utils/provider-command-templates.ts` — `kimi --resume {sessionId}` command template
 
-#### 历史背景（实现前）
+#### Historical Context (Pre-implementation)
 
-> 以下内容记录实现前的调研，保留供参考：
-> - `kimi --print --output-format stream-json` 输出完整 JSON（非流式），体验差
-> - 最终选择 `kimi --wire`（JSON-RPC 2.0 over stdin/stdout）实现真正的双向流式通信
+> The following records pre-implementation research, kept for reference:
+> - `kimi --print --output-format stream-json` outputs complete JSON (non-streaming), poor experience
+> - Ultimately chose `kimi --wire` (JSON-RPC 2.0 over stdin/stdout) for true bidirectional streaming
 
-#### CLI 调研结果
+#### CLI Research Results
 
 ```bash
 $ kimi --version
@@ -44,9 +44,9 @@ agent spec versions: 1
 wire protocol: 1.10
 ```
 
-`kimi` CLI 已安装于 `/Users/wuerping/.local/bin/kimi`。
+`kimi` CLI installed at `/Users/wuerping/.local/bin/kimi`.
 
-**Print 模式测试：**
+**Print mode test:**
 
 ```bash
 $ kimi --print --output-format stream-json --prompt "hi"
@@ -54,115 +54,115 @@ $ kimi --print --output-format stream-json --prompt "hi"
 To resume this session: kimi -r <session-id>
 ```
 
-⚠️ **关键发现**：`--print --output-format stream-json` 输出**完整 JSON（非流式）**，每个 turn 结束后才输出一行 JSON，UI 需要等待整个 turn 完成才能显示内容，体验差。
+⚠️ **Key finding**: `--print --output-format stream-json` outputs **complete JSON (non-streaming)** — one line per turn only after the entire turn completes. UI must wait for the full turn before displaying content, resulting in poor experience.
 
-✅ **最佳集成点**：`kimi --wire` 提供 **JSON-RPC 2.0 over stdin/stdout** 的 Wire 协议，支持真正的双向流式通信。
+✅ **Best integration point**: `kimi --wire` provides **JSON-RPC 2.0 over stdin/stdout** Wire protocol, supporting true bidirectional streaming.
 
-#### Wire 协议核心特性
+#### Wire Protocol Core Features
 
-Wire 是 Kimi Code CLI 的低级通信协议，专为外部程序集成设计。
+Wire is Kimi Code CLI's low-level communication protocol, designed specifically for external program integration.
 
-**协议基础：**
-- 传输：逐行 JSON-RPC 2.0 via stdin/stdout
-- 版本：1.10
-- 方向：双向（客户端 request ↔ 服务端 event/request）
+**Protocol basics:**
+- Transport: Line-by-line JSON-RPC 2.0 via stdin/stdout
+- Version: 1.10
+- Direction: Bidirectional (Client request ↔ Server event/request)
 
-**客户端请求方法：**
+**Client request methods:**
 
-| 方法 | 方向 | 类型 | 说明 |
+| Method | Direction | Type | Description |
 |------|------|------|------|
-| `initialize` | Client → Agent | Request | 握手，协商协议版本、注册外部工具 |
-| `prompt` | Client → Agent | Request | 发送用户输入，启动 agent turn |
-| `cancel` | Client → Agent | Request | 取消当前 turn |
-| `set_plan_mode` | Client → Agent | Request | 设置 plan 模式开关 |
-| `steer` | Client → Agent | Request | 向运行中的 turn 注入追加输入 |
-| `replay` | Client → Agent | Request | 触发历史回放 |
+| `initialize` | Client → Agent | Request | Handshake, negotiate protocol version, register external tools |
+| `prompt` | Client → Agent | Request | Send user input, start agent turn |
+| `cancel` | Client → Agent | Request | Cancel current turn |
+| `set_plan_mode` | Client → Agent | Request | Set plan mode toggle |
+| `steer` | Client → Agent | Request | Inject additional input into running turn |
+| `replay` | Client → Agent | Request | Trigger history replay |
 
-**服务端推送通知：**
+**Server push notifications:**
 
-| 方法 | 方向 | 类型 | 说明 |
+| Method | Direction | Type | Description |
 |------|------|------|------|
-| `event` | Agent → Client | Notification | 流式事件（无需响应） |
-| `request` | Agent → Client | Request | 权限/工具调用请求（必须响应） |
+| `event` | Agent → Client | Notification | Streaming events (no response needed) |
+| `request` | Agent → Client | Request | Permission/tool call requests (must respond) |
 
-**Event 类型（关键）：**
+**Event types (key):**
 
-| Event | 说明 | Solo 映射 |
+| Event | Description | Solo Mapping |
 |-------|------|----------|
-| `TurnBegin` | Turn 开始 | `thread_started` |
-| `ContentPart(text)` | 文本片段 | `timeline(assistant_message)` |
-| `ContentPart(think)` | 思考片段 | `timeline(reasoning)` |
-| `ToolCall` | 工具调用 | `timeline(tool_call)` |
-| `ToolResult` | 工具执行结果 | `timeline(tool_call completed)` |
-| `ApprovalResponse` | 审批完成 | — |
-| `TurnEnd` | Turn 结束 | `turn_completed` |
-| `StepBegin` | Step 开始 | — |
-| `StepRetry` | Step 重试 | — |
-| `CompactionBegin/End` | 上下文压缩 | `timeline(compaction)` |
-| `StatusUpdate` | 状态更新 | — |
+| `TurnBegin` | Turn starts | `thread_started` |
+| `ContentPart(text)` | Text chunk | `timeline(assistant_message)` |
+| `ContentPart(think)` | Thinking chunk | `timeline(reasoning)` |
+| `ToolCall` | Tool call | `timeline(tool_call)` |
+| `ToolResult` | Tool execution result | `timeline(tool_call completed)` |
+| `ApprovalResponse` | Approval completed | — |
+| `TurnEnd` | Turn ends | `turn_completed` |
+| `StepBegin` | Step starts | — |
+| `StepRetry` | Step retry | — |
+| `CompactionBegin/End` | Context compaction | `timeline(compaction)` |
+| `StatusUpdate` | Status update | — |
 
-**Request 类型（需要客户端响应）：**
+**Request types (require client response):**
 
-| Request | 说明 | Solo 映射 |
+| Request | Description | Solo Mapping |
 |---------|------|----------|
-| `ApprovalRequest` | 操作审批请求 | `permission_requested` |
-| `ToolCallRequest` | 外部工具调用 | —（如注册外部工具） |
-| `QuestionRequest` | 结构化问题（AskUserQuestion） | — |
-| `HookRequest` | Hook 处理请求 | — |
+| `ApprovalRequest` | Operation approval request | `permission_requested` |
+| `ToolCallRequest` | External tool call | — (e.g., register external tools) |
+| `QuestionRequest` | Structured question (AskUserQuestion) | — |
+| `HookRequest` | Hook processing request | — |
 
-**错误码：**
+**Error codes:**
 
-| Code | 说明 |
+| Code | Description |
 |------|------|
-| `-32000` | Turn 进行中 / 不支持的操作 |
-| `-32001` | LLM 未配置 |
-| `-32002` | 指定 LLM 不支持 |
-| `-32003` | LLM 服务错误 |
-| `-32700` | JSON 格式错误 |
-| `-32601` | 方法不存在 |
+| `-32000` | Turn in progress / unsupported operation |
+| `-32001` | LLM not configured |
+| `-32002` | Specified LLM not supported |
+| `-32003` | LLM service error |
+| `-32700` | Invalid JSON format |
+| `-32601` | Method not found |
 
-**示例交互：**
+**Example interaction:**
 
 ```json
-// 1. 客户端发送 initialize
+// 1. Client sends initialize
 {"jsonrpc":"2.0","method":"initialize","id":"1","params":{"protocol_version":"1.10","client":{"name":"solo","version":"0.1.0"},"capabilities":{"supports_question":true}}}
 
-// 2. 服务端响应
+// 2. Server responds
 {"jsonrpc":"2.0","id":"1","result":{"protocol_version":"1.10","server":{"name":"Kimi Code CLI","version":"1.43.0"},"slash_commands":[...],"capabilities":{"supports_question":true}}}
 
-// 3. 客户端发送 prompt
+// 3. Client sends prompt
 {"jsonrpc":"2.0","method":"prompt","id":"2","params":{"user_input":"Hello"}}
 
-// 4. 服务端推送 event（流式）
+// 4. Server pushes events (streaming)
 {"jsonrpc":"2.0","method":"event","params":{"type":"TurnBegin","payload":{"user_input":"Hello"}}}
 {"jsonrpc":"2.0","method":"event","params":{"type":"ContentPart","payload":{"type":"text","text":"Hi"}}}
 {"jsonrpc":"2.0","method":"event","params":{"type":"ContentPart","payload":{"type":"text","text":" there!"}}}
 {"jsonrpc":"2.0","method":"event","params":{"type":"TurnEnd","payload":{}}}
 
-// 5. prompt 请求最终响应
+// 5. Prompt request final response
 {"jsonrpc":"2.0","id":"2","result":{"status":"finished"}}
 ```
 
-**审批请求交互：**
+**Approval request interaction:**
 
 ```json
-// 服务端发送 ApprovalRequest
+// Server sends ApprovalRequest
 {"jsonrpc":"2.0","method":"request","id":"req-1","params":{"type":"ApprovalRequest","payload":{"id":"approval-1","tool_call_id":"tc-1","sender":"Shell","action":"run shell command","description":"Run command `ls`","display":[]}}}
 
-// 客户端响应
+// Client responds
 {"jsonrpc":"2.0","id":"req-1","result":{"request_id":"approval-1","response":"approve"}}
 ```
 
 ---
 
-### 2.2 Cursor-Agent — 完全缺失
+### 2.2 Cursor-Agent — Not Implemented
 
-#### 现状
+#### Current Status
 
-- 项目中没有任何 `cursor-agent` 的定义、实现或图标
-- 存在 `app/assets/images/editor-apps/cursor.png`（编辑器应用图标，非 provider 图标）
+- No `cursor-agent` definitions, implementations, or icons in the project
+- `app/assets/images/editor-apps/cursor.png` exists (editor app icon, not provider icon)
 
-#### CLI 调研结果
+#### CLI Research Results
 
 ```bash
 $ cursor agent --help
@@ -171,26 +171,26 @@ Usage: cursor agent [options] [command] [prompt...]
 Start the Cursor Agent
 ```
 
-`cursor` CLI 已安装于 `/Users/wuerping/.local/bin/cursor`。
+`cursor` CLI installed at `/Users/wuerping/.local/bin/cursor`.
 
-**核心选项：**
+**Core options:**
 
-| 选项 | 说明 |
+| Option | Description |
 |------|------|
-| `-p, --print` | 非交互式打印模式 |
+| `-p, --print` | Non-interactive print mode |
 | `--output-format <format>` | `text` / `json` / `stream-json` |
-| `--stream-partial-output` | 流式输出文本增量 |
+| `--stream-partial-output` | Stream text increment output |
 | `--mode <mode>` | `plan` / `ask` |
-| `--plan` | plan 模式简写 |
-| `--resume [chatId]` | 恢复会话 |
-| `--continue` | 继续上一个会话 |
-| `--model <model>` | `gpt-5`, `sonnet-4`, `sonnet-4-thinking` 等 |
-| `-f, --force` / `--yolo` | 自动批准所有操作 |
-| `--trust` | 信任当前工作区（headless 必需） |
-| `--workspace <path>` | 指定工作目录 |
-| `--sandbox <mode>` | 沙盒模式开关 |
+| `--plan` | Plan mode shorthand |
+| `--resume [chatId]` | Resume session |
+| `--continue` | Continue previous session |
+| `--model <model>` | `gpt-5`, `sonnet-4`, `sonnet-4-thinking`, etc. |
+| `-f, --force` / `--yolo` | Auto-approve all operations |
+| `--trust` | Trust current workspace (required for headless) |
+| `--workspace <path>` | Specify working directory |
+| `--sandbox <mode>` | Sandbox mode toggle |
 
-**stream-json 输出格式（据文档和第三方 SDK）：**
+**stream-json output format (per docs and third-party SDK):**
 
 ```jsonl
 {"type": "start", "chatId": "abc123"}
@@ -200,15 +200,15 @@ Start the Cursor Agent
 {"type": "end", "result": "Analysis complete"}
 ```
 
-⚠️ **注意**：当前因网络/认证原因，未能实际测试 `cursor agent --print` 的流式输出。实现基于官方文档和第三方 SDK（`cursor-cli`, `@nothumanwork/cursor-agents-sdk`）推断。
+⚠️ **Note**: Currently unable to test `cursor agent --print` streaming output due to network/auth issues. Implementation is inferred from official docs and third-party SDKs (`cursor-cli`, `@nothumanwork/cursor-agents-sdk`).
 
 ---
 
-## 三、Solo Provider 技术架构回顾
+## 3. Solo Provider Technical Architecture Review
 
-每个 Provider 需实现两个 Go 接口：
+Each Provider must implement two Go interfaces:
 
-### 3.1 AgentClient（Provider 级别）
+### 3.1 AgentClient (Provider level)
 
 ```go
 type AgentClient interface {
@@ -222,7 +222,7 @@ type AgentClient interface {
 }
 ```
 
-### 3.2 AgentSession（Session 级别）
+### 3.2 AgentSession (Session level)
 
 ```go
 type AgentSession interface {
@@ -245,34 +245,34 @@ type AgentSession interface {
 }
 ```
 
-### 3.3 现有参考实现
+### 3.3 Existing Reference Implementations
 
-| Provider | 文件 | 模式 | 特点 |
+| Provider | File | Mode | Characteristics |
 |---------|------|------|------|
-| Claude | `provider_claude.go` | stdio | 启动 `claude --print --output-format stream-json`，逐行解析 SDK 消息，自定义 translator + terminal detector |
-| OpenCode | `provider_opencode.go` | HTTP server | 启动本地 server，`/session` API + SSE `/global/event`，支持 reasoning/thinking |
-| Mock | `provider_mock.go` | 内存 | 测试用，模拟事件流 |
+| Claude | `provider_claude.go` | stdio | Launches `claude --print --output-format stream-json`, line-by-line SDK message parsing, custom translator + terminal detector |
+| OpenCode | `provider_opencode.go` | HTTP server | Launches local server, `/session` API + SSE `/global/event`, supports reasoning/thinking |
+| Mock | `provider_mock.go` | In-memory | For testing, simulates event stream |
 
-**关键基础设施：**
-- `base.BaseSession` — 通用 session 状态管理（sessionID、mode、model、cancelFn）
-- `base.ProcessManager` — 子进程生命周期管理（Start/Stop/Interrupt/Kill/DrainStderr/WaitForExit）
-- `base.ChannelDispatcher` — 事件分发（订阅/广播）
-- `base.EventPump` — 阻塞/后台事件泵（逐行读取 stdout，调用 translator + terminal detector）
+**Key infrastructure:**
+- `base.BaseSession` — Common session state management (sessionID, mode, model, cancelFn)
+- `base.ProcessManager` — Subprocess lifecycle management (Start/Stop/Interrupt/Kill/DrainStderr/WaitForExit)
+- `base.ChannelDispatcher` — Event dispatch (subscribe/broadcast)
+- `base.EventPump` — Blocking/background event pump (line-by-line stdout reading, calls translator + terminal detector)
 
 ---
 
-## 四、推荐方案
+## 4. Recommended Solution
 
-### 4.1 Kimi — Wire 模式（强烈推荐）
+### 4.1 Kimi — Wire Mode (Strongly Recommended)
 
-**理由：**
-1. Wire 协议是 Kimi 官方为"嵌入其他应用"设计的协议，文档完整
-2. 真正的双向流式通信，支持增量内容、工具调用、权限请求
-3. 与 Claude 的 stdio 模式架构最相似（逐行读取 stdout，翻译为内部事件）
-4. 支持 session 持久化（`--session` / `--continue`）
-5. 避免 Print 模式的"整 turn 缓冲"问题
+**Rationale:**
+1. Wire protocol is Kimi's official protocol designed for "embedding in other applications", well-documented
+2. True bidirectional streaming, supports incremental content, tool calls, permission requests
+3. Most similar architecture to Claude's stdio mode (line-by-line stdout reading, translated to internal events)
+4. Supports session persistence (`--session` / `--continue`)
+5. Avoids Print mode's "full turn buffering" issue
 
-**架构图：**
+**Architecture diagram:**
 
 ```
 ┌─────────────────┐      stdin      ┌─────────────────┐
@@ -296,15 +296,15 @@ type AgentSession interface {
 └─────────────────┘                 └─────────────────┘
 ```
 
-**实现要点：**
+**Implementation notes:**
 
-1. **进程启动**：`kimi --wire --work-dir <cwd> --session <id>`（或 `--continue`）
-2. **握手**：通过 stdin 发送 `initialize` 请求，协商 `protocol_version: "1.10"`
-3. **启动 Turn**：通过 stdin 发送 `prompt` 请求
-4. **读取事件**：逐行读取 stdout，解析 JSON-RPC
-   - `method: "event"` → 翻译为 `AgentStreamEvent`，推入 dispatcher
-   - `method: "request"` → 处理 `ApprovalRequest`，通过 stdin 写回 response
-5. **事件翻译映射**：
+1. **Process launch**: `kimi --wire --work-dir <cwd> --session <id>` (or `--continue`)
+2. **Handshake**: Send `initialize` request via stdin, negotiate `protocol_version: "1.10"`
+3. **Start Turn**: Send `prompt` request via stdin
+4. **Read events**: Line-by-line stdout reading, parse JSON-RPC
+   - `method: "event"` → translate to `AgentStreamEvent`, push to dispatcher
+   - `method: "request"` → handle `ApprovalRequest`, write response via stdin
+5. **Event translation mapping:**
 
 | Wire Event | Solo Event |
 |-----------|-----------|
@@ -319,17 +319,17 @@ type AgentSession interface {
 | `TurnEnd` | `turn_completed` |
 | `StepRetry` | `timeline(error)` |
 
-6. **权限响应**：对于 `ApprovalRequest`，在 `RespondPermission()` 中通过 stdin 写回 JSON-RPC response
-7. **中断**：发送 `cancel` 请求（JSON-RPC），或发送 SIGINT
+6. **Permission response**: For `ApprovalRequest`, write JSON-RPC response via stdin in `RespondPermission()`
+7. **Interrupt**: Send `cancel` request (JSON-RPC), or send SIGINT
 
-### 4.2 Cursor-Agent — Print Stream-JSON 模式
+### 4.2 Cursor-Agent — Print Stream-JSON Mode
 
-**理由：**
-1. Cursor 没有公开的 Wire/JSON-RPC/ACP 协议
-2. `--print --output-format stream-json --stream-partial-output` 提供逐行 NDJSON 流
-3. 架构上与 Claude 的 stdio 模式最接近，可复用 `base.EventPump` + translator 模式
+**Rationale:**
+1. Cursor has no public Wire/JSON-RPC/ACP protocol
+2. `--print --output-format stream-json --stream-partial-output` provides line-by-line NDJSON stream
+3. Most similar architecture to Claude's stdio mode, can reuse `base.EventPump` + translator pattern
 
-**架构图：**
+**Architecture diagram:**
 
 ```
 ┌─────────────────┐      stdout     ┌─────────────────────────┐
@@ -350,16 +350,16 @@ type AgentSession interface {
 └─────────────────┘                 └─────────────────────────┘
 ```
 
-**实现要点：**
+**Implementation notes:**
 
-1. **进程启动**：`cursor agent --trust --print --output-format stream-json --stream-partial-output --workspace <cwd> --resume <id> <prompt>`
-2. **读取事件**：逐行读取 stdout 的 NDJSON
-3. **事件翻译映射（推测，需实测验证）**：
+1. **Process launch**: `cursor agent --trust --print --output-format stream-json --stream-partial-output --workspace <cwd> --resume <id> <prompt>`
+2. **Read events**: Line-by-line NDJSON from stdout
+3. **Event translation mapping (speculative, needs real testing):**
 
 | Cursor Event | Solo Event |
 |-------------|-----------|
 | `start` | `thread_started` |
-| `content(delta)` | `timeline(assistant_message)`（增量累积） |
+| `content(delta)` | `timeline(assistant_message)` (incremental accumulation) |
 | `thinking` / `reasoning` | `timeline(reasoning)` |
 | `tool_use` | `timeline(tool_call)` |
 | `tool_result` | `timeline(tool_call completed)` |
@@ -367,33 +367,33 @@ type AgentSession interface {
 | `end` | `turn_completed` |
 | `error` | `turn_failed` |
 
-4. **中断**：发送 SIGINT 到进程
-5. **Trust 处理**：必须始终携带 `--trust`，避免 headless 模式下的交互式确认挂起
+4. **Interrupt**: Send SIGINT to process
+5. **Trust handling**: Must always include `--trust` to avoid interactive confirmation hang in headless mode
 
 ---
 
-## 五、实施计划
+## 5. Implementation Plan
 
-### Phase 1: Kimi Provider（优先，预计 2-3 天）
+### Phase 1: Kimi Provider (Priority, estimated 2-3 days)
 
-| # | 文件 | 操作 | 说明 |
+| # | File | Operation | Description |
 |---|------|------|------|
-| 1 | `daemon/internal/agent/provider_kimi.go` | **新建** | `KimiAgentClient` + `kimiSession` + `kimiWireTranslator` + `kimiWireTerminalDetector` |
-| 2 | `daemon/internal/server/daemon.go` | **修改** | 添加 `registry.Register(agent.NewKimiAgentClient("", logger))` |
-| 3 | `daemon/internal/agent/provider_kimi_test.go` | **新建** | 单元测试（mock stdin/stdout 的 Wire 交互） |
+| 1 | `daemon/internal/agent/provider_kimi.go` | **Create** | `KimiAgentClient` + `kimiSession` + `kimiWireTranslator` + `kimiWireTerminalDetector` |
+| 2 | `daemon/internal/server/daemon.go` | **Modify** | Add `registry.Register(agent.NewKimiAgentClient("", logger))` |
+| 3 | `daemon/internal/agent/provider_kimi_test.go` | **Create** | Unit tests (mock stdin/stdout Wire interactions) |
 
-**`provider_kimi.go` 结构草案：**
+**`provider_kimi.go` structure draft:**
 
 ```go
 package agent
 
-// KimiAgentClient 实现 AgentClient
+// KimiAgentClient implements AgentClient
 type KimiAgentClient struct {
     binaryPath string
     logger     *slog.Logger
 }
 
-// kimiSession 实现 AgentSession
+// kimiSession implements AgentSession
 type kimiSession struct {
     mu sync.Mutex
     base       *base.BaseSession
@@ -404,152 +404,152 @@ type kimiSession struct {
     stdinPipe  io.WriteCloser
     stdoutPipe io.ReadCloser
     activeTurnID string
-    // JSON-RPC 状态
+    // JSON-RPC state
     nextRequestID int
     pendingApprovals map[string]chan string // requestID -> response channel
 }
 
-// kimiWireTranslator 将 Wire 事件翻译为 AgentStreamEvent
+// kimiWireTranslator translates Wire events to AgentStreamEvent
 type kimiWireTranslator struct {
     session *kimiSession
 }
 
-// kimiWireTerminalDetector 检测 turn 结束
+// kimiWireTerminalDetector detects turn end
 type kimiWireTerminalDetector struct {
     session *kimiSession
 }
 ```
 
-### Phase 2: Cursor-Agent Provider（预计 1-2 天）
+### Phase 2: Cursor-Agent Provider (estimated 1-2 days)
 
-| # | 文件 | 操作 | 说明 |
+| # | File | Operation | Description |
 |---|------|------|------|
-| 4 | `daemon/internal/agent/provider_cursor_agent.go` | **新建** | `CursorAgentClient` + `cursorSession` + `cursorTranslator` + `cursorTerminalDetector` |
-| 5 | `daemon/internal/server/daemon.go` | **修改** | 添加 `registry.Register(agent.NewCursorAgentClient("", logger))` |
-| 6 | `daemon/internal/agent/provider_cursor_agent_test.go` | **新建** | 单元测试 |
+| 4 | `daemon/internal/agent/provider_cursor_agent.go` | **Create** | `CursorAgentClient` + `cursorSession` + `cursorTranslator` + `cursorTerminalDetector` |
+| 5 | `daemon/internal/server/daemon.go` | **Modify** | Add `registry.Register(agent.NewCursorAgentClient("", logger))` |
+| 6 | `daemon/internal/agent/provider_cursor_agent_test.go` | **Create** | Unit tests |
 
-### Phase 3: 前端定义与图标（预计 0.5 天）
+### Phase 3: Frontend Definitions & Icons (estimated 0.5 days)
 
-| # | 文件 | 操作 | 说明 |
+| # | File | Operation | Description |
 |---|------|------|------|
-| 7 | `app-bridge/src/server/agent/provider-manifest.ts` | **修改** | 添加 `CURSOR_AGENT_MODES` 和 `cursor-agent` 到 `AGENT_PROVIDER_DEFINITIONS` |
-| 8 | `daemon/internal/agent/provider_registry.go` | **修改** | 在 `BuiltinProviderDefinitions()` 中添加 `cursor-agent` |
-| 9 | `app/src/utils/provider-command-templates.ts` | **修改** | 添加 `cursor-agent` resume 模板 |
-| 10 | `app/src/components/icons/kimi-icon.tsx` | **新建** | Kimi Logo SVG React 组件 |
-| 11 | `app/src/components/icons/cursor-agent-icon.tsx` | **新建** | Cursor Logo SVG React 组件 |
-| 12 | `app/src/components/provider-icons.ts` | **修改** | 添加 `kimi` 和 `cursor-agent` 映射 |
+| 7 | `app-bridge/src/server/agent/provider-manifest.ts` | **Modify** | Add `CURSOR_AGENT_MODES` and `cursor-agent` to `AGENT_PROVIDER_DEFINITIONS` |
+| 8 | `daemon/internal/agent/provider_registry.go` | **Modify** | Add `cursor-agent` to `BuiltinProviderDefinitions()` |
+| 9 | `app/src/utils/provider-command-templates.ts` | **Modify** | Add `cursor-agent` resume template |
+| 10 | `app/src/components/icons/kimi-icon.tsx` | **Create** | Kimi Logo SVG React component |
+| 11 | `app/src/components/icons/cursor-agent-icon.tsx` | **Create** | Cursor Logo SVG React component |
+| 12 | `app/src/components/provider-icons.ts` | **Modify** | Add `kimi` and `cursor-agent` mappings |
 
-### Phase 4: 集成测试与优化（预计 1-2 天）
+### Phase 4: Integration Testing & Optimization (estimated 1-2 days)
 
-| # | 任务 | 说明 |
+| # | Task | Description |
 |---|------|------|
-| 13 | E2E 测试 | 通过 App 或 CLI 创建 Kimi/Cursor-Agent agent，验证完整生命周期 |
-| 14 | 流式事件验证 | 确认 timeline 事件正确到达前端，无丢失或乱序 |
-| 15 | 权限请求测试 | 验证 ApprovalRequest/permission_requested 端到端流程 |
-| 16 | Session 恢复测试 | 验证 `--resume` / `--continue` 恢复现有会话 |
-| 17 | 错误处理测试 | 验证 LLM 未配置、网络错误等场景的优雅降级 |
+| 13 | E2E test | Create Kimi/Cursor-Agent agent via App or CLI, verify full lifecycle |
+| 14 | Streaming event verification | Confirm timeline events reach frontend correctly, no loss or reordering |
+| 15 | Permission request test | Verify ApprovalRequest/permission_requested end-to-end flow |
+| 16 | Session resume test | Verify `--resume` / `--continue` restores existing sessions |
+| 17 | Error handling test | Verify graceful degradation for LLM not configured, network errors, etc. |
 
 ---
 
-## 六、风险与注意事项
+## 6. Risks & Considerations
 
-### 6.1 Kimi Wire 模式
+### 6.1 Kimi Wire Mode
 
-| 风险 | 影响 | 缓解措施 |
+| Risk | Impact | Mitigation |
 |------|------|---------|
-| **协议版本演进** | Wire 1.10 未来可能变更 | `initialize` 时明确声明 `protocol_version`，对不兼容版本拒绝连接并提示升级 |
-| **ApprovalRequest 响应延迟** | 用户未及时响应导致 agent 挂起 | 设置合理的超时（默认 30s），超时后自动 reject；支持 `approve_for_session` |
-| **JSON-RPC ID 冲突** | 并发 request/response 可能乱序 | 使用 UUID 或原子递增 ID，维护 `pendingRequests` map |
-| **stdin 写入并发** | `RespondPermission` 与主循环同时写 stdin | 使用带锁的 writer，或所有写入通过单一 goroutine 串行化 |
-| **进程崩溃检测** | `kimi --wire` 启动失败或运行时崩溃 | 复用 Claude provider 的 100ms 启动健康检查机制 |
-| **会话目录冲突** | Solo 的 cwd 与 Kimi 的 `--work-dir` 不一致 | 始终将 `config.Cwd` 映射为 `--work-dir`，session ID 映射为 `--session` |
+| **Protocol version evolution** | Wire 1.10 may change in the future | Explicitly declare `protocol_version` during `initialize`, reject incompatible versions with upgrade prompt |
+| **ApprovalRequest response delay** | Agent hangs if user doesn't respond in time | Set reasonable timeout (default 30s), auto-reject on timeout; support `approve_for_session` |
+| **JSON-RPC ID collision** | Concurrent request/response may get out of order | Use UUID or atomic incrementing ID, maintain `pendingRequests` map |
+| **stdin write concurrency** | `RespondPermission` and main loop write stdin simultaneously | Use locked writer, or serialize all writes through a single goroutine |
+| **Process crash detection** | `kimi --wire` fails to start or crashes at runtime | Reuse Claude provider's 100ms startup health check mechanism |
+| **Session directory conflict** | Solo's cwd differs from Kimi's `--work-dir` | Always map `config.Cwd` to `--work-dir`, session ID to `--session` |
 
 ### 6.2 Cursor-Agent
 
-| 风险 | 影响 | 缓解措施 |
+| Risk | Impact | Mitigation |
 |------|------|---------|
-| **输出格式未实测** | stream-json 的字段名/结构可能与文档有偏差 | 实现时添加宽松的解析逻辑（未知字段忽略），预留调试日志开关 |
-| **Trust 要求** | 缺少 `--trust` 时 headless 模式挂起等待用户输入 | 强制添加 `--trust` 参数；如仍需确认，前置检测并返回明确错误 |
-| **认证问题** | `cursor agent` 需要登录或 `CURSOR_API_KEY` | `IsAvailable()` 中运行 `cursor agent status` 或轻量命令检测认证状态 |
-| **网络依赖** | Cursor 调用云端服务，可能超时或失败 | 设置合理的进程超时（如 35min watchdog），错误时输出 `turn_failed` |
-| **模型名称变动** | `--model` 支持的模型列表可能变更 | `ListModels()` 优先调用 `cursor agent models` 动态获取，失败时回退静态列表 |
+| **Output format not tested** | stream-json field names/structure may differ from docs | Add lenient parsing logic (ignore unknown fields), reserve debug log toggle |
+| **Trust requirement** | Missing `--trust` causes headless mode to hang waiting for user input | Force-add `--trust` parameter; if confirmation still needed, pre-detect and return clear error |
+| **Auth issues** | `cursor agent` requires login or `CURSOR_API_KEY` | Run `cursor agent status` or lightweight command in `IsAvailable()` to detect auth status |
+| **Network dependency** | Cursor calls cloud services, may timeout or fail | Set reasonable process timeout (e.g., 35min watchdog), output `turn_failed` on error |
+| **Model name changes** | `--model` supported model list may change | `ListModels()` should prefer `cursor agent models` for dynamic retrieval, fall back to static list on failure |
 
-### 6.3 通用
+### 6.3 General
 
-| 风险 | 影响 | 缓解措施 |
+| Risk | Impact | Mitigation |
 |------|------|---------|
-| **流式 vs 完整输出** | 两个 provider 都需要翻译外部事件格式 | 建立统一的 translator 测试框架，验证每种事件类型的输出 |
-| **模型列表** | 动态查询可能失败或慢 | 支持静态 fallback，缓存动态结果 |
-| **历史记录** | `StreamHistory()` 实现复杂 | Phase 1 可先返回 `nil, nil`（非阻塞），后续迭代通过 CLI 的 replay/history 命令实现 |
-| **图标版权** | 使用品牌 Logo 可能涉及版权问题 | 使用通用 `Bot` 图标作为占位，或确认品牌使用许可后再替换 |
+| **Streaming vs complete output** | Both providers need to translate external event formats | Establish unified translator test framework, verify output for each event type |
+| **Model list** | Dynamic query may fail or be slow | Support static fallback, cache dynamic results |
+| **History** | `StreamHistory()` implementation is complex | Phase 1 can return `nil, nil` (non-blocking), iterate later via CLI's replay/history commands |
+| **Icon copyright** | Using brand logos may involve copyright issues | Use generic `Bot` icon as placeholder, or confirm brand usage license before replacing
 
 ---
 
-## 七、工作量估算
+## 7. Effort Estimation
 
-| Phase | 内容 | 预估代码量 | 预估时间 |
+| Phase | Content | Estimated LOC | Estimated Time |
 |-------|------|-----------|---------|
-| Phase 1 | Kimi Provider (Go) | ~800 行 | 2-3 天 |
-| Phase 2 | Cursor-Agent Provider (Go) | ~500 行 | 1-2 天 |
-| Phase 3 | 前端定义 + 图标 (TS/TSX) | ~200 行 | 0.5 天 |
-| Phase 4 | 集成测试 + 调优 | — | 1-2 天 |
-| **合计** | | **~1500 行** | **5-7.5 天** |
+| Phase 1 | Kimi Provider (Go) | ~800 lines | 2-3 days |
+| Phase 2 | Cursor-Agent Provider (Go) | ~500 lines | 1-2 days |
+| Phase 3 | Frontend definitions + icons (TS/TSX) | ~200 lines | 0.5 days |
+| Phase 4 | Integration testing + tuning | — | 1-2 days |
+| **Total** | | **~1500 lines** | **5-7.5 days** |
 
 ---
 
-## 八、附录
+## 8. Appendix
 
-### A. Kimi CLI 关键命令速查
+### A. Kimi CLI Key Command Reference
 
 ```bash
-# 启动 Wire server
+# Start Wire server
 kimi --wire --work-dir /path/to/project
 
-# 指定 session
+# Specify session
 kimi --wire --session <session-id>
 
-# 继续上一个 session
+# Continue previous session
 kimi --wire --continue
 
-# 指定模型
+# Specify model
 kimi --wire --model k2
 
-# Plan 模式
+# Plan mode
 kimi --wire --plan
 
-# YOLO 模式
+# YOLO mode
 kimi --wire --yolo
 
-# 查看信息
+# View info
 kimi info
 ```
 
-### B. Cursor Agent CLI 关键命令速查
+### B. Cursor Agent CLI Key Command Reference
 
 ```bash
-# 启动 agent（headless）
+# Start agent (headless)
 cursor agent --trust --print --output-format stream-json --stream-partial-output "prompt"
 
-# 指定工作区
+# Specify workspace
 cursor agent --trust --workspace /path/to/project --print ...
 
-# 恢复会话
+# Resume session
 cursor agent --trust --resume <chatId> --print ...
 
-# Plan 模式
+# Plan mode
 cursor agent --trust --plan --print ...
 
-# YOLO 模式
+# YOLO mode
 cursor agent --trust --yolo --print ...
 
-# 列出模型
+# List models
 cursor agent models
 ```
 
-### C. 相关文档链接
+### C. Related Documentation Links
 
-- [Kimi Wire Mode 文档](https://moonshotai.github.io/kimi-cli/en/customization/wire-mode.md)
-- [Kimi Print Mode 文档](https://moonshotai.github.io/kimi-cli/en/customization/print-mode.md)
-- [Cursor CLI 文档 (PraisonAI)](https://docs.praison.ai/docs/cli/cursor-cli)
+- [Kimi Wire Mode docs](https://moonshotai.github.io/kimi-cli/en/customization/wire-mode.md)
+- [Kimi Print Mode docs](https://moonshotai.github.io/kimi-cli/en/customization/print-mode.md)
+- [Cursor CLI docs (PraisonAI)](https://docs.praison.ai/docs/cli/cursor-cli)
 - [Cursor Agents SDK (npm)](https://www.npmjs.com/package/@nothumanwork/cursor-agents-sdk)
-- [Kimi CLI Issue #2179 — 增量 token deltas 功能请求](https://github.com/MoonshotAI/kimi-cli/issues/2179)
+- [Kimi CLI Issue #2179 — Incremental token deltas feature request](https://github.com/MoonshotAI/kimi-cli/issues/2179)

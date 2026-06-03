@@ -1,58 +1,58 @@
 # Session Memory Persistence Design
 
-> 自动将用户输入与 agent 返回持久化为项目级 markdown 文档，为后续记忆、检索、复盘提供基础数据层。
+> Automatically persist user input and agent output as project-level markdown documents, providing a foundational data layer for future memory, retrieval, and review.
 
-- 状态：**Implemented — Phase 1**（落地实现见 [`../product/session-memory-spec.md`](../product/session-memory-spec.md)）
-- 作者：Andy
-- 创建日期：2026-05-28
-- 最后修订：2026-05-29
+- Status: **Implemented — Phase 1** (see implementation at [`../product/session-memory-spec.md`](../product/session-memory-spec.md))
+- Author: Andy
+- Created: 2026-05-28
+- Last revised: 2026-05-29
 
-> 本文为设计来源。**实现已对部分决策收敛**，最显著的是存储位置从 `<project-root>/.solo/memory/` 改为固定的 **`~/.solo/memory/`**（SoloHome 下，多项目共享），下文 §4、§5、§7 已同步。权威实现规格以 [`session-memory-spec.md`](../product/session-memory-spec.md) 为准。
+> This document is the design source. **Implementation has converged on some decisions**, most notably the storage location changed from `<project-root>/.solo/memory/` to fixed **`~/.solo/memory/`** (under SoloHome, shared across projects). Sections §4, §5, §7 below are synchronized. Authoritative implementation spec is [`session-memory-spec.md`](../product/session-memory-spec.md).
 
-## 1. 目标
+## 1. Goals
 
-- 记录每一次会话中的 **用户输入** 与 **agent 输出**，不丢不漏
-- 存储格式为 **Markdown + YAML frontmatter**，对人可读、对工具可解析
-- 与项目绑定（存储在项目目录下），便于版本控制与团队协作
-- 抽象清晰，未来可平滑迁移到 **数据库** 或 **agent memory 中间件**（如 mem0、Letta、向量库）
+- Record **user input** and **agent output** in every session, without loss or omission
+- Store in **Markdown + YAML frontmatter** format, human-readable and tool-parseable
+- Bound to the project (stored in the project directory), facilitating version control and team collaboration
+- Clean abstraction, enabling smooth future migration to **database** or **agent memory middleware** (e.g., mem0, Letta, vector stores)
 
-## 2. 非目标
+## 2. Non-Goals
 
-- 不在本文范围内实现向量检索 / RAG
-- 不处理 agent 内部 subagent、tool call 的细粒度轨迹（仅记录对外可见的最终 turn）
-- 不引入新的外部依赖（阶段一）
+- Vector retrieval / RAG implementation is out of scope for this document
+- No fine-grained tracking of internal agent subagent or tool call traces (only the externally visible final turn is recorded)
+- No new external dependencies introduced (Phase 1)
 
-## 3. 挂接位置（核心决策）
+## 3. Hook Location (Core Decision)
 
-推荐挂接点：**`daemon/internal/server` 的 session 消息调度层**。
+Recommended hook point: **session message dispatch layer in `daemon/internal/server`**.
 
-### 3.1 为什么是 session 层
+### 3.1 Why the Session Layer
 
-| 候选层 | 评估 |
+| Candidate Layer | Assessment |
 |---|---|
-| `cli/internal/client` | 仅能看到本地终端输入，看不到 App / Relay 来源 ❌ |
-| `protocol` | 字节/帧级，缺乏业务语义 ❌ |
-| `daemon/internal/agent` | 内部并发 tool call、subagent 复杂，消息未归并 ❌ |
-| **`daemon/internal/server` session** | **所有端（CLI / App / Relay）消息必经之路，已是结构化 `UserMessage` / `AgentMessage`** ✅ |
+| `cli/internal/client` | Can only see local terminal input, cannot see App / Relay sources ❌ |
+| `protocol` | Byte/frame level, lacks business semantics ❌ |
+| `daemon/internal/agent` | Internal concurrent tool calls, complex subagent, messages not consolidated ❌ |
+| **`daemon/internal/server` session** | **Mandatory path for all endpoints (CLI / App / Relay) messages, already structured `UserMessage` / `AgentMessage`** ✅ |
 
-### 3.2 对称 hook 点
+### 3.2 Symmetric Hook Points
 
-| 事件 | 触发时机 | 记录内容 |
+| Event | Trigger Timing | Content Recorded |
 |---|---|---|
-| `OnUserTurn` | session 接收并校验完 inbound 消息后、派发给 agent 前 | 用户原文、attachments、来源通道 (cli / app / relay) |
-| `OnAssistantTurn` | agent 输出 finalize 后、推送给客户端前 | 最终文本、tool uses、token usage、finish reason |
+| `OnUserTurn` | After session receives and validates inbound message, before dispatching to agent | User raw text, attachments, source channel (cli / app / relay) |
+| `OnAssistantTurn` | After agent output is finalized, before pushing to client | Final text, tool uses, token usage, finish reason |
 
-### 3.3 集成形态
+### 3.3 Integration Form
 
-复用现有事件/观察者机制（参考 `metrics`、`push` 模块的事件管道），避免将持久化逻辑硬塞进主流程：
+Reuse existing event/observer mechanisms (referencing event pipelines in `metrics` and `push` modules), avoiding hardcoding persistence logic into the main flow:
 
-- session 仅负责 **emit 事件**
-- recorder 作为 **subscriber** 异步消费
-- 失败、延迟、重试均不影响主流程
+- Session only responsible for **emitting events**
+- Recorder acts as an async **subscriber** consuming events
+- Failures, delays, and retries do not affect the main flow
 
-## 4. 抽象层（为迁移预留）
+## 4. Abstraction Layer (Reserved for Migration)
 
-### 4.1 核心接口
+### 4.1 Core Interface
 
 ```go
 // daemon/internal/memory/recorder.go

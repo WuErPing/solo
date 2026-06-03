@@ -1,36 +1,36 @@
-# Solo 项目 Lint 能力规划
+# Solo Project Lint Capability Plan
 
-> 分析日期：2026-05-25
-> 范围：JS/TS 前端（app / app-bridge / packages/highlight）
-> 状态：**Phase 1 已完成**（2026-05-25）｜Phase 2/3 待按需启动
+> Analysis date: 2026-05-25
+> Scope: JS/TS frontend (app / app-bridge / packages/highlight)
+> Status: **Phase 1 completed** (2026-05-25) ｜ Phase 2/3 to be started on demand
 
 ---
 
-## 1. 现状诊断（基线 → 当前）
+## 1. Current State Diagnosis (Baseline → Current)
 
-### 1.1 配置现状
+### 1.1 Configuration Status
 
-| Workspace | ESLint 配置 | 规则来源 | 基线问题数 | 当前问题数 |
+| Workspace | ESLint Config | Rule Source | Baseline Issues | Current Issues |
 |-----------|-------------|----------|-----------|-----------|
 | `app/` | `eslint.config.js` | `eslint-config-expo/flat` (v10.0.0) | ~~229 warnings~~ | **0** |
 | `app-bridge/` | `eslint.config.mjs` | `@eslint/js` + `typescript-eslint/recommended` | 0 | **0** |
 | `packages/highlight/` | `eslint.config.mjs` | `@eslint/js` + `typescript-eslint/recommended` | 0 | **0** |
 
-### 1.2 基线问题分布（app workspace，已修复）
+### 1.2 Baseline Issue Distribution (app workspace, fixed)
 
 ```
  68  @typescript-eslint/array-type        Array<T> → T[]
- 62  import/no-duplicates                 同一文件多次导入
- 58  import/first                         import 不在模块顶部（测试文件 vi.mock 模式）
- 36  @typescript-eslint/no-unused-vars    未使用变量/参数
-  2  Unused eslint-disable directive      多余的 eslint-disable 注释
-  2  @typescript-eslint/no-empty-object-type  空对象类型
-  1  empty interface                      空接口声明
+ 62  import/no-duplicates                 Duplicate imports in the same file
+ 58  import/first                         Import not at module top (test file vi.mock pattern)
+ 36  @typescript-eslint/no-unused-vars    Unused variables/parameters
+  2  Unused eslint-disable directive      Unnecessary eslint-disable comments
+  2  @typescript-eslint/no-empty-object-type  Empty object type
+  1  empty interface                      Empty interface declaration
 ---
-229 total (0 errors, 153 auto-fixable)  ← 已全部清零
+229 total (0 errors, 153 auto-fixable)  ← All cleared
 ```
 
-### 1.3 CI 现状
+### 1.3 CI Status
 
 ```yaml
 # .github/workflows/ci.yml
@@ -38,120 +38,120 @@
   run: npx expo lint --max-warnings 0    # ← 已从 9999 改为 0
 ```
 
-**关键改进**：`--max-warnings 9999` → `0`，lint 恢复门禁意义。任何新增 warning 将阻塞 PR 合并。
+**Key improvement**: `--max-warnings 9999` → `0`, restoring lint gate-blocking significance. Any new warnings will block PR merging.
 
-### 1.4 与 Go 侧对比
+### 1.4 Comparison with Go Side
 
-| 维度 | Go 侧 | JS/TS 侧（当前）|
+| Dimension | Go Side | JS/TS Side (Current) |
 |------|-------|----------------|
 | Linter | golangci-lint v2.10 | ESLint + `eslint-config-expo` |
-| CI 门禁 | ✅ 失败阻塞 PR | ✅ `max-warnings = 0` 阻塞 PR |
-| 测试文件豁免 | ✅ `_test.go` 专用规则 | ✅ `*.test.{ts,tsx}` 专用规则 |
+| CI Gate | ✅ Failure blocks PR | ✅ `max-warnings = 0` blocks PR |
+| Test File Exemptions | ✅ `_test.go` specific rules | ✅ `*.test.{ts,tsx}` specific rules |
 | Auto-fix | `gofmt` + `goimports` | `expo lint --fix` + `eslint --fix` |
 
-JS/TS 侧 lint 严格度已与 Go 侧对齐。
+JS/TS side lint strictness is now aligned with Go side.
 
 ---
 
-## 2. 目标定义
+## 2. Goal Definition
 
-### 2.1 最终目标
+### 2.1 Ultimate Goal
 
-> **零 warning 策略**：CI 中 lint 阶段 `max-warnings = 0`，任何新增 warning 阻塞 PR 合并。
+> **Zero warning strategy**: `max-warnings = 0` in CI lint stage, any new warnings block PR merging.
 
-✅ **已达成**（2026-05-25）
+✅ **Achieved** (2026-05-25)
 
-### 2.2 分层目标
+### 2.2 Tiered Goals
 
-| 阶段 | 目标 | 状态 | 实际结果 |
-|------|------|------|----------|
-| **P0：止血** | 关闭 `--max-warnings 9999`，设定合理阈值；修复可 auto-fix 的问题 | ✅ 完成 | 直接修复全部 229 个，未采用渐进阈值 |
-| **P1：规则分层** | 区分 Error/Warning/Off；为测试文件单独配置 | ✅ 完成 | 测试文件豁免 `import/first`，`_` 前缀变量允许 |
-| **P2：清零** | 修复所有现存 warning，达到 `max-warnings = 0` | ✅ 完成 | 0 warnings，0 errors |
-| **P3：增强** | 引入 import 排序、一致性检查、pre-commit hook | ⏳ 待启动 | 见 §4.3 |
-
----
-
-## 3. 规则分层策略（已落地）
-
-### 3.1 Error 级别（阻塞 CI）
-
-| 规则 | 理由 | 基线触发数 | 当前状态 |
-|------|------|-----------|----------|
-| `import/no-duplicates` | 重复导入是明确的代码异味，100% 可 auto-fix | 62 | ✅ 0 |
-| `@typescript-eslint/array-type` | 代码风格一致性，100% 可 auto-fix | 68 | ✅ 0 |
-| `@typescript-eslint/no-empty-object-type` | 空对象类型是类型安全漏洞 | 2 | ✅ 0 |
-| `import/first`（生产代码）| 模块顶级导入顺序错误会导致运行时问题 | ~0 | ✅ 0 |
-| `no-unused-vars`（生产代码）| 死代码，应清理 | ~10 | ✅ 0 |
-
-### 3.2 Warning 级别（允许但需记录）
-
-| 规则 | 理由 | 处理策略 |
-|------|------|----------|
-| `@typescript-eslint/no-unused-vars`（测试文件）| 测试文件中常有占位变量 | 测试文件保留 warn，但允许 `_` 前缀 |
-| `import/first`（测试文件）| Vitest 要求 `vi.mock()` 在 import 之前 | 测试文件关闭此规则 |
-
-### 3.3 Off 级别（关闭）
-
-| 规则 | 理由 |
-|------|------|
-| `import/first`（测试文件 `*.test.ts`）| Vitest 的 `vi.mock()` / `vi.hoisted()` 必须在 import 之前，这是框架要求而非代码问题 |
+| Phase | Goal | Status | Actual Result |
+|-------|------|--------|---------------|
+| **P0: Stop the bleeding** | Disable `--max-warnings 9999`, set reasonable threshold; fix auto-fixable issues | ✅ Done | Fixed all 229 directly, skipped gradual threshold |
+| **P1: Rule tiering** | Differentiate Error/Warning/Off; separate config for test files | ✅ Done | Test files exempt from `import/first`, `_` prefix variables allowed |
+| **P2: Clear to zero** | Fix all existing warnings, reach `max-warnings = 0` | ✅ Done | 0 warnings, 0 errors |
+| **P3: Enhancement** | Introduce import sorting, consistency checks, pre-commit hook | ⏳ Pending | See §4.3 |
 
 ---
 
-## 4. 渐进式治理路线图
+## 3. Rule Tiering Strategy (Implemented)
 
-### Phase 1：止血 + 清零（已完成）
+### 3.1 Error Level (Blocks CI)
 
-**实施日期**：2026-05-25
-**提交**：`09e5fa2 fix(lint): resolve all ESLint warnings in app workspace`
-**变更**：69 files changed, 149 insertions(+), 172 deletions(-)
+| Rule | Reason | Baseline Trigger Count | Current Status |
+|------|--------|------------------------|----------------|
+| `import/no-duplicates` | Duplicate imports are clear code smells, 100% auto-fixable | 62 | ✅ 0 |
+| `@typescript-eslint/array-type` | Code style consistency, 100% auto-fixable | 68 | ✅ 0 |
+| `@typescript-eslint/no-empty-object-type` | Empty object types are type safety holes | 2 | ✅ 0 |
+| `import/first` (production code) | Incorrect top-level import order causes runtime issues | ~0 | ✅ 0 |
+| `no-unused-vars` (production code) | Dead code, should be cleaned up | ~10 | ✅ 0 |
 
-**执行步骤**：
+### 3.2 Warning Level (Allowed but needs documentation)
 
-1. **ESLint 配置调整**（`app/eslint.config.js`）
-   - 测试文件豁免 `import/first: "off"` — Vitest `vi.mock()` 兼容
-   - 测试文件允许 `_` 前缀的未使用变量
-   - 为 `react-native-unistyles` module augmentation 保留空接口能力
+| Rule | Reason | Handling Strategy |
+|------|--------|-------------------|
+| `@typescript-eslint/no-unused-vars` (test files) | Placeholder variables are common in test files | Test files keep warn, but allow `_` prefix |
+| `import/first` (test files) | Vitest requires `vi.mock()` before imports | Test files disable this rule |
 
-2. **Auto-fix**（153 个警告）
+### 3.3 Off Level (Disabled)
+
+| Rule | Reason |
+|------|--------|
+| `import/first` (test files `*.test.ts`) | Vitest's `vi.mock()` / `vi.hoisted()` must be before imports; this is a framework requirement, not a code issue |
+
+---
+
+## 4. Incremental Governance Roadmap
+
+### Phase 1: Stop the Bleeding + Clear to Zero (Completed)
+
+**Implementation date**: 2026-05-25
+**Commit**: `09e5fa2 fix(lint): resolve all ESLint warnings in app workspace`
+**Changes**: 69 files changed, 149 insertions(+), 172 deletions(-)
+
+**Execution steps**:
+
+1. **ESLint configuration adjustment** (`app/eslint.config.js`)
+   - Test files exempt `import/first: "off"` — Vitest `vi.mock()` compatibility
+   - Test files allow `_` prefix for unused variables
+   - Preserve empty interface capability for `react-native-unistyles` module augmentation
+
+2. **Auto-fix** (153 warnings)
    ```bash
    cd app && npx expo lint --fix
    ```
-   - 修复 `array-type`(68)：全部 `Array<T>` → `T[]`
-   - 修复 `import/no-duplicates`(62)：合并重复导入
-   - 剩余：~76 个需手动处理
+   - Fixed `array-type`(68): All `Array<T>` → `T[]`
+   - Fixed `import/no-duplicates`(62): Merged duplicate imports
+   - Remaining: ~76 require manual handling
 
-3. **手动修复**（22 个警告）
-   - 合并测试文件中的重复 `React` / `{ act }` 导入
-   - 删除未使用变量/导入（`useCallback`, `useRef`, `isWeb`, `useSessionStore` 等）
-   - 移除多余 `eslint-disable` 注释
-   - 修复空接口声明
+3. **Manual fixes** (22 warnings)
+   - Merged duplicate `React` / `{ act }` imports in test files
+   - Removed unused variables/imports (`useCallback`, `useRef`, `isWeb`, `useSessionStore`, etc.)
+   - Removed unnecessary `eslint-disable` comments
+   - Fixed empty interface declarations
 
-4. **CI 更新**
+4. **CI update**
    ```yaml
-   - run: npx expo lint --max-warnings 0   # 从 9999 改为 0
+   - run: npx expo lint --max-warnings 0   # Changed from 9999 to 0
    ```
 
-**Phase 1 实际结果**：229 → **0** warning（比预期更快完成，跳过了渐进阈值阶段）。
+**Phase 1 actual result**: 229 → **0** warnings (completed faster than expected, skipped gradual threshold phase).
 
-### Phase 2：巩固（已完成，并入 Phase 1）
+### Phase 2: Consolidation (Completed, merged into Phase 1)
 
-原规划中 Phase 2 的目标（清理剩余 41 个 warning）已在 Phase 1 中一并完成。
+Phase 2 goals (clean up remaining 41 warnings) were completed together with Phase 1.
 
-### Phase 3：增强（待按需启动）
+### Phase 3: Enhancement (To be started on demand)
 
-以下增强项当前为**可选**，待团队有带宽时实施：
+The following enhancements are currently **optional**, to be implemented when the team has bandwidth:
 
-1. **Import 排序**
+1. **Import sorting**
    ```js
-   // 引入 eslint-plugin-import
+   // Introduce eslint-plugin-import
    "import/order": ["error", {
      "groups": ["builtin", "external", "internal", "parent", "sibling", "index"],
      "newlines-between": "always"
    }]
    ```
-   > ⚠️ 此规则会引入大量变更（整个代码库），建议在代码冻结期或大型重构时统一执行。
+   > ⚠️ This rule introduces many changes (entire codebase). Recommended to execute during code freeze or major refactoring.
 
 2. **Pre-commit Hook**
    ```json
@@ -162,24 +162,24 @@ JS/TS 侧 lint 严格度已与 Go 侧对齐。
      "packages/highlight/**/*.ts": ["eslint --fix"]
    }
    ```
-   > 价值：在提交前自动修复风格问题，减少 CI 反馈周期。
+   > Value: Auto-fix style issues before commit, reducing CI feedback cycle.
 
-3. **增量 Lint（大型重构时）**
+3. **Incremental Lint (during major refactoring)**
    ```bash
-   # 仅检查相对于 main 的变更文件
+   # Only check files changed relative to main
    npx eslint $(git diff --name-only origin/main -- '*.ts' '*.tsx')
    ```
-   > 价值：本地快速验证，无需全量 lint。
+   > Value: Quick local verification without full lint.
 
-4. **与 Go 侧进一步对齐**
-   - 引入 `eslint-plugin-import` 的 `no-cycle` 规则（等价 Go 的循环依赖检查）
-   - 引入 `@typescript-eslint/consistent-type-imports`（区分 `import type`）
+4. **Further alignment with Go side**
+   - Introduce `eslint-plugin-import`'s `no-cycle` rule (equivalent to Go's circular dependency check)
+   - Introduce `@typescript-eslint/consistent-type-imports` (distinguish `import type`)
 
 ---
 
-## 5. 配置终态
+## 5. Final Configuration State
 
-### 5.1 app/eslint.config.js（当前生效）
+### 5.1 app/eslint.config.js (Currently active)
 
 ```js
 const { defineConfig } = require("eslint/config");
@@ -210,7 +210,7 @@ module.exports = defineConfig([
 ]);
 ```
 
-### 5.2 CI 配置（当前生效）
+### 5.2 CI Configuration (Currently active)
 
 ```yaml
 # .github/workflows/ci.yml
@@ -229,51 +229,51 @@ module.exports = defineConfig([
 
 ---
 
-## 6. 验证记录
+## 6. Verification Record
 
-| 检查项 | Phase 1 完成后结果 |
-|--------|-------------------|
+| Check Item | Result after Phase 1 |
+|--------|----------------------|
 | `app` lint (`npx expo lint`) | **0 errors, 0 warnings** ✅ |
-| `app` 单元测试 | **207 files, 1291 tests passed** ✅ |
-| `app-bridge` 测试 | **3 files, 32 tests passed** ✅ |
-| `packages/highlight` 测试 | **3 files, 25 tests passed** ✅ |
-| Go 测试（daemon） | 原有 race condition（与 lint 无关） |
+| `app` unit tests | **207 files, 1291 tests passed** ✅ |
+| `app-bridge` tests | **3 files, 32 tests passed** ✅ |
+| `packages/highlight` tests | **3 files, 25 tests passed** ✅ |
+| Go tests (daemon) | Existing race condition (unrelated to lint) |
 
 ---
 
-## 7. 维护指南
+## 7. Maintenance Guide
 
-### 7.1 日常开发
+### 7.1 Daily Development
 
 ```bash
-# 提交前快速检查（全量）
+# Quick check before commit (full)
 cd app && npx expo lint
 
-# 提交前自动修复
+# Auto-fix before commit
 cd app && npx expo lint --fix
 
-# 其他 workspace
+# Other workspaces
 cd app-bridge && npx eslint src/ --fix
 cd packages/highlight && npx eslint src/ --fix
 ```
 
-### 7.2 遇到新 lint 错误时的处理流程
+### 7.2 Handling New Lint Errors
 
-1. **优先 `--fix`**：大部分风格问题可自动修复
-2. **测试文件特殊规则**：如果错误在 `*.test.ts` 中，先检查是否是 Vitest 模式导致的（如 `vi.mock()` 前的导入）
-3. **合理禁用**：极少数情况下可使用 `// eslint-disable-next-line [rule] -- 原因说明`
-4. **不要提升 `--max-warnings`**：如需豁免，应在 `eslint.config.js` 中按文件类型配置，而非放宽全局阈值
+1. **Prefer `--fix`**: Most style issues can be auto-fixed
+2. **Test file special rules**: If the error is in `*.test.ts`, first check if it's caused by Vitest patterns (e.g., imports before `vi.mock()`)
+3. **Reasonable disabling**: In rare cases, use `// eslint-disable-next-line [rule] -- reason explanation`
+4. **Do not raise `--max-warnings`**: If exemptions are needed, configure per file type in `eslint.config.js` rather than relaxing global threshold
 
-### 7.3 新增 Workspace 时的 lint 接入 checklist
+### 7.3 Lint Onboarding Checklist for New Workspaces
 
-- [ ] 创建 `eslint.config.mjs`（推荐 `typescript-eslint` 基础配置）
-- [ ] 在根目录 `package.json` workspaces 中注册
-- [ ] 在 `.github/workflows/ci.yml` 中添加 lint step
-- [ ] 初次运行 `npx eslint src/` 并清零所有问题
-- [ ] 更新本文档的 Workspace 表格
+- [ ] Create `eslint.config.mjs` (recommended `typescript-eslint` base config)
+- [ ] Register in root `package.json` workspaces
+- [ ] Add lint step in `.github/workflows/ci.yml`
+- [ ] Run `npx eslint src/` initially and clear all issues
+- [ ] Update the Workspace table in this document
 
 ---
 
-## 8. 一句话总结
+## 8. One-line Summary
 
-> **Phase 1 已完成：229 个 warning 全部清零，CI 设为 `max-warnings = 0`，JS/TS 侧 lint 严格度已与 Go 侧对齐。Phase 3 增强项（import 排序、pre-commit hook）待按需启动。**
+> **Phase 1 completed: All 229 warnings cleared, CI set to `max-warnings = 0`, JS/TS side lint strictness aligned with Go side. Phase 3 enhancements (import sorting, pre-commit hook) to be started on demand.**

@@ -1,32 +1,32 @@
-# 数据流说明
+# Data Flow Documentation
 
-## WebSocket 消息流
+## WebSocket Message Flow
 
-### 连接建立流程
+### Connection Establishment
 
 ```
 Client                              Relay                              Daemon
   │                                  │                                  │
-  │  1. WebSocket 连接                │                                  │
+  │  1. WebSocket connection          │                                  │
   │─────────────────────────────────►│                                  │
   │                                  │                                  │
-  │                                  │  2. 验证参数                      │
+  │                                  │  2. Validate parameters           │
   │                                  │  (serverId, role, connectionId)   │
   │                                  │                                  │
-  │  3. 连接确认                      │                                  │
+  │  3. Connection confirmation       │                                  │
   │◄─────────────────────────────────│                                  │
   │                                  │                                  │
-  │                                  │  4. 如果是 Server 角色            │
-  │                                  │     等待 Client 连接              │
+  │                                  │  4. If Server role                │
+  │                                  │     wait for Client connection    │
   │                                  │                                  │
-  │                                  │  5. 如果是 Client 角色            │
-  │                                  │     匹配到 Server 会话            │
+  │                                  │  5. If Client role                │
+  │                                  │     match to Server session       │
   │                                  │                                  │
-  │                                  │  6. 建立数据通道                   │
+  │                                  │  6. Establish data channel        │
   │                                  │◄────────────────────────────────►│
 ```
 
-### 消息传输流程
+### Message Transmission
 
 ```
 ┌─────────┐     ┌─────────────┐     ┌─────────┐
@@ -48,35 +48,35 @@ Client                              Relay                              Daemon
      │◄────────────────│                 │
 ```
 
-## 消息类型
+## Message Types
 
-### 控制消息 (Control Messages)
+### Control Messages
 
-**方向**: Daemon ↔ Relay
+**Direction**: Daemon ↔ Relay
 
-| 消息 | 说明 |
-|------|------|
-| `hello` | 握手，交换协议版本和认证信息 |
-| `ping` | 心跳保活 |
-| `pong` | 心跳响应 |
-| `attach` | 请求建立数据连接 |
-| `detach` | 断开数据连接 |
+| Message | Description |
+|---------|-------------|
+| `hello` | Handshake, exchange protocol version and authentication info |
+| `ping` | Heartbeat keepalive |
+| `pong` | Heartbeat response |
+| `attach` | Request to establish data connection |
+| `detach` | Disconnect data connection |
 
-### 数据消息 (Data Messages)
+### Data Messages
 
-**方向**: Client ↔ Daemon (通过 Relay)
+**Direction**: Client ↔ Daemon (via Relay)
 
-| 消息 | 说明 |
-|------|------|
-| `auth` | 认证 |
-| `request` | 请求 |
-| `response` | 响应 |
-| `event` | 事件通知 |
-| `error` | 错误 |
+| Message | Description |
+|---------|-------------|
+| `auth` | Authentication |
+| `request` | Request |
+| `response` | Response |
+| `event` | Event notification |
+| `error` | Error |
 
-## 会话生命周期
+## Session Lifecycle
 
-### 1. 创建会话
+### 1. Create Session
 
 ```
 Client          Relay           Daemon
@@ -88,7 +88,7 @@ Client          Relay           Daemon
   │◄─ connected ─│               │
 ```
 
-### 2. 数据传输
+### 2. Data Transmission
 
 ```
 Client          Relay           Daemon
@@ -98,7 +98,7 @@ Client          Relay           Daemon
   │◄─ response ──│◄── result ────│
 ```
 
-### 3. 关闭会话
+### 3. Close Session
 
 ```
 Client          Relay           Daemon
@@ -108,57 +108,57 @@ Client          Relay           Daemon
   │◄─ closed ────│◄── ack ───────│
 ```
 
-## 端到端加密 (E2EE) 流程
+## End-to-End Encryption (E2EE) Flow
 
-### 密钥交换
+### Key Exchange
 
 ```
 Client                                          Daemon
   │                                              │
-  │  1. 生成临时密钥对 (X25519)                    │
+  │  1. Generate ephemeral key pair (X25519)     │
   │                                              │
-  │  2. 发送公钥 (通过 Relay 控制连接)              │
+  │  2. Send public key (via Relay control conn) │
   │─────────────────────────────────────────────►│
   │                                              │
-  │                                              │  3. 生成临时密钥对
+  │                                              │  3. Generate ephemeral key pair
   │                                              │
-  │                                              │  4. 发送公钥
+  │                                              │  4. Send public key
   │◄─────────────────────────────────────────────│
   │                                              │
-  │  5. 计算共享密钥                               │
-  │     (X25519 密钥交换)                          │
+  │  5. Compute shared secret                    │
+  │     (X25519 key exchange)                    │
   │                                              │
-  │                                              │  6. 计算共享密钥
+  │                                              │  6. Compute shared secret
   │                                              │
-  │  7. 派生加密密钥 (XSalsa20-Poly1305)           │
+  │  7. Derive encryption key (XSalsa20-Poly1305)│
   │                                              │
-  │                                              │  8. 派生加密密钥
+  │                                              │  8. Derive encryption key
 ```
 
-### 加密传输
+### Encrypted Transmission
 
 ```
 Client                      Relay                      Daemon
   │                          │                          │
-  │  1. 加密消息              │                          │
+  │  1. Encrypt message      │                          │
   │     (XSalsa20-Poly1305)  │                          │
   │                          │                          │
   │── ciphertext ───────────►│── forward ──────────────►│
   │                          │                          │
-  │                          │                          │  2. 解密消息
+  │                          │                          │  2. Decrypt message
   │                          │                          │
-  │                          │                          │  3. 处理请求
+  │                          │                          │  3. Process request
   │                          │                          │
-  │                          │                          │  4. 加密响应
+  │                          │                          │  4. Encrypt response
   │                          │                          │
   │◄── ciphertext ──────────│◄── forward ──────────────│
   │                          │                          │
-  │  5. 解密响应              │                          │
+  │  5. Decrypt response     │                          │
 ```
 
-## Agent 消息流
+## Agent Message Flow
 
-### Agent 执行流程
+### Agent Execution Flow
 
 ```
 User → App → App-Bridge → Relay → Daemon → Agent Manager → Agent Provider
@@ -167,13 +167,13 @@ User → App → App-Bridge → Relay → Daemon → Agent Manager → Agent Pro
 User ← App ← App-Bridge ← Relay ← Daemon ← Agent Manager ← Agent
 ```
 
-### 状态变更通知
+### State Change Notification
 
 ```
 Agent → Agent Manager → Daemon → Relay → App-Bridge → App → UI Update
 ```
 
-### Agent 卡死检测流 (StallMonitor)
+### Agent Stall Detection Flow (StallMonitor)
 
 ```
 Agent Provider ──SSE events──► AgentManager.handleStreamEvent()
@@ -181,73 +181,73 @@ Agent Provider ──SSE events──► AgentManager.handleStreamEvent()
                                       ▼
                            StallMonitor.RecordEvent()
                                       │
-                    ┌─────────────────┴─────────────────┐
-                    │ 每 30s 扫描                        │
-                    ▼                                    ▼
-         ┌─────────────────────┐            ┌─────────────────────┐
-         │  Inactivity Check   │            │  Repetition Check   │
-         │  > 2 min no events  │            │  ≥ 6 identical / 10 │
-         └──────────┬──────────┘            └──────────┬──────────┘
-                    │                                  │
-                    └────────────────┬─────────────────┘
-                                     ▼
-                          StallMonitor.interruptFn()
-                                     │
-                                     ▼
-                          AgentManager.CancelAgentRun()
-                                     │
-                                     ▼
-                          session.Interrupt()
-                                     │
-                                     ▼
-                          emit turn_failed / turn_canceled
-                                     │
-                                     ▼
-                           StallMonitor.UnregisterAgent()
+                     ┌─────────────────┴─────────────────┐
+                     │ Scan every 30s                    │
+                     ▼                                    ▼
+          ┌─────────────────────┐            ┌─────────────────────┐
+          │  Inactivity Check   │            │  Repetition Check   │
+          │  > 2 min no events  │            │  ≥ 6 identical / 10 │
+          └──────────┬──────────┘            └──────────┬──────────┘
+                     │                                  │
+                     └────────────────┬─────────────────┘
+                                      ▼
+                           StallMonitor.interruptFn()
+                                      │
+                                      ▼
+                           AgentManager.CancelAgentRun()
+                                      │
+                                      ▼
+                           session.Interrupt()
+                                      │
+                                      ▼
+                           emit turn_failed / turn_canceled
+                                      │
+                                      ▼
+                            StallMonitor.UnregisterAgent()
 ```
 
-**Grace 周期收紧：**
+**Grace Period Tightening:**
 
 ```
 Session.expireGrace()
   │
   ▼
-hasRunningAgentsWithProgress()?  ← 既检查 LifecycleRunning，也检查最近 2 min 内是否有事件
+hasRunningAgentsWithProgress()?  ← Checks both LifecycleRunning and events within last 2 min
   │
-  ├─ YES → 延长 grace
+  ├─ YES → Extend grace
   │
-  └─ NO  → 结束 grace，执行 fullCleanup()
+  └─ NO  → End grace, execute fullCleanup()
 ```
 
-## 推送通知流
+## Push Notification Flow
 
 ```
 Daemon → Expo Push Service → Apple/Google Push → Mobile App
 ```
 
-## 文件操作流
+## File Operation Flow
 
-### 文件浏览
+### File Browsing
 
 ```
 App → App-Bridge → Relay → Daemon → File System → Response
 ```
 
-### 文件编辑
+### File Editing
 
 ```
 App → App-Bridge → Relay → Daemon → Editor → File System → Response
 ```
 
-## 终端会话流
+## Terminal Session Flow
 
 ```
 App → App-Bridge → Relay → Daemon → Terminal Manager → Shell → Output
 ```
 
-## 心跳机制
+## Heartbeat Mechanism
 
-### 控制连接心跳
+### Control Connection Heartbeat
 
 ```
 Daemon          Relay
@@ -256,10 +256,10 @@ Daemon          Relay
   │              │
   │◄── pong ────│
   │              │
-  │  (每 10 秒)  │
+  │  (every 10s) │
 ```
 
-### 数据连接心跳
+### Data Connection Heartbeat
 
 ```
 Client          Relay          Daemon
@@ -268,24 +268,24 @@ Client          Relay          Daemon
   │              │              │
   │◄── pong ─────│◄── forward ──│
   │              │              │
-  │  (每 30 秒)  │              │
+  │  (every 30s) │              │
 ```
 
-## 错误处理流
+## Error Handling Flow
 
-### 连接断开
-
-```
-1. 检测断开 (超时或网络错误)
-2. 标记会话状态为断开
-3. 尝试自动重连 (指数退避)
-4. 通知用户 (如果重连失败)
-```
-
-### 消息丢失
+### Connection Disconnection
 
 ```
-1. Relay 缓冲消息 (默认 200 条)
-2. 客户端重连后恢复会话
-3. 重放缓冲消息
+1. Detect disconnection (timeout or network error)
+2. Mark session status as disconnected
+3. Attempt automatic reconnection (exponential backoff)
+4. Notify user (if reconnection fails)
+```
+
+### Message Loss
+
+```
+1. Relay buffers messages (default 200)
+2. Client reconnects and restores session
+3. Replay buffered messages
 ```

@@ -1,57 +1,57 @@
-# Kimi Wire vs ACP 对比分析
+# Kimi Wire vs ACP Comparative Analysis
 
-> 分析日期：2026-05-21
-> 分析范围：Kimi CLI v1.43.0 (Wire Protocol 1.10) vs Agent Client Protocol (ACP)
-
----
-
-## 一、执行摘要
-
-| 维度 | **Kimi Wire** | **Kimi ACP** |
-|------|--------------|-------------|
-| **协议定位** | Kimi 专用内部协议 | 跨 Agent 通用标准 (类似 LSP) |
-| **设计目标** | 自定义 UI / 应用嵌入 | IDE / 编辑器集成 |
-| **Session 架构** | 单 Session 进程 | 多 Session Server |
-| **事件粒度** | 极细 (Step/ContentPart/ToolCallPart) | 较粗 (sessionUpdate chunk) |
-| **传输方式** | 本地 stdio only | 本地 stdio + 远程 HTTP/WebSocket |
-| **功能覆盖** | Kimi 全功能 (Plan/Steer/Hook/Subagent) | 通用子集 |
-| **Solo 适配度** | 极高 | 中等 |
-
-**结论：对于 Solo 平台，Wire 模式是更优选择。**
+> Analysis Date: 2026-05-21
+> Scope: Kimi CLI v1.43.0 (Wire Protocol 1.10) vs Agent Client Protocol (ACP)
 
 ---
 
-## 二、协议定位与标准化
+## 1. Executive Summary
 
-### 2.1 Kimi Wire — 专用协议
+| Dimension | **Kimi Wire** | **Kimi ACP** |
+|-----------|--------------|-------------|
+| **Protocol Positioning** | Kimi-specific internal protocol | Cross-agent universal standard (similar to LSP) |
+| **Design Goal** | Custom UI / app embedding | IDE / editor integration |
+| **Session Architecture** | Single session process | Multi-session server |
+| **Event Granularity** | Very fine (Step/ContentPart/ToolCallPart) | Coarser (sessionUpdate chunk) |
+| **Transport** | Local stdio only | Local stdio + remote HTTP/WebSocket |
+| **Feature Coverage** | Full Kimi features (Plan/Steer/Hook/Subagent) | Common subset |
+| **Solo Compatibility** | Very high | Medium |
 
-- **定义者**：Moonshot AI (Kimi 团队)
-- **文档**：[Kimi Wire Mode 文档](https://moonshotai.github.io/kimi-cli/en/customization/wire-mode.md)
-- **版本**：1.10 (与 `kimi info` 显示的 `wire protocol: 1.10` 一致)
-- **范围**：仅 Kimi CLI 支持
-- **演进**：由 Kimi 团队控制，可快速迭代
+**Conclusion: For the Solo platform, Wire mode is the superior choice.**
 
-**设计目标**：Wire 是 Kimi Code CLI 的内部消息传递层。当你通过终端与 Kimi 交互时，Shell UI 通过 Wire 接收 AI 输出；当你通过 ACP 与 IDE 集成时，ACP Server 也通过 Wire 与 Agent Core 通信。`kimi --wire` 将这个协议暴露出来，允许外部程序直接与 Kimi 交互。
+---
 
-**适用场景**：
-- 构建自定义 UI (Web/Desktop/Mobile)
-- 将 Kimi 嵌入其他应用
-- 自动化测试 Agent 行为
+## 2. Protocol Positioning and Standardization
 
-### 2.2 ACP — 通用标准
+### 2.1 Kimi Wire — Specialized Protocol
 
-- **定义者**：[agentclientprotocol.com](https://agentclientprotocol.com/) (跨组织标准)
-- **类比**：类似 LSP (Language Server Protocol)
-- **版本**：整数主版本 (当前 v1)
-- **范围**：任何实现 ACP 的 Agent 和 Client
-- **演进**：需考虑多实现方兼容性，变更较慢
+- **Defined by**: Moonshot AI (Kimi team)
+- **Documentation**: [Kimi Wire Mode docs](https://moonshotai.github.io/kimi-cli/en/customization/wire-mode.md)
+- **Version**: 1.10 (consistent with `wire protocol: 1.10` shown by `kimi info`)
+- **Scope**: Only supported by Kimi CLI
+- **Evolution**: Controlled by the Kimi team, can iterate quickly
 
-**设计目标**：标准化代码编辑器/IDE 与编码 Agent 之间的通信，解决"每个编辑器必须为每个 Agent 做自定义集成"的问题。
+**Design Goal**: Wire is the internal messaging layer of Kimi Code CLI. When you interact with Kimi through the terminal, the Shell UI receives AI output via Wire; when you integrate with an IDE through ACP, the ACP Server also communicates with the Agent Core via Wire. `kimi --wire` exposes this protocol, allowing external programs to interact directly with Kimi.
 
-**适用场景**：
-- IDE 插件集成 (Zed, JetBrains 等)
-- 需要同时支持多个 Agent 的通用 Client
-- 远程 Agent 场景 (HTTP/WebSocket)
+**Use Cases**:
+- Building custom UIs (Web/Desktop/Mobile)
+- Embedding Kimi into other applications
+- Automated testing of Agent behavior
+
+### 2.2 ACP — Universal Standard
+
+- **Defined by**: [agentclientprotocol.com](https://agentclientprotocol.com/) (cross-organization standard)
+- **Analogy**: Similar to LSP (Language Server Protocol)
+- **Version**: Integer major version (currently v1)
+- **Scope**: Any Agent and Client implementing ACP
+- **Evolution**: Must consider multi-implementer compatibility, changes are slower
+
+**Design Goal**: Standardize communication between code editors/IDEs and coding Agents, solving the problem of "every editor must build custom integration for every Agent."
+
+**Use Cases**:
+- IDE plugin integration (Zed, JetBrains, etc.)
+- Universal Clients that need to support multiple Agents simultaneously
+- Remote Agent scenarios (HTTP/WebSocket)
 
 ---
 
