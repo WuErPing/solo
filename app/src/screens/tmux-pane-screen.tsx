@@ -1,5 +1,6 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { View, Text, Pressable, ScrollView, TextInput } from "react-native";
+import type { ScrollView as ScrollViewType } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { ArrowLeft, Send } from "lucide-react-native";
 import { router } from "expo-router";
@@ -18,6 +19,15 @@ export function TmuxPaneScreen() {
     Boolean(agent),
   );
   const [inputText, setInputText] = useState("");
+  const scrollRef = useRef<ScrollViewType>(null);
+
+  const scrollToTop = useCallback(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    scrollRef.current?.scrollToEnd({ animated: true });
+  }, []);
 
   const getClient = useCallback(() => {
     if (hookClient) return hookClient;
@@ -68,7 +78,7 @@ export function TmuxPaneScreen() {
           </Pressable>
         }
       />
-      <ScrollView style={styles.contentScroll} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} style={styles.contentScroll} keyboardShouldPersistTaps="handled">
         {isLoading && !content ? (
           <Text style={styles.loadingText}>Capturing pane content...</Text>
         ) : error ? (
@@ -80,13 +90,31 @@ export function TmuxPaneScreen() {
         )}
       </ScrollView>
       <View style={styles.keyButtonsRow}>
+        <Pressable
+          onPress={scrollToTop}
+          style={({ pressed }) => [
+            styles.keyButton,
+            { borderColor: theme.colors.border },
+            pressed ? { backgroundColor: theme.colors.surface1 } : null,
+          ]}
+        >
+          <Text style={[styles.keyButtonLabel, { color: theme.colors.foreground }]}>Home</Text>
+        </Pressable>
+        <Pressable
+          onPress={scrollToBottom}
+          style={({ pressed }) => [
+            styles.keyButton,
+            { borderColor: theme.colors.border },
+            pressed ? { backgroundColor: theme.colors.surface1 } : null,
+          ]}
+        >
+          <Text style={[styles.keyButtonLabel, { color: theme.colors.foreground }]}>End</Text>
+        </Pressable>
         {[
           { label: "↑", key: "Up" },
           { label: "↓", key: "Down" },
           { label: "←", key: "Left" },
           { label: "→", key: "Right" },
-          { label: "Home", key: "Home" },
-          { label: "End", key: "End" },
           { label: "Enter", key: "Enter" },
           { label: "Esc", key: "Escape" },
           { label: "Tab", key: "Tab" },

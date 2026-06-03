@@ -136,15 +136,15 @@ describe("TmuxPaneScreen", () => {
     expect(screen.getByText("End")).toBeDefined();
   });
 
-  it("sends Home key without Enter when pressed", () => {
+  it("Home button scrolls to top without sending tmux key", () => {
     render(<TmuxPaneScreen />);
     fireEvent.click(screen.getByText("Home"));
-    expect(mockSendKeys).toHaveBeenCalledWith("%0", "Home", false);
+    expect(mockSendKeys).not.toHaveBeenCalled();
   });
 
-  it("sends End key without Enter when pressed", () => {
+  it("End button scrolls to bottom without sending tmux key", () => {
     render(<TmuxPaneScreen />);
     fireEvent.click(screen.getByText("End"));
-    expect(mockSendKeys).toHaveBeenCalledWith("%0", "End", false);
+    expect(mockSendKeys).not.toHaveBeenCalled();
   });
 });
