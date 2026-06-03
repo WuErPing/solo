@@ -8,53 +8,6 @@ Solo is an AI coding assistant platform that connects your local development env
 
 ## Architecture
 
-### Features
-
-- **Multi-provider AI agents** — Claude, Kimi, OpenCode, Pi, Codex, Mock
-- **Session memory** — persistent transcript of every turn with automatic secret redaction
-- **Cross-platform app** — iOS, Android, Web with React Native / Expo
-- **Workspace integration** — file explorer, terminal, Git branch switcher
-- **Tmux Dashboard** — detect and control AI agents running in tmux sessions
-- **Schedule Automation** — timezone-aware cron scheduling with friendly UI
-- **End-to-end encryption** — X25519 + XSalsa20-Poly1305 for all communication
-- **CLI & Relay** — command-line management and remote connectivity
-
-### App GUI
-
-```
-┌─────────────────────────────────┐
-│  ≡  Solo              🔔  ⚙️    │
-├─────────────────────────────────┤
-│  ┌─────┐  ┌─────┐  ┌─────┐     │
-│  │  3  │  │  1  │  │  5  │     │
-│  │ ●   │  │ ○   │  │ ✓   │     │
-│  │Active│  │Idle │  │Done │     │
-│  └─────┘  └─────┘  └─────┘     │
-├─────────────────────────────────┤
-│  📁  my-project                 │
-│  ▼  src/                        │
-│       ├─ components/            │
-│       └─ utils/                 │
-│  ▼  tests/                      │
-│       └─ e2e/                   │
-├─────────────────────────────────┤
-│  🖥️  Terminal                   │
-│  $ git status                   │
-│  On branch main                 │
-│  Your branch is up to date      │
-├─────────────────────────────────┤
-│  🤖  claude    ●  Running       │
-│  ┌─────────────────────────────┐│
-│  │ How can I help you today?   ││
-│  │                             ││
-│  └─────────────────────────────┘│
-│  ┌─────────────────────────────┐│
-│  │ > Refactor auth.ts to...    ││
-│  └─────────────────────────────┘│
-│            [ Send ]             │
-└─────────────────────────────────┘
-```
-
 ### System Architecture
 
 ```
@@ -135,6 +88,8 @@ Solo is an AI coding assistant platform that connects your local development env
 | Backend | Go 1.25 · gorilla/websocket · creack/pty · slog |
 | Frontend | Expo 54 · React Native 0.81 · React 19 · TypeScript |
 | State Management | Zustand · @tanstack/react-query · React Context |
+| Styling | Unistyles (dynamic theming) |
+| Terminal | @xterm/xterm v6 |
 | Cryptography | X25519 key exchange + XSalsa20-Poly1305 (E2EE) |
 | Testing | Vitest · Playwright (E2E) · Go test |
 | Deployment | Systemd · Docker · Nginx + Let's Encrypt |
@@ -233,7 +188,7 @@ For detailed documentation, see [`docs/README.md`](docs/README.md).
 - **Codex** — definition only
 - **Mock** — for testing
 
-See [`docs/providers/`](docs/providers/) for provider integration research and planned additions.
+**Planned**: Cursor-Agent (Print mode). See [`docs/providers/`](docs/providers/) for provider integration research and planned additions.
 
 ---
 
@@ -320,10 +275,11 @@ Solo includes a timezone-aware cron scheduling system for running automated task
 
 The project uses GitHub Actions (`.github/workflows/ci.yml`) with the following jobs:
 
-| Job | Steps |
-|-----|-------|
-| **Go** (matrix: protocol, cli, daemon, relay-go) | `go mod verify` → `go build` → `go test -short -race` → `golangci-lint` |
-| **JS** | `npm ci` → lint → typecheck → test |
+| Job | Trigger | Steps |
+|-----|---------|-------|
+| **Go** (matrix: protocol, cli, daemon, relay-go) | push/PR to main | `go mod verify` → `go build` → `go test -short -race -coverprofile` → `golangci-lint v2` → Codecov upload |
+| **JS** | push/PR to main | `npm ci` → lint (app, app-bridge, highlight) → typecheck → test (app 1282 tests, app-bridge 32 tests) → Codecov upload |
+| **E2E** (nightly) | daily 02:00 UTC + manual | Playwright E2E (22 specs) with daemon/relay/Metro globalSetup |
 
 ---
 
@@ -333,6 +289,9 @@ The project uses GitHub Actions (`.github/workflows/ci.yml`) with the following 
 - [Component Specifications](docs/architecture/components.md)
 - [Data Flow & Session Lifecycle](docs/architecture/data-flow.md)
 - [Network Architecture](docs/architecture/network-architecture.md)
+- [Session Memory Persistence](docs/architecture/session-memory-persistence.md)
+- [Agent Stall Detection](docs/architecture/agent-stall-detection.md)
+- [Push Notifications](docs/architecture/push-notifications.md)
 - [Deployment Guide](docs/architecture/deployment.md)
 - [Product Features](docs/product/features.md)
 - [Session Memory Spec](docs/product/session-memory-spec.md)
