@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from "react";
-import { View, Text, Pressable, ScrollView, TextInput } from "react-native";
+import { KeyboardAvoidingView, Platform, View, Text, Pressable, ScrollView, TextInput } from "react-native";
 import type { ScrollView as ScrollViewType } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { ArrowLeft, Send } from "lucide-react-native";
@@ -83,7 +83,10 @@ export function TmuxPaneScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       <MenuHeader
         title={agent.agentName}
         subtitle={`${agent.sessionName} / ${agent.windowName}`}
@@ -177,7 +180,7 @@ export function TmuxPaneScreen() {
           <Send size={16} color={theme.colors.background} />
         </Pressable>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
