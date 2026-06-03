@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, View, Text, Pressable, ScrollView, TextInput } from "react-native";
 import type { ScrollView as ScrollViewType } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
@@ -42,6 +42,15 @@ export function TmuxPaneScreen() {
   const scrollToBottom = useCallback(() => {
     scrollRef.current?.scrollToEnd({ animated: true });
   }, []);
+
+  // Auto-scroll to bottom when content refreshes
+  useEffect(() => {
+    if (content) {
+      // Delay slightly so the ScrollView layout has updated with new content
+      const id = setTimeout(() => scrollToBottom(), 50);
+      return () => clearTimeout(id);
+    }
+  }, [content, scrollToBottom]);
 
   const getClient = useCallback(() => {
     if (!agent) return null;
