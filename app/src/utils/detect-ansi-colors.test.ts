@@ -44,4 +44,22 @@ describe("detectColorsFromAnsi", () => {
     expect(result.background).toBe("#181825");
     expect(result.foreground).toBe("#cdd6f4");
   });
+
+  it("detects background from 256-color palette", () => {
+    const content = "Hello \x1b[48;5;235m World";
+    const result = detectColorsFromAnsi(content);
+    expect(result.background).toBe("#262626");
+  });
+
+  it("detects foreground from 256-color palette", () => {
+    const content = "Hello \x1b[38;5;78m World";
+    const result = detectColorsFromAnsi(content);
+    expect(result.foreground).toBe("#5fd787");
+  });
+
+  it("handles qodercli-style content with 256-color palette", () => {
+    const content = "\x1b[38;5;78m  Qoder CLI\x1b[0m\x1b[38;5;145m v1.0.13\x1b[39m";
+    const result = detectColorsFromAnsi(content);
+    expect(result.foreground).toBe("#5fd787");
+  });
 });

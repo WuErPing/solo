@@ -41,7 +41,7 @@ function mergeTerminalColors(
 function TmuxPaneScreenInner() {
   const { theme } = useUnistyles();
   const agent = useTmuxAgentStore((s) => s.selectedAgent);
-  const { content, isLoading, error } = useTmuxCapturePane(
+  const { content, isLoading, error, refetch } = useTmuxCapturePane(
     agent?.serverId ?? "",
     agent?.paneId ?? "",
     Boolean(agent),
