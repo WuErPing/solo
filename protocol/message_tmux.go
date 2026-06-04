@@ -59,6 +59,48 @@ type TmuxCapturePaneResponsePayload struct {
 	Error     *string `json:"error"`
 }
 
+// TmuxThemeColors holds the extracted tmux theme colors.
+type TmuxThemeColors struct {
+	Background string `json:"background"`
+	Foreground string `json:"foreground"`
+	// Pane colors
+	PaneActiveBorder   string `json:"paneActiveBorder,omitempty"`
+	PaneInactiveBorder string `json:"paneInactiveBorder,omitempty"`
+	// Status bar colors
+	StatusBackground string `json:"statusBackground,omitempty"`
+	StatusForeground string `json:"statusForeground,omitempty"`
+	// Message colors
+	MessageBackground string `json:"messageBackground,omitempty"`
+	MessageForeground string `json:"messageForeground,omitempty"`
+	// Window status colors
+	WindowStatusCurrentBg string `json:"windowStatusCurrentBg,omitempty"`
+	WindowStatusCurrentFg string `json:"windowStatusCurrentFg,omitempty"`
+}
+
+// TmuxGetThemeRequest asks the daemon to extract tmux theme colors for a session.
+type TmuxGetThemeRequest struct {
+	Type      string `json:"type"`
+	SessionID string `json:"sessionId"`
+	RequestID string `json:"requestId"`
+}
+
+func (m TmuxGetThemeRequest) MsgType() string { return "tmux/get_theme" }
+
+// TmuxGetThemeResponse returns the extracted tmux theme colors.
+type TmuxGetThemeResponse struct {
+	Type    string                      `json:"type"`
+	Payload TmuxGetThemeResponsePayload `json:"payload"`
+}
+
+func (m TmuxGetThemeResponse) MsgType() string { return "tmux/get_theme/response" }
+
+// TmuxGetThemeResponsePayload is the payload for TmuxGetThemeResponse.
+type TmuxGetThemeResponsePayload struct {
+	RequestID string           `json:"requestId"`
+	Theme     TmuxThemeColors  `json:"theme"`
+	Error     *string          `json:"error"`
+}
+
 // TmuxSendKeysRequest asks the daemon to send keystrokes to a tmux pane.
 type TmuxSendKeysRequest struct {
 	Type      string `json:"type"`

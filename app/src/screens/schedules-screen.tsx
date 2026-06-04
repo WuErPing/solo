@@ -10,7 +10,7 @@ import { useIsFocused } from "@react-navigation/native";
 import { router } from "expo-router";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { Calendar, ChevronLeft, Pause, Pencil, Play, Plus, Trash2, Clock } from "lucide-react-native";
-import { MenuHeader } from "@/components/headers/menu-header";
+import { BackHeader } from "@/components/headers/back-header";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useSchedules } from "@/hooks/use-schedules";
@@ -262,8 +262,9 @@ function SchedulesScreenContent({
 
   return (
     <View style={styles.container}>
-      <MenuHeader
+      <BackHeader
         title="Schedules"
+        onBack={() => router.navigate("/")}
         rightContent={
           <Button
             variant="ghost"

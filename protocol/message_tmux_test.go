@@ -317,3 +317,86 @@ func TestTmuxSendKeysRequestSendEnterFalse(t *testing.T) {
 		t.Errorf("Keys: got %q, want %q", decoded.Keys, "Up")
 	}
 }
+
+func TestTmuxGetThemeRequestRoundTrip(t *testing.T) {
+	req := TmuxGetThemeRequest{
+		Type:      "tmux/get_theme",
+		SessionID: "my-session",
+		RequestID: "r9",
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var decoded TmuxGetThemeRequest
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if decoded.Type != "tmux/get_theme" {
+		t.Errorf("Type: got %q, want %q", decoded.Type, "tmux/get_theme")
+	}
+	if decoded.SessionID != "my-session" {
+		t.Errorf("SessionID: got %q, want %q", decoded.SessionID, "my-session")
+	}
+	if decoded.RequestID != "r9" {
+		t.Errorf("RequestID: got %q, want %q", decoded.RequestID, "r9")
+	}
+}
+
+func TestTmuxGetThemeResponseRoundTrip(t *testing.T) {
+	resp := TmuxGetThemeResponse{
+		Type: "tmux/get_theme/response",
+		Payload: TmuxGetThemeResponsePayload{
+			RequestID: "r10",
+			Theme: TmuxThemeColors{
+				Background:       "#181825",
+				Foreground:       "#cdd6f4",
+				StatusBackground: "#181825",
+				StatusForeground: "#cdd6f4",
+				PaneActiveBorder: "#89b4fa",
+			},
+		},
+	}
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var decoded TmuxGetThemeResponse
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if decoded.Payload.Theme.Background != "#181825" {
+		t.Errorf("Background: got %q, want %q", decoded.Payload.Theme.Background, "#181825")
+	}
+	if decoded.Payload.Theme.Foreground != "#cdd6f4" {
+		t.Errorf("Foreground: got %q, want %q", decoded.Payload.Theme.Foreground, "#cdd6f4")
+	}
+	if decoded.Payload.Theme.PaneActiveBorder != "#89b4fa" {
+		t.Errorf("PaneActiveBorder: got %q, want %q", decoded.Payload.Theme.PaneActiveBorder, "#89b4fa")
+	}
+}
+
+func TestTmuxGetThemeResponseWithError(t *testing.T) {
+	errMsg := "session not found"
+	resp := TmuxGetThemeResponse{
+		Type: "tmux/get_theme/response",
+		Payload: TmuxGetThemeResponsePayload{
+			RequestID: "r11",
+			Error:     &errMsg,
+		},
+	}
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var decoded TmuxGetThemeResponse
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if decoded.Payload.Error == nil {
+		t.Fatal("Error: got nil, want non-nil")
+	}
+	if *decoded.Payload.Error != errMsg {
+		t.Errorf("Error: got %q, want %q", *decoded.Payload.Error, errMsg)
+	}
+}

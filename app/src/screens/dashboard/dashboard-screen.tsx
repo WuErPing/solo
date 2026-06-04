@@ -17,7 +17,7 @@ import {
   LayoutDashboard,
   Terminal,
 } from "lucide-react-native";
-import { MenuHeader } from "@/components/headers/menu-header";
+import { BackHeader } from "@/components/headers/back-header";
 import { useAggregatedAgents } from "@/hooks/use-aggregated-agents";
 import { deriveSidebarStateBucket } from "@/utils/sidebar-agent-state";
 import { getStatusDotColor } from "@/utils/status-dot-color";
@@ -200,8 +200,9 @@ export function DashboardScreen() {
 
   return (
     <View style={styles.container}>
-      <MenuHeader
+      <BackHeader
         title="Dashboard"
+        onBack={() => router.navigate("/")}
         rightContent={
           <View style={styles.headerBadge}>
             <Text style={styles.headerBadgeText}>

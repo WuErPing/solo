@@ -49,9 +49,9 @@ vi.mock("lucide-react-native", () => {
   return { Terminal: icon("Terminal"), Monitor: icon("Monitor") };
 });
 
-vi.mock("@/components/headers/menu-header", () => ({
-  MenuHeader: ({ title }: { title: string }) =>
-    React.createElement("div", { "data-testid": "menu-header" }, title),
+vi.mock("@/components/headers/back-header", () => ({
+  BackHeader: ({ title, rightContent }: { title: string; rightContent?: React.ReactNode }) =>
+    React.createElement("div", { "data-testid": "back-header" }, title, rightContent),
 }));
 
 vi.mock("@/constants/layout", () => ({

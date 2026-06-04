@@ -55,3 +55,31 @@ export const TmuxSendKeysResponseSchema = z.object({
     error: z.string().nullable(),
   }),
 });
+
+export const TmuxThemeColorsSchema = z.object({
+  background: z.string(),
+  foreground: z.string(),
+  paneActiveBorder: z.string().optional(),
+  paneInactiveBorder: z.string().optional(),
+  statusBackground: z.string().optional(),
+  statusForeground: z.string().optional(),
+  messageBackground: z.string().optional(),
+  messageForeground: z.string().optional(),
+  windowStatusCurrentBg: z.string().optional(),
+  windowStatusCurrentFg: z.string().optional(),
+});
+
+export const TmuxGetThemeRequestSchema = z.object({
+  type: z.literal("tmux/get_theme"),
+  sessionId: z.string(),
+  requestId: z.string(),
+});
+
+export const TmuxGetThemeResponseSchema = z.object({
+  type: z.literal("tmux/get_theme/response"),
+  payload: z.object({
+    requestId: z.string(),
+    theme: TmuxThemeColorsSchema,
+    error: z.string().nullable(),
+  }),
+});

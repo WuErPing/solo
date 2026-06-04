@@ -1,27 +1,19 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, View, Text, Pressable, ScrollView, TextInput } from "react-native";
 import type { ScrollView as ScrollViewType } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { ArrowLeft, Send } from "lucide-react-native";
+import { Send } from "lucide-react-native";
 import { router } from "expo-router";
-import { MenuHeader } from "@/components/headers/menu-header";
+import { BackHeader } from "@/components/headers/back-header";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { AnsiTextContent } from "@/components/ansi-text-renderer";
 import { useTmuxCapturePane } from "@/hooks/use-tmux-capture-pane";
-import { useHostRuntimeClient, getHostRuntimeStore } from "@/runtime/host-runtime";
+import { useTmuxTheme } from "@/hooks/use-tmux-theme";
+import type { TmuxThemeColors } from "@/hooks/use-tmux-theme";
+import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import { useTmuxAgentStore } from "@/stores/tmux-agent-store";
-
-// Strip Unicode box-drawing and block characters that render as garbage on
-// React Native's default monospace font.  These are purely decorative in TUI
-// apps (kimi, pi, etc.) so removing them keeps the text readable.
-function sanitizeForNative(text: string): string {
-  return text
-    .replace(/\x00/g, "")
-    .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, "")
-    .replace(/\x1b\][^\x07]*\x07/g, "")
-    .replace(/\x1b[()][AB012]/g, "")
-    .replace(/[\x01-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
-    .replace(/[─-▟⠀-⣿]/g, "");
-}
+import { parseAnsi } from "@/utils/ansi-parser";
+import { detectColorsFromAnsi } from "@/utils/detect-ansi-colors";
 
 export function TmuxPaneScreen() {
   return (
@@ -31,17 +23,58 @@ export function TmuxPaneScreen() {
   );
 }
 
+function mergeTerminalColors(
+  base: { foreground: string; background: string; [key: string]: string },
+  contentColors: { background: string | null; foreground: string | null },
+  tmuxTheme: TmuxThemeColors | null,
+): { foreground: string; background: string; [key: string]: string } {
+  const bg = contentColors.background ?? tmuxTheme?.background ?? null;
+  const fg = contentColors.foreground ?? tmuxTheme?.foreground ?? null;
+  if (!bg && !fg) return base;
+  return {
+    ...base,
+    foreground: fg || base.foreground,
+    background: bg || base.background,
+  };
+}
+
 function TmuxPaneScreenInner() {
   const { theme } = useUnistyles();
   const agent = useTmuxAgentStore((s) => s.selectedAgent);
-  const hookClient = useHostRuntimeClient(agent?.serverId ?? "");
   const { content, isLoading, error } = useTmuxCapturePane(
     agent?.serverId ?? "",
     agent?.paneId ?? "",
     Boolean(agent),
   );
+  const { theme: tmuxTheme } = useTmuxTheme(
+    agent?.serverId ?? "",
+    agent?.sessionName ?? "",
+    Boolean(agent),
+  );
+  const contentColors = useMemo(
+    () => content ? detectColorsFromAnsi(content) : { background: null, foreground: null },
+    [content],
+  );
+  const terminalColors = useMemo(
+    () => mergeTerminalColors(theme.colors.terminal, contentColors, tmuxTheme),
+    [theme.colors.terminal, contentColors, tmuxTheme],
+  );
+  const segments = useMemo(
+    () => (content ? parseAnsi(content) : null),
+    [content],
+  );
   const [inputText, setInputText] = useState("");
+  const [sendError, setSendError] = useState(false);
+  const [loadTimedOut, setLoadTimedOut] = useState(false);
   const scrollRef = useRef<ScrollViewType>(null);
+
+  useEffect(() => {
+    if (isLoading && !content) {
+      const id = setTimeout(() => setLoadTimedOut(true), 8000);
+      return () => clearTimeout(id);
+    }
+    setLoadTimedOut(false);
+  }, [isLoading, content]);
 
   const scrollToTop = useCallback(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: true });
@@ -54,28 +87,29 @@ function TmuxPaneScreenInner() {
   // Auto-scroll to bottom when content refreshes
   useEffect(() => {
     if (content) {
-      // Delay slightly so the ScrollView layout has updated with new content
       const id = setTimeout(() => scrollToBottom(), 50);
       return () => clearTimeout(id);
     }
   }, [content, scrollToBottom]);
 
+  // Auto-clear send error after 2 seconds
+  useEffect(() => {
+    if (sendError) {
+      const id = setTimeout(() => setSendError(false), 2000);
+      return () => clearTimeout(id);
+    }
+  }, [sendError]);
+
   const getClient = useCallback(() => {
     if (!agent) return null;
-    // Always prefer the store client — it's the live reference.
-    // The hook value can be a stale/disposed client after reconnection.
-    return getHostRuntimeStore().getClient(agent.serverId) ?? hookClient;
-  }, [hookClient, agent]);
-
-  const handleBack = useCallback(() => {
-    router.back();
-  }, []);
+    return getHostRuntimeStore().getClient(agent.serverId);
+  }, [agent]);
 
   const handleSend = useCallback(() => {
     const trimmed = inputText.trim();
     const client = getClient();
     if (!trimmed || !client || !agent) return;
-    void client.tmuxSendKeys(agent.paneId, trimmed);
+    client.tmuxSendKeys(agent.paneId, trimmed).catch(() => setSendError(true));
     setInputText("");
   }, [inputText, getClient, agent]);
 
@@ -83,7 +117,7 @@ function TmuxPaneScreenInner() {
     (key: string) => {
       const client = getClient();
       if (!client || !agent) return;
-      void client.tmuxSendKeys(agent.paneId, key, false);
+      client.tmuxSendKeys(agent.paneId, key, false).catch(() => setSendError(true));
     },
     [getClient, agent],
   );
@@ -91,7 +125,7 @@ function TmuxPaneScreenInner() {
   if (!agent) {
     return (
       <View style={styles.container}>
-        <MenuHeader title="Tmux Pane" />
+        <BackHeader title="Tmux Pane" onBack={() => router.back()} />
         <View style={styles.centerContent}>
           <Text style={styles.emptyText}>No agent selected</Text>
         </View>
@@ -104,24 +138,26 @@ function TmuxPaneScreenInner() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <MenuHeader
+      <BackHeader
         title={agent.agentName}
-        subtitle={`${agent.sessionName} / ${agent.windowName}`}
-        leftContent={
-          <Pressable onPress={handleBack} style={styles.backButton} accessibilityLabel="Back" accessibilityRole="button">
-            <ArrowLeft size={20} color={theme.colors.foreground} />
-          </Pressable>
+        onBack={() => router.back()}
+        titleAccessory={
+          <Text style={styles.subtitleText}>
+            {agent.sessionName} / {agent.windowName}
+          </Text>
         }
       />
-      <ScrollView ref={scrollRef} style={styles.contentScroll} keyboardShouldPersistTaps="handled">
-        {isLoading && !content ? (
+      <ScrollView ref={scrollRef} style={[styles.contentScroll, { backgroundColor: terminalColors.background }]} keyboardShouldPersistTaps="handled">
+        {isLoading && !segments && !loadTimedOut ? (
           <Text style={styles.loadingText}>Capturing pane content...</Text>
+        ) : isLoading && !segments && loadTimedOut ? (
+          <Text style={styles.errorText}>Pane content too large or unavailable</Text>
         ) : error ? (
           <Text style={styles.errorText}>{error}</Text>
+        ) : segments && segments.length > 0 ? (
+          <AnsiTextContent segments={segments} style={styles.contentText} terminalColors={terminalColors} />
         ) : (
-          <Text style={styles.contentText}>
-            {sanitizeForNative(content) || "(empty pane)"}
-          </Text>
+          <Text style={styles.contentText}>(empty pane)</Text>
         )}
       </ScrollView>
       <View style={styles.keyButtonsRow}>
@@ -148,12 +184,10 @@ function TmuxPaneScreenInner() {
         {[
           { label: "↑", key: "Up" },
           { label: "↓", key: "Down" },
-          { label: "←", key: "Left" },
-          { label: "→", key: "Right" },
           { label: "Enter", key: "Enter" },
           { label: "Esc", key: "Escape" },
           { label: "Tab", key: "Tab" },
-          { label: "Ctrl+C", key: "C-c" },
+          { label: "S-Tab", key: "BTab" },
           { label: "1", key: "1" },
           { label: "2", key: "2" },
           { label: "3", key: "3" },
@@ -174,6 +208,11 @@ function TmuxPaneScreenInner() {
           </Pressable>
         ))}
       </View>
+      {sendError ? (
+        <Text style={[styles.sendErrorText, { color: theme.colors.destructive }]}>
+          Connection lost — command not sent
+        </Text>
+      ) : null}
       <View style={styles.inputRow}>
         <TextInput
           style={[
@@ -216,8 +255,9 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foregroundMuted,
     fontSize: 14,
   },
-  backButton: {
-    padding: 8,
+  subtitleText: {
+    color: theme.colors.foregroundMuted,
+    fontSize: 12,
   },
   contentScroll: {
     flex: 1,
@@ -262,6 +302,11 @@ const styles = StyleSheet.create((theme) => ({
   keyButtonLabel: {
     fontSize: 12,
     fontWeight: "500",
+  },
+  sendErrorText: {
+    fontSize: 12,
+    textAlign: "center",
+    paddingVertical: 4,
   },
   inputRow: {
     flexDirection: "row",

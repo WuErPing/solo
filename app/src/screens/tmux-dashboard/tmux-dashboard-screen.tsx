@@ -9,7 +9,7 @@ import {
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { Terminal, Monitor } from "lucide-react-native";
 import { router } from "expo-router";
-import { MenuHeader } from "@/components/headers/menu-header";
+import { BackHeader } from "@/components/headers/back-header";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useAggregatedTmuxAgents } from "@/hooks/use-tmux-agents";
 import { useIsCompactFormFactor } from "@/constants/layout";
@@ -137,8 +137,9 @@ function TmuxDashboardScreenInner() {
 
   return (
     <View style={styles.container}>
-      <MenuHeader
+      <BackHeader
         title="Tmux Dashboard"
+        onBack={() => router.navigate("/")}
         rightContent={
           agents.length > 0 ? (
             <View style={styles.badge}>

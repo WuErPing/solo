@@ -95,15 +95,15 @@ vi.mock("lucide-react-native", () => ({
   Clock: () => React.createElement("span", { "data-icon": "Clock" }),
 }));
 
-vi.mock("@/components/headers/menu-header", () => ({
-  MenuHeader: ({
+vi.mock("@/components/headers/back-header", () => ({
+  BackHeader: ({
     title,
     rightContent,
   }: {
     title: string;
     rightContent?: React.ReactNode;
   }) =>
-    React.createElement("header", { "data-testid": "menu-header" }, title, rightContent),
+    React.createElement("header", { "data-testid": "back-header" }, title, rightContent),
 }));
 
 vi.mock("@/components/ui/button", () => ({

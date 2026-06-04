@@ -17,6 +17,26 @@ const { mockSendKeys, mockTheme } = vi.hoisted(() => ({
       primary: "#0af",
       border: "#333",
       destructive: "#f00",
+      terminal: {
+        background: "#000",
+        foreground: "#fff",
+        black: "#000",
+        red: "#f00",
+        green: "#0f0",
+        yellow: "#ff0",
+        blue: "#00f",
+        magenta: "#f0f",
+        cyan: "#0ff",
+        white: "#fff",
+        brightBlack: "#888",
+        brightRed: "#f88",
+        brightGreen: "#8f8",
+        brightYellow: "#ff8",
+        brightBlue: "#88f",
+        brightMagenta: "#f8f",
+        brightCyan: "#8ff",
+        brightWhite: "#fff",
+      },
     },
   },
 }));
@@ -54,9 +74,21 @@ vi.mock("expo-router", () => ({
   },
 }));
 
-vi.mock("@/components/headers/menu-header", () => ({
-  MenuHeader: ({ title, leftContent }: { title: string; leftContent?: React.ReactNode }) =>
-    React.createElement("div", { "data-testid": "menu-header" }, leftContent, title),
+vi.mock("@/components/headers/back-header", () => ({
+  BackHeader: ({ title, onBack }: { title: string; onBack?: () => void }) =>
+    React.createElement("div", { "data-testid": "back-header" },
+      React.createElement("button", { onClick: onBack, "aria-label": "Back" }, "Back"),
+      title,
+    ),
+}));
+
+vi.mock("@/components/ansi-text-renderer", () => ({
+  AnsiTextContent: ({ segments, style }: { segments: { text: string }[]; style?: unknown }) =>
+    React.createElement("span", { style }, segments.map((s: { text: string }) => s.text).join("")),
+}));
+
+vi.mock("@/utils/ansi-parser", () => ({
+  parseAnsi: (input: string) => [{ text: input, style: {} }],
 }));
 
 
@@ -66,6 +98,14 @@ vi.mock("@/hooks/use-tmux-capture-pane", () => ({
     isLoading: false,
     error: null,
     refetch: vi.fn(),
+  }),
+}));
+
+vi.mock("@/hooks/use-tmux-theme", () => ({
+  useTmuxTheme: () => ({
+    theme: null,
+    isLoading: false,
+    error: null,
   }),
 }));
 

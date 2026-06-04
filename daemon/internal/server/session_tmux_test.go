@@ -4,6 +4,8 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+
+	"github.com/WuErPing/solo/protocol"
 )
 
 func TestIsTmuxAIAgentName(t *testing.T) {
@@ -244,5 +246,134 @@ func TestSendKeysToTmuxPaneInvalidID(t *testing.T) {
 	err := sendKeysToTmuxPane("%99999", "echo hello", true)
 	if err == nil {
 		t.Fatal("expected error for invalid pane ID, got nil")
+	}
+}
+
+func TestParseTmuxThemeOutput(t *testing.T) {
+	tests := []struct {
+		name   string
+		output map[string]string
+		want   protocol.TmuxThemeColors
+	}{
+		{
+			name: "full theme",
+			output: map[string]string{
+				"message-bg":              "#1e1e2e",
+				"message-fg":              "#cdd6f4",
+				"pane-active-border-style": "#89b4fa",
+				"pane-border-style":       "#45475a",
+				"status-style":            "bg=#181825,fg=#cdd6f4",
+				"message-command-bg":      "#1e1e2e",
+				"message-command-fg":      "#cdd6f4",
+				"window-status-current-bg": "#585b70",
+				"window-status-current-fg": "#cdd6f4",
+			},
+			want: protocol.TmuxThemeColors{
+				Background:            "#181825",
+				Foreground:            "#cdd6f4",
+				MessageBackground:     "#1e1e2e",
+				MessageForeground:     "#cdd6f4",
+				PaneActiveBorder:      "#89b4fa",
+				PaneInactiveBorder:    "#45475a",
+				StatusBackground:      "#181825",
+				StatusForeground:      "#cdd6f4",
+				WindowStatusCurrentBg: "#585b70",
+				WindowStatusCurrentFg: "#cdd6f4",
+			},
+		},
+		{
+			name: "minimal theme with hex colors",
+			output: map[string]string{
+				"status-style": "bg=#000000,fg=#ffffff",
+			},
+			want: protocol.TmuxThemeColors{
+				Background:       "#000000",
+				Foreground:       "#ffffff",
+				StatusBackground: "#000000",
+				StatusForeground: "#ffffff",
+			},
+		},
+		{
+			name: "theme with named colors",
+			output: map[string]string{
+				"status-style": "bg=black,fg=white",
+			},
+			want: protocol.TmuxThemeColors{
+				Background:       "black",
+				Foreground:       "white",
+				StatusBackground: "black",
+				StatusForeground: "white",
+			},
+		},
+		{
+			name:   "empty output",
+			output: map[string]string{},
+			want:   protocol.TmuxThemeColors{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseTmuxThemeOutput(tt.output)
+			if got != tt.want {
+				t.Errorf("parseTmuxThemeOutput() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseTmuxStatusStyle(t *testing.T) {
+	tests := []struct {
+		name      string
+		style     string
+		wantBg    string
+		wantFg    string
+	}{
+		{
+			name:   "bg and fg",
+			style:  "bg=#181825,fg=#cdd6f4",
+			wantBg: "#181825",
+			wantFg: "#cdd6f4",
+		},
+		{
+			name:   "fg only",
+			style:  "fg=#ffffff",
+			wantBg: "",
+			wantFg: "#ffffff",
+		},
+		{
+			name:   "bg only",
+			style:  "bg=#000000",
+			wantBg: "#000000",
+			wantFg: "",
+		},
+		{
+			name:   "with spaces",
+			style:  "bg=#181825, fg=#cdd6f4",
+			wantBg: "#181825",
+			wantFg: "#cdd6f4",
+		},
+		{
+			name:   "empty",
+			style:  "",
+			wantBg: "",
+			wantFg: "",
+		},
+		{
+			name:   "plain color",
+			style:  "bg=black,fg=white",
+			wantBg: "black",
+			wantFg: "white",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotBg, gotFg := parseTmuxStatusStyle(tt.style)
+			if gotBg != tt.wantBg {
+				t.Errorf("parseTmuxStatusStyle(%q) bg = %q, want %q", tt.style, gotBg, tt.wantBg)
+			}
+			if gotFg != tt.wantFg {
+				t.Errorf("parseTmuxStatusStyle(%q) fg = %q, want %q", tt.style, gotFg, tt.wantFg)
+			}
+		})
 	}
 }

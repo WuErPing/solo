@@ -19,7 +19,7 @@ import {
   Plus,
   Server,
 } from "lucide-react-native";
-import { MenuHeader } from "@/components/headers/menu-header";
+import { BackHeader } from "@/components/headers/back-header";
 import { Button } from "@/components/ui/button";
 import { useAggregatedSchedules } from "@/hooks/use-aggregated-schedules";
 import { useIsCompactFormFactor } from "@/constants/layout";
@@ -218,8 +218,9 @@ export function SchedulesDashboardScreen() {
 
   return (
     <View style={styles.container}>
-      <MenuHeader
+      <BackHeader
         title="Schedules"
+        onBack={() => router.navigate("/")}
         rightContent={
           <View style={styles.headerRight}>
             {connectedHosts.length > 0 ? (
