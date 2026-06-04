@@ -5,8 +5,9 @@ import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { mockSendKeys, mockTheme } = vi.hoisted(() => ({
+const { mockSendKeys, mockRefetch, mockTheme } = vi.hoisted(() => ({
   mockSendKeys: vi.fn(() => Promise.resolve({})),
+  mockRefetch: vi.fn(),
   mockTheme: {
     colors: {
       background: "#000",
@@ -97,7 +98,7 @@ vi.mock("@/hooks/use-tmux-capture-pane", () => ({
     content: "$ ls\nfile1.txt\nfile2.txt\n$ _",
     isLoading: false,
     error: null,
-    refetch: vi.fn(),
+    refetch: mockRefetch,
   }),
 }));
 
@@ -186,5 +187,23 @@ describe("TmuxPaneScreen", () => {
     render(<TmuxPaneScreen />);
     fireEvent.click(screen.getByText("End"));
     expect(mockSendKeys).not.toHaveBeenCalled();
+  });
+
+  it("refetches pane content after sending a command key", async () => {
+    render(<TmuxPaneScreen />);
+    fireEvent.click(screen.getByText("Enter"));
+    await vi.waitFor(() => {
+      expect(mockRefetch).toHaveBeenCalled();
+    });
+  });
+
+  it("refetches pane content after sending text input", async () => {
+    render(<TmuxPaneScreen />);
+    const input = screen.getByPlaceholderText(/type a command/i);
+    fireEvent.change(input, { target: { value: "hello" } });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await vi.waitFor(() => {
+      expect(mockRefetch).toHaveBeenCalled();
+    });
   });
 });

@@ -109,17 +109,23 @@ function TmuxPaneScreenInner() {
     const trimmed = inputText.trim();
     const client = getClient();
     if (!trimmed || !client || !agent) return;
-    client.tmuxSendKeys(agent.paneId, trimmed).catch(() => setSendError(true));
+    client
+      .tmuxSendKeys(agent.paneId, trimmed)
+      .then(() => refetch())
+      .catch(() => setSendError(true));
     setInputText("");
-  }, [inputText, getClient, agent]);
+  }, [inputText, getClient, agent, refetch]);
 
   const sendKey = useCallback(
     (key: string) => {
       const client = getClient();
       if (!client || !agent) return;
-      client.tmuxSendKeys(agent.paneId, key, false).catch(() => setSendError(true));
+      client
+        .tmuxSendKeys(agent.paneId, key, false)
+        .then(() => refetch())
+        .catch(() => setSendError(true));
     },
-    [getClient, agent],
+    [getClient, agent, refetch],
   );
 
   if (!agent) {
@@ -227,6 +233,7 @@ function TmuxPaneScreenInner() {
           returnKeyType="send"
         />
         <Pressable
+          testID="send-button"
           onPress={handleSend}
           style={[
             styles.sendButton,
