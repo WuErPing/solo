@@ -1,4 +1,4 @@
-import { useQueries, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQueries, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useCallback } from "react";
 import { getHostRuntimeStore, useHosts, isHostRuntimeConnected } from "@/runtime/host-runtime";
 
@@ -51,11 +51,14 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
         queryKey: tmuxAgentsQueryKey(host.serverId),
         enabled: Boolean(client && isConnected),
         staleTime: 30_000,
+        placeholderData: keepPreviousData,
+        retry: 1,
         queryFn: async () => {
-          if (!client) {
+          const liveClient = getHostRuntimeStore().getClient(host.serverId);
+          if (!liveClient || liveClient.getConnectionState().status === "disposed") {
             throw new Error("Daemon client not available");
           }
-          const payload = await client.tmuxListAgents();
+          const payload = await liveClient.tmuxListAgents();
           return {
             agents: payload.agents ?? [],
             error: payload.error ?? null,
@@ -88,6 +91,13 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
       }
       if (query.data?.error && !anyError) {
         anyError = query.data.error;
+      }
+      if (
+        !anyError &&
+        query.error instanceof Error &&
+        query.error.message !== "Daemon client not available"
+      ) {
+        anyError = query.error.message;
       }
       if (query.data?.agents) {
         for (const agent of query.data.agents) {

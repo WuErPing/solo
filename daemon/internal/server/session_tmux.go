@@ -14,7 +14,7 @@ import (
 var tmuxAIAgentNames = map[string]bool{
 	"claude":   true,
 	"opencode": true,
-	"qoder":    true,
+	"qodercli": true,
 	"pi":       true,
 	"cursor":   true,
 	"kimi":     true,

@@ -10,6 +10,7 @@ import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { Terminal, Monitor } from "lucide-react-native";
 import { router } from "expo-router";
 import { MenuHeader } from "@/components/headers/menu-header";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useAggregatedTmuxAgents } from "@/hooks/use-tmux-agents";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useStoreReady } from "@/app/_layout";
@@ -94,6 +95,14 @@ function NameCard({
 }
 
 export function TmuxDashboardScreen() {
+  return (
+    <ErrorBoundary fallbackLabel="Tmux dashboard encountered an error">
+      <TmuxDashboardScreenInner />
+    </ErrorBoundary>
+  );
+}
+
+function TmuxDashboardScreenInner() {
   const { theme } = useUnistyles();
   const isCompact = useIsCompactFormFactor();
   const storeReady = useStoreReady();

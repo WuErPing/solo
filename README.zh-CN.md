@@ -224,7 +224,7 @@ solo/
 
 三层检测机制确保即使 `pane_current_command` 报告不同的进程名（例如 pi 报告为 `node`）也能识别代理：
 
-1. **命令名** — 匹配 `claude`、`pi`、`kimi`、`kimi-cli`、`opencode`、`qoder`、`cursor`
+1. **命令名** — 匹配 `claude`、`pi`、`kimi`、`kimi-cli`、`opencode`、`qodercli`、`cursor`
 2. **窗格标题** — Unicode 归一化（如 `π` → `pi`）配合词边界匹配
 3. **子进程检查** — 通过 `pgrep`/`ps` 回退检测包装启动器
 
@@ -246,7 +246,7 @@ solo/
 | kimi | 命令 / 标题 |
 | kimi-cli | 命令 / 标题 |
 | opencode | 命令 / 标题 |
-| qoder | 命令 |
+| qodercli | 命令 |
 | cursor | 命令 |
 
 ---

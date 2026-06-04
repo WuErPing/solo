@@ -5,25 +5,33 @@ import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { ArrowLeft, Send } from "lucide-react-native";
 import { router } from "expo-router";
 import { MenuHeader } from "@/components/headers/menu-header";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useTmuxCapturePane } from "@/hooks/use-tmux-capture-pane";
 import { useHostRuntimeClient, getHostRuntimeStore } from "@/runtime/host-runtime";
 import { useTmuxAgentStore } from "@/stores/tmux-agent-store";
-import { isNative } from "@/constants/platform";
 
 // Strip Unicode box-drawing and block characters that render as garbage on
 // React Native's default monospace font.  These are purely decorative in TUI
 // apps (kimi, pi, etc.) so removing them keeps the text readable.
 function sanitizeForNative(text: string): string {
-  if (!isNative) return text;
-  // Strip ANSI escape sequences left over from tmux capture
-  // Then strip box-drawing (U+2500-257F), block elements (U+2580-259F),
-  // and braille patterns (U+2800-28FF) which render as garbage on mobile.
   return text
-    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")
+    .replace(/\x00/g, "")
+    .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, "")
+    .replace(/\x1b\][^\x07]*\x07/g, "")
+    .replace(/\x1b[()][AB012]/g, "")
+    .replace(/[\x01-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
     .replace(/[─-▟⠀-⣿]/g, "");
 }
 
 export function TmuxPaneScreen() {
+  return (
+    <ErrorBoundary fallbackLabel="Tmux pane encountered an error">
+      <TmuxPaneScreenInner />
+    </ErrorBoundary>
+  );
+}
+
+function TmuxPaneScreenInner() {
   const { theme } = useUnistyles();
   const agent = useTmuxAgentStore((s) => s.selectedAgent);
   const hookClient = useHostRuntimeClient(agent?.serverId ?? "");

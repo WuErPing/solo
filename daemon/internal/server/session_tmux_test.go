@@ -14,7 +14,7 @@ func TestIsTmuxAIAgentName(t *testing.T) {
 	}{
 		{"claude", "claude", true},
 		{"opencode", "opencode", true},
-		{"qoder", "qoder", true},
+		{"qodercli", "qodercli", true},
 		{"pi", "pi", true},
 		{"cursor", "cursor", true},
 		{"kimi", "kimi", true},
@@ -91,13 +91,13 @@ func TestParseTmuxPaneLines(t *testing.T) {
 			name: "all seven agents",
 			input: "%0|0|1000|claude|s1|w1|/a\n" +
 				"%1|1|2000|opencode|s1|w1|/b\n" +
-				"%2|2|3000|qoder|s1|w1|/c\n" +
+				"%2|2|3000|qodercli|s1|w1|/c\n" +
 				"%3|0|4000|pi|s2|w1|/d\n" +
 				"%4|1|5000|cursor|s2|w1|/e\n" +
 				"%5|2|6000|kimi|s2|w1|/f\n" +
 				"%6|0|7000|kimi-cli|s3|w1|/g\n",
 			wantCount: 7,
-			wantNames: []string{"claude", "opencode", "qoder", "pi", "cursor", "kimi", "kimi-cli"},
+			wantNames: []string{"claude", "opencode", "qodercli", "pi", "cursor", "kimi", "kimi-cli"},
 		},
 	}
 	for _, tt := range tests {

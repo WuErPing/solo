@@ -1,6 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { getHostRuntimeStore, isHostRuntimeConnected } from "@/runtime/host-runtime";
+import { useAppVisible } from "@/hooks/use-app-visible";
 
 export interface TmuxCapturePaneResult {
   content: string;
@@ -25,17 +26,21 @@ export function useTmuxCapturePane(
   const client = store.getClient(serverId);
   const snapshot = store.getSnapshot(serverId);
   const isConnected = isHostRuntimeConnected(snapshot);
+  const isAppVisible = useAppVisible();
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: tmuxCapturePaneQueryKey(serverId, paneId),
     enabled: enabled && Boolean(client) && isConnected,
     staleTime: 5_000,
-    refetchInterval: enabled ? 5_000 : false,
+    refetchInterval: enabled && isAppVisible ? 5_000 : false,
+    placeholderData: keepPreviousData,
+    retry: 1,
     queryFn: async () => {
-      if (!client) {
+      const liveClient = store.getClient(serverId);
+      if (!liveClient || liveClient.getConnectionState().status === "disposed") {
         throw new Error("Daemon client not available");
       }
-      const payload = await client.tmuxCapturePane(paneId);
+      const payload = await liveClient.tmuxCapturePane(paneId);
       return {
         content: payload.content ?? "",
         error: payload.error ?? null,
@@ -47,7 +52,11 @@ export function useTmuxCapturePane(
     () => ({
       content: data?.content ?? "",
       isLoading,
-      error: data?.error ?? (error instanceof Error ? error.message : null),
+      error:
+        data?.error ??
+        (error instanceof Error && error.message !== "Daemon client not available"
+          ? error.message
+          : null),
       refetch: () => {
         void refetch();
       },

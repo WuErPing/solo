@@ -224,7 +224,7 @@ The app includes a Tmux Dashboard that automatically detects AI agents running i
 
 Three-layer detection identifies agents even when `pane_current_command` reports a different process name (e.g., `node` for pi):
 
-1. **Command name** — matches `claude`, `pi`, `kimi`, `kimi-cli`, `opencode`, `qoder`, `cursor`
+1. **Command name** — matches `claude`, `pi`, `kimi`, `kimi-cli`, `opencode`, `qodercli`, `cursor`
 2. **Pane title** — unicode normalization (e.g., `π` → `pi`) with word-boundary matching
 3. **Child process inspection** — `pgrep`/`ps` fallback for wrapped launchers
 
@@ -246,7 +246,7 @@ Three-layer detection identifies agents even when `pane_current_command` reports
 | kimi | command / title |
 | kimi-cli | command / title |
 | opencode | command / title |
-| qoder | command |
+| qodercli | command |
 | cursor | command |
 
 ---
