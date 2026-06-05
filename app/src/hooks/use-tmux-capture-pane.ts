@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { getHostRuntimeStore, isHostRuntimeConnected } from "@/runtime/host-runtime";
 import { useAppVisible } from "@/hooks/use-app-visible";
+import { withLiveTmuxClient } from "@/utils/tmux-rpc";
 
 export interface TmuxCapturePaneResult {
   content: string;
@@ -36,11 +37,7 @@ export function useTmuxCapturePane(
     placeholderData: keepPreviousData,
     retry: 1,
     queryFn: async () => {
-      const liveClient = store.getClient(serverId);
-      if (!liveClient || liveClient.getConnectionState().status === "disposed") {
-        throw new Error("Daemon client not available");
-      }
-      const payload = await liveClient.tmuxCapturePane(paneId);
+      const payload = await withLiveTmuxClient(serverId, (c) => c.tmuxCapturePane(paneId));
       return {
         content: payload.content ?? "",
         error: payload.error ?? null,

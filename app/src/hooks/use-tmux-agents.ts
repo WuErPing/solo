@@ -1,6 +1,7 @@
 import { keepPreviousData, useQueries, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useCallback } from "react";
 import { getHostRuntimeStore, useHosts, isHostRuntimeConnected } from "@/runtime/host-runtime";
+import { withLiveTmuxClient } from "@/utils/tmux-rpc";
 
 export interface TmuxAgent {
   sessionName: string;
@@ -54,11 +55,7 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
         placeholderData: keepPreviousData,
         retry: 1,
         queryFn: async () => {
-          const liveClient = getHostRuntimeStore().getClient(host.serverId);
-          if (!liveClient || liveClient.getConnectionState().status === "disposed") {
-            throw new Error("Daemon client not available");
-          }
-          const payload = await liveClient.tmuxListAgents();
+          const payload = await withLiveTmuxClient(host.serverId, (c) => c.tmuxListAgents());
           return {
             agents: payload.agents ?? [],
             error: payload.error ?? null,

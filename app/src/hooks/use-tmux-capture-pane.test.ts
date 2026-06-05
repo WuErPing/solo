@@ -154,6 +154,36 @@ describe("useTmuxCapturePane", () => {
     });
   });
 
+  it("transparently retries with a fresh client when the live client is disposed mid-query", async () => {
+    // First call: a connected client whose RPC throws a disposed error
+    // Second call (retry inside withLiveTmuxClient): a fresh connected client
+    const firstClient = {
+      tmuxCapturePane: vi
+        .fn()
+        .mockRejectedValue(new Error("Transport not connected (status: disposed)")),
+      getConnectionState: vi.fn().mockReturnValue({ status: "connected" }),
+    };
+    const freshClient = {
+      tmuxCapturePane: vi.fn().mockResolvedValue({ content: "$ whoami\nuser", error: null }),
+      getConnectionState: vi.fn().mockReturnValue({ status: "connected" }),
+    };
+    mockStore.getClient
+      .mockReset()
+      .mockImplementation(() => {
+        // Return freshClient once the first call has already thrown; otherwise firstClient.
+        return firstClient.tmuxCapturePane.mock.calls.length > 0 ? freshClient : firstClient;
+      });
+
+    const { result } = renderCapturePaneHook();
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ whoami\nuser");
+    });
+    expect(result.current.error).toBeNull();
+    expect(firstClient.tmuxCapturePane).toHaveBeenCalledTimes(1);
+    expect(freshClient.tmuxCapturePane).toHaveBeenCalledTimes(1);
+  });
+
   it("does not surface 'Daemon client not available' as a user-visible error", async () => {
     // Simulate client always disposed (e.g., persistent disconnect)
     mockClient.getConnectionState.mockReturnValue({ status: "disposed" });

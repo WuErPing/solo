@@ -117,6 +117,7 @@ vi.mock("@/runtime/host-runtime", () => ({
   getHostRuntimeStore: () => ({
     getClient: () => ({
       tmuxSendKeys: mockSendKeys,
+      getConnectionState: () => ({ status: "connected" }),
     }),
   }),
 }));

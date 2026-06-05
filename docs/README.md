@@ -39,7 +39,8 @@ docs/
     ├── host-status-check.md                 # Host probe cycle & status machine
     ├── lint-capability-plan.md              # Lint tooling capability plan
     ├── session-timeline-e2e-gaps.md         # Session timeline E2E test gaps
-    └── test-suite-analysis.md               # Full test suite inventory, CI gaps, coverage report
+    ├── test-suite-analysis.md               # Full test suite inventory, CI gaps, coverage report
+    └── tmux-transport-disposed-race.md      # Tmux `Transport not connected (status: disposed)` race analysis
 ```
 
 ---
@@ -115,6 +116,7 @@ Deep dives into specific subsystems.
 | [Lint Capability Plan](analysis/lint-capability-plan.md) | Plan | Lint tooling roadmap and capability gap plan |
 | [Session Timeline E2E Gaps](analysis/session-timeline-e2e-gaps.md) | Analysis | Session timeline E2E test coverage gaps and remediation |
 | [Test Suite Analysis](analysis/test-suite-analysis.md) | Analysis | Test inventory (207 app unit, 154 Go, 30 E2E), CI coverage, Codecov integration |
+| [Tmux Transport Disposed Race](analysis/tmux-transport-disposed-race.md) | Analysis | `Transport not connected (status: disposed)` root cause: probe-cycle switch vs. in-flight tmux RPC |
 
 ---
 

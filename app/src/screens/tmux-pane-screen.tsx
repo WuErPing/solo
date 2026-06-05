@@ -10,7 +10,7 @@ import { AnsiTextContent } from "@/components/ansi-text-renderer";
 import { useTmuxCapturePane } from "@/hooks/use-tmux-capture-pane";
 import { useTmuxTheme } from "@/hooks/use-tmux-theme";
 import type { TmuxThemeColors } from "@/hooks/use-tmux-theme";
-import { getHostRuntimeStore } from "@/runtime/host-runtime";
+import { withLiveTmuxClient } from "@/utils/tmux-rpc";
 import { useTmuxAgentStore } from "@/stores/tmux-agent-store";
 import { parseAnsi } from "@/utils/ansi-parser";
 import { detectColorsFromAnsi } from "@/utils/detect-ansi-colors";
@@ -100,32 +100,23 @@ function TmuxPaneScreenInner() {
     }
   }, [sendError]);
 
-  const getClient = useCallback(() => {
-    if (!agent) return null;
-    return getHostRuntimeStore().getClient(agent.serverId);
-  }, [agent]);
-
   const handleSend = useCallback(() => {
     const trimmed = inputText.trim();
-    const client = getClient();
-    if (!trimmed || !client || !agent) return;
-    client
-      .tmuxSendKeys(agent.paneId, trimmed)
+    if (!trimmed || !agent) return;
+    withLiveTmuxClient(agent.serverId, (c) => c.tmuxSendKeys(agent.paneId, trimmed))
       .then(() => refetch())
       .catch(() => setSendError(true));
     setInputText("");
-  }, [inputText, getClient, agent, refetch]);
+  }, [inputText, agent, refetch]);
 
   const sendKey = useCallback(
     (key: string) => {
-      const client = getClient();
-      if (!client || !agent) return;
-      client
-        .tmuxSendKeys(agent.paneId, key, false)
+      if (!agent) return;
+      withLiveTmuxClient(agent.serverId, (c) => c.tmuxSendKeys(agent.paneId, key, false))
         .then(() => refetch())
         .catch(() => setSendError(true));
     },
-    [getClient, agent, refetch],
+    [agent, refetch],
   );
 
   if (!agent) {

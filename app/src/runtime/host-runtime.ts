@@ -141,8 +141,9 @@ export interface HostRuntimeStartOptions {
 const PROBE_TICK_MS = 2_000;
 const PROBE_STEADY_MS = 10_000;
 const PROBE_MAX_BACKOFF_MS = 30_000;
-const ADAPTIVE_SWITCH_THRESHOLD_MS = 40;
+const ADAPTIVE_SWITCH_THRESHOLD_MS = 100;
 const ADAPTIVE_SWITCH_CONSECUTIVE_PROBES = 3;
+const DEFAULT_CONSECUTIVE_UNAVAILABLE_THRESHOLD = 2;
 const DEFAULT_AGENT_DIRECTORY_PAGE_LIMIT = 200;
 
 const DEFAULT_AGENT_DIRECTORY_SORT: NonNullable<FetchAgentsOptions["sort"]> = [
@@ -507,6 +508,7 @@ export class HostRuntimeController {
   private started = false;
   private connectionFirstSeenAt = new Map<string, number>();
   private connectionLastProbedAt = new Map<string, number>();
+  private connectionConsecutiveUnavailable = new Map<string, number>();
   private switchCandidateConnectionId: string | null = null;
   private switchCandidateHitCount = 0;
   private clientIdPromise: Promise<string> | null = null;
@@ -514,10 +516,20 @@ export class HostRuntimeController {
   private switchRequestVersion = 0;
   private probeRequestVersion = 0;
   private probeCycleInFlight: Promise<void> | null = null;
+  private readonly consecutiveUnavailableThreshold: number;
 
-  constructor(input: { host: HostProfile; deps?: HostRuntimeControllerDeps }) {
+  constructor(input: {
+    host: HostProfile;
+    deps?: HostRuntimeControllerDeps;
+    consecutiveUnavailableThreshold?: number;
+  }) {
     this.host = input.host;
     this.deps = input.deps ?? createDefaultDeps();
+    const threshold = input.consecutiveUnavailableThreshold;
+    this.consecutiveUnavailableThreshold =
+      typeof threshold === "number" && Number.isFinite(threshold) && threshold >= 1
+        ? Math.floor(threshold)
+        : DEFAULT_CONSECUTIVE_UNAVAILABLE_THRESHOLD;
     this.connectionMachineState = {
       tag: "booting",
     };
@@ -572,6 +584,7 @@ export class HostRuntimeController {
     this.switchRequestVersion += 1;
     this.probeRequestVersion += 1;
     this.started = false;
+    this.connectionConsecutiveUnavailable.clear();
     if (this.probeIntervalHandle) {
       clearInterval(this.probeIntervalHandle);
       this.probeIntervalHandle = null;
@@ -768,19 +781,29 @@ export class HostRuntimeController {
       }
 
       if (activeProbe?.status === "unavailable") {
-        const nextConnectionId = selectBestConnection({
-          candidates: buildConnectionCandidates(this.host),
-          probeByConnectionId,
-        });
-        if (nextConnectionId && nextConnectionId !== currentActiveConnectionId) {
-          await this.switchToConnection({
-            connectionId: nextConnectionId,
-            expectedProbeVersion: requestVersion,
+        const hits =
+          (this.connectionConsecutiveUnavailable.get(currentActiveConnectionId) ?? 0) + 1;
+        this.connectionConsecutiveUnavailable.set(currentActiveConnectionId, hits);
+        if (hits >= this.consecutiveUnavailableThreshold) {
+          this.connectionConsecutiveUnavailable.delete(currentActiveConnectionId);
+          const nextConnectionId = selectBestConnection({
+            candidates: buildConnectionCandidates(this.host),
+            probeByConnectionId,
           });
+          if (nextConnectionId && nextConnectionId !== currentActiveConnectionId) {
+            await this.switchToConnection({
+              connectionId: nextConnectionId,
+              expectedProbeVersion: requestVersion,
+            });
+          }
+          this.switchCandidateConnectionId = null;
+          this.switchCandidateHitCount = 0;
         }
-        this.switchCandidateConnectionId = null;
-        this.switchCandidateHitCount = 0;
         return;
+      }
+
+      if (activeProbe?.status === "available") {
+        this.connectionConsecutiveUnavailable.delete(currentActiveConnectionId);
       }
 
       if (!activeProbe || activeProbe.status !== "available") {
@@ -962,6 +985,7 @@ export class HostRuntimeController {
       if (!currentIds.has(id)) {
         this.connectionFirstSeenAt.delete(id);
         this.connectionLastProbedAt.delete(id);
+        this.connectionConsecutiveUnavailable.delete(id);
       }
     }
     for (const connection of this.host.connections) {
@@ -1029,6 +1053,7 @@ export class HostRuntimeController {
     if (this.activeClient) {
       const previousClient = this.activeClient;
       this.activeClient = null;
+      this.connectionConsecutiveUnavailable.clear();
       await previousClient.close().catch(() => undefined);
     }
   }

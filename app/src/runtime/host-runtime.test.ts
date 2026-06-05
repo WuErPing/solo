@@ -589,7 +589,7 @@ describe("HostRuntimeController", () => {
     expect(mismatchedClient.closeCalls).toBe(1);
   });
 
-  it("fails over when the active client ping fails", async () => {
+  it("fails over when the active client ping fails and the consecutive-unavailable threshold is 1", async () => {
     const host = makeHost({ preferredConnectionId: "direct:lan:6767" });
     const clients: FakeDaemonClient[] = [];
     const latencies: Record<string, number | Error> = {
@@ -599,6 +599,7 @@ describe("HostRuntimeController", () => {
     const controller = new HostRuntimeController({
       host,
       deps: makeDeps(latencies, clients),
+      consecutiveUnavailableThreshold: 1,
     });
 
     await controller.start({ autoProbe: false });
@@ -621,6 +622,113 @@ describe("HostRuntimeController", () => {
     expect((initialClient as unknown as FakeDaemonClient | null)?.closeCalls).toBe(1);
   });
 
+  it("does not fail over on a single active-probe unavailable cycle with the default threshold", async () => {
+    const host = makeHost({ preferredConnectionId: "direct:lan:6767" });
+    const clients: FakeDaemonClient[] = [];
+    const latencies: Record<string, number | Error> = {
+      "direct:lan:6767": 15,
+      "relay:relay.solo.sh:443": 55,
+    };
+    const controller = new HostRuntimeController({
+      host,
+      deps: makeDeps(latencies, clients),
+    });
+
+    await controller.start({ autoProbe: false });
+    expect(controller.getSnapshot().activeConnectionId).toBe("direct:lan:6767");
+    const initialClient = controller.getSnapshot().client as unknown as FakeDaemonClient;
+
+    initialClient.ping = async () => {
+      throw new Error("active ping failed");
+    };
+    latencies["direct:lan:6767"] = new Error("direct unavailable");
+    latencies["relay:relay.solo.sh:443"] = 42;
+    clearProbeBackoff(controller);
+    await controller.runProbeCycleNow();
+
+    const snapshot = controller.getSnapshot();
+    expect(snapshot.activeConnectionId).toBe("direct:lan:6767");
+    expect(snapshot.client).toBe(initialClient);
+    expect(initialClient.closeCalls).toBe(0);
+  });
+
+  it("fails over after the active probe is unavailable for two consecutive cycles", async () => {
+    const host = makeHost({ preferredConnectionId: "direct:lan:6767" });
+    const clients: FakeDaemonClient[] = [];
+    const latencies: Record<string, number | Error> = {
+      "direct:lan:6767": 15,
+      "relay:relay.solo.sh:443": 55,
+    };
+    const controller = new HostRuntimeController({
+      host,
+      deps: makeDeps(latencies, clients),
+    });
+
+    await controller.start({ autoProbe: false });
+    const initialClient = controller.getSnapshot().client as unknown as FakeDaemonClient;
+    initialClient.ping = async () => {
+      throw new Error("active ping failed");
+    };
+    latencies["direct:lan:6767"] = new Error("direct unavailable");
+    latencies["relay:relay.solo.sh:443"] = 42;
+
+    clearProbeBackoff(controller);
+    await controller.runProbeCycleNow();
+    expect(controller.getSnapshot().activeConnectionId).toBe("direct:lan:6767");
+
+    clearProbeBackoff(controller);
+    await controller.runProbeCycleNow();
+
+    const snapshot = controller.getSnapshot();
+    expect(snapshot.activeConnectionId).toBe("relay:relay.solo.sh:443");
+    expect(snapshot.client).not.toBe(initialClient);
+    expect(initialClient.closeCalls).toBe(1);
+  });
+
+  it("resets the consecutive-unavailable counter when the active probe recovers", async () => {
+    const host = makeHost({ preferredConnectionId: "direct:lan:6767" });
+    const clients: FakeDaemonClient[] = [];
+    const latencies: Record<string, number | Error> = {
+      "direct:lan:6767": 15,
+      "relay:relay.solo.sh:443": 55,
+    };
+    const controller = new HostRuntimeController({
+      host,
+      deps: makeDeps(latencies, clients),
+    });
+
+    await controller.start({ autoProbe: false });
+    const initialClient = controller.getSnapshot().client as unknown as FakeDaemonClient;
+
+    let pingShouldFail = true;
+    initialClient.ping = async () => {
+      if (pingShouldFail) throw new Error("active ping failed");
+      return { rttMs: 12 };
+    };
+
+    // Cycle 1: unavailable
+    latencies["direct:lan:6767"] = new Error("direct unavailable");
+    clearProbeBackoff(controller);
+    await controller.runProbeCycleNow();
+    expect(controller.getSnapshot().activeConnectionId).toBe("direct:lan:6767");
+
+    // Cycle 2: recovers (counter must reset)
+    pingShouldFail = false;
+    latencies["direct:lan:6767"] = 15;
+    clearProbeBackoff(controller);
+    await controller.runProbeCycleNow();
+    expect(controller.getSnapshot().activeConnectionId).toBe("direct:lan:6767");
+
+    // Cycle 3: unavailable again (counter is 1, not 2 — must NOT switch)
+    pingShouldFail = true;
+    latencies["direct:lan:6767"] = new Error("direct unavailable");
+    clearProbeBackoff(controller);
+    await controller.runProbeCycleNow();
+    expect(controller.getSnapshot().activeConnectionId).toBe("direct:lan:6767");
+    expect(controller.getSnapshot().client).toBe(initialClient);
+    expect(initialClient.closeCalls).toBe(0);
+  });
+
   it("switches only after the faster alternative wins consecutive probes", async () => {
     const host = makeHost({ preferredConnectionId: "direct:lan:6767" });
     const clients: FakeDaemonClient[] = [];
@@ -636,7 +744,7 @@ describe("HostRuntimeController", () => {
     await controller.start({ autoProbe: false });
     expect(controller.getSnapshot().activeConnectionId).toBe("direct:lan:6767");
 
-    latencies["direct:lan:6767"] = 95;
+    latencies["direct:lan:6767"] = 150;
     latencies["relay:relay.solo.sh:443"] = 30;
     clearProbeBackoff(controller);
     await controller.runProbeCycleNow();
@@ -671,7 +779,7 @@ describe("HostRuntimeController", () => {
     await controller.start({ autoProbe: false });
     expect(controller.getSnapshot().activeConnectionId).toBe("direct:lan:6767");
 
-    latencies["direct:lan:6767"] = 100;
+    latencies["direct:lan:6767"] = 180;
     latencies["relay:relay.solo.sh:443"] = 20;
     clearProbeBackoff(controller);
     await controller.runProbeCycleNow();
@@ -683,7 +791,7 @@ describe("HostRuntimeController", () => {
     await controller.runProbeCycleNow();
     expect(controller.getSnapshot().activeConnectionId).toBe("direct:lan:6767");
 
-    latencies["direct:lan:6767"] = 100;
+    latencies["direct:lan:6767"] = 200;
     latencies["relay:relay.solo.sh:443"] = 20;
     clearProbeBackoff(controller);
     await controller.runProbeCycleNow();
