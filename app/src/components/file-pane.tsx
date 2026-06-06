@@ -24,6 +24,8 @@ import {
 import { lineNumberGutterWidth } from "@/components/code-insets";
 import { isRenderedMarkdownFile } from "@/components/file-pane-render-mode";
 import { MermaidPreview } from "@/components/mermaid-preview";
+import { SvgPreview } from "@/components/svg-preview";
+import { isSvgContent } from "@/components/svg-preview-utils";
 import { isWeb } from "@/constants/platform";
 import { createMarkdownStyles } from "@/styles/markdown-styles";
 import type { AttachmentMetadata } from "@/attachments/types";
@@ -258,6 +260,14 @@ function FilePreviewBody({
             </Markdown>
           </RNScrollView>
           {scrollbar.overlay}
+        </View>
+      );
+    }
+
+    if (preview.content && isSvgContent(preview.content)) {
+      return (
+        <View style={styles.previewScrollContainer}>
+          <SvgPreview source={preview.content} />
         </View>
       );
     }
