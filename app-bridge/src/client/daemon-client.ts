@@ -386,6 +386,10 @@ type TmuxGetThemePayload = Extract<
   SessionOutboundMessage,
   { type: "tmux/get_theme/response" }
 >["payload"];
+type TmuxStatusLinePayload = Extract<
+  SessionOutboundMessage,
+  { type: "tmux/status_line/response" }
+>["payload"];
 export type FetchAgentTimelinePayload = FetchAgentTimelineResponseMessage["payload"];
 
 export type FetchAgentTimelineDirection = FetchAgentTimelinePayload["direction"];
@@ -3684,6 +3688,18 @@ export class DaemonClient {
         sessionId,
       },
       responseType: "tmux/get_theme/response",
+      timeout: 10000,
+    });
+  }
+
+  async tmuxStatusLine(sessionId: string, requestId?: string): Promise<TmuxStatusLinePayload> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "tmux/status_line",
+        sessionId,
+      },
+      responseType: "tmux/status_line/response",
       timeout: 10000,
     });
   }

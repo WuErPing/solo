@@ -1,5 +1,5 @@
 import { keepPreviousData, useQueries, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useRef } from "react";
 import { getHostRuntimeStore, useHosts, isHostRuntimeConnected } from "@/runtime/host-runtime";
 import { withLiveTmuxClient } from "@/utils/tmux-rpc";
 
@@ -12,6 +12,7 @@ export interface TmuxAgent {
   agentName: string;
   currentCmd: string;
   workingDir: string;
+  title?: string;
   serverId: string;
   serverLabel: string;
 }
@@ -32,17 +33,10 @@ export function tmuxAgentsQueryKey(serverId: string): readonly string[] {
 export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
   const hosts = useHosts();
   const queryClient = useQueryClient();
-
-  const connectedHosts = useMemo(() => {
-    const store = getHostRuntimeStore();
-    return hosts.filter((host) => {
-      const snapshot = store.getSnapshot(host.serverId);
-      return isHostRuntimeConnected(snapshot);
-    });
-  }, [hosts]);
+  const hasFetched = useRef(false);
 
   const queries = useQueries({
-    queries: connectedHosts.map((host) => {
+    queries: hosts.map((host) => {
       const store = getHostRuntimeStore();
       const client = store.getClient(host.serverId);
       const snapshot = store.getSnapshot(host.serverId);
@@ -51,7 +45,6 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
       return {
         queryKey: tmuxAgentsQueryKey(host.serverId),
         enabled: Boolean(client && isConnected),
-        staleTime: 30_000,
         placeholderData: keepPreviousData,
         retry: 1,
         queryFn: async () => {
@@ -77,7 +70,7 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
       const query = queries[i];
       if (!query) continue;
 
-      const host = connectedHosts[i];
+      const host = hosts[i];
       if (!host) continue;
 
       if (query.isLoading) {
@@ -115,7 +108,19 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
     });
 
     const hasAnyData = allAgents.length > 0;
-    const isInitialLoad = isLoading && !hasAnyData;
+
+    // Track whether any query has completed (success or error).
+    // Once true, stays true — we only need to know the first fetch happened.
+    if (!hasFetched.current) {
+      for (const query of queries) {
+        if (query && (query.isSuccess || query.isError)) {
+          hasFetched.current = true;
+          break;
+        }
+      }
+    }
+
+    const isInitialLoad = !hasAnyData && !hasFetched.current;
     const isRevalidating = isFetching && !isLoading && hasAnyData;
 
     return {
@@ -125,13 +130,13 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
       isRevalidating,
       error: anyError,
     };
-  }, [queries, connectedHosts]);
+  }, [queries, hosts]);
 
   const refreshAll = useCallback(() => {
-    for (const host of connectedHosts) {
+    for (const host of hosts) {
       void queryClient.invalidateQueries({ queryKey: tmuxAgentsQueryKey(host.serverId) });
     }
-  }, [connectedHosts, queryClient]);
+  }, [hosts, queryClient]);
 
   return {
     ...result,

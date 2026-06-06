@@ -82,18 +82,78 @@ describe("withLiveTmuxClient", () => {
     expect(op).toHaveBeenNthCalledWith(2, freshClient);
   });
 
-  it("rethrows the original error when the retry client is the same disposed instance", async () => {
-    const firstClient = makeFakeClient({ status: "connected" });
-    mockStore.getClient.mockReturnValue(firstClient as unknown as DaemonClient);
+  it("retries up to 3 times on consecutive disposed errors", async () => {
+    const clients = Array.from({ length: 4 }, () =>
+      makeFakeClient({ status: "connected" }),
+    );
+
+    mockStore.getClient
+      .mockReturnValueOnce(clients[0] as unknown as DaemonClient)
+      .mockReturnValueOnce(clients[1] as unknown as DaemonClient)
+      .mockReturnValueOnce(clients[2] as unknown as DaemonClient)
+      .mockReturnValueOnce(clients[3] as unknown as DaemonClient);
 
     const op = vi
       .fn()
-      .mockRejectedValueOnce(new Error("Transport not connected (status: disposed)"));
+      .mockRejectedValueOnce(new Error("Transport not connected (status: disposed)"))
+      .mockRejectedValueOnce(new Error("Transport not connected (status: disposed)"))
+      .mockRejectedValueOnce(new Error("Transport not connected (status: disposed)"))
+      .mockResolvedValueOnce("final-result");
+
+    const result = await withLiveTmuxClient("server-1", op);
+
+    expect(result).toBe("final-result");
+    expect(op).toHaveBeenCalledTimes(4);
+  });
+
+  it("gives up after 3 disposed retries and throws the last error", async () => {
+    const clients = Array.from({ length: 4 }, () =>
+      makeFakeClient({ status: "connected" }),
+    );
+
+    mockStore.getClient
+      .mockReturnValueOnce(clients[0] as unknown as DaemonClient)
+      .mockReturnValueOnce(clients[1] as unknown as DaemonClient)
+      .mockReturnValueOnce(clients[2] as unknown as DaemonClient)
+      .mockReturnValueOnce(clients[3] as unknown as DaemonClient);
+
+    const op = vi
+      .fn()
+      .mockRejectedValue(new Error("Transport not connected (status: disposed)"));
 
     await expect(withLiveTmuxClient("server-1", op)).rejects.toThrow(
       /Transport not connected/,
     );
-    expect(op).toHaveBeenCalledTimes(1);
+    expect(op).toHaveBeenCalledTimes(4); // 1 initial + 3 retries
+  });
+
+  it("retries with the same client when the store keeps returning it", async () => {
+    const client = makeFakeClient({ status: "connected" });
+    mockStore.getClient.mockReturnValue(client as unknown as DaemonClient);
+
+    const op = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Transport not connected (status: disposed)"))
+      .mockResolvedValueOnce("retry-result");
+
+    const result = await withLiveTmuxClient("server-1", op);
+
+    expect(result).toBe("retry-result");
+    expect(op).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives up after 3 retries when the store keeps returning the same client", async () => {
+    const client = makeFakeClient({ status: "connected" });
+    mockStore.getClient.mockReturnValue(client as unknown as DaemonClient);
+
+    const op = vi
+      .fn()
+      .mockRejectedValue(new Error("Transport not connected (status: disposed)"));
+
+    await expect(withLiveTmuxClient("server-1", op)).rejects.toThrow(
+      /Transport not connected/,
+    );
+    expect(op).toHaveBeenCalledTimes(4); // 1 initial + 3 retries
   });
 
   it("rethrows the original error when the store has no client on retry", async () => {

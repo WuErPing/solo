@@ -9,6 +9,7 @@ import {
 } from "@/desktop/settings/desktop-settings";
 import { isElectronRuntime } from "@/desktop/host";
 import { THEME_TO_UNISTYLES, type ThemeName } from "@/styles/theme";
+import { TERMINAL_THEME_IDS, type TerminalThemeId } from "@/styles/terminal-themes";
 
 export const APP_SETTINGS_KEY = "@solo:app-settings";
 const LEGACY_SETTINGS_KEY = "@solo:settings";
@@ -18,10 +19,12 @@ export type SendBehavior = "interrupt" | "queue";
 export type ReleaseChannel = "stable" | "beta";
 
 const VALID_THEMES = new Set<string>([...Object.keys(THEME_TO_UNISTYLES), "auto"]);
+const VALID_TERMINAL_THEMES = new Set<string>(TERMINAL_THEME_IDS);
 
 export interface AppSettings {
   theme: ThemeName | "auto";
   sendBehavior: SendBehavior;
+  terminalTheme: TerminalThemeId;
 }
 
 export interface Settings extends AppSettings {
@@ -32,6 +35,7 @@ export interface Settings extends AppSettings {
 export const DEFAULT_CLIENT_SETTINGS: AppSettings = {
   theme: "auto",
   sendBehavior: "interrupt",
+  terminalTheme: "system",
 };
 
 export const DEFAULT_APP_SETTINGS: Settings = {
@@ -113,6 +117,9 @@ export function useSettings(): UseSettingsReturn {
       }
       if (updates.sendBehavior !== undefined) {
         appUpdates.sendBehavior = updates.sendBehavior;
+      }
+      if (updates.terminalTheme !== undefined) {
+        appUpdates.terminalTheme = updates.terminalTheme;
       }
 
       const promises: Promise<void>[] = [];
@@ -222,6 +229,9 @@ function pickAppSettings(stored: Partial<AppSettings>): Partial<AppSettings> {
   }
   if (stored.sendBehavior === "interrupt" || stored.sendBehavior === "queue") {
     result.sendBehavior = stored.sendBehavior;
+  }
+  if (typeof stored.terminalTheme === "string" && VALID_TERMINAL_THEMES.has(stored.terminalTheme)) {
+    result.terminalTheme = stored.terminalTheme;
   }
   return result;
 }

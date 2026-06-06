@@ -117,6 +117,47 @@ func scanTmuxAgents() ([]protocol.TmuxAgentInfo, error) {
 	return parseTmuxPaneLines(string(output)), nil
 }
 
+func extractFirstPrompt(paneID string, paneTitle string) string {
+	for name := range tmuxAIAgentNames {
+		prefix := strings.ToUpper(name) + " | "
+		if strings.HasPrefix(paneTitle, prefix) {
+			return strings.TrimPrefix(paneTitle, prefix)
+		}
+	}
+
+	content, err := captureTmuxPane(paneID, -50)
+	if err != nil {
+		return ""
+	}
+	return extractLastMeaningfulLine(content)
+}
+
+func extractLastMeaningfulLine(content string) string {
+	scanner := bufio.NewScanner(strings.NewReader(content))
+	var lastLine string
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" && len(line) > 3 {
+			lastLine = line
+		}
+	}
+	if len(lastLine) > 80 {
+		lastLine = lastLine[:77] + "..."
+	}
+	return lastLine
+}
+
+func getGitCommitHash(workingDir string) string {
+	if workingDir == "" {
+		return ""
+	}
+	out, err := exec.Command("git", "-C", workingDir, "rev-parse", "--short", "HEAD").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
 func parseTmuxPaneLines(output string) []protocol.TmuxAgentInfo {
 	var agents []protocol.TmuxAgentInfo
 	scanner := bufio.NewScanner(strings.NewReader(output))
@@ -161,6 +202,8 @@ func parseTmuxPaneLines(output string) []protocol.TmuxAgentInfo {
 			continue
 		}
 
+		title := extractFirstPrompt(paneID, paneTitle)
+
 		agents = append(agents, protocol.TmuxAgentInfo{
 			SessionName: sessionName,
 			WindowName:  windowName,
@@ -170,6 +213,7 @@ func parseTmuxPaneLines(output string) []protocol.TmuxAgentInfo {
 			AgentName:   agentName,
 			CurrentCmd:  currentCmd,
 			WorkingDir:  workingDir,
+			Title:       title,
 		})
 	}
 	return agents
@@ -263,12 +307,22 @@ func sendKeysToTmuxPane(paneID, keys string, sendEnter bool) error {
 func parseTmuxThemeOutput(options map[string]string) protocol.TmuxThemeColors {
 	theme := protocol.TmuxThemeColors{}
 
+	// Window colors: prefer active window style, fall back to default window style
+	if style, ok := options["window-active-style"]; ok {
+		bg, fg := parseTmuxStatusStyle(style)
+		theme.Background = bg
+		theme.Foreground = fg
+	} else if style, ok := options["window-style"]; ok {
+		bg, fg := parseTmuxStatusStyle(style)
+		theme.Background = bg
+		theme.Foreground = fg
+	}
+
+	// Status bar colors
 	if style, ok := options["status-style"]; ok {
 		bg, fg := parseTmuxStatusStyle(style)
 		theme.StatusBackground = bg
 		theme.StatusForeground = fg
-		theme.Background = bg
-		theme.Foreground = fg
 	}
 
 	if v, ok := options["message-bg"]; ok && v != "" {
@@ -335,8 +389,90 @@ func (s *Session) sendTmuxGetThemeResponse(requestID string, theme protocol.Tmux
 	}))
 }
 
+func (s *Session) handleTmuxStatusLine(m *protocol.TmuxStatusLineRequest) {
+	left, center, right, paneBg, paneFg, err := extractTmuxStatusLine(m.SessionID)
+	if err != nil {
+		errMsg := err.Error()
+		s.sendTmuxStatusLineResponse(m.RequestID, "", "", "", "", "", &errMsg)
+		return
+	}
+	s.sendTmuxStatusLineResponse(m.RequestID, left, center, right, paneBg, paneFg, nil)
+}
+
+func (s *Session) sendTmuxStatusLineResponse(requestID, statusLeft, statusCenter, statusRight, paneBg, paneFg string, errMsg *string) {
+	s.sendMessage(protocol.NewSessionMessage(&protocol.TmuxStatusLineResponse{
+		Type: "tmux/status_line/response",
+		Payload: protocol.TmuxStatusLineResponsePayload{
+			RequestID:      requestID,
+			StatusLeft:     statusLeft,
+			StatusCenter:   statusCenter,
+			StatusRight:    statusRight,
+			PaneBackground: paneBg,
+			PaneForeground: paneFg,
+			Error:          errMsg,
+		},
+	}))
+}
+
+func extractTmuxStatusLine(sessionID string) (string, string, string, string, string, error) {
+	// Get raw format strings from tmux options
+	leftFmt, err := exec.Command("tmux", "show-options", "-gv", "-t", sessionID, "status-left").Output()
+	if err != nil {
+		leftFmt = []byte{}
+	}
+	rightFmt, err := exec.Command("tmux", "show-options", "-gv", "-t", sessionID, "status-right").Output()
+	if err != nil {
+		rightFmt = []byte{}
+	}
+
+	// Expand format strings via display-message
+	left := ""
+	if len(strings.TrimSpace(string(leftFmt))) > 0 {
+		out, err := exec.Command("tmux", "display-message", "-p", "-t", sessionID, strings.TrimSpace(string(leftFmt))).Output()
+		if err == nil {
+			left = strings.TrimSpace(string(out))
+		}
+	}
+	right := ""
+	if len(strings.TrimSpace(string(rightFmt))) > 0 {
+		out, err := exec.Command("tmux", "display-message", "-p", "-t", sessionID, strings.TrimSpace(string(rightFmt))).Output()
+		if err == nil {
+			right = strings.TrimSpace(string(out))
+		}
+	}
+
+	// Get window list (center of status bar)
+	center := extractWindowList(sessionID)
+
+	// Get pane background/foreground from window-active-style
+	paneBg, paneFg := extractPaneColors(sessionID)
+
+	return left, center, right, paneBg, paneFg, nil
+}
+
+func extractWindowList(sessionID string) string {
+	out, err := exec.Command("tmux", "list-windows", "-t", sessionID, "-F", "#{window_index}:#{window_name}#{window_flags}").Output()
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	return strings.Join(lines, " ")
+}
+
+func extractPaneColors(sessionID string) (string, string) {
+	out, err := exec.Command("tmux", "show-options", "-gv", "-t", sessionID, "window-active-style").Output()
+	if err != nil {
+		return "", ""
+	}
+	style := strings.TrimSpace(string(out))
+	bg, fg := parseTmuxStatusStyle(style)
+	return bg, fg
+}
+
 func extractTmuxTheme(sessionID string) (protocol.TmuxThemeColors, error) {
 	options := []string{
+		"window-active-style",
+		"window-style",
 		"status-style",
 		"message-bg",
 		"message-fg",

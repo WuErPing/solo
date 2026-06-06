@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-06-06
+
+### Added
+
+- **Custom terminal themes for tmux-pane**: Theme picker with "System" (default), "Dark", "Light", and popular presets (Midnight, Ghostty, Solarized Dark, Monokai, Dracula). Picked themes fully replace the default colors
+- **Tmux window list in dashboard status line**: Shows window info (e.g., `0:claude*`) alongside status-left and status-right
+- **ANSI text rendering in dashboard status line**: Status line segments now render with proper ANSI color support
+
+### Removed
+
+- **Host tmux theme dependency**: tmux-pane no longer fetches colors from the host tmux session; uses selected terminal theme instead
+
 ## [0.2.0] - 2026-06-03
 
 ### Added

@@ -7,6 +7,7 @@ function createSettings(input: { manageBuiltInDaemon: boolean }) {
   return {
     theme: "auto" as const,
     sendBehavior: "interrupt" as const,
+    terminalTheme: "system" as const,
     manageBuiltInDaemon: input.manageBuiltInDaemon,
     releaseChannel: "stable" as const,
   };

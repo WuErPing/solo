@@ -9,21 +9,33 @@ import {
   TextInput,
   type NativeSyntheticEvent,
   type NativeScrollEvent,
+  type PressableStateCallbackType,
 } from "react-native";
 import type { ScrollView as ScrollViewType } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { Send, RefreshCw } from "lucide-react-native";
+import { Send, Palette } from "lucide-react-native";
 import { router } from "expo-router";
 import { BackHeader } from "@/components/headers/back-header";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { AnsiTextContent } from "@/components/ansi-text-renderer";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useTmuxCapturePane } from "@/hooks/use-tmux-capture-pane";
-import { useTmuxTheme } from "@/hooks/use-tmux-theme";
-import type { TmuxThemeColors } from "@/hooks/use-tmux-theme";
+import { useAppSettings } from "@/hooks/use-settings";
 import { withLiveTmuxClient } from "@/utils/tmux-rpc";
 import { useTmuxAgentStore } from "@/stores/tmux-agent-store";
 import { parseAnsi } from "@/utils/ansi-parser";
 import { detectColorsFromAnsi } from "@/utils/detect-ansi-colors";
+import {
+  TERMINAL_THEME_IDS,
+  TERMINAL_THEME_PRESETS,
+  type TerminalThemeId,
+} from "@/styles/terminal-themes";
 
 export function TmuxPaneScreen() {
   return (
@@ -36,22 +48,24 @@ export function TmuxPaneScreen() {
 function mergeTerminalColors(
   base: { foreground: string; background: string; [key: string]: string },
   contentColors: { background: string | null; foreground: string | null },
-  tmuxTheme: TmuxThemeColors | null,
 ): { foreground: string; background: string; [key: string]: string } {
-  const bg = contentColors.background ?? tmuxTheme?.background ?? null;
-  const fg = contentColors.foreground ?? tmuxTheme?.foreground ?? null;
-  if (!bg && !fg) return base;
+  if (!contentColors.background && !contentColors.foreground) return base;
   return {
     ...base,
-    foreground: fg || base.foreground,
-    background: bg || base.background,
+    foreground: contentColors.foreground || base.foreground,
+    background: contentColors.background || base.background,
   };
 }
 
 const SCROLL_TOP_THRESHOLD = 20;
 
+function themePickerTriggerStyle({ pressed }: PressableStateCallbackType) {
+  return [styles.themePickerTrigger, pressed && { opacity: 0.7 }];
+}
+
 function TmuxPaneScreenInner() {
   const { theme } = useUnistyles();
+  const { settings, updateSettings } = useAppSettings();
   const agent = useTmuxAgentStore((s) => s.selectedAgent);
   const {
     content,
@@ -68,19 +82,16 @@ function TmuxPaneScreenInner() {
     agent?.paneId ?? "",
     Boolean(agent),
   );
-  const { theme: tmuxTheme } = useTmuxTheme(
-    agent?.serverId ?? "",
-    agent?.sessionName ?? "",
-    Boolean(agent),
-  );
-  const contentColors = useMemo(
-    () => content ? detectColorsFromAnsi(content) : { background: null, foreground: null },
-    [content],
-  );
-  const terminalColors = useMemo(
-    () => mergeTerminalColors(theme.colors.terminal, contentColors, tmuxTheme),
-    [theme.colors.terminal, contentColors, tmuxTheme],
-  );
+  const terminalThemeId = settings.terminalTheme;
+  const terminalColors = useMemo(() => {
+    if (terminalThemeId !== "system") {
+      return TERMINAL_THEME_PRESETS[terminalThemeId] ?? theme.colors.terminal;
+    }
+    const contentColors = content
+      ? detectColorsFromAnsi(content)
+      : { background: null, foreground: null };
+    return mergeTerminalColors(theme.colors.terminal, contentColors);
+  }, [terminalThemeId, theme.colors.terminal, content]);
   const segments = useMemo(
     () => (content ? parseAnsi(content) : null),
     [content],
@@ -204,6 +215,72 @@ function TmuxPaneScreenInner() {
     </Pressable>
   );
 
+  const handleTerminalThemeChange = useCallback(
+    (id: TerminalThemeId) => {
+      updateSettings({ terminalTheme: id });
+    },
+    [updateSettings],
+  );
+
+  const themePicker = (
+    <DropdownMenu>
+      <DropdownMenuTrigger style={themePickerTriggerStyle}>
+        <Palette size={16} color={theme.colors.foregroundMuted} />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="bottom" align="end" width={180}>
+        {(["system", "dark", "light"] as const).map((id) => {
+          const label = id === "system" ? "System" : TERMINAL_THEME_PRESETS[id].label;
+          const swatchColor = id === "system"
+            ? theme.colors.terminal.background
+            : TERMINAL_THEME_PRESETS[id].background;
+          return (
+            <DropdownMenuItem
+              key={id}
+              selected={terminalThemeId === id}
+              onSelect={() => handleTerminalThemeChange(id)}
+              leading={
+                <View
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: 6,
+                    backgroundColor: swatchColor,
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.15)",
+                  }}
+                />
+              }
+            >
+              {label}
+            </DropdownMenuItem>
+          );
+        })}
+        <DropdownMenuSeparator />
+        {(["midnight", "ghostty", "solarized-dark", "monokai", "dracula"] as const).map((id) => (
+          <DropdownMenuItem
+            key={id}
+            selected={terminalThemeId === id}
+            onSelect={() => handleTerminalThemeChange(id)}
+            leading={
+              <View
+                style={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: 6,
+                  backgroundColor: TERMINAL_THEME_PRESETS[id].background,
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.15)",
+                }}
+              />
+            }
+          >
+            {TERMINAL_THEME_PRESETS[id].label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -217,7 +294,12 @@ function TmuxPaneScreenInner() {
             {agent.sessionName} / {agent.windowName}
           </Text>
         }
-        rightContent={autoRefreshToggle}
+        rightContent={
+          <View style={styles.headerRightRow}>
+            {autoRefreshToggle}
+            {themePicker}
+          </View>
+        }
       />
       <ScrollView
         ref={scrollRef}
@@ -432,6 +514,15 @@ const styles = StyleSheet.create((theme) => ({
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
+  },
+  headerRightRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  themePickerTrigger: {
+    padding: 6,
+    borderRadius: 6,
   },
   toggleButton: {
     flexDirection: "row",

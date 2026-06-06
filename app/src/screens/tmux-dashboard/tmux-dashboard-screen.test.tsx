@@ -18,6 +18,26 @@ const { mockPush, mockSetSelectedAgent, mockTheme } = vi.hoisted(() => ({
       primary: "#0af",
       border: "#333",
       destructive: "#f00",
+      terminal: {
+        background: "#000",
+        foreground: "#fff",
+        black: "#000",
+        red: "#f00",
+        green: "#0f0",
+        yellow: "#ff0",
+        blue: "#00f",
+        magenta: "#f0f",
+        cyan: "#0ff",
+        white: "#fff",
+        brightBlack: "#888",
+        brightRed: "#f88",
+        brightGreen: "#8f8",
+        brightYellow: "#ff8",
+        brightBlue: "#88f",
+        brightMagenta: "#f8f",
+        brightCyan: "#8ff",
+        brightWhite: "#fff",
+      },
     },
   },
 }));
@@ -46,7 +66,7 @@ vi.mock("lucide-react-native", () => {
     Component.displayName = `Icon(${name})`;
     return Component;
   };
-  return { Terminal: icon("Terminal"), Monitor: icon("Monitor") };
+  return { Terminal: icon("Terminal"), Monitor: icon("Monitor"), RefreshCw: icon("RefreshCw") };
 });
 
 vi.mock("@/components/headers/back-header", () => ({
@@ -81,15 +101,26 @@ const mockAgents = [
 ];
 
 let agentsOverride: typeof mockAgents = [];
+let isInitialLoadOverride = false;
+let isLoadingOverride = false;
+const mockRefreshAll = vi.fn();
+
+const mockStatusLines = [
+  { sessionName: "dev", serverId: "s1", statusLeft: "[#S]", statusCenter: "0:claude*", statusRight: "22:45 06-Jun-26", paneBackground: "#1e1e2e", paneForeground: "#cdd6f4" },
+];
 
 vi.mock("@/hooks/use-tmux-agents", () => ({
   useAggregatedTmuxAgents: () => ({
     agents: agentsOverride,
-    isLoading: false,
-    isInitialLoad: false,
+    isLoading: isLoadingOverride,
+    isInitialLoad: isInitialLoadOverride,
     error: null,
-    refreshAll: vi.fn(),
+    refreshAll: mockRefreshAll,
   }),
+}));
+
+vi.mock("@/hooks/use-tmux-status-lines", () => ({
+  useTmuxStatusLines: () => mockStatusLines,
 }));
 
 import { TmuxDashboardScreen } from "./tmux-dashboard-screen";
@@ -98,12 +129,32 @@ describe("TmuxDashboardScreen", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    agentsOverride = [];
+    isInitialLoadOverride = false;
+    isLoadingOverride = false;
   });
 
   it("shows empty state when no agents are detected", () => {
     agentsOverride = [];
     render(<TmuxDashboardScreen />);
     expect(screen.getByText(/no ai agents detected/i)).toBeDefined();
+  });
+
+  it("shows loading state when queries are disabled after browser refresh", () => {
+    agentsOverride = [];
+    isInitialLoadOverride = true;
+    isLoadingOverride = true;
+    render(<TmuxDashboardScreen />);
+    expect(screen.getByText(/scanning tmux panes/i)).toBeDefined();
+    expect(screen.queryByText(/no ai agents detected/i)).toBeNull();
+  });
+
+  it("calls refreshAll when Refresh button is pressed", () => {
+    agentsOverride = [];
+    render(<TmuxDashboardScreen />);
+    const refreshButton = screen.getByText("Refresh");
+    fireEvent.click(refreshButton);
+    expect(mockRefreshAll).toHaveBeenCalled();
   });
 
   it("renders agent cards and navigates on press", () => {
@@ -116,5 +167,18 @@ describe("TmuxDashboardScreen", () => {
 
     expect(mockSetSelectedAgent).toHaveBeenCalledWith(mockAgents[0]);
     expect(mockPush).toHaveBeenCalledWith("/tmux-pane");
+  });
+
+  it("renders status line info in agent cards", () => {
+    agentsOverride = mockAgents;
+    render(<TmuxDashboardScreen />);
+
+    // Status line text should be rendered (one per agent card)
+    const statusLeftElements = screen.getAllByText("[#S]");
+    expect(statusLeftElements.length).toBe(2);
+    const statusCenterElements = screen.getAllByText("0:claude*");
+    expect(statusCenterElements.length).toBe(2);
+    const statusRightElements = screen.getAllByText("22:45 06-Jun-26");
+    expect(statusRightElements.length).toBe(2);
   });
 });

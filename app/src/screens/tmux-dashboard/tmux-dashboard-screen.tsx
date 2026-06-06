@@ -7,15 +7,20 @@ import {
   RefreshControl,
 } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { Terminal, Monitor } from "lucide-react-native";
+import { Terminal, Monitor, RefreshCw } from "lucide-react-native";
 import { router } from "expo-router";
 import { BackHeader } from "@/components/headers/back-header";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useAggregatedTmuxAgents } from "@/hooks/use-tmux-agents";
+import { useTmuxStatusLines } from "@/hooks/use-tmux-status-lines";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useStoreReady } from "@/app/_layout";
 import { useTmuxAgentStore } from "@/stores/tmux-agent-store";
+import { shortenPath } from "@/utils/shorten-path";
+import { parseAnsi } from "@/utils/ansi-parser";
+import { AnsiTextContent } from "@/components/ansi-text-renderer";
 import type { TmuxAgent } from "@/hooks/use-tmux-agents";
+import type { TmuxStatusLineInfo } from "@/hooks/use-tmux-status-lines";
 
 interface AgentNameGroup {
   name: string;
@@ -24,9 +29,11 @@ interface AgentNameGroup {
 
 function AgentCard({
   agent,
+  statusLine,
   onPress,
 }: {
   agent: TmuxAgent;
+  statusLine?: TmuxStatusLineInfo;
   onPress: () => void;
 }) {
   const { theme } = useUnistyles();
@@ -46,6 +53,55 @@ function AgentCard({
         </View>
         <Text style={styles.serverLabel}>{agent.serverLabel}</Text>
       </View>
+      {agent.workingDir ? (
+        <Text style={styles.agentTitle} numberOfLines={1}>
+          {shortenPath(agent.workingDir)}
+        </Text>
+      ) : null}
+      {statusLine ? (
+        <View
+          style={[
+            styles.statusLineContainer,
+            statusLine.paneBackground
+              ? { backgroundColor: statusLine.paneBackground }
+              : null,
+          ]}
+        >
+          {statusLine.statusLeft ? (
+            <AnsiTextContent
+              segments={parseAnsi(statusLine.statusLeft)}
+              style={[
+                styles.statusLineText,
+                statusLine.paneForeground
+                  ? { color: statusLine.paneForeground }
+                  : null,
+              ]}
+            />
+          ) : null}
+          {statusLine.statusCenter ? (
+            <AnsiTextContent
+              segments={parseAnsi(statusLine.statusCenter)}
+              style={[
+                styles.statusLineText,
+                statusLine.paneForeground
+                  ? { color: statusLine.paneForeground }
+                  : null,
+              ]}
+            />
+          ) : null}
+          {statusLine.statusRight ? (
+            <AnsiTextContent
+              segments={parseAnsi(statusLine.statusRight)}
+              style={[
+                styles.statusLineText,
+                statusLine.paneForeground
+                  ? { color: statusLine.paneForeground }
+                  : null,
+              ]}
+            />
+          ) : null}
+        </View>
+      ) : null}
       <View style={styles.agentCardBody}>
         <Text style={styles.detailLabel}>
           Session: <Text style={styles.detailValue}>{agent.sessionName}</Text>
@@ -56,11 +112,6 @@ function AgentCard({
         <Text style={styles.detailLabel}>
           Pane: <Text style={styles.detailValue}>{agent.paneId}</Text>
         </Text>
-        {agent.workingDir ? (
-          <Text style={styles.detailLabel} numberOfLines={1}>
-            Dir: <Text style={styles.detailValue}>{agent.workingDir}</Text>
-          </Text>
-        ) : null}
         <Text style={styles.detailLabel}>
           PID: <Text style={styles.detailValue}>{agent.panePid}</Text>
         </Text>
@@ -108,6 +159,7 @@ function TmuxDashboardScreenInner() {
   const storeReady = useStoreReady();
   const { agents, isLoading, isInitialLoad, error, refreshAll } =
     useAggregatedTmuxAgents();
+  const statusLines = useTmuxStatusLines(agents);
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const setSelectedAgent = useTmuxAgentStore((s) => s.setSelectedAgent);
 
@@ -165,6 +217,13 @@ function TmuxDashboardScreenInner() {
             Start an AI agent (claude, pi, kimi, etc.) in a tmux session to see
             it here.
           </Text>
+          <Pressable
+            style={styles.refreshButton}
+            onPress={refreshAll}
+          >
+            <RefreshCw size={16} color={theme.colors.primary} />
+            <Text style={styles.refreshButtonText}>Refresh</Text>
+          </Pressable>
         </View>
       ) : (
         <ScrollView
@@ -198,6 +257,9 @@ function TmuxDashboardScreenInner() {
               <AgentCard
                 key={`${agent.serverId}-${agent.paneId}-${index}`}
                 agent={agent}
+                statusLine={statusLines.find(
+                  (s) => s.serverId === agent.serverId && s.sessionName === agent.sessionName,
+                )}
                 onPress={() => handleAgentPress(agent)}
               />
             ))}
@@ -242,6 +304,21 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: 14,
     textAlign: "center",
     maxWidth: 300,
+  },
+  refreshButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: theme.colors.surface0,
+  },
+  refreshButtonText: {
+    color: theme.colors.primary,
+    fontSize: 14,
+    fontWeight: "500",
   },
   badge: {
     backgroundColor: theme.colors.surface0,
@@ -318,6 +395,12 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foregroundMuted,
     fontSize: 11,
   },
+  agentTitle: {
+    color: theme.colors.foreground,
+    fontSize: 13,
+    fontWeight: "500",
+    marginBottom: 4,
+  },
   agentCardBody: {
     gap: 4,
   },
@@ -328,5 +411,18 @@ const styles = StyleSheet.create((theme) => ({
   detailValue: {
     color: theme.colors.foreground,
     fontSize: 12,
+  },
+  statusLineContainer: {
+    backgroundColor: theme.colors.background,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    marginBottom: 10,
+    gap: 2,
+  },
+  statusLineText: {
+    color: theme.colors.foreground,
+    fontSize: 11,
+    fontFamily: "monospace",
   },
 }));

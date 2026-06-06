@@ -289,6 +289,7 @@ func TestParseTmuxThemeOutput(t *testing.T) {
 		{
 			name: "full theme",
 			output: map[string]string{
+				"window-active-style":      "bg=#1e1e2e,fg=#cdd6f4",
 				"message-bg":              "#1e1e2e",
 				"message-fg":              "#cdd6f4",
 				"pane-active-border-style": "#89b4fa",
@@ -300,7 +301,7 @@ func TestParseTmuxThemeOutput(t *testing.T) {
 				"window-status-current-fg": "#cdd6f4",
 			},
 			want: protocol.TmuxThemeColors{
-				Background:            "#181825",
+				Background:            "#1e1e2e",
 				Foreground:            "#cdd6f4",
 				MessageBackground:     "#1e1e2e",
 				MessageForeground:     "#cdd6f4",
@@ -315,7 +316,8 @@ func TestParseTmuxThemeOutput(t *testing.T) {
 		{
 			name: "minimal theme with hex colors",
 			output: map[string]string{
-				"status-style": "bg=#000000,fg=#ffffff",
+				"window-active-style": "bg=#000000,fg=#ffffff",
+				"status-style":       "bg=#000000,fg=#ffffff",
 			},
 			want: protocol.TmuxThemeColors{
 				Background:       "#000000",
@@ -327,7 +329,8 @@ func TestParseTmuxThemeOutput(t *testing.T) {
 		{
 			name: "theme with named colors",
 			output: map[string]string{
-				"status-style": "bg=black,fg=white",
+				"window-active-style": "bg=black,fg=white",
+				"status-style":       "bg=black,fg=white",
 			},
 			want: protocol.TmuxThemeColors{
 				Background:       "black",
@@ -350,6 +353,69 @@ func TestParseTmuxThemeOutput(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestExtractTmuxStatusLine(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	out, err := exec.Command("tmux", "list-sessions", "-F", "#{session_name}").Output()
+	if err != nil {
+		t.Skip("tmux not available")
+	}
+	sessionID := strings.TrimSpace(strings.Split(string(out), "\n")[0])
+	if sessionID == "" {
+		t.Skip("no tmux sessions available")
+	}
+
+	left, center, right, paneBg, paneFg, err := extractTmuxStatusLine(sessionID)
+	if err != nil {
+		t.Fatalf("extractTmuxStatusLine(%q) error: %v", sessionID, err)
+	}
+	// At least one of them should be non-empty (tmux always has a status line)
+	if left == "" && right == "" {
+		t.Error("expected at least one of statusLeft or statusRight to be non-empty")
+	}
+	t.Logf("statusLeft=%q statusCenter=%q statusRight=%q paneBg=%q paneFg=%q", left, center, right, paneBg, paneFg)
+}
+
+func TestExtractTmuxStatusLineExpanded(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	out, err := exec.Command("tmux", "list-sessions", "-F", "#{session_name}").Output()
+	if err != nil {
+		t.Skip("tmux not available")
+	}
+	sessionID := strings.TrimSpace(strings.Split(string(out), "\n")[0])
+	if sessionID == "" {
+		t.Skip("no tmux sessions available")
+	}
+
+	left, _, right, _, _, err := extractTmuxStatusLine(sessionID)
+	if err != nil {
+		t.Fatalf("extractTmuxStatusLine(%q) error: %v", sessionID, err)
+	}
+	// The right side should contain a time pattern (HH:MM) if the default status-right is used
+	// This verifies that format strings are actually expanded, not returned raw
+	if right != "" && strings.Contains(right, "#{") {
+		t.Errorf("statusRight contains unexpanded format specifiers: %q", right)
+	}
+	if left != "" && strings.Contains(left, "#{") {
+		t.Errorf("statusLeft contains unexpanded format specifiers: %q", left)
+	}
+	t.Logf("statusLeft=%q statusRight=%q", left, right)
+}
+
+func TestExtractTmuxStatusLineInvalidSession(t *testing.T) {
+	// tmux display-message may succeed even for invalid sessions (falls back to current),
+	// so we just verify it doesn't panic and returns some result.
+	left, _, right, _, _, err := extractTmuxStatusLine("nonexistent-session-99999")
+	if err != nil {
+		// Some tmux versions do error - that's fine too.
+		return
+	}
+	t.Logf("invalid session returned: left=%q right=%q", left, right)
 }
 
 func TestParseTmuxStatusStyle(t *testing.T) {

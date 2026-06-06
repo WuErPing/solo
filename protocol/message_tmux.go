@@ -10,6 +10,8 @@ type TmuxAgentInfo struct {
 	AgentName   string `json:"agentName"`
 	CurrentCmd  string `json:"currentCmd"`
 	WorkingDir  string `json:"workingDir"`
+	Title       string `json:"title,omitempty"`
+	GitCommit   string `json:"gitCommit,omitempty"`
 }
 
 // TmuxListAgentsRequest asks the daemon to scan tmux for AI agent panes.
@@ -102,6 +104,34 @@ type TmuxGetThemeResponsePayload struct {
 	RequestID string           `json:"requestId"`
 	Theme     TmuxThemeColors  `json:"theme"`
 	Error     *string          `json:"error"`
+}
+
+// TmuxStatusLineRequest asks the daemon to read the tmux status line content.
+type TmuxStatusLineRequest struct {
+	Type      string `json:"type"`
+	SessionID string `json:"sessionId"`
+	RequestID string `json:"requestId"`
+}
+
+func (m TmuxStatusLineRequest) MsgType() string { return "tmux/status_line" }
+
+// TmuxStatusLineResponse returns the status line content.
+type TmuxStatusLineResponse struct {
+	Type    string                          `json:"type"`
+	Payload TmuxStatusLineResponsePayload   `json:"payload"`
+}
+
+func (m TmuxStatusLineResponse) MsgType() string { return "tmux/status_line/response" }
+
+// TmuxStatusLineResponsePayload is the payload for TmuxStatusLineResponse.
+type TmuxStatusLineResponsePayload struct {
+	RequestID      string  `json:"requestId"`
+	StatusLeft     string  `json:"statusLeft"`
+	StatusCenter   string  `json:"statusCenter"`
+	StatusRight    string  `json:"statusRight"`
+	PaneBackground string  `json:"paneBackground,omitempty"`
+	PaneForeground string  `json:"paneForeground,omitempty"`
+	Error          *string `json:"error"`
 }
 
 // TmuxSendKeysRequest asks the daemon to send keystrokes to a tmux pane.

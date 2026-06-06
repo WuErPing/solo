@@ -86,6 +86,7 @@ describe("use-settings", () => {
       theme: "light",
       manageBuiltInDaemon: true,
       sendBehavior: "interrupt",
+      terminalTheme: "system",
       releaseChannel: "stable",
     });
   });
@@ -128,6 +129,7 @@ describe("use-settings", () => {
     expect(result).toEqual({
       theme: "dark",
       sendBehavior: "interrupt",
+      terminalTheme: "system",
     });
     expect(asyncStorageMock.setItem).toHaveBeenCalledWith(
       mod.APP_SETTINGS_KEY,
@@ -166,6 +168,7 @@ describe("use-settings", () => {
     expect(result).toEqual({
       theme: "light",
       sendBehavior: "interrupt",
+      terminalTheme: "system",
       manageBuiltInDaemon: false,
       releaseChannel: "beta",
     });
@@ -184,6 +187,7 @@ describe("use-settings", () => {
     expect(result).toEqual({
       theme: "light",
       sendBehavior: "interrupt",
+      terminalTheme: "system",
       manageBuiltInDaemon: true,
       releaseChannel: "stable",
     });

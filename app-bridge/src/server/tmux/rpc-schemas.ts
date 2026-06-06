@@ -84,3 +84,22 @@ export const TmuxGetThemeResponseSchema = z.object({
     error: z.string().nullable(),
   }),
 });
+
+export const TmuxStatusLineRequestSchema = z.object({
+  type: z.literal("tmux/status_line"),
+  sessionId: z.string(),
+  requestId: z.string(),
+});
+
+export const TmuxStatusLineResponseSchema = z.object({
+  type: z.literal("tmux/status_line/response"),
+  payload: z.object({
+    requestId: z.string(),
+    statusLeft: z.string(),
+    statusCenter: z.string(),
+    statusRight: z.string(),
+    paneBackground: z.string().optional(),
+    paneForeground: z.string().optional(),
+    error: z.string().nullable(),
+  }),
+});

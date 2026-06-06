@@ -67,7 +67,7 @@ vi.mock("lucide-react-native", () => {
   return {
     ArrowLeft: icon("ArrowLeft"),
     Send: icon("Send"),
-    RefreshCw: icon("RefreshCw"),
+    Palette: icon("Palette"),
   };
 });
 
@@ -90,6 +90,15 @@ vi.mock("@/components/headers/back-header", () => ({
 vi.mock("@/components/ansi-text-renderer", () => ({
   AnsiTextContent: ({ segments, style }: { segments: { text: string }[]; style?: unknown }) =>
     React.createElement("span", { style }, segments.map((s: { text: string }) => s.text).join("")),
+}));
+
+vi.mock("@/components/ui/dropdown-menu", () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => React.createElement("div", null, children),
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => React.createElement("div", null, children),
+  DropdownMenuItem: ({ children, onSelect, selected }: { children: React.ReactNode; onSelect?: () => void; selected?: boolean }) =>
+    React.createElement("button", { onClick: onSelect, "data-selected": selected }, children),
+  DropdownMenuSeparator: () => React.createElement("hr", null),
+  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => React.createElement("div", null, children),
 }));
 
 vi.mock("@/utils/ansi-parser", () => ({
@@ -115,11 +124,13 @@ vi.mock("@/hooks/use-tmux-capture-pane", () => ({
   }),
 }));
 
-vi.mock("@/hooks/use-tmux-theme", () => ({
-  useTmuxTheme: () => ({
-    theme: null,
+vi.mock("@/hooks/use-settings", () => ({
+  useAppSettings: () => ({
+    settings: { theme: "dark", sendBehavior: "interrupt", terminalTheme: "system" },
     isLoading: false,
     error: null,
+    updateSettings: vi.fn(),
+    resetSettings: vi.fn(),
   }),
 }));
 
