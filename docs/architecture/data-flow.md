@@ -219,6 +219,91 @@ hasRunningAgentsWithProgress()?  ← Checks both LifecycleRunning and events wit
   └─ NO  → End grace, execute fullCleanup()
 ```
 
+## Tmux RPC Message Flow
+
+Tmux operations follow the standard Client → App-Bridge → Relay → Daemon pipeline using correlated request/response messages.
+
+### Agent Discovery
+
+```
+App (TmuxDashboardScreen)
+  │
+  ▼
+useAggregatedTmuxAgents (useQueries per host)
+  │
+  ├──► DaemonClient.tmuxListAgents(hostA)
+  ├──► DaemonClient.tmuxListAgents(hostB)
+  └──► DaemonClient.tmuxListAgents(hostC)
+           │
+           ▼  WebSocket (tmux/list_agents)
+      Relay → Daemon
+           │
+           ▼
+      scanTmuxAgents() → tmux list-panes -a -F "..."
+           │
+           ▼
+      parseTmuxPaneLines() → 3-layer detection
+           │
+           ▼  WebSocket (tmux/list_agents/response)
+      Return []TmuxAgentInfo
+```
+
+### Pane Content Capture
+
+```
+App (TmuxPaneScreen)
+  │
+  ▼
+useTmuxCapturePane(paneId, startLine?)
+  │
+  ▼  WebSocket (tmux/capture_pane)
+Relay → Daemon
+  │
+  ▼
+captureTmuxPane(paneID) → tmux capture-pane -t {paneId} -p -e -S {startLine}
+  │
+  ▼  WebSocket (tmux/capture_pane/response)
+Return content string (with ANSI codes)
+```
+
+### Keystroke Injection
+
+```
+App (TmuxPaneScreen)
+  │
+  ▼
+onSendKeys(keys, sendEnter)
+  │
+  ▼  WebSocket (tmux/send_keys)
+Relay → Daemon
+  │
+  ▼
+sendKeysToTmuxPane(paneID, keys, sendEnter) → tmux send-keys -t {paneId} {keys} [Enter]
+  │
+  ▼  WebSocket (tmux/send_keys/response)
+Return success / error
+```
+
+### Status Line Query
+
+```
+App (TmuxDashboardScreen)
+  │
+  ▼
+useTmuxStatusLine(sessionId)
+  │
+  ▼  WebSocket (tmux/get_status_line)
+Relay → Daemon
+  │
+  ▼
+tmux display-message -p "#{status-left}" / "#{status-right}" / window list
+  │
+  ▼  WebSocket (tmux/get_status_line/response)
+Return parsed status line segments with ANSI codes
+```
+
+See [Tmux Pane Content Loading](tmux-pane-content-loading.md) for the complete tmux subsystem documentation.
+
 ## Push Notification Flow
 
 ```

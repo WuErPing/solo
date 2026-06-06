@@ -23,6 +23,8 @@ See also [`../product/session-memory-spec.md`](../product/session-memory-spec.md
 
 ## System Architecture Diagram
 
+**Visual versions**: [SVG](solo-system-architecture.svg) | [PNG](solo-system-architecture.png)
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         Client Layer                            │
@@ -70,6 +72,8 @@ See also [`../product/session-memory-spec.md`](../product/session-memory-spec.md
 | **CLI** | `cli/` | Go | Command Line Tool |
 | **Protocol** | `protocol/` | Go | Protocol Definitions |
 | **Highlight** | `packages/highlight/` | TypeScript | Syntax Highlighting Library |
+| **Tmux Subsystem** | `daemon/internal/server/session_tmux.go` | Go | Tmux agent detection, pane capture, key injection |
+| **SVG Preview** | `app/src/components/svg-preview*.tsx` | TypeScript | SVG file preview (WebView for mobile, native for web) |
 
 ## Quick Links
 

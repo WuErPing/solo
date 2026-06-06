@@ -1,6 +1,6 @@
 # Solo App UI Feature Detailed Analysis
 
-> Analysis Date: 2026-05-25
+> Analysis Date: 2026-06-07
 > Codebase: /Users/wuerping/code/wuerping/solo/app
 > Tech Stack: React Native / Expo / TypeScript
 
@@ -17,6 +17,7 @@ app/
 ├── welcome.tsx              # Welcome page (first-time use)
 ├── dashboard.tsx            # Dashboard
 ├── tmux-dashboard.tsx       # Tmux Dashboard (AI agent detection & control)
+├── tmux-pane.tsx            # Tmux Pane (full-screen pane content view)
 ├── pair-scan.tsx            # QR code scanning / pairing
 ├── settings/
 │   ├── index.tsx            # Settings home
@@ -72,9 +73,26 @@ app/
 - Auto-detects AI agents in tmux sessions (claude, pi, kimi, kimi-cli, opencode, qoder, cursor)
 - Three-layer detection: command name, pane title (unicode normalization), child process inspection
 - Agent cards grouped by name with count badges; tap to filter by agent name
-- Tap agent card to open pane content modal (live terminal view, last 500 lines, auto-refreshes every 5s)
+- Tap agent card to open full-screen pane content view (TmuxPaneScreen)
 - Quick-action key buttons: ↑↓←→, Enter, Esc, Tab, Ctrl+C, 1-4 (for TUI menu navigation)
 - Text input for sending commands (appends Enter automatically)
+- Custom terminal themes (System/Dark/Light/Midnight/Ghostty/Solarized Dark/Monokai/Dracula)
+- ANSI text rendering in dashboard status line with color support
+- Tmux window list display in status line (e.g., `0:claude*`)
+- Lazy history loading (scroll-driven, 200-line increments up to 5000)
+- Auto-refresh toggle (on/off with manual refresh button)
+- ErrorBoundary crash protection wrapping both dashboard and pane screen
+
+**Tmux Pane Screen Details:**
+- Full-screen pane content view (replaced bottom sheet modal)
+- Live terminal rendering with ANSI color support
+- Default 200 lines capture, auto-refreshes every 5s when auto mode is on
+- Lazy history loading on scroll up (200-line increments, max 5000)
+- Auto-refresh toggle in header (on by default; off shows manual Refresh button)
+- 256-color palette detection from ANSI content
+- Terminal theme integration (user-selected themes replace host tmux theme)
+- Keystroke injection with text input and quick-action buttons
+- 8-second timeout for large/unavailable panes
 
 ### 2.3 Workspace
 
@@ -130,6 +148,7 @@ app/
 
 **Settings Details:**
 - **Theme switching**: Light / Dark / System theme
+- **Terminal theme picker**: Choose from 8 terminal themes for tmux pane rendering (System/Dark/Light/Midnight/Ghostty/Solarized Dark/Monokai/Dracula)
 - **Send behavior**: Enter to send / Cmd+Enter to send
 - **Host management**: Add / Edit / Delete hosts
 - **Provider configuration**: Claude, OpenCode API config
@@ -227,6 +246,17 @@ app/
 | **Context Menu** | `ui/context-menu.tsx` | Right-click menu |
 | **Isolated Bottom Sheet** | `ui/isolated-bottom-sheet-modal.tsx` | Independent bottom sheet modal |
 
+### 3.8 Preview & Terminal Components
+
+| Component | File | Function |
+|-----------|------|----------|
+| **Mermaid Preview** | `mermaid-preview.tsx` / `mermaid-preview.web.tsx` | Mermaid diagram rendering (WebView for mobile, native for web) |
+| **SVG Preview** | `svg-preview.tsx` / `svg-preview.web.tsx` | SVG file preview (WebView for mobile, native for web) |
+| **SVG Preview Utils** | `svg-preview-utils.ts` | SVG preview utility functions |
+| **ANSI Text Renderer** | `ansi-text-renderer.tsx` | ANSI escape sequence rendering for terminal content and status lines |
+| **Error Boundary** | `error-boundary.tsx` | React error boundary wrapping TmuxDashboard and TmuxPaneScreen |
+| **Terminal Themes** | `styles/terminal-themes.ts` | 8 terminal theme presets (System/Dark/Light/Midnight/Ghostty/Solarized Dark/Monokai/Dracula) |
+
 ---
 
 ## 4. Context (Global State)
@@ -252,6 +282,11 @@ app/
 | **useExplorerOpenGesture** | `use-explorer-open-gesture.ts` | File browser open gesture |
 | **useActiveWorktreeNewAction** | `use-active-worktree-new-action.ts` | Worktree new action |
 | **useSettings** | `use-settings.ts` | App settings |
+| **useAggregatedTmuxAgents** | `use-tmux-agents.ts` | Aggregate tmux agent discovery across all hosts |
+| **useTmuxCapturePane** | `use-tmux-capture-pane.ts` | Polling query for tmux pane content with foreground awareness |
+| **useTmuxTheme** | `use-tmux-theme.ts` | Query for terminal theme colors |
+| **useTmuxStatusLine** | `use-tmux-status-line.ts` | Parse and render tmux status line with ANSI colors |
+| **useTmuxStatusLines** | `use-tmux-status-lines.ts` | Aggregate status lines from multiple hosts |
 
 ---
 
@@ -264,6 +299,7 @@ app/
 | **WorkspaceTabsStore** | `workspace-tabs-store.ts` | Workspace tab state |
 | **WorkspaceLayoutStore** | `workspace-layout-store.ts` | Workspace layout state |
 | **NavigationActiveWorkspaceStore** | `navigation-active-workspace-store.ts` | Navigation workspace selection |
+| **TmuxAgentStore** | `tmux-agent-store.ts` | Selected tmux agent (serverId + paneId) |
 
 ---
 
@@ -328,6 +364,22 @@ app/
 - [x] Update check
 - [x] Desktop permission management
 
+#### 7.9 Preview & Rendering
+- [x] Mermaid diagram preview (WebView for mobile, native for web)
+- [x] SVG file preview (WebView for mobile, native for web)
+- [x] ANSI text rendering (terminal content and status lines)
+- [x] 256-color palette detection from ANSI content
+- [x] Custom terminal themes (8 presets)
+
+#### 7.10 Tmux Pane Screen
+- [x] Full-screen pane content view (replaced bottom sheet modal)
+- [x] Live terminal rendering with ANSI colors
+- [x] Default 200 lines, auto-refresh every 5s
+- [x] Lazy history loading (scroll-driven, 200-line increments, max 5000)
+- [x] Auto-refresh toggle with manual refresh button
+- [x] Keystroke injection (text input + quick-action buttons)
+- [x] ErrorBoundary crash protection
+
 ### ⚠️ Partially Implemented / Placeholder
 
 - [ ] **Voice input**: VoiceContext exists but functionality may be incomplete
@@ -359,5 +411,5 @@ app/
 
 ---
 
-*Analysis completed on 2026-05-20*
+*Analysis completed on 2026-06-07*
 *Based on App frontend code traversal*
