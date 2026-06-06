@@ -10,6 +10,13 @@ Solo is an AI coding assistant platform that connects your local development env
 
 ### System Architecture
 
+![Solo System Architecture](docs/architecture/solo-system-architecture.png)
+
+> A higher-resolution SVG is available at [`docs/architecture/solo-system-architecture.svg`](docs/architecture/solo-system-architecture.svg).
+
+<details>
+<summary>ASCII version (for text-only environments)</summary>
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        Client Layer                         │
@@ -67,6 +74,8 @@ Solo is an AI coding assistant platform that connects your local development env
 │  └───────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+</details>
 
 ### Core Components
 
