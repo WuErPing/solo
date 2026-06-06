@@ -1,8 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { KeyboardAvoidingView, Platform, View, Text, Pressable, ScrollView, TextInput } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  View,
+  Text,
+  Pressable,
+  ScrollView,
+  TextInput,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
+} from "react-native";
 import type { ScrollView as ScrollViewType } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { Send } from "lucide-react-native";
+import { Send, RefreshCw } from "lucide-react-native";
 import { router } from "expo-router";
 import { BackHeader } from "@/components/headers/back-header";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -38,10 +48,22 @@ function mergeTerminalColors(
   };
 }
 
+const SCROLL_TOP_THRESHOLD = 20;
+
 function TmuxPaneScreenInner() {
   const { theme } = useUnistyles();
   const agent = useTmuxAgentStore((s) => s.selectedAgent);
-  const { content, isLoading, error, refetch } = useTmuxCapturePane(
+  const {
+    content,
+    isLoading,
+    isLoadingMore,
+    error,
+    refetch,
+    hasMoreHistory,
+    loadMoreHistory,
+    autoRefresh,
+    setAutoRefresh,
+  } = useTmuxCapturePane(
     agent?.serverId ?? "",
     agent?.paneId ?? "",
     Boolean(agent),
@@ -84,13 +106,13 @@ function TmuxPaneScreenInner() {
     scrollRef.current?.scrollToEnd({ animated: true });
   }, []);
 
-  // Auto-scroll to bottom when content refreshes
+  // Auto-scroll to bottom when content refreshes (only when autoRefresh is on and not loading history)
   useEffect(() => {
-    if (content) {
+    if (content && !isLoadingMore && autoRefresh) {
       const id = setTimeout(() => scrollToBottom(), 50);
       return () => clearTimeout(id);
     }
-  }, [content, scrollToBottom]);
+  }, [content, isLoadingMore, autoRefresh, scrollToBottom]);
 
   // Auto-clear send error after 2 seconds
   useEffect(() => {
@@ -119,6 +141,20 @@ function TmuxPaneScreenInner() {
     [agent, refetch],
   );
 
+  const handleScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const { contentOffset } = event.nativeEvent;
+      if (
+        contentOffset.y < SCROLL_TOP_THRESHOLD &&
+        !isLoadingMore &&
+        hasMoreHistory
+      ) {
+        loadMoreHistory();
+      }
+    },
+    [isLoadingMore, hasMoreHistory, loadMoreHistory],
+  );
+
   if (!agent) {
     return (
       <View style={styles.container}>
@@ -129,6 +165,44 @@ function TmuxPaneScreenInner() {
       </View>
     );
   }
+
+  const autoRefreshToggle = (
+    <Pressable
+      onPress={() => setAutoRefresh(!autoRefresh)}
+      style={({ pressed }) => [
+        styles.toggleButton,
+        pressed ? { opacity: 0.7 } : null,
+      ]}
+    >
+      <Text
+        style={[
+          styles.toggleText,
+          { color: autoRefresh ? theme.colors.primary : theme.colors.foregroundMuted },
+        ]}
+      >
+        Auto
+      </Text>
+      <View
+        style={[
+          styles.toggleIndicator,
+          {
+            backgroundColor: autoRefresh ? theme.colors.primary : theme.colors.surface1,
+            borderColor: autoRefresh ? theme.colors.primary : theme.colors.border,
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.toggleKnob,
+            {
+              backgroundColor: theme.colors.background,
+              transform: [{ translateX: autoRefresh ? 12 : 0 }],
+            },
+          ]}
+        />
+      </View>
+    </Pressable>
+  );
 
   return (
     <KeyboardAvoidingView
@@ -143,8 +217,19 @@ function TmuxPaneScreenInner() {
             {agent.sessionName} / {agent.windowName}
           </Text>
         }
+        rightContent={autoRefreshToggle}
       />
-      <ScrollView ref={scrollRef} style={[styles.contentScroll, { backgroundColor: terminalColors.background }]} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        ref={scrollRef}
+        testID="tmux-pane-scroll"
+        style={[styles.contentScroll, { backgroundColor: terminalColors.background }]}
+        keyboardShouldPersistTaps="handled"
+        onScroll={handleScroll}
+        scrollEventThrottle={400}
+      >
+        {isLoadingMore && (
+          <Text style={styles.loadingMoreText}>Loading more history...</Text>
+        )}
         {isLoading && !segments && !loadTimedOut ? (
           <Text style={styles.loadingText}>Capturing pane content...</Text>
         ) : isLoading && !segments && loadTimedOut ? (
@@ -178,6 +263,18 @@ function TmuxPaneScreenInner() {
         >
           <Text style={[styles.keyButtonLabel, { color: theme.colors.foreground }]}>End</Text>
         </Pressable>
+        {!autoRefresh && (
+          <Pressable
+            onPress={() => refetch()}
+            style={({ pressed }) => [
+              styles.keyButton,
+              { borderColor: theme.colors.border },
+              pressed ? { backgroundColor: theme.colors.surface1 } : null,
+            ]}
+          >
+            <Text style={[styles.keyButtonLabel, { color: theme.colors.primary }]}>Refresh</Text>
+          </Pressable>
+        )}
         {[
           { label: "↑", key: "Up" },
           { label: "↓", key: "Down" },
@@ -267,6 +364,12 @@ const styles = StyleSheet.create((theme) => ({
     textAlign: "center",
     padding: 24,
   },
+  loadingMoreText: {
+    color: theme.colors.foregroundMuted,
+    fontSize: 12,
+    textAlign: "center",
+    paddingVertical: 8,
+  },
   errorText: {
     color: theme.colors.destructive,
     fontSize: 14,
@@ -329,5 +432,29 @@ const styles = StyleSheet.create((theme) => ({
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
+  },
+  toggleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  toggleText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  toggleIndicator: {
+    width: 28,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    justifyContent: "center",
+    paddingHorizontal: 2,
+  },
+  toggleKnob: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
   },
 }));

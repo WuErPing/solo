@@ -10,6 +10,7 @@
 - [Timeline Design](timeline-design.md) — Head/Tail stream model, seq gate, bootstrap policy, catch-up
 - [Session Memory Persistence](session-memory-persistence.md) — Turn recording hooks, TurnRecorder interface, file layout, migration path
 - [Agent Stall Detection](agent-stall-detection.md) — Inactivity & repetition detection, grace-period fix, operational tuning
+- [Tmux Pane Content Loading](tmux-pane-content-loading.md) — Tmux agent detection, pane capture, polling, and key injection flow
 - [Push Notifications](push-notifications.md) — Push notification architecture and delivery flow
 - [Deployment](deployment.md) — Systemd, Docker, Nginx config, env vars
 

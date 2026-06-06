@@ -161,6 +161,37 @@ func TestTmuxCapturePaneRequestRoundTrip(t *testing.T) {
 	if decoded.RequestID != "r4" {
 		t.Errorf("RequestID: got %q, want %q", decoded.RequestID, "r4")
 	}
+	if decoded.StartLine != nil {
+		t.Errorf("StartLine: got %v, want nil", decoded.StartLine)
+	}
+}
+
+func TestTmuxCapturePaneRequestWithStartLineRoundTrip(t *testing.T) {
+	startLine := -400
+	req := TmuxCapturePaneRequest{Type: "tmux/capture_pane", PaneID: "%0", StartLine: &startLine, RequestID: "r4a"}
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var decoded TmuxCapturePaneRequest
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if decoded.MsgType() != "tmux/capture_pane" {
+		t.Errorf("MsgType: got %q, want %q", decoded.MsgType(), "tmux/capture_pane")
+	}
+	if decoded.PaneID != "%0" {
+		t.Errorf("PaneID: got %q, want %q", decoded.PaneID, "%0")
+	}
+	if decoded.StartLine == nil {
+		t.Fatal("StartLine: got nil, want non-nil")
+	}
+	if *decoded.StartLine != -400 {
+		t.Errorf("StartLine: got %d, want -400", *decoded.StartLine)
+	}
+	if decoded.RequestID != "r4a" {
+		t.Errorf("RequestID: got %q, want %q", decoded.RequestID, "r4a")
+	}
 }
 
 func TestTmuxCapturePaneResponseRoundTrip(t *testing.T) {

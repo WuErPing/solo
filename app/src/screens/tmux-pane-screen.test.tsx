@@ -5,9 +5,11 @@ import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { mockSendKeys, mockRefetch, mockTheme } = vi.hoisted(() => ({
+const { mockSendKeys, mockRefetch, mockLoadMoreHistory, mockSetAutoRefresh, mockTheme } = vi.hoisted(() => ({
   mockSendKeys: vi.fn(() => Promise.resolve({})),
   mockRefetch: vi.fn(),
+  mockLoadMoreHistory: vi.fn(),
+  mockSetAutoRefresh: vi.fn(),
   mockTheme: {
     colors: {
       background: "#000",
@@ -65,6 +67,7 @@ vi.mock("lucide-react-native", () => {
   return {
     ArrowLeft: icon("ArrowLeft"),
     Send: icon("Send"),
+    RefreshCw: icon("RefreshCw"),
   };
 });
 
@@ -76,10 +79,11 @@ vi.mock("expo-router", () => ({
 }));
 
 vi.mock("@/components/headers/back-header", () => ({
-  BackHeader: ({ title, onBack }: { title: string; onBack?: () => void }) =>
+  BackHeader: ({ title, onBack, rightContent }: { title: string; onBack?: () => void; rightContent?: React.ReactNode }) =>
     React.createElement("div", { "data-testid": "back-header" },
       React.createElement("button", { onClick: onBack, "aria-label": "Back" }, "Back"),
       title,
+      rightContent ? React.createElement("div", { "data-testid": "header-right" }, rightContent) : null,
     ),
 }));
 
@@ -92,13 +96,22 @@ vi.mock("@/utils/ansi-parser", () => ({
   parseAnsi: (input: string) => [{ text: input, style: {} }],
 }));
 
+const { autoRefreshRef } = vi.hoisted(() => ({
+  autoRefreshRef: { current: true },
+}));
 
 vi.mock("@/hooks/use-tmux-capture-pane", () => ({
   useTmuxCapturePane: () => ({
     content: "$ ls\nfile1.txt\nfile2.txt\n$ _",
     isLoading: false,
+    isLoadingMore: false,
     error: null,
     refetch: mockRefetch,
+    scrollbackLines: 200,
+    loadMoreHistory: mockLoadMoreHistory,
+    hasMoreHistory: true,
+    autoRefresh: autoRefreshRef.current,
+    setAutoRefresh: mockSetAutoRefresh,
   }),
 }));
 
@@ -153,6 +166,7 @@ describe("TmuxPaneScreen", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    autoRefreshRef.current = true;
   });
 
   it("renders pane content text", () => {
@@ -206,5 +220,58 @@ describe("TmuxPaneScreen", () => {
     await vi.waitFor(() => {
       expect(mockRefetch).toHaveBeenCalled();
     });
+  });
+
+  it("triggers loadMoreHistory when scrolling near top", () => {
+    render(<TmuxPaneScreen />);
+
+    const scrollView = screen.getByTestId("tmux-pane-scroll");
+    fireEvent.scroll(scrollView, {
+      nativeEvent: {
+        contentOffset: { y: 5, x: 0 },
+        contentSize: { height: 2000, width: 300 },
+        layoutMeasurement: { height: 500, width: 300 },
+      },
+    });
+
+    expect(mockLoadMoreHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows loading more indicator when isLoadingMore is true", () => {
+    render(<TmuxPaneScreen />);
+    expect(screen.queryByText(/loading more history/i)).toBeNull();
+  });
+
+  it("renders auto refresh toggle in header", () => {
+    render(<TmuxPaneScreen />);
+    const headerRight = screen.getByTestId("header-right");
+    expect(headerRight).toBeDefined();
+    expect(screen.getByText("Auto")).toBeDefined();
+  });
+
+  it("calls setAutoRefresh when clicking the auto toggle", () => {
+    render(<TmuxPaneScreen />);
+    const toggle = screen.getByText("Auto");
+    fireEvent.click(toggle);
+    expect(mockSetAutoRefresh).toHaveBeenCalledWith(false);
+  });
+
+  it("shows manual refresh button when auto refresh is off", () => {
+    autoRefreshRef.current = false;
+    render(<TmuxPaneScreen />);
+    expect(screen.getByText("Refresh")).toBeDefined();
+  });
+
+  it("does not show manual refresh button when auto refresh is on", () => {
+    autoRefreshRef.current = true;
+    render(<TmuxPaneScreen />);
+    expect(screen.queryByText("Refresh")).toBeNull();
+  });
+
+  it("calls refetch when clicking the manual refresh button", () => {
+    autoRefreshRef.current = false;
+    render(<TmuxPaneScreen />);
+    fireEvent.click(screen.getByText("Refresh"));
+    expect(mockRefetch).toHaveBeenCalled();
   });
 });

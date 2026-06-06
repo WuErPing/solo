@@ -200,7 +200,11 @@ func agentNameFromChildProcesses(ppid int) string {
 }
 
 func (s *Session) handleTmuxCapturePane(m *protocol.TmuxCapturePaneRequest) {
-	content, err := captureTmuxPane(m.PaneID)
+	startLine := -200
+	if m.StartLine != nil {
+		startLine = *m.StartLine
+	}
+	content, err := captureTmuxPane(m.PaneID, startLine)
 	if err != nil {
 		errMsg := err.Error()
 		s.sendTmuxCapturePaneResponse(m.RequestID, "", &errMsg)
@@ -220,8 +224,8 @@ func (s *Session) sendTmuxCapturePaneResponse(requestID string, content string, 
 	}))
 }
 
-func captureTmuxPane(paneID string) (string, error) {
-	out, err := exec.Command("tmux", "capture-pane", "-t", paneID, "-p", "-e", "-S", "-200").Output()
+func captureTmuxPane(paneID string, startLine int) (string, error) {
+	out, err := exec.Command("tmux", "capture-pane", "-t", paneID, "-p", "-e", "-S", strconv.Itoa(startLine)).Output()
 	if err != nil {
 		return "", err
 	}

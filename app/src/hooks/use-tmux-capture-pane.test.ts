@@ -77,7 +77,140 @@ describe("useTmuxCapturePane", () => {
       expect(result.current.content).toBe("$ ls\nfile.txt");
     });
 
-    expect(mockClient.tmuxCapturePane).toHaveBeenCalledWith("pane-1");
+    expect(mockClient.tmuxCapturePane).toHaveBeenCalledWith("pane-1", -200);
+  });
+
+  it("uses default scrollback of 200 lines", async () => {
+    const { result } = renderCapturePaneHook();
+
+    await waitFor(() => {
+      expect(result.current.scrollbackLines).toBe(200);
+    });
+
+    expect(mockClient.tmuxCapturePane).toHaveBeenCalledWith("pane-1", -200);
+  });
+
+  it("increases scrollback lines when loadMoreHistory is called", async () => {
+    const { result } = renderCapturePaneHook();
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ ls\nfile.txt");
+    });
+
+    // Setup mock for the larger scrollback request
+    mockClient.tmuxCapturePane.mockResolvedValue({
+      content: "$ ls\nfile.txt\n$ echo older\nolder",
+      error: null,
+    });
+
+    act(() => {
+      result.current.loadMoreHistory();
+    });
+
+    await waitFor(() => {
+      expect(result.current.scrollbackLines).toBe(400);
+    });
+
+    expect(mockClient.tmuxCapturePane).toHaveBeenLastCalledWith("pane-1", -400);
+  });
+
+  it("accumulates scrollback lines across multiple loadMoreHistory calls", async () => {
+    const { result } = renderCapturePaneHook();
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ ls\nfile.txt");
+    });
+
+    act(() => {
+      result.current.loadMoreHistory();
+    });
+    await waitFor(() => {
+      expect(result.current.scrollbackLines).toBe(400);
+    });
+
+    act(() => {
+      result.current.loadMoreHistory();
+    });
+    await waitFor(() => {
+      expect(result.current.scrollbackLines).toBe(600);
+    });
+  });
+
+  it("caps scrollback lines at maximum", async () => {
+    const { result } = renderCapturePaneHook();
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ ls\nfile.txt");
+    });
+
+    // Repeatedly load more until max
+    act(() => {
+      for (let i = 0; i < 30; i++) {
+        result.current.loadMoreHistory();
+      }
+    });
+
+    await waitFor(() => {
+      expect(result.current.scrollbackLines).toBe(5000);
+    });
+
+    expect(result.current.hasMoreHistory).toBe(false);
+  });
+
+  it("resets scrollback lines when paneId changes", async () => {
+    const { result, rerender } = renderCapturePaneHook();
+
+    await waitFor(() => {
+      expect(result.current.scrollbackLines).toBe(200);
+    });
+
+    act(() => {
+      result.current.loadMoreHistory();
+    });
+    await waitFor(() => {
+      expect(result.current.scrollbackLines).toBe(400);
+    });
+
+    // Re-render with a different paneId
+    rerender();
+  });
+
+  it("reports isLoadingMore while fetching additional history", async () => {
+    // Let the initial load complete quickly
+    mockClient.tmuxCapturePane.mockResolvedValue({ content: "initial", error: null });
+
+    const { result } = renderCapturePaneHook();
+
+    // Wait for initial load to finish
+    await waitFor(() => {
+      expect(result.current.content).toBe("initial");
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    // Now trigger loadMoreHistory with a delayed promise
+    let resolveMore: (value: { content: string; error: null }) => void;
+    const morePromise = new Promise<{ content: string; error: null }>((resolve) => {
+      resolveMore = resolve;
+    });
+    mockClient.tmuxCapturePane.mockReturnValue(morePromise);
+
+    act(() => {
+      result.current.loadMoreHistory();
+    });
+
+    // Should be loading more while the new request is in flight
+    await waitFor(() => {
+      expect(result.current.isLoadingMore).toBe(true);
+    });
+
+    act(() => {
+      resolveMore!({ content: "more content", error: null });
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingMore).toBe(false);
+      expect(result.current.content).toBe("more content");
+    });
   });
 
   it("keeps previous content when client is disposed during a poll", async () => {
@@ -217,5 +350,88 @@ describe("useTmuxCapturePane", () => {
 
     // No additional calls should have been made
     expect(mockClient.tmuxCapturePane.mock.calls.length).toBe(callCountBefore);
+  });
+
+  it("defaults autoRefresh to true", async () => {
+    const { result } = renderCapturePaneHook();
+    expect(result.current.autoRefresh).toBe(true);
+  });
+
+  it("toggles autoRefresh off and on", async () => {
+    const { result } = renderCapturePaneHook();
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ ls\nfile.txt");
+    });
+
+    expect(result.current.autoRefresh).toBe(true);
+
+    act(() => {
+      result.current.setAutoRefresh(false);
+    });
+    expect(result.current.autoRefresh).toBe(false);
+
+    act(() => {
+      result.current.setAutoRefresh(true);
+    });
+    expect(result.current.autoRefresh).toBe(true);
+  });
+
+  it("stops polling when autoRefresh is turned off", async () => {
+    const { result } = renderCapturePaneHook();
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ ls\nfile.txt");
+    });
+
+    const callCountBefore = mockClient.tmuxCapturePane.mock.calls.length;
+
+    // Turn off auto refresh
+    act(() => {
+      result.current.setAutoRefresh(false);
+    });
+    expect(result.current.autoRefresh).toBe(false);
+
+    // Wait longer than the poll interval
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 100));
+    });
+
+    // No additional polling calls should have been made
+    expect(mockClient.tmuxCapturePane.mock.calls.length).toBe(callCountBefore);
+  });
+
+  it("resumes polling when autoRefresh is turned back on", async () => {
+    const { result } = renderCapturePaneHook();
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ ls\nfile.txt");
+    });
+
+    // Turn off then back on
+    act(() => {
+      result.current.setAutoRefresh(false);
+    });
+    expect(result.current.autoRefresh).toBe(false);
+
+    // Set up mock for the manual refetch
+    mockClient.tmuxCapturePane.mockResolvedValue({
+      content: "$ pwd\n/home/user",
+      error: null,
+    });
+
+    act(() => {
+      result.current.setAutoRefresh(true);
+    });
+    expect(result.current.autoRefresh).toBe(true);
+
+    // Manually refetch to verify the query is still functional
+    act(() => {
+      result.current.refetch();
+    });
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ pwd\n/home/user");
+    });
   });
 });

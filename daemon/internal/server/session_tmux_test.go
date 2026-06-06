@@ -213,7 +213,7 @@ func TestParseTmuxPaneLinesMetadata(t *testing.T) {
 }
 
 func TestCaptureTmuxPaneInvalidID(t *testing.T) {
-	_, err := captureTmuxPane("%99999")
+	_, err := captureTmuxPane("%99999", -200)
 	if err == nil {
 		t.Fatal("expected error for invalid pane ID, got nil")
 	}
@@ -233,12 +233,43 @@ func TestCaptureTmuxPaneReal(t *testing.T) {
 		t.Skip("no tmux panes available")
 	}
 
-	content, err := captureTmuxPane(paneID)
+	content, err := captureTmuxPane(paneID, -200)
 	if err != nil {
 		t.Fatalf("captureTmuxPane(%q) error: %v", paneID, err)
 	}
 	if len(content) == 0 {
 		t.Error("expected non-empty content from capture-pane")
+	}
+}
+
+func TestCaptureTmuxPaneWithStartLine(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	out, err := exec.Command("tmux", "list-panes", "-a", "-F", "#{pane_id}").Output()
+	if err != nil {
+		t.Skip("tmux not available")
+	}
+	paneID := strings.TrimSpace(strings.Split(string(out), "\n")[0])
+	if paneID == "" {
+		t.Skip("no tmux panes available")
+	}
+
+	// Default start line (-200)
+	contentDefault, err := captureTmuxPane(paneID, -200)
+	if err != nil {
+		t.Fatalf("captureTmuxPane default error: %v", err)
+	}
+
+	// Larger start line (more history)
+	contentLarge, err := captureTmuxPane(paneID, -400)
+	if err != nil {
+		t.Fatalf("captureTmuxPane large error: %v", err)
+	}
+
+	// The larger capture should contain at least as much content
+	if len(contentLarge) < len(contentDefault) {
+		t.Errorf("expected larger capture to have more content, got %d vs %d", len(contentLarge), len(contentDefault))
 	}
 }
 

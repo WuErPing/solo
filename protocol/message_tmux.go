@@ -36,9 +36,12 @@ type TmuxListAgentsResponsePayload struct {
 }
 
 // TmuxCapturePaneRequest asks the daemon to capture the content of a tmux pane.
+// StartLine is the negative offset from the bottom of the pane (e.g. -200 = last 200 lines).
+// When nil the daemon defaults to -200.
 type TmuxCapturePaneRequest struct {
 	Type      string `json:"type"`
 	PaneID    string `json:"paneId"`
+	StartLine *int   `json:"startLine,omitempty"`
 	RequestID string `json:"requestId"`
 }
 

@@ -28,6 +28,7 @@ export const TmuxListAgentsResponseSchema = z.object({
 export const TmuxCapturePaneRequestSchema = z.object({
   type: z.literal("tmux/capture_pane"),
   paneId: z.string(),
+  startLine: z.number().int().optional(),
   requestId: z.string(),
 });
 
