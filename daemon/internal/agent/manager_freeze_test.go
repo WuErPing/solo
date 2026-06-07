@@ -57,13 +57,13 @@ func TestSubscribeToSession_CriticalEventFallback_WhenWorkChFull(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		eventsCh <- AgentStreamEvent{
 			AgentID: ag.ID,
-			Event:   map[string]interface{}{"type": "timeline"},
+			Event:   protocol.TimelineStreamEvent{Item: protocol.TimelineItem{Type: "text", Text: "filler"}},
 		}
 	}
 	// Critical event: must not block forever even though workCh is full.
 	eventsCh <- AgentStreamEvent{
 		AgentID: ag.ID,
-		Event:   map[string]interface{}{"type": "turn_completed"},
+		Event:   protocol.TurnCompletedStreamEvent{},
 	}
 	close(eventsCh)
 
@@ -119,19 +119,13 @@ func TestSubscribeToSession_OpenCodeTerminalEventFallback_WhenWorkChFull(t *test
 	for i := 0; i < 10; i++ {
 		eventsCh <- AgentStreamEvent{
 			AgentID: ag.ID,
-			Event: map[string]interface{}{
-				"type":     "timeline",
-				"provider": opencodeProviderName,
-			},
+			Event:   protocol.TimelineStreamEvent{Provider: opencodeProviderName, Item: protocol.TimelineItem{Type: "text", Text: "filler"}},
 		}
 	}
-	eventsCh <- AgentStreamEvent{
-		AgentID: ag.ID,
-		Event: map[string]interface{}{
-			"type":     "turn_completed",
-			"provider": opencodeProviderName,
-		},
-	}
+		eventsCh <- AgentStreamEvent{
+			AgentID: ag.ID,
+			Event:   protocol.TurnCompletedStreamEvent{Provider: opencodeProviderName},
+		}
 	close(eventsCh)
 
 	deadline := time.After(3 * time.Second)
@@ -198,14 +192,14 @@ func TestSubscribeToSession_SlowSubscriberDoesNotStallWorkCh(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		eventsCh <- AgentStreamEvent{
 			AgentID: ag.ID,
-			Event:   map[string]interface{}{"type": "timeline"},
+			Event:   protocol.TimelineStreamEvent{Item: protocol.TimelineItem{Type: "text", Text: "filler"}},
 		}
 	}
 	// Critical event arrives while consumer is stalled. The P0-A fallback
 	// must apply idle state directly, bypassing the stalled consumer.
 	eventsCh <- AgentStreamEvent{
 		AgentID: ag.ID,
-		Event:   map[string]interface{}{"type": "turn_completed"},
+		Event:   protocol.TurnCompletedStreamEvent{},
 	}
 	close(eventsCh)
 

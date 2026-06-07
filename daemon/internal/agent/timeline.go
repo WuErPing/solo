@@ -13,36 +13,12 @@ import (
 
 const DefaultTimelineFetchLimit = 200
 
-// TimelineItem represents a single timeline entry.
-type TimelineItem struct {
-	Type string `json:"type"`
-	// Fields vary by type:
-	// user_message: Text, MessageID
-	// assistant_message: Text
-	// reasoning: Text
-	// tool_call: CallID, Name, Detail, Status, Error, Metadata
-	// todo: TodoItems
-	// error: Message
-	// compaction: CompactionStatus, Trigger, PreTokens
-	Text             string                 `json:"text,omitempty"`
-	MessageID        string                 `json:"messageId,omitempty"`
-	CallID           string                 `json:"callId,omitempty"`
-	Name             string                 `json:"name,omitempty"`
-	Detail           interface{}            `json:"detail,omitempty"`
-	Status           string                 `json:"status,omitempty"` // running|completed|failed|canceled
-	Error            interface{}            `json:"error,omitempty"`
-	Metadata         map[string]interface{} `json:"metadata,omitempty"`
-	TodoItems        []TodoItem             `json:"items,omitempty"`
-	Message          string                 `json:"message,omitempty"` // for error type
-	CompactionStatus string                 `json:"compactionStatus,omitempty"`
-	Trigger          string                 `json:"trigger,omitempty"`
-	PreTokens        int                    `json:"preTokens,omitempty"`
-}
+// TimelineItem is an alias to the protocol-level definition so the event
+// pipeline can reference it without duplicating the type.
+type TimelineItem = protocol.TimelineItem
 
-type TodoItem struct {
-	Text      string `json:"text"`
-	Completed bool   `json:"completed"`
-}
+// TodoItem is an alias to the protocol-level definition.
+type TodoItem = protocol.TodoItem
 
 // TimelineRow is a timeline item with sequence number and timestamp.
 type TimelineRow struct {
@@ -440,43 +416,6 @@ func (r *TimelineRow) ToProtocolCursor(epoch string) protocol.AgentTimelineCurso
 		Epoch: epoch,
 		Seq:   r.Seq,
 	}
-}
-
-// ToProtocolTimelineItem converts a TimelineItem to a protocol-compatible map.
-func (item *TimelineItem) ToProtocolMap() map[string]interface{} {
-	m := map[string]interface{}{
-		"type": item.Type,
-	}
-	switch item.Type {
-	case "user_message":
-		m["text"] = item.Text
-		if item.MessageID != "" {
-			m["messageId"] = item.MessageID
-		}
-	case "assistant_message":
-		m["text"] = item.Text
-	case "reasoning":
-		m["text"] = item.Text
-	case "tool_call":
-		m["callId"] = item.CallID
-		m["name"] = item.Name
-		m["detail"] = item.Detail
-		m["status"] = item.Status
-		m["error"] = item.Error
-		if item.Metadata != nil {
-			m["metadata"] = item.Metadata
-		}
-	case "todo":
-		m["items"] = item.TodoItems
-	case "error":
-		m["message"] = item.Message
-	case "compaction":
-		m["status"] = item.CompactionStatus
-		if item.Trigger != "" {
-			m["trigger"] = item.Trigger
-		}
-	}
-	return m
 }
 
 // timelineItemsEqual reports whether two timeline items are identical for

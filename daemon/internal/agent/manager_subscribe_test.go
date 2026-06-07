@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"github.com/WuErPing/solo/protocol"
 	"io"
 	"log/slog"
 	"sync"
@@ -45,12 +46,10 @@ func TestSubscribeToSession_SlowHandleStreamEventDoesNotDropCritical(t *testing.
 		defer processWg.Done()
 		for evt := range workCh {
 			time.Sleep(10 * time.Millisecond) // simulate slow handleStreamEvent
-			if m, ok := evt.Event.(map[string]interface{}); ok {
-				if t, ok := m["type"].(string); ok {
-					mu.Lock()
-					received = append(received, t)
-					mu.Unlock()
-				}
+			if e, ok := evt.Event.(protocol.StreamEvent); ok {
+				mu.Lock()
+				received = append(received, e.StreamEventType())
+				mu.Unlock()
 			}
 		}
 	}()
@@ -85,23 +84,17 @@ func TestSubscribeToSession_SlowHandleStreamEventDoesNotDropCritical(t *testing.
 	// channel fills up and turn_completed is dropped by the 500ms timeout.
 	for i := 0; i < 350; i++ {
 		dispatcher.Emit(AgentStreamEvent{
-			Event: map[string]interface{}{
-				"type":     "timeline",
-				"item":     TimelineItem{Type: "tool_call", Name: "read_file", Status: "running"},
-				"provider": "mock",
-			},
+			Event:     protocol.TimelineStreamEvent{Item: protocol.TimelineItem{Type: "tool_call", Name: "read_file", Status: "running"}, Provider: "mock"},
 			Timestamp: time.Now(),
 		})
 	}
 
 	// Emit turn_completed — this is critical and MUST NOT be dropped
-	dispatcher.Emit(AgentStreamEvent{
-		Event: map[string]interface{}{
-			"type":     "turn_completed",
-			"provider": "mock",
-		},
-		Timestamp: time.Now(),
-	})
+		// Emit turn_completed — this is critical and MUST NOT be dropped
+		dispatcher.Emit(AgentStreamEvent{
+			Event:     protocol.TurnCompletedStreamEvent{Provider: "mock"},
+			Timestamp: time.Now(),
+		})
 
 	// Wait for all processing to complete
 	time.Sleep(5 * time.Second)

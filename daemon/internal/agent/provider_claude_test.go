@@ -67,11 +67,7 @@ func TestClaudeTerminalEventValueIsDispatcherCritical(t *testing.T) {
 		if !ok {
 			continue
 		}
-		payload, ok := evt.Event.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		if payload["type"] == "turn_completed" {
+		if _, ok := evt.Event.(protocol.TurnCompletedStreamEvent); ok {
 			copied := evt
 			terminal = &copied
 			break

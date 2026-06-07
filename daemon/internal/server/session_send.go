@@ -31,10 +31,11 @@ func isCriticalMessage(msg protocol.WSOutboundMessage) bool {
 		return true
 	case "agent_stream":
 		if m, ok := sessionMsg.(*protocol.AgentStreamMessage); ok {
-			if evt, ok := m.Payload.Event.(map[string]interface{}); ok {
-				if t, ok := evt["type"].(string); ok {
-					return t == "turn_completed" || t == "turn_failed" || t == "turn_canceled"
-				}
+			switch m.Payload.Event.(type) {
+			case protocol.TurnCompletedStreamEvent,
+				protocol.TurnFailedStreamEvent,
+				protocol.TurnCanceledStreamEvent:
+				return true
 			}
 		}
 	}

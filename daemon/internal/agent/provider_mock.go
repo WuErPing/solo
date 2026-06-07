@@ -70,10 +70,9 @@ type MockAgentSession struct {
 
 func (s *MockAgentSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
 	if !s.emit(AgentStreamEvent{
-		Event: map[string]interface{}{
-			"type":      "thread_started",
-			"sessionId": s.sessionID,
-			"provider":  "mock",
+		Event: protocol.ThreadStartedStreamEvent{
+			Provider:  "mock",
+			SessionID: s.sessionID,
 		},
 		Timestamp: time.Now(),
 	}) {
@@ -81,10 +80,9 @@ func (s *MockAgentSession) Run(ctx context.Context, text string, images []protoc
 	}
 
 	if !s.emit(AgentStreamEvent{
-		Event: map[string]interface{}{
-			"type":     "timeline",
-			"item":     TimelineItem{Type: "user_message", Text: text, MessageID: messageID},
-			"provider": "mock",
+		Event: protocol.TimelineStreamEvent{
+			Provider: "mock",
+			Item:     TimelineItem{Type: "user_message", Text: text, MessageID: messageID},
 		},
 		Timestamp: time.Now(),
 	}) {
@@ -92,10 +90,9 @@ func (s *MockAgentSession) Run(ctx context.Context, text string, images []protoc
 	}
 
 	if !s.emit(AgentStreamEvent{
-		Event: map[string]interface{}{
-			"type":     "timeline",
-			"item":     TimelineItem{Type: "assistant_message", Text: fmt.Sprintf("Mock response to: %s", text)},
-			"provider": "mock",
+		Event: protocol.TimelineStreamEvent{
+			Provider: "mock",
+			Item:     TimelineItem{Type: "assistant_message", Text: fmt.Sprintf("Mock response to: %s", text)},
 		},
 		Timestamp: time.Now(),
 	}) {
@@ -103,9 +100,8 @@ func (s *MockAgentSession) Run(ctx context.Context, text string, images []protoc
 	}
 
 	if !s.emit(AgentStreamEvent{
-		Event: map[string]interface{}{
-			"type":     "turn_completed",
-			"provider": "mock",
+		Event: protocol.TurnCompletedStreamEvent{
+			Provider: "mock",
 		},
 		Timestamp: time.Now(),
 	}) {

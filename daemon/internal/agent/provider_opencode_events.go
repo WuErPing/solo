@@ -136,16 +136,32 @@ func (s *openCodeSession) consumeSSE(ctx context.Context, turnID string) (*Agent
 		events := s.translateEvent(eventType, payload)
 		for _, evt := range events {
 			e := evt.Event
-			if m, ok := e.(map[string]interface{}); ok {
-				s.base.Logger().Info("SSE translated event", "type", m["type"])
-				switch m["type"] {
+			switch se := e.(type) {
+			case protocol.TurnCompletedStreamEvent:
+				s.base.Logger().Info("SSE translated event", "type", se.StreamEventType())
+				result = &AgentRunResult{SessionID: s.base.SessionID(), Canceled: false}
+				resultErr = nil
+				terminalReached = true
+			case protocol.TurnFailedStreamEvent:
+				s.base.Logger().Info("SSE translated event", "type", se.StreamEventType())
+				result = &AgentRunResult{SessionID: s.base.SessionID(), Canceled: false}
+				resultErr = fmt.Errorf("%v", se.Error)
+				terminalReached = true
+			case protocol.TurnCanceledStreamEvent:
+				s.base.Logger().Info("SSE translated event", "type", se.StreamEventType())
+				result = &AgentRunResult{SessionID: s.base.SessionID(), Canceled: true}
+				resultErr = nil
+				terminalReached = true
+			case map[string]interface{}:
+				s.base.Logger().Info("SSE translated event", "type", se["type"])
+				switch se["type"] {
 				case "turn_completed":
 					result = &AgentRunResult{SessionID: s.base.SessionID(), Canceled: false}
 					resultErr = nil
 					terminalReached = true
 				case "turn_failed":
 					result = &AgentRunResult{SessionID: s.base.SessionID(), Canceled: false}
-					resultErr = fmt.Errorf("%v", m["error"])
+					resultErr = fmt.Errorf("%v", se["error"])
 					terminalReached = true
 				case "turn_canceled":
 					result = &AgentRunResult{SessionID: s.base.SessionID(), Canceled: true}
@@ -165,10 +181,9 @@ func (s *openCodeSession) consumeSSE(ctx context.Context, turnID string) (*Agent
 
 	if !terminalReached {
 		s.finishForegroundTurn(AgentStreamEvent{
-			Event: map[string]interface{}{
-				"type":     "turn_failed",
-				"provider": opencodeProviderName,
-				"error":    "OpenCode event stream ended before the turn reached a terminal state",
+			Event: protocol.TurnFailedStreamEvent{
+				Provider: opencodeProviderName,
+				Error:    "OpenCode event stream ended before the turn reached a terminal state",
 			},
 			Timestamp: time.Now(),
 		}, turnID)
@@ -188,22 +203,24 @@ func (s *openCodeSession) finishForegroundTurn(evt AgentStreamEvent, turnID stri
 		return
 	}
 
-	e, ok := evt.Event.(map[string]interface{})
-	if !ok {
-		s.mu.Unlock()
-		return
+	evtType := ""
+	switch e := evt.Event.(type) {
+	case protocol.TurnCanceledStreamEvent:
+		evtType = e.StreamEventType()
+	case protocol.TurnFailedStreamEvent:
+		evtType = e.StreamEventType()
+	case map[string]interface{}:
+		evtType, _ = e["type"].(string)
 	}
-	evtType, _ := e["type"].(string)
 
 	var notifyEvents []AgentStreamEvent
 	if evtType == "turn_canceled" || evtType == "turn_failed" {
 		// Synthesize failed status for running tool calls
 		for callID, item := range s.runningToolCalls {
 			notifyEvents = append(notifyEvents, AgentStreamEvent{
-				Event: map[string]interface{}{
-					"type":     "timeline",
-					"item":     TimelineItem{Type: "tool_call", CallID: callID, Name: item.Name, Status: "failed", Error: map[string]interface{}{"message": "Tool execution aborted"}},
-					"provider": opencodeProviderName,
+				Event: protocol.TimelineStreamEvent{
+					Item:     TimelineItem{Type: "tool_call", CallID: callID, Name: item.Name, Status: "failed", Error: map[string]interface{}{"message": "Tool execution aborted"}},
+					Provider: opencodeProviderName,
 				},
 				Timestamp: time.Now(),
 			})
@@ -231,7 +248,7 @@ func (s *openCodeSession) translateEvent(eventType string, raw map[string]json.R
 	var events []AgentStreamEvent
 	now := time.Now()
 
-	emit := func(e map[string]interface{}) {
+	emit := func(e interface{}) {
 		events = append(events, AgentStreamEvent{Event: e, Timestamp: now})
 	}
 
@@ -264,12 +281,11 @@ func (s *openCodeSession) translateEvent(eventType string, raw map[string]json.R
 			json.Unmarshal(raw, &props)
 		}
 		if props.SessionID == s.base.SessionID() {
-			evt := map[string]interface{}{
-				"type":     "turn_completed",
-				"provider": opencodeProviderName,
+			evt := protocol.TurnCompletedStreamEvent{
+				Provider: opencodeProviderName,
 			}
 			if s.hasUsage() {
-				evt["usage"] = s.buildUsagePayload()
+				evt.Usage = s.buildUsagePayload()
 			}
 			emit(evt)
 		}
@@ -283,10 +299,9 @@ func (s *openCodeSession) translateEvent(eventType string, raw map[string]json.R
 			json.Unmarshal(raw, &props)
 		}
 		if props.SessionID == s.base.SessionID() {
-			emit(map[string]interface{}{
-				"type":     "turn_failed",
-				"provider": opencodeProviderName,
-				"error":    normalizeError(props.Error),
+			emit(protocol.TurnFailedStreamEvent{
+				Provider: opencodeProviderName,
+				Error:    normalizeError(props.Error),
 			})
 		}
 
@@ -315,10 +330,9 @@ func (s *openCodeSession) translateEvent(eventType string, raw map[string]json.R
 				}
 			}
 			if len(items) > 0 {
-				emit(map[string]interface{}{
-					"type":     "timeline",
-					"item":     TimelineItem{Type: "todo", TodoItems: items},
-					"provider": opencodeProviderName,
+				emit(protocol.TimelineStreamEvent{
+					Item:     TimelineItem{Type: "todo", TodoItems: items},
+					Provider: opencodeProviderName,
 				})
 			}
 		}
@@ -331,10 +345,9 @@ func (s *openCodeSession) translateEvent(eventType string, raw map[string]json.R
 			json.Unmarshal(raw, &props)
 		}
 		if props.SessionID == s.base.SessionID() {
-			emit(map[string]interface{}{
-				"type":     "timeline",
-				"item":     TimelineItem{Type: "compaction", CompactionStatus: "completed"},
-				"provider": opencodeProviderName,
+			emit(protocol.TimelineStreamEvent{
+				Item:     TimelineItem{Type: "compaction", CompactionStatus: "completed"},
+				Provider: opencodeProviderName,
 			})
 		}
 	}
@@ -342,7 +355,7 @@ func (s *openCodeSession) translateEvent(eventType string, raw map[string]json.R
 	return events
 }
 
-func (s *openCodeSession) translateSessionCreatedOrUpdated(raw map[string]json.RawMessage, emit func(map[string]interface{})) {
+func (s *openCodeSession) translateSessionCreatedOrUpdated(raw map[string]json.RawMessage, emit func(interface{})) {
 	var props struct {
 		Info struct {
 			ID string `json:"id"`
@@ -357,16 +370,15 @@ func (s *openCodeSession) translateSessionCreatedOrUpdated(raw map[string]json.R
 		sid = props.SessionID
 	}
 	if sid == s.base.SessionID() {
-		emit(map[string]interface{}{
-			"type":      "thread_started",
-			"sessionId": s.base.SessionID(),
-			"provider":  opencodeProviderName,
+		emit(protocol.ThreadStartedStreamEvent{
+			Provider:  opencodeProviderName,
+			SessionID: s.base.SessionID(),
 		})
 	}
 }
 
 // translateMessageUpdated tracks message roles and emits structured messages (gap #2 enhancement).
-func (s *openCodeSession) translateMessageUpdated(raw map[string]json.RawMessage, emit func(map[string]interface{})) {
+func (s *openCodeSession) translateMessageUpdated(raw map[string]json.RawMessage, emit func(interface{})) {
 	var props struct {
 		Info struct {
 			ID         string      `json:"id"`
@@ -413,16 +425,15 @@ func (s *openCodeSession) translateMessageUpdated(raw map[string]json.RawMessage
 	if props.Info.Role == "assistant" && props.Info.Time.Completed != nil && !s.emittedStructuredMsgIDs[props.Info.ID] {
 		if text := stringifyStructuredMessage(props.Info.Structured); text != "" {
 			s.emittedStructuredMsgIDs[props.Info.ID] = true
-			emit(map[string]interface{}{
-				"type":     "timeline",
-				"item":     map[string]interface{}{"type": "assistant_message", "text": text},
-				"provider": opencodeProviderName,
+			emit(protocol.TimelineStreamEvent{
+				Item:     TimelineItem{Type: "assistant_message", Text: text},
+				Provider: opencodeProviderName,
 			})
 		}
 	}
 }
 
-func (s *openCodeSession) translateMessagePartDelta(raw map[string]json.RawMessage, emit func(map[string]interface{})) {
+func (s *openCodeSession) translateMessagePartDelta(raw map[string]json.RawMessage, emit func(interface{})) {
 	var delta struct {
 		SessionID string `json:"sessionID"`
 		MessageID string `json:"messageID"`
@@ -450,10 +461,9 @@ func (s *openCodeSession) translateMessagePartDelta(raw map[string]json.RawMessa
 		if delta.PartID != "" {
 			s.streamedPartKeys["reasoning:"+delta.PartID] = true
 		}
-		emit(map[string]interface{}{
-			"type":     "timeline",
-			"item":     TimelineItem{Type: "reasoning", Text: delta.Delta},
-			"provider": opencodeProviderName,
+		emit(protocol.TimelineStreamEvent{
+			Item:     TimelineItem{Type: "reasoning", Text: delta.Delta},
+			Provider: opencodeProviderName,
 		})
 		return
 	}
@@ -468,15 +478,14 @@ func (s *openCodeSession) translateMessagePartDelta(raw map[string]json.RawMessa
 	if delta.PartID != "" {
 		s.streamedPartKeys["text:"+delta.PartID] = true
 	}
-	emit(map[string]interface{}{
-		"type":     "timeline",
-		"item":     TimelineItem{Type: "assistant_message", Text: delta.Delta},
-		"provider": opencodeProviderName,
+	emit(protocol.TimelineStreamEvent{
+		Item:     TimelineItem{Type: "assistant_message", Text: delta.Delta},
+		Provider: opencodeProviderName,
 	})
 }
 
 // translateMessagePartUpdated handles completed parts with tool call detail mapping (gap #1) and usage tracking (gap #5).
-func (s *openCodeSession) translateMessagePartUpdated(raw map[string]json.RawMessage, emit func(map[string]interface{})) {
+func (s *openCodeSession) translateMessagePartUpdated(raw map[string]json.RawMessage, emit func(interface{})) {
 	var props struct {
 		Part struct {
 			SessionID string          `json:"sessionID"`
@@ -536,10 +545,9 @@ func (s *openCodeSession) translateMessagePartUpdated(raw map[string]json.RawMes
 			return
 		}
 		if part.Text != "" {
-			emit(map[string]interface{}{
-				"type":     "timeline",
-				"item":     TimelineItem{Type: "assistant_message", Text: part.Text},
-				"provider": opencodeProviderName,
+			emit(protocol.TimelineStreamEvent{
+				Item:     TimelineItem{Type: "assistant_message", Text: part.Text},
+				Provider: opencodeProviderName,
 			})
 		}
 
@@ -553,10 +561,9 @@ func (s *openCodeSession) translateMessagePartUpdated(raw map[string]json.RawMes
 			return
 		}
 		if part.Text != "" {
-			emit(map[string]interface{}{
-				"type":     "timeline",
-				"item":     TimelineItem{Type: "reasoning", Text: part.Text},
-				"provider": opencodeProviderName,
+			emit(protocol.TimelineStreamEvent{
+				Item:     TimelineItem{Type: "reasoning", Text: part.Text},
+				Provider: opencodeProviderName,
 			})
 		}
 
@@ -599,33 +606,28 @@ func (s *openCodeSession) translateMessagePartUpdated(raw map[string]json.RawMes
 			delete(s.runningToolCalls, callID)
 		}
 
-		// Build rich tool call detail (gap #1)
-		toolEvent := map[string]interface{}{
-			"type":     "timeline",
-			"item":     buildToolCallTimelineItem(callID, part.Tool, normalizedStatus, toolInput, toolOutput, toolError),
-			"provider": opencodeProviderName,
-		}
-		emit(toolEvent)
+		emit(protocol.TimelineStreamEvent{
+			Item:     buildToolCallTimelineItem(callID, part.Tool, normalizedStatus, toolInput, toolOutput, toolError),
+			Provider: opencodeProviderName,
+		})
 
 	case "compaction":
 		trigger := "manual"
 		if part.Auto {
 			trigger = "auto"
 		}
-		emit(map[string]interface{}{
-			"type":     "timeline",
-			"item":     TimelineItem{Type: "compaction", CompactionStatus: "loading", Trigger: trigger},
-			"provider": opencodeProviderName,
+		emit(protocol.TimelineStreamEvent{
+			Item:     TimelineItem{Type: "compaction", CompactionStatus: "loading", Trigger: trigger},
+			Provider: opencodeProviderName,
 		})
 
 	case "step-finish":
 		// Usage tracking from step-finish (gap #5)
 		s.mergeStepFinishUsage(part.Cost, part.Tokens)
 		if s.hasUsage() {
-			emit(map[string]interface{}{
-				"type":     "usage_updated",
-				"provider": opencodeProviderName,
-				"usage":    s.buildUsagePayload(),
+			emit(protocol.UsageUpdatedStreamEvent{
+				Provider: opencodeProviderName,
+				Usage:    s.buildUsagePayload(),
 			})
 		}
 	}
@@ -723,7 +725,7 @@ func truncateText(s string, maxLen int) string {
 
 // --- Permission Handling (gap #11, #12) ---
 
-func (s *openCodeSession) translatePermissionAsked(raw map[string]json.RawMessage, emit func(map[string]interface{})) {
+func (s *openCodeSession) translatePermissionAsked(raw map[string]json.RawMessage, emit func(interface{})) {
 	var props struct {
 		SessionID  string          `json:"sessionID"`
 		ID         string          `json:"id"`
@@ -797,28 +799,25 @@ func (s *openCodeSession) translatePermissionAsked(raw map[string]json.RawMessag
 		detail["input"] = input
 	}
 
-	request := map[string]interface{}{
-		"id":       props.ID,
-		"provider": opencodeProviderName,
-		"name":     props.Permission,
-		"kind":     "tool",
-		"title":    humanReadablePermission(props.Permission),
-		"input":    input,
-		"detail":   detail,
-	}
-	if description != "" {
-		request["description"] = description
+	request := protocol.PermissionRequest{
+		ID:          props.ID,
+		Provider:    opencodeProviderName,
+		Name:        props.Permission,
+		Kind:        "tool",
+		Title:       humanReadablePermission(props.Permission),
+		Input:       input,
+		Detail:      detail,
+		Description: description,
 	}
 
-	emit(map[string]interface{}{
-		"type":     "permission_requested",
-		"provider": opencodeProviderName,
-		"request":  request,
+	emit(protocol.PermissionRequestedStreamEvent{
+		Provider: opencodeProviderName,
+		Request:  request,
 	})
 }
 
 // translateQuestionAsked handles question.asked with multi-option support (gap #11).
-func (s *openCodeSession) translateQuestionAsked(raw map[string]json.RawMessage, emit func(map[string]interface{})) {
+func (s *openCodeSession) translateQuestionAsked(raw map[string]json.RawMessage, emit func(interface{})) {
 	var props struct {
 		SessionID string `json:"sessionID"`
 		ID        string `json:"id"`
@@ -880,30 +879,32 @@ func (s *openCodeSession) translateQuestionAsked(raw map[string]json.RawMessage,
 		input: input,
 	}
 
-	request := map[string]interface{}{
-		"id":       props.ID,
-		"provider": opencodeProviderName,
-		"name":     "question",
-		"kind":     "question",
-		"title":    "Question",
-		"input":    input,
+	request := protocol.PermissionRequest{
+		ID:       props.ID,
+		Provider: opencodeProviderName,
+		Name:     "question",
+		Kind:     "question",
+		Title:    "Question",
+		Input:    input,
 	}
 	if props.Tool != nil {
 		var toolObj interface{}
 		json.Unmarshal(props.Tool, &toolObj)
 		if toolObj != nil {
-			request["metadata"] = map[string]interface{}{"source": "opencode_question", "tool": toolObj}
+			if request.Input == nil {
+				request.Input = map[string]interface{}{}
+			}
+			request.Input["metadata"] = map[string]interface{}{"source": "opencode_question", "tool": toolObj}
 		}
 	}
 
-	emit(map[string]interface{}{
-		"type":     "permission_requested",
-		"provider": opencodeProviderName,
-		"request":  request,
+	emit(protocol.PermissionRequestedStreamEvent{
+		Provider: opencodeProviderName,
+		Request:  request,
 	})
 }
 
-func (s *openCodeSession) translateSessionStatus(raw map[string]json.RawMessage, emit func(map[string]interface{})) {
+func (s *openCodeSession) translateSessionStatus(raw map[string]json.RawMessage, emit func(interface{})) {
 	var props struct {
 		SessionID string `json:"sessionID"`
 		Status    struct {
@@ -920,20 +921,18 @@ func (s *openCodeSession) translateSessionStatus(raw map[string]json.RawMessage,
 
 	switch props.Status.Type {
 	case "idle":
-		evt := map[string]interface{}{
-			"type":     "turn_completed",
-			"provider": opencodeProviderName,
+		evt := protocol.TurnCompletedStreamEvent{
+			Provider: opencodeProviderName,
 		}
 		if s.hasUsage() {
-			evt["usage"] = s.buildUsagePayload()
+			evt.Usage = s.buildUsagePayload()
 		}
 		emit(evt)
 	case "retry":
 		if isFatalRetryMessage(props.Status.Message) {
-			emit(map[string]interface{}{
-				"type":     "turn_failed",
-				"provider": opencodeProviderName,
-				"error":    props.Status.Message,
+			emit(protocol.TurnFailedStreamEvent{
+				Provider: opencodeProviderName,
+				Error:    props.Status.Message,
 			})
 		}
 	}

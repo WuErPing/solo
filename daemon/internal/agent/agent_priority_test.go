@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"github.com/WuErPing/solo/protocol"
 	"testing"
 	"time"
 
@@ -9,9 +10,7 @@ import (
 
 func TestAgentStreamEventValueImplementsCriticalEventInterface(t *testing.T) {
 	evt := AgentStreamEvent{
-		Event: map[string]interface{}{
-			"type": "turn_completed",
-		},
+		Event: protocol.TurnCompletedStreamEvent{},
 		Timestamp: time.Now(),
 	}
 
@@ -41,10 +40,7 @@ func TestAgentStreamEventTimelineReasoningIsSemiCritical(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			evt := AgentStreamEvent{
-				Event: map[string]interface{}{
-					"type": "timeline",
-					"item": tc.item,
-				},
+				Event:     protocol.TimelineStreamEvent{Item: protocol.TimelineItem{Type: "reasoning", Text: "thinking"}},
 				Timestamp: time.Now(),
 			}
 

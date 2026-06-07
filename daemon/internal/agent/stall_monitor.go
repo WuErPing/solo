@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/WuErPing/solo/protocol"
 )
 
 // defaultStallCheckInterval is how often the monitor scans running agents.
@@ -242,24 +244,10 @@ func (m *StallMonitor) checkAgent(agentID string) (StallReason, string) {
 }
 
 func extractAssistantTextFromStreamEvent(event AgentStreamEvent) (string, bool) {
-	payload, ok := event.Event.(map[string]interface{})
-	if !ok {
-		return "", false
-	}
-	t, _ := payload["type"].(string)
-	if t != "timeline" {
-		return "", false
-	}
-	switch item := payload["item"].(type) {
-	case TimelineItem:
-		if item.Type == "assistant_message" {
-			return item.Text, true
-		}
-	case map[string]interface{}:
-		if itemType, _ := item["type"].(string); itemType == "assistant_message" {
-			if text, ok := item["text"].(string); ok {
-				return text, true
-			}
+	switch e := event.Event.(type) {
+	case protocol.TimelineStreamEvent:
+		if e.Item.Type == "assistant_message" {
+			return e.Item.Text, true
 		}
 	}
 	return "", false

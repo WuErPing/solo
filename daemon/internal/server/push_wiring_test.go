@@ -39,11 +39,7 @@ func TestProveIt_SessionWithActivityTrackerPushSends(t *testing.T) {
 
 	event := agent.AgentStreamEvent{
 		AgentID: "agent-1",
-		Event: map[string]interface{}{
-			"type":     "attention_required",
-			"reason":   "finished",
-			"provider": "opencode",
-		},
+		Event: protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
 		Timestamp: time.Now(),
 	}
 
@@ -150,11 +146,7 @@ func TestProveIt_NotificationDataIncludesServerId(t *testing.T) {
 
 	event := agent.AgentStreamEvent{
 		AgentID: "agent-1",
-		Event: map[string]interface{}{
-			"type":     "attention_required",
-			"reason":   "finished",
-			"provider": "opencode",
-		},
+		Event: protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
 		Timestamp: time.Now(),
 	}
 

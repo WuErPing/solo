@@ -11,6 +11,7 @@ import (
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/config"
 	"github.com/WuErPing/solo/daemon/internal/push"
+	"github.com/WuErPing/solo/protocol"
 )
 
 type mockPusher struct {
@@ -100,11 +101,7 @@ func TestSession_BroadcastAgentAttention_WithPush(t *testing.T) {
 
 	event := agent.AgentStreamEvent{
 		AgentID: "agent1",
-		Event: map[string]interface{}{
-			"type":     "attention_required",
-			"reason":   "finished",
-			"provider": "opencode",
-		},
+		Event: protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
 		Timestamp: time.Now(),
 	}
 
@@ -144,11 +141,7 @@ func TestSession_BroadcastAgentAttention_NoPushWhenFocused(t *testing.T) {
 
 	event := agent.AgentStreamEvent{
 		AgentID: "agent1",
-		Event: map[string]interface{}{
-			"type":     "attention_required",
-			"reason":   "finished",
-			"provider": "opencode",
-		},
+		Event: protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
 		Timestamp: time.Now(),
 	}
 
@@ -177,11 +170,7 @@ func TestSession_BroadcastAgentAttention_NoPushWhenRecent(t *testing.T) {
 
 	event := agent.AgentStreamEvent{
 		AgentID: "agent1",
-		Event: map[string]interface{}{
-			"type":     "attention_required",
-			"reason":   "finished",
-			"provider": "opencode",
-		},
+		Event: protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
 		Timestamp: time.Now(),
 	}
 
@@ -208,11 +197,7 @@ func TestSession_BroadcastAgentAttention_NoTokens(t *testing.T) {
 
 	event := agent.AgentStreamEvent{
 		AgentID: "agent1",
-		Event: map[string]interface{}{
-			"type":     "attention_required",
-			"reason":   "finished",
-			"provider": "opencode",
-		},
+		Event: protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
 		Timestamp: time.Now(),
 	}
 
@@ -270,11 +255,7 @@ func TestSession_AttentionRequired_ForwardsNotificationFields(t *testing.T) {
 
 	event := agent.AgentStreamEvent{
 		AgentID: "agent1",
-		Event: map[string]interface{}{
-			"type":     "attention_required",
-			"reason":   "finished",
-			"provider": "opencode",
-		},
+		Event: protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
 		Timestamp: time.Now(),
 	}
 
@@ -329,11 +310,7 @@ func TestSession_AttentionRequired_SetsShouldNotifyTrueWhenInAppRecipient(t *tes
 
 	event := agent.AgentStreamEvent{
 		AgentID: "agent1",
-		Event: map[string]interface{}{
-			"type":     "attention_required",
-			"reason":   "finished",
-			"provider": "opencode",
-		},
+		Event: protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
 		Timestamp: time.Now(),
 	}
 
@@ -367,11 +344,7 @@ func TestSession_AttentionRequired_SetsShouldNotifyFalseWhenFocused(t *testing.T
 
 	event := agent.AgentStreamEvent{
 		AgentID: "agent1",
-		Event: map[string]interface{}{
-			"type":     "attention_required",
-			"reason":   "finished",
-			"provider": "opencode",
-		},
+		Event: protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
 		Timestamp: time.Now(),
 	}
 
