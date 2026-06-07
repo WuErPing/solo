@@ -383,7 +383,7 @@ solo pair
 | `HOST` | 0.0.0.0 | 监听地址 |
 | `MAX_BUFFER` | 200 | 最大消息缓冲数 |
 | `LOG_LEVEL` | info | 日志级别 |
-| `ALLOWED_ORIGINS` | `https://solo.up2ai.top,http://localhost:19000` | CORS 白名单 |
+| `ALLOWED_ORIGINS` | `https://solo.up2ai.top,http://localhost:19000` | CORS 白名单（空值拒绝所有非空 Origin） |
 
 ### Daemon
 

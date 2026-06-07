@@ -831,6 +831,8 @@ Client          Relay          Daemon
 }
 ```
 
+> **安全说明**: `cors.origins` 为空列表时，所有携带 Origin 头的 WebSocket 请求将被拒绝（fail-closed）。生产环境必须显式配置允许的来源。
+
 **⚠️ 重要**: `endpoint` 必须使用域名 + 443 端口 (HTTPS/WSS)，**不能**使用直接 IP + 8081 端口。原因：
 - 生产环境 Relay 仅监听 `localhost:8081`
 - Nginx 在 `0.0.0.0:443` 提供 SSL 终结并反向代理到 Relay

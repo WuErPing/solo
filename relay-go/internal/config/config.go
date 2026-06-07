@@ -11,7 +11,7 @@ type Config struct {
 	Host           string
 	MaxBuffer      int
 	LogLevel       slog.Level
-	AllowedOrigins []string // CORS whitelist; empty = allow all (deprecated, use explicit origins)
+	AllowedOrigins []string // CORS whitelist; empty = reject all non-empty Origin headers
 }
 
 func Load() Config {

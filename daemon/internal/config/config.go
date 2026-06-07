@@ -145,7 +145,7 @@ func Load() (*Config, error) {
 		cfg.RelayDisableControlKeepalive = v != "false" && v != "0"
 	}
 	if v := os.Getenv("SOLO_CORS_ORIGINS"); v != "" {
-		cfg.CORSOrigins = strings.Split(v, ",")
+		cfg.CORSOrigins = splitAndTrim(v)
 	}
 	if v := os.Getenv("SOLO_HOSTNAMES"); v != "" {
 		cfg.Hostnames = strings.Split(v, ",")
@@ -286,4 +286,14 @@ func netSplitHostPort(addr string) (string, string, error) {
 		return "", "", fmt.Errorf("missing port in address")
 	}
 	return addr[:lastColon], addr[lastColon+1:], nil
+}
+
+func splitAndTrim(s string) []string {
+	var result []string
+	for _, part := range strings.Split(s, ",") {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }

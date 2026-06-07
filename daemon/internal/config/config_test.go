@@ -122,6 +122,23 @@ func TestLoad_PersistedConfig(t *testing.T) {
 	}
 }
 
+func TestLoad_CORSOrigins_TrimsSpaces(t *testing.T) {
+	t.Setenv("SOLO_CORS_ORIGINS", "https://a.com, https://b.com , https://c.com")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	expected := []string{"https://a.com", "https://b.com", "https://c.com"}
+	if len(cfg.CORSOrigins) != len(expected) {
+		t.Fatalf("CORSOrigins: expected %d, got %d", len(expected), len(cfg.CORSOrigins))
+	}
+	for i, want := range expected {
+		if cfg.CORSOrigins[i] != want {
+			t.Errorf("CORSOrigins[%d]: got %q, want %q", i, cfg.CORSOrigins[i], want)
+		}
+	}
+}
+
 func TestLoad_ServerID_Persistence(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("SOLO_HOME", home)

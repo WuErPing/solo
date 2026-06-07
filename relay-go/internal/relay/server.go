@@ -46,7 +46,7 @@ func (s *Server) checkOrigin(r *http.Request) bool {
 		return true
 	}
 	if len(s.AllowedOrigins) == 0 {
-		return true
+		return false
 	}
 	for _, allowed := range s.AllowedOrigins {
 		if origin == allowed {

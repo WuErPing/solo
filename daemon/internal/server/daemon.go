@@ -536,7 +536,7 @@ func (s *WSServer) checkOrigin(r *http.Request) bool {
 		return true
 	}
 	if len(s.cfg.CORSOrigins) == 0 {
-		return true
+		return false
 	}
 	for _, allowed := range s.cfg.CORSOrigins {
 		if origin == allowed {

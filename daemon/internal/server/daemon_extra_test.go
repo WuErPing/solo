@@ -9,10 +9,22 @@ import (
 )
 
 func TestCheckOrigin_NoOriginHeader(t *testing.T) {
-	ws := &WSServer{cfg: &config.Config{}}
-	req := httptest.NewRequest("GET", "/ws", nil)
-	if !ws.checkOrigin(req) {
-		t.Error("expected true when no Origin header")
+	cases := []struct {
+		name string
+		cfg  config.Config
+	}{
+		{"nil CORSOrigins", config.Config{}},
+		{"empty CORSOrigins", config.Config{CORSOrigins: []string{}}},
+		{"populated CORSOrigins", config.Config{CORSOrigins: []string{"https://solo.up2ai.top"}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ws := &WSServer{cfg: &tc.cfg}
+			req := httptest.NewRequest("GET", "/ws", nil)
+			if !ws.checkOrigin(req) {
+				t.Error("expected true when no Origin header, regardless of CORSOrigins")
+			}
+		})
 	}
 }
 
@@ -20,8 +32,8 @@ func TestCheckOrigin_EmptyCORSOrigins(t *testing.T) {
 	ws := &WSServer{cfg: &config.Config{CORSOrigins: []string{}}}
 	req := httptest.NewRequest("GET", "/ws", nil)
 	req.Header.Set("Origin", "https://evil.com")
-	if !ws.checkOrigin(req) {
-		t.Error("expected true when CORSOrigins is empty")
+	if ws.checkOrigin(req) {
+		t.Error("expected false when CORSOrigins is empty")
 	}
 }
 
