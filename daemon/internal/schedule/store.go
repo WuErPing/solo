@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -21,10 +22,17 @@ func WithDataPath(path string) StoreOption {
 	}
 }
 
+func WithLogger(logger *slog.Logger) StoreOption {
+	return func(s *Store) {
+		s.logger = logger
+	}
+}
+
 type Store struct {
 	mu        sync.RWMutex
 	schedules map[string]*protocol.StoredSchedule
 	dataPath  string
+	logger    *slog.Logger
 }
 
 func NewStore(opts ...StoreOption) *Store {
@@ -63,7 +71,10 @@ func computeNextRun(cadence protocol.ScheduleCadence) *string {
 	return &s
 }
 
-func (st *Store) save() error {
+// saveLocked persists the in-memory schedules to disk.
+// Caller must hold st.mu (read or write lock is sufficient for the map copy,
+// but a write lock is required when the caller has just mutated st.schedules).
+func (st *Store) saveLocked() error {
 	if st.dataPath == "" {
 		return nil
 	}
@@ -73,20 +84,22 @@ func (st *Store) save() error {
 		return fmt.Errorf("create data directory: %w", err)
 	}
 
-	st.mu.RLock()
 	data := make(map[string]*protocol.StoredSchedule, len(st.schedules))
 	for k, v := range st.schedules {
 		data[k] = v
 	}
-	st.mu.RUnlock()
 
 	b, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal schedules: %w", err)
 	}
 
-	if err := os.WriteFile(st.dataPath, b, 0644); err != nil {
+	tmp := st.dataPath + ".tmp"
+	if err := os.WriteFile(tmp, b, 0644); err != nil {
 		return fmt.Errorf("write schedules file: %w", err)
+	}
+	if err := os.Rename(tmp, st.dataPath); err != nil {
+		return fmt.Errorf("rename schedules file: %w", err)
 	}
 	return nil
 }
@@ -133,7 +146,9 @@ func (st *Store) fixupNextRunAt() {
 		dirty = true
 	}
 	if dirty {
-		_ = st.save()
+		if err := st.saveLocked(); err != nil && st.logger != nil {
+			st.logger.Warn("fixupNextRunAt: failed to save", "error", err)
+		}
 	}
 }
 
@@ -175,9 +190,10 @@ func (st *Store) Create(input protocol.ScheduleCreateRequest) (*protocol.StoredS
 
 	st.mu.Lock()
 	st.schedules[schedule.ID] = schedule
+	err := st.saveLocked()
 	st.mu.Unlock()
 
-	if err := st.save(); err != nil {
+	if err != nil {
 		return nil, err
 	}
 
@@ -224,9 +240,10 @@ func (st *Store) Pause(id string) (*protocol.StoredSchedule, error) {
 	now := nowISO()
 	s.PausedAt = &now
 	s.UpdatedAt = now
+	err := st.saveLocked()
 	st.mu.Unlock()
 
-	if err := st.save(); err != nil {
+	if err != nil {
 		return nil, err
 	}
 
@@ -248,9 +265,10 @@ func (st *Store) Resume(id string) (*protocol.StoredSchedule, error) {
 	s.Status = "active"
 	s.NextRunAt = computeNextRun(s.Cadence)
 	s.UpdatedAt = nowISO()
+	err := st.saveLocked()
 	st.mu.Unlock()
 
-	if err := st.save(); err != nil {
+	if err != nil {
 		return nil, err
 	}
 
@@ -298,9 +316,10 @@ func (st *Store) Update(input protocol.ScheduleUpdateRequest) (*protocol.StoredS
 	} else {
 		s.ExpiresAt = nil
 	}
+	err := st.saveLocked()
 	st.mu.Unlock()
 
-	if err := st.save(); err != nil {
+	if err != nil {
 		return nil, err
 	}
 
@@ -314,13 +333,10 @@ func (st *Store) Delete(id string) error {
 		return fmt.Errorf("schedule not found")
 	}
 	delete(st.schedules, id)
+	err := st.saveLocked()
 	st.mu.Unlock()
 
-	if err := st.save(); err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func toSummary(s *protocol.StoredSchedule) protocol.ScheduleSummary {

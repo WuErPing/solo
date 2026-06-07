@@ -14,7 +14,9 @@ This document describes the end-to-end flow for loading tmux pane content into t
 - **Pane capture**: Streaming tmux pane content with ANSI escape sequences preserved
 - **Live polling**: Automatic refresh while the pane screen is visible and the app is in the foreground
 - **Key injection**: Sending keystrokes to a remote tmux pane
-- **Theme extraction**: Reading tmux session colors for faithful terminal rendering
+- **Terminal themes**: User-selected theme presets for consistent terminal appearance
+- **ANSI rendering**: Full ANSI color support in pane content and dashboard status lines
+- **Window list**: Tmux window information displayed in dashboard status line
 
 All tmux operations are proxied through the existing WebSocket session infrastructure (Client ↔ App-Bridge ↔ Relay ↔ Daemon) using correlated request/response messages.
 
@@ -70,7 +72,7 @@ All tmux operations are proxied through the existing WebSocket session infrastru
 │           │                    │                       │              │
 │  ┌────────▼────────────────────▼───────────────────────▼──────────┐  │
 │  │                     tmux subprocess                             │  │
-│  │  list-panes  │  capture-pane  │  send-keys  │  show-options    │  │
+│  │  list-panes  │  capture-pane  │  send-keys  │  display-message │  │
 │  └─────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -299,38 +301,90 @@ Users can disable automatic polling via an **"Auto" toggle** in the header. Defa
 
 This prevents the pane from jumping to the latest output while the user is scrolling up to read history.
 
-## 7. Theme Color Extraction
+## 7. Dashboard Status Line
 
-Tmux theme colors are fetched independently from pane content via a separate query. This avoids re-fetching theme data on every 5s content poll.
+The Tmux Dashboard displays a status line for each tmux session, rendered with ANSI color support.
 
-```
-TmuxPaneScreen mounts
-        │
-        ├──► useTmuxCapturePane(paneId)     (polls every 5s)
-        │
-        └──► useTmuxTheme(sessionId)        (staleTime: 30s)
-                     │
-                     ▼
-             DaemonClient.tmuxGetTheme(sessionId)
-                     │
-                     ▼
-             extractTmuxTheme(sessionID)
-                     │
-                     ▼
-             tmux show-options -gv -t {sessionId} status-style
-             tmux show-options -gv -t {sessionId} pane-border-style
-             ...
-                     │
-                     ▼
-             Return TmuxThemeColors
-```
+### 7.1 ANSI Text Rendering in Status Line
 
-### 7.1 React Query Configuration (Theme)
+Status line segments (`status-left`, `status-right`, window list) are parsed and rendered with proper ANSI color support via the `ansi-text-renderer.tsx` component. This preserves the visual styling intended by the tmux configuration.
 
-| Parameter | Value | Rationale |
+### 7.2 Window List Display
+
+The status line includes tmux window information (e.g., `0:claude*`), showing the window index, name, and active indicator. This is parsed from the tmux `display-message` output and rendered alongside the status-left and status-right segments.
+
+### 7.3 Status Line Hooks
+
+| Hook | File | Responsibility |
 |---|---|---|
-| `staleTime` | `30_000` ms | Theme rarely changes during a session |
-| `retry` | `1` | One retry on transient errors |
+| `useTmuxStatusLine` | `use-tmux-status-line.ts` | Parse and render a single tmux session's status line |
+| `useTmuxStatusLines` | `use-tmux-status-lines.ts` | Aggregate status lines from multiple hosts for the dashboard |
+
+## 8. Terminal Themes
+
+The tmux pane rendering uses user-selected terminal themes instead of extracting colors from the host tmux session. This decouples the app's appearance from the host's tmux configuration.
+
+### 7.1 Theme System Overview
+
+```
+User opens Settings
+        │
+        ▼
+Terminal Theme Picker
+        │
+        ├── System (default, follows OS theme)
+        ├── Dark
+        ├── Light
+        ├── Midnight
+        ├── Ghostty
+        ├── Solarized Dark
+        ├── Monokai
+        └── Dracula
+        │
+        ▼
+Selected theme stored in app settings
+        │
+        ▼
+TmuxPaneScreen uses theme for rendering
+        │
+        ├── Background/foreground colors
+        ├── ANSI color mapping (16 colors + 256 palette)
+        └── Status line colors
+```
+
+### 7.2 Theme Integration with ANSI Rendering
+
+The rendering pipeline merges the selected terminal theme with content-detected ANSI colors:
+
+```
+Selected terminal theme (base colors)
+        │
+        ▼
+parseAnsi() ──► structured spans with color/style
+        │
+        ▼
+detectColorsFromAnsi() ──► extract content-specific colors
+        │
+        ▼
+mergeTerminalColors(theme, contentColors)
+        │
+        ▼
+Final rendered terminal view
+```
+
+### 7.3 256-Color Palette Detection
+
+The `detect-ansi-colors.ts` utility detects 256-color ANSI sequences and maps them to the terminal theme's color palette. This enables faithful rendering of terminal applications that use extended color codes.
+
+### 7.4 Removed: Host Tmux Theme Extraction
+
+Previously, theme colors were fetched from the host tmux session via `tmux show-options -gv`. This approach was removed in v0.4.0 because:
+
+- Host tmux configuration varies widely and may not match the app's design
+- Theme extraction added latency to the pane loading flow
+- User-selected themes provide consistent, predictable appearance
+
+The `TmuxThemeColors` struct and `tmux/get_theme` RPC message remain defined in the protocol for backward compatibility but are no longer used by the frontend.
 
 ## 7. Keystroke Interaction Flow
 
@@ -545,6 +599,12 @@ export const TmuxGetThemeResponseSchema = z.object({
 | `app/src/hooks/use-tmux-agents.ts` | `useAggregatedTmuxAgents` hook |
 | `app/src/hooks/use-tmux-capture-pane.ts` | `useTmuxCapturePane` hook |
 | `app/src/hooks/use-tmux-theme.ts` | `useTmuxTheme` hook |
+| `app/src/hooks/use-tmux-status-line.ts` | `useTmuxStatusLine` hook — parse and render tmux status line |
+| `app/src/hooks/use-tmux-status-lines.ts` | `useTmuxStatusLines` hook — aggregate status lines from multiple hosts |
+| `app/src/styles/terminal-themes.ts` | 8 terminal theme presets (System/Dark/Light/Midnight/Ghostty/Solarized Dark/Monokai/Dracula) |
+| `app/src/components/ansi-text-renderer.tsx` | ANSI escape sequence rendering component |
+| `app/src/components/error-boundary.tsx` | React error boundary for crash protection |
+| `app/src/utils/detect-ansi-colors.ts` | 256-color palette detection from ANSI content |
 | `app/src/utils/tmux-rpc.ts` | `withLiveTmuxClient` wrapper |
 | `app-bridge/src/client/daemon-client.ts` | `DaemonClient` — `tmuxListAgents`, `tmuxCapturePane`, `tmuxSendKeys`, `tmuxGetTheme` |
 | `app-bridge/src/server/tmux/rpc-schemas.ts` | Zod schemas for all tmux RPC messages |

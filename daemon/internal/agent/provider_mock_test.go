@@ -117,7 +117,7 @@ func TestMockAgentClientResumeSessionReturnsMockSession(t *testing.T) {
 
 // ---- Run / events tests ----
 
-func TestMockSessionRunEmitsExpectedEvents(t *testing.T) {
+func TestMockSessionRunEmitsStreamEventTypes(t *testing.T) {
 	m := NewMockAgentClient()
 	sess, _ := m.CreateSession(context.Background(), &protocol.AgentSessionConfig{Provider: "mock"})
 	mockSess := sess.(*MockAgentSession)
@@ -144,9 +144,12 @@ func TestMockSessionRunEmitsExpectedEvents(t *testing.T) {
 
 	var types []string
 	for _, ev := range events {
-		if m, ok := ev.Event.(map[string]interface{}); ok {
-			types = append(types, m["type"].(string))
+		se, ok := ev.Event.(protocol.StreamEvent)
+		if !ok {
+			t.Errorf("event[%d] is not a protocol.StreamEvent, got %T", len(types), ev.Event)
+			continue
 		}
+		types = append(types, se.StreamEventType())
 	}
 	want := []string{"thread_started", "timeline", "timeline", "turn_completed"}
 	if len(types) != len(want) {
@@ -156,6 +159,88 @@ func TestMockSessionRunEmitsExpectedEvents(t *testing.T) {
 		if types[i] != want[i] {
 			t.Errorf("event[%d] type = %q, want %q", i, types[i], want[i])
 		}
+	}
+}
+
+func TestMockSessionRunEmitsExpectedTimelineContent(t *testing.T) {
+	m := NewMockAgentClient()
+	sess, _ := m.CreateSession(context.Background(), &protocol.AgentSessionConfig{Provider: "mock"})
+	mockSess := sess.(*MockAgentSession)
+
+	done := make(chan struct{})
+	var events []AgentStreamEvent
+	go func() {
+		defer close(done)
+		for ev := range mockSess.events {
+			events = append(events, ev)
+		}
+	}()
+
+	result, err := mockSess.Run(context.Background(), "hi", nil, nil, "msg-1")
+	mockSess.Close()
+	<-done
+
+	if err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	if result.FinalText != "Mock response to: hi" {
+		t.Errorf("FinalText = %q, want %q", result.FinalText, "Mock response to: hi")
+	}
+
+	if len(events) != 4 {
+		t.Fatalf("expected 4 events, got %d", len(events))
+	}
+
+	// First timeline event should be user_message.
+	timeline1, ok := events[1].Event.(protocol.TimelineStreamEvent)
+	if !ok {
+		t.Fatalf("event[1] is not TimelineStreamEvent, got %T", events[1].Event)
+	}
+	if timeline1.Provider != "mock" {
+		t.Errorf("timeline1.Provider = %q, want mock", timeline1.Provider)
+	}
+	if timeline1.Item.Type != "user_message" {
+		t.Errorf("timeline1.Item.Type = %q, want user_message", timeline1.Item.Type)
+	}
+	if timeline1.Item.Text != "hi" {
+		t.Errorf("timeline1.Item.Text = %q, want hi", timeline1.Item.Text)
+	}
+	if timeline1.Item.MessageID != "msg-1" {
+		t.Errorf("timeline1.Item.MessageID = %q, want msg-1", timeline1.Item.MessageID)
+	}
+
+	// Second timeline event should be assistant_message.
+	timeline2, ok := events[2].Event.(protocol.TimelineStreamEvent)
+	if !ok {
+		t.Fatalf("event[2] is not TimelineStreamEvent, got %T", events[2].Event)
+	}
+	if timeline2.Item.Type != "assistant_message" {
+		t.Errorf("timeline2.Item.Type = %q, want assistant_message", timeline2.Item.Type)
+	}
+	wantText := "Mock response to: hi"
+	if timeline2.Item.Text != wantText {
+		t.Errorf("timeline2.Item.Text = %q, want %q", timeline2.Item.Text, wantText)
+	}
+
+	// Thread started event should carry session ID and provider.
+	started, ok := events[0].Event.(protocol.ThreadStartedStreamEvent)
+	if !ok {
+		t.Fatalf("event[0] is not ThreadStartedStreamEvent, got %T", events[0].Event)
+	}
+	if started.Provider != "mock" {
+		t.Errorf("started.Provider = %q, want mock", started.Provider)
+	}
+	if started.SessionID == "" {
+		t.Error("expected non-empty SessionID")
+	}
+
+	// Turn completed event.
+	completed, ok := events[3].Event.(protocol.TurnCompletedStreamEvent)
+	if !ok {
+		t.Fatalf("event[3] is not TurnCompletedStreamEvent, got %T", events[3].Event)
+	}
+	if completed.Provider != "mock" {
+		t.Errorf("completed.Provider = %q, want mock", completed.Provider)
 	}
 }
 

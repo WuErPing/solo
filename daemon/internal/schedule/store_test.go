@@ -1,8 +1,10 @@
 package schedule
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -474,5 +476,223 @@ func TestStore_ConcurrentCreate(t *testing.T) {
 
 	if len(store.List()) != 10 {
 		t.Fatalf("expected 10 schedules, got %d", len(store.List()))
+	}
+}
+
+func TestStore_SaveAtomic(t *testing.T) {
+	tmpDir := t.TempDir()
+	dataPath := filepath.Join(tmpDir, "schedules.json")
+
+	store := NewStore(WithDataPath(dataPath))
+	for i := 0; i < 5; i++ {
+		_, err := store.Create(protocol.ScheduleCreateRequest{
+			Prompt:  fmt.Sprintf("prompt %d", i),
+			Cadence: protocol.ScheduleCadence{Type: "every", EveryMs: 3600000},
+			Target:  protocol.ScheduleTarget{Type: "agent", AgentID: "a"},
+		})
+		if err != nil {
+			t.Fatalf("create schedule %d: %v", i, err)
+		}
+	}
+
+	// Verify no temp files remain after save
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		t.Fatalf("read dir: %v", err)
+	}
+	for _, e := range entries {
+		if e.Name() != "schedules.json" {
+			t.Errorf("unexpected file left behind: %s", e.Name())
+		}
+	}
+
+	// Verify data file is valid JSON
+	b, err := os.ReadFile(dataPath)
+	if err != nil {
+		t.Fatalf("read data file: %v", err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(b, &raw); err != nil {
+		t.Fatalf("data file is not valid JSON: %v", err)
+	}
+	if len(raw) != 5 {
+		t.Errorf("expected 5 entries, got %d", len(raw))
+	}
+
+	// Verify round-trip: reload from disk matches in-memory
+	reloaded := NewStore(WithDataPath(dataPath))
+	if len(reloaded.List()) != 5 {
+		t.Fatalf("reloaded store has %d schedules, want 5", len(reloaded.List()))
+	}
+	for _, orig := range store.List() {
+		got, ok := reloaded.Get(orig.ID)
+		if !ok {
+			t.Errorf("schedule %s not found after reload", orig.ID)
+			continue
+		}
+		if got.Prompt != orig.Prompt {
+			t.Errorf("schedule %s prompt mismatch after reload: got %q, want %q", orig.ID, got.Prompt, orig.Prompt)
+		}
+	}
+}
+
+// testLogHandler is a minimal slog.Handler that captures warn-level records.
+type testLogHandler struct {
+	warns []string
+}
+
+func (h *testLogHandler) Enabled(_ context.Context, level slog.Level) bool { return level >= slog.LevelWarn }
+func (h *testLogHandler) Handle(_ context.Context, r slog.Record) error {
+	h.warns = append(h.warns, r.Message)
+	return nil
+}
+func (h *testLogHandler) WithAttrs(_ []slog.Attr) slog.Handler { return h }
+func (h *testLogHandler) WithGroup(_ string) slog.Handler      { return h }
+
+func TestStore_FixupNextRunAt_LogsWarningOnSaveFailure(t *testing.T) {
+	// Write a schedule file with a stale NextRunAt (nil for an active schedule)
+	// so fixupNextRunAt will attempt to recompute and save.
+	tmpDir := t.TempDir()
+	readOnlyDir := filepath.Join(tmpDir, "readonly")
+	if err := os.MkdirAll(readOnlyDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	dataPath := filepath.Join(readOnlyDir, "schedules.json")
+
+	staleData := map[string]*protocol.StoredSchedule{
+		"test-id": {
+			ID:        "test-id",
+			Prompt:    "test",
+			Cadence:   protocol.ScheduleCadence{Type: "every", EveryMs: 3600000},
+			Target:    protocol.ScheduleTarget{Type: "agent", AgentID: "a"},
+			Status:    "active",
+			NextRunAt: nil, // stale — fixupNextRunAt will recompute
+			CreatedAt: "2026-01-01T00:00:00Z",
+			UpdatedAt: "2026-01-01T00:00:00Z",
+			Runs:      []protocol.ScheduleRun{},
+		},
+	}
+	b, _ := json.MarshalIndent(staleData, "", "  ")
+	if err := os.WriteFile(dataPath, b, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Make directory read-only so save() fails
+	if err := os.Chmod(readOnlyDir, 0555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(readOnlyDir, 0755) })
+
+	handler := &testLogHandler{}
+	logger := slog.New(handler)
+
+	_ = NewStore(WithDataPath(dataPath), WithLogger(logger))
+
+	found := false
+	for _, msg := range handler.warns {
+		if msg == "fixupNextRunAt: failed to save" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning log for fixupNextRunAt save failure, got warns: %v", handler.warns)
+	}
+}
+
+func TestStore_ConcurrentCreate_Persistence(t *testing.T) {
+	tmpDir := t.TempDir()
+	dataPath := filepath.Join(tmpDir, "schedules.json")
+
+	store := NewStore(WithDataPath(dataPath))
+
+	const n = 20
+	ids := make(chan string, n)
+	for i := range n {
+		go func(n int) {
+			sched, err := store.Create(protocol.ScheduleCreateRequest{
+				Prompt:  fmt.Sprintf("prompt %d", n),
+				Cadence: protocol.ScheduleCadence{Type: "every", EveryMs: 3600000},
+				Target:  protocol.ScheduleTarget{Type: "agent", AgentID: "a"},
+			})
+			if err != nil {
+				ids <- ""
+				return
+			}
+			ids <- sched.ID
+		}(i)
+	}
+
+	created := make(map[string]bool)
+	for range n {
+		id := <-ids
+		if id == "" {
+			t.Fatal("create failed")
+		}
+		if created[id] {
+			t.Fatal("duplicate ID")
+		}
+		created[id] = true
+	}
+
+	// Verify in-memory state
+	if len(store.List()) != n {
+		t.Fatalf("in-memory: expected %d schedules, got %d", n, len(store.List()))
+	}
+
+	// Reload from disk and verify all schedules persisted
+	reloaded := NewStore(WithDataPath(dataPath))
+	if len(reloaded.List()) != n {
+		t.Fatalf("on-disk: expected %d schedules after reload, got %d", n, len(reloaded.List()))
+	}
+	for id := range created {
+		if _, ok := reloaded.Get(id); !ok {
+			t.Errorf("schedule %s lost after reload", id)
+		}
+	}
+}
+
+func TestStore_ConcurrentPauseResume_Persistence(t *testing.T) {
+	tmpDir := t.TempDir()
+	dataPath := filepath.Join(tmpDir, "schedules.json")
+
+	store := NewStore(WithDataPath(dataPath))
+
+	// Create 10 schedules
+	ids := make([]string, 10)
+	for i := range 10 {
+		sched, err := store.Create(protocol.ScheduleCreateRequest{
+			Prompt:  fmt.Sprintf("prompt %d", i),
+			Cadence: protocol.ScheduleCadence{Type: "every", EveryMs: 3600000},
+			Target:  protocol.ScheduleTarget{Type: "agent", AgentID: "a"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids[i] = sched.ID
+	}
+
+	// Concurrently pause and resume different schedules
+	done := make(chan struct{})
+	for _, id := range ids[:5] {
+		go func(id string) {
+			store.Pause(id)
+			done <- struct{}{}
+		}(id)
+	}
+	for _, id := range ids[5:] {
+		go func(id string) {
+			store.Resume(id) // already active, will error — that's fine
+			done <- struct{}{}
+		}(id)
+	}
+	for range 10 {
+		<-done
+	}
+
+	// Reload and verify all 10 schedules still present
+	reloaded := NewStore(WithDataPath(dataPath))
+	if len(reloaded.List()) != 10 {
+		t.Fatalf("expected 10 schedules after reload, got %d", len(reloaded.List()))
 	}
 }

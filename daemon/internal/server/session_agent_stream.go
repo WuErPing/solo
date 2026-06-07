@@ -45,71 +45,62 @@ func (s *Session) handleAgentEvent(event agent.AgentEvent) {
 }
 
 func (s *Session) handleStreamEvent(evt agent.AgentStreamEvent) {
-	payload, ok := evt.Event.(map[string]interface{})
-	if !ok {
-		return
-	}
-
-	evtType, _ := payload["type"].(string)
-	provider, _ := payload["provider"].(string)
-
-	switch evtType {
-	case "timeline":
-		item := extractTimelineItem(payload["item"])
-		turnID, _ := payload["turnId"].(string)
-		if !s.coalescer.Handle(evt.AgentID, evtType, item, provider, turnID) {
-			// Non-coalescable types (e.g. user_message) are handled immediately
-			row := s.timelineStore.Append(evt.AgentID, item)
+	// Fast path: typed StreamEvent implementations (new code path).
+	switch e := evt.Event.(type) {
+	case protocol.TimelineStreamEvent:
+		if !s.coalescer.Handle(evt.AgentID, e.StreamEventType(), e.Item, e.Provider, e.TurnID) {
+			row := s.timelineStore.Append(evt.AgentID, e.Item)
 			epoch := s.timelineStore.GetEpoch(evt.AgentID)
 			seq := row.Seq
-			streamPayload := map[string]interface{}{
-				"type":     "timeline",
-				"item":     item.ToProtocolMap(),
-				"provider": provider,
-			}
-			if turnID != "" {
-				streamPayload["turnId"] = turnID
-			}
-			s.sendAgentStream(evt.AgentID, streamPayload, time.Now(), &seq, &epoch)
+			s.sendAgentStream(evt.AgentID, e, time.Now(), &seq, &epoch)
 		}
+		return
 
-	case "flush_signal":
+	case protocol.FlushSignalStreamEvent:
 		// content_block_stop signals the end of a thinking/text block.
 		// Flush any buffered reasoning entries for this agent immediately
 		// rather than waiting for the full 2s extended coalescer window.
 		s.coalescer.FlushFor(evt.AgentID)
+		return
 
-	case "thread_started":
+	case protocol.ThreadStartedStreamEvent:
 		s.timelineStore.Initialize(evt.AgentID)
-		s.sendAgentStream(evt.AgentID, payload, evt.Timestamp, nil, nil)
+		s.sendAgentStream(evt.AgentID, e, evt.Timestamp, nil, nil)
+		return
 
-	case "turn_completed":
-		usage, _ := payload["usage"].(*protocol.AgentUsage)
-		_ = usage
+	case protocol.TurnCompletedStreamEvent:
 		s.coalescer.FlushFor(evt.AgentID)
-		s.sendAgentStream(evt.AgentID, payload, evt.Timestamp, nil, nil)
+		s.sendAgentStream(evt.AgentID, e, evt.Timestamp, nil, nil)
+		return
 
-	case "turn_failed", "turn_canceled":
+	case protocol.TurnFailedStreamEvent:
 		s.coalescer.FlushFor(evt.AgentID)
-		s.sendAgentStream(evt.AgentID, payload, evt.Timestamp, nil, nil)
+		s.sendAgentStream(evt.AgentID, e, evt.Timestamp, nil, nil)
+		return
 
-	case "permission_requested":
-		s.sendAgentStream(evt.AgentID, payload, evt.Timestamp, nil, nil)
+	case protocol.TurnCanceledStreamEvent:
+		s.coalescer.FlushFor(evt.AgentID)
+		s.sendAgentStream(evt.AgentID, e, evt.Timestamp, nil, nil)
+		return
 
-	case "permission_resolved":
-		s.sendAgentStream(evt.AgentID, payload, evt.Timestamp, nil, nil)
+	case protocol.PermissionRequestedStreamEvent:
+		s.sendAgentStream(evt.AgentID, e, evt.Timestamp, nil, nil)
+		return
 
-	case "attention_required":
-		reason, _ := payload["reason"].(string)
+	case protocol.PermissionResolvedStreamEvent:
+		s.sendAgentStream(evt.AgentID, e, evt.Timestamp, nil, nil)
+		return
+
+	case protocol.AttentionRequiredStreamEvent:
 		// Enrich notification with assistant message from timeline and compute shouldNotify
 		if s.activityTracker != nil {
 			assistantMessage := s.getLastAssistantMessage(evt.AgentID)
-			notification := push.BuildAttentionNotificationWithServerID(evt.AgentID, reason, assistantMessage, s.cfg.ServerID)
+			notification := push.BuildAttentionNotificationWithServerID(evt.AgentID, e.Reason, assistantMessage, s.cfg.ServerID)
 			states := s.activityTracker.GetAllStates()
 			nowMs := time.Now().UnixMilli()
-			plan := ComputeNotificationPlan(states, evt.AgentID, reason, nowMs)
+			plan := ComputeNotificationPlan(states, evt.AgentID, e.Reason, nowMs)
 
-			payload["notification"] = map[string]interface{}{
+			e.Notification = map[string]interface{}{
 				"title": notification.Title,
 				"body":  notification.Body,
 				"data": map[string]interface{}{
@@ -118,13 +109,11 @@ func (s *Session) handleStreamEvent(evt agent.AgentStreamEvent) {
 					"serverId": notification.Data.ServerID,
 				},
 			}
-			payload["shouldNotify"] = plan.InAppRecipientIndex != nil
+			e.ShouldNotify = plan.InAppRecipientIndex != nil
 		}
-		s.broadcastAgentAttention(evt.AgentID, reason)
-		s.sendAgentStream(evt.AgentID, payload, evt.Timestamp, nil, nil)
-
-	default:
-		s.sendAgentStream(evt.AgentID, payload, evt.Timestamp, nil, nil)
+		s.broadcastAgentAttention(evt.AgentID, e.Reason)
+		s.sendAgentStream(evt.AgentID, e, evt.Timestamp, nil, nil)
+		return
 	}
 }
 
@@ -133,15 +122,12 @@ func (s *Session) handleCoalescedFlush(p agent.FlushPayload) {
 
 	epoch := s.timelineStore.GetEpoch(p.AgentID)
 	seq := row.Seq
-	payload := map[string]interface{}{
-		"type":     "timeline",
-		"item":     p.Item.ToProtocolMap(),
-		"provider": p.Provider,
+	evt := protocol.TimelineStreamEvent{
+		Item:     p.Item,
+		Provider: p.Provider,
+		TurnID:   p.TurnID,
 	}
-	if p.TurnID != "" {
-		payload["turnId"] = p.TurnID
-	}
-	s.sendAgentStream(p.AgentID, payload, time.Now(), &seq, &epoch)
+	s.sendAgentStream(p.AgentID, evt, time.Now(), &seq, &epoch)
 }
 
 func (s *Session) pushActiveAgents() {

@@ -19,7 +19,7 @@ func TestSendToChannel_CriticalEventsBlock(t *testing.T) {
 
 	// Fill the channel to capacity
 	ch <- AgentStreamEvent{
-		Event:     map[string]interface{}{"type": "timeline", "provider": "test"},
+		Event:     protocol.TimelineStreamEvent{Provider: "test", Item: protocol.TimelineItem{Type: "text", Text: "filler"}},
 		Timestamp: time.Now(),
 	}
 	// ch is now full (capacity 1, 1 item)
@@ -27,10 +27,7 @@ func TestSendToChannel_CriticalEventsBlock(t *testing.T) {
 	// Send a critical event: should block until room is available
 	criticalEvt := AgentStreamEvent{
 		AgentID: "test-agent",
-		Event: map[string]interface{}{
-			"type":     "turn_completed",
-			"provider": "test",
-		},
+		Event: protocol.TurnCompletedStreamEvent{Provider: "test"},
 		Timestamp: time.Now(),
 	}
 
@@ -64,10 +61,7 @@ func TestSendToChannel_CriticalEventsBlock(t *testing.T) {
 func TestOpenCodeTerminalEventValueIsDispatcherCritical(t *testing.T) {
 	evt := AgentStreamEvent{
 		AgentID: "test-agent",
-		Event: map[string]interface{}{
-			"type":     "turn_completed",
-			"provider": opencodeProviderName,
-		},
+		Event: protocol.TurnCompletedStreamEvent{Provider: opencodeProviderName},
 		Timestamp: time.Now(),
 	}
 
@@ -86,16 +80,13 @@ func TestSendToChannel_NonCriticalEventsDrop(t *testing.T) {
 
 	// Fill the channel to capacity
 	ch <- AgentStreamEvent{
-		Event:     map[string]interface{}{"type": "timeline", "provider": "test"},
+		Event:     protocol.TimelineStreamEvent{Provider: "test", Item: protocol.TimelineItem{Type: "text", Text: "filler"}},
 		Timestamp: time.Now(),
 	}
 
 	// Send a non-critical event: should be dropped immediately (non-blocking)
 	nonCriticalEvt := AgentStreamEvent{
-		Event: map[string]interface{}{
-			"type":     "timeline",
-			"provider": "test",
-		},
+		Event:     protocol.TimelineStreamEvent{Provider: "test", Item: protocol.TimelineItem{Type: "text", Text: "non-critical"}},
 		Timestamp: time.Now(),
 	}
 
@@ -123,17 +114,14 @@ func TestSendToChannel_BuggyPatternDropsCritical(t *testing.T) {
 
 	// Fill the channel to capacity
 	ch <- AgentStreamEvent{
-		Event:     map[string]interface{}{"type": "timeline", "provider": "test"},
+		Event:     protocol.TimelineStreamEvent{Provider: "test", Item: protocol.TimelineItem{Type: "text", Text: "filler"}},
 		Timestamp: time.Now(),
 	}
 
 	// Send a critical event with the buggy pattern -- it gets dropped
 	criticalEvt := AgentStreamEvent{
 		AgentID: "test-agent",
-		Event: map[string]interface{}{
-			"type":     "turn_failed",
-			"provider": "test",
-		},
+		Event: protocol.TurnFailedStreamEvent{Provider: "test", Error: "failed"},
 		Timestamp: time.Now(),
 	}
 
@@ -179,11 +167,11 @@ func TestStartTurnIntegration_PreservesCriticalEvents(t *testing.T) {
 
 	// Pre-fill ch directly to guarantee it's full
 	filler1 := AgentStreamEvent{
-		Event:     map[string]interface{}{"type": "timeline", "provider": opencodeProviderName},
+		Event:     protocol.TimelineStreamEvent{Provider: opencodeProviderName, Item: protocol.TimelineItem{Type: "text", Text: "filler"}},
 		Timestamp: time.Now(),
 	}
 	filler2 := AgentStreamEvent{
-		Event:     map[string]interface{}{"type": "timeline", "provider": opencodeProviderName},
+		Event:     protocol.TimelineStreamEvent{Provider: opencodeProviderName, Item: protocol.TimelineItem{Type: "text", Text: "filler"}},
 		Timestamp: time.Now(),
 	}
 	ch <- filler1
@@ -217,10 +205,7 @@ func TestStartTurnIntegration_PreservesCriticalEvents(t *testing.T) {
 	// block until the drainer makes room.
 	session.notifySubscribers(AgentStreamEvent{
 		AgentID: "test-agent",
-		Event: map[string]interface{}{
-			"type":     "turn_completed",
-			"provider": opencodeProviderName,
-		},
+		Event: protocol.TurnCompletedStreamEvent{Provider: opencodeProviderName},
 		Timestamp: time.Now(),
 	})
 
@@ -269,11 +254,11 @@ func TestStartTurnIntegration_BuggyPatternDropsCritical(t *testing.T) {
 
 	// Pre-fill ch directly so it's guaranteed full
 	filler1 := AgentStreamEvent{
-		Event:     map[string]interface{}{"type": "timeline", "provider": opencodeProviderName},
+		Event:     protocol.TimelineStreamEvent{Provider: opencodeProviderName, Item: protocol.TimelineItem{Type: "text", Text: "filler"}},
 		Timestamp: time.Now(),
 	}
 	filler2 := AgentStreamEvent{
-		Event:     map[string]interface{}{"type": "timeline", "provider": opencodeProviderName},
+		Event:     protocol.TimelineStreamEvent{Provider: opencodeProviderName, Item: protocol.TimelineItem{Type: "text", Text: "filler"}},
 		Timestamp: time.Now(),
 	}
 	ch <- filler1
@@ -282,10 +267,7 @@ func TestStartTurnIntegration_BuggyPatternDropsCritical(t *testing.T) {
 	// Emit a critical event. The buggy callback drops it immediately.
 	session.notifySubscribers(AgentStreamEvent{
 		AgentID: "test-agent",
-		Event: map[string]interface{}{
-			"type":     "turn_canceled",
-			"provider": opencodeProviderName,
-		},
+		Event: protocol.TurnCanceledStreamEvent{Provider: opencodeProviderName},
 		Timestamp: time.Now(),
 	})
 	time.Sleep(50 * time.Millisecond)
@@ -334,11 +316,7 @@ func TestSubscribe_NeverDropsCriticalEvents(t *testing.T) {
 	// Fill the channel to capacity with non-critical events
 	for i := 0; i < 256; i++ {
 		session.notifySubscribers(AgentStreamEvent{
-			Event: map[string]interface{}{
-				"type":     "timeline",
-				"item":     TimelineItem{Type: "assistant_message", Text: "filler"},
-				"provider": opencodeProviderName,
-			},
+			Event:     protocol.TimelineStreamEvent{Provider: opencodeProviderName, Item: TimelineItem{Type: "assistant_message", Text: "filler"}},
 			Timestamp: time.Now(),
 		})
 	}
@@ -347,10 +325,7 @@ func TestSubscribe_NeverDropsCriticalEvents(t *testing.T) {
 	// Emit a critical event while the channel is full
 	session.notifySubscribers(AgentStreamEvent{
 		AgentID: "test-agent",
-		Event: map[string]interface{}{
-			"type":     "turn_failed",
-			"provider": opencodeProviderName,
-		},
+		Event: protocol.TurnFailedStreamEvent{Provider: opencodeProviderName, Error: "failed"},
 		Timestamp: time.Now(),
 	})
 

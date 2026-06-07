@@ -1,7 +1,7 @@
 # Solo — Documentation Index
 
 > **Purpose**: Persistent context base for Solo development, CI/CD, and architecture decisions.
-> **Last updated**: 2026-06-01
+> **Last updated**: 2026-06-07
 
 ---
 
@@ -19,7 +19,10 @@ docs/
 │   ├── network-architecture.md            # Network paths, E2EE, Pairing Link
 │   ├── push-notifications.md              # Push notification architecture
 │   ├── session-memory-persistence.md      # Session turn recording & memory layer design
-│   └── timeline-design.md                 # Head/Tail model, seq gate, deduplication
+│   ├── solo-system-architecture.png       # System architecture diagram (PNG)
+│   ├── solo-system-architecture.svg       # System architecture diagram (SVG)
+│   ├── timeline-design.md                 # Head/Tail model, seq gate, deduplication
+│   └── tmux-pane-content-loading.md       # Tmux agent detection, pane capture, polling, key injection
 ├── product/                               ← Product feature analysis
 │   ├── features.md                        # Full product feature analysis
 │   ├── product-analysis.md                # Optimization & feature suggestions
@@ -35,9 +38,12 @@ docs/
     ├── app-coverage-analysis.md             # App test coverage analysis
     ├── app-lint-analysis.md                 # App lint capability analysis
     ├── create-schedule-flow.md              # End-to-end schedule creation flow
+    ├── demo/                              # Demo code (iterm2-agent-detection)
     ├── go-coverage-report.md                # Go backend coverage report
     ├── host-status-check.md                 # Host probe cycle & status machine
+    ├── iterm2-agent-observation.md          # iTerm2 agent detection observation
     ├── lint-capability-plan.md              # Lint tooling capability plan
+    ├── README.md                            # Analysis directory index
     ├── session-timeline-e2e-gaps.md         # Session timeline E2E test gaps
     ├── test-suite-analysis.md               # Full test suite inventory, CI gaps, coverage report
     └── tmux-transport-disposed-race.md      # Tmux `Transport not connected (status: disposed)` race analysis
@@ -58,6 +64,8 @@ System design, component contracts, and runtime behaviour.
 | [Session Memory Persistence](architecture/session-memory-persistence.md) | Design | Dev | Hook points, TurnRecorder interface, file layout, migration path to DB / memory middleware |
 | [Agent Stall Detection](architecture/agent-stall-detection.md) | Design | Dev | Inactivity & repetition detection, grace-period tightening, operational tuning |
 | [Deployment](architecture/deployment.md) | Runbook | Infra / CI | Systemd, Docker, Nginx config, env vars, monitoring, troubleshooting |
+| [Tmux Pane Content Loading](architecture/tmux-pane-content-loading.md) | Design | Dev | Tmux agent detection, pane capture with ANSI rendering, lazy history loading, keystroke injection, terminal themes |
+| [System Architecture Diagram](architecture/solo-system-architecture.svg) | Diagram | All | Visual system architecture (SVG) — [PNG version](architecture/solo-system-architecture.png) |
 
 **Key facts (always-on context)**:
 - Daemon listens `127.0.0.1:17612`; Relay listens `127.0.0.1:8081` (behind Nginx :443)
@@ -78,7 +86,7 @@ Feature inventory and UI/UX analysis.
 | [Session Memory Spec](product/session-memory-spec.md) | Spec | Phase-1 implementation spec: TurnRecorder interface, FileTurnRecorder, hooks, redaction, tests |
 | [UI Features](product/ui-features.md) | Analysis | Screen map, component catalogue, contexts, hooks, stores, feature checklist |
 
-**Current completion**: ~80-87 %. Main gaps: Chat system (multi-agent), Cursor-Agent / ACP providers.
+**Current completion**: ~85-90 %. Main gaps: Chat system (multi-agent), Cursor-Agent / ACP providers.
 
 ---
 
@@ -115,7 +123,7 @@ Deep dives into specific subsystems.
 | [Host Status Check](analysis/host-status-check.md) | Analysis | Probe cycle (2-30 s), adaptive switching, state machine conflict, grace-period fix |
 | [Lint Capability Plan](analysis/lint-capability-plan.md) | Plan | Lint tooling roadmap and capability gap plan |
 | [Session Timeline E2E Gaps](analysis/session-timeline-e2e-gaps.md) | Analysis | Session timeline E2E test coverage gaps and remediation |
-| [Test Suite Analysis](analysis/test-suite-analysis.md) | Analysis | Test inventory (207 app unit, 154 Go, 30 E2E), CI coverage, Codecov integration |
+| [Test Suite Analysis](analysis/test-suite-analysis.md) | Analysis | Test inventory (app unit, Go, E2E), CI coverage, Codecov integration |
 | [Tmux Transport Disposed Race](analysis/tmux-transport-disposed-race.md) | Analysis | `Transport not connected (status: disposed)` root cause: probe-cycle switch vs. in-flight tmux RPC |
 
 ---
@@ -144,8 +152,8 @@ Deep dives into specific subsystems.
 
 | Layer | Stack |
 |-------|-------|
-| Backend | Go 1.25.6 · gorilla/websocket · creack/pty · slog |
-| Frontend | Expo ^54.0.18 · React Native 0.81.5 · React 19.1.0 · TypeScript |
+| Backend | Go 1.25 · gorilla/websocket · creack/pty · slog |
+| Frontend | Expo 54 · React Native 0.81 · React 19 · TypeScript |
 | State | Zustand · @tanstack/react-query · React Context |
 | Crypto | X25519 + XSalsa20-Poly1305 (E2EE) |
 | Deploy | Systemd · Docker · Nginx + Let's Encrypt |

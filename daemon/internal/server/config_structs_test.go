@@ -9,6 +9,7 @@ import (
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/config"
 	"github.com/WuErPing/solo/daemon/internal/push"
+	"github.com/WuErPing/solo/daemon/internal/schedule"
 	"github.com/WuErPing/solo/daemon/internal/terminal"
 	"github.com/WuErPing/solo/daemon/internal/workspace"
 	"github.com/WuErPing/solo/protocol"
@@ -55,6 +56,7 @@ func TestDaemonConfig(t *testing.T) {
 		PushTokenStore:  pushTokenStore,
 		Pusher:          pusher,
 		ActivityTracker: activityTracker,
+		ScheduleStore:   schedule.NewStore(),
 	}
 
 	if daemonCfg.Config == nil {
@@ -144,6 +146,7 @@ func TestNewWSServerWithConfig(t *testing.T) {
 		PushTokenStore:  pushTokenStore,
 		Pusher:          pusher,
 		ActivityTracker: activityTracker,
+		ScheduleStore:   schedule.NewStore(),
 	}
 
 	// RED: This should fail because NewWSServerWithConfig doesn't exist yet

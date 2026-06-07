@@ -4,6 +4,25 @@ This directory contains analysis documents for the Solo project.
 
 ## Recent Analyses
 
+### 2026-06-07: Go Provider Type Erasure Analysis
+
+**Status:** Analysis Complete
+**Priority:** P1 (Structural Risk)
+
+**Summary:**
+- Diagnoses Go-side `interface{}` / `map[string]interface{}` growth (~25-30%/cycle)
+- Compares 5 remediation strategies (Gradual, Tagged Union, Code Gen, Boundary Isolation, Linter)
+- Recommends phased D → B approach: Boundary Isolation first, then Tagged Union
+
+**Key Findings:**
+1. Root cause: `protocol.AgentStreamPayload.Event` acts as a type sink
+2. OpenCode provider is the largest contributor (~120 instances)
+3. Boundary Isolation is the most feasible structural fix (~45h, 1-2 weeks)
+
+**Document:** [go-provider-type-erasure-analysis.md](go-provider-type-erasure-analysis.md)
+
+---
+
 ### 2026-06-03: iTerm2 Agent Observation Analysis
 
 **Status:** Analysis Complete

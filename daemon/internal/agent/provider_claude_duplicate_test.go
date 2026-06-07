@@ -283,19 +283,15 @@ func checkReasoningEvent(t *testing.T, evt interface{}, expectedText string) {
 	if !ok {
 		t.Fatalf("expected AgentStreamEvent, got %T", evt)
 	}
-	payload, ok := streamEvt.Event.(map[string]interface{})
+	payload, ok := streamEvt.Event.(protocol.TimelineStreamEvent)
 	if !ok {
-		t.Fatal("expected map payload")
+		t.Fatalf("expected protocol.TimelineStreamEvent, got %T", streamEvt.Event)
 	}
-	item, ok := payload["item"].(TimelineItem)
-	if !ok {
-		t.Fatal("expected TimelineItem")
+	if payload.Item.Type != "reasoning" {
+		t.Fatalf("expected reasoning, got %s", payload.Item.Type)
 	}
-	if item.Type != "reasoning" {
-		t.Fatalf("expected reasoning, got %s", item.Type)
-	}
-	if item.Text != expectedText {
-		t.Fatalf("expected text %q, got %q", expectedText, item.Text)
+	if payload.Item.Text != expectedText {
+		t.Fatalf("expected text %q, got %q", expectedText, payload.Item.Text)
 	}
 }
 
@@ -305,18 +301,14 @@ func checkAssistantMessageEvent(t *testing.T, evt interface{}, expectedText stri
 	if !ok {
 		t.Fatalf("expected AgentStreamEvent, got %T", evt)
 	}
-	payload, ok := streamEvt.Event.(map[string]interface{})
+	payload, ok := streamEvt.Event.(protocol.TimelineStreamEvent)
 	if !ok {
-		t.Fatal("expected map payload")
+		t.Fatalf("expected protocol.TimelineStreamEvent, got %T", streamEvt.Event)
 	}
-	item, ok := payload["item"].(TimelineItem)
-	if !ok {
-		t.Fatal("expected TimelineItem")
+	if payload.Item.Type != "assistant_message" {
+		t.Fatalf("expected assistant_message, got %s", payload.Item.Type)
 	}
-	if item.Type != "assistant_message" {
-		t.Fatalf("expected assistant_message, got %s", item.Type)
-	}
-	if item.Text != expectedText {
-		t.Fatalf("expected text %q, got %q", expectedText, item.Text)
+	if payload.Item.Text != expectedText {
+		t.Fatalf("expected text %q, got %q", expectedText, payload.Item.Text)
 	}
 }

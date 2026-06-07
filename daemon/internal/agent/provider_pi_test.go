@@ -121,18 +121,15 @@ func TestPiTranslator_Session(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected AgentStreamEvent, got %T", events[0])
 	}
-	payload, ok := streamEvt.Event.(map[string]interface{})
+	evt, ok := streamEvt.Event.(protocol.ThreadStartedStreamEvent)
 	if !ok {
-		t.Fatalf("expected map event, got %T", streamEvt.Event)
+		t.Fatalf("expected ThreadStartedStreamEvent, got %T", streamEvt.Event)
 	}
-	if payload["type"] != "thread_started" {
-		t.Fatalf("expected thread_started, got %v", payload["type"])
+	if evt.SessionID != "pi-test-123" {
+		t.Fatalf("expected sessionId 'pi-test-123', got %v", evt.SessionID)
 	}
-	if payload["sessionId"] != "pi-test-123" {
-		t.Fatalf("expected sessionId 'pi-test-123', got %v", payload["sessionId"])
-	}
-	if payload["provider"] != "pi" {
-		t.Fatalf("expected provider 'pi', got %v", payload["provider"])
+	if evt.Provider != "pi" {
+		t.Fatalf("expected provider 'pi', got %v", evt.Provider)
 	}
 }
 
@@ -151,16 +148,12 @@ func TestPiTranslator_UserMessage(t *testing.T) {
 	}
 
 	streamEvt := events[0].(AgentStreamEvent)
-	payload := streamEvt.Event.(map[string]interface{})
-	if payload["type"] != "timeline" {
-		t.Fatalf("expected timeline, got %v", payload["type"])
+	evt := streamEvt.Event.(protocol.TimelineStreamEvent)
+	if evt.Item.Type != "user_message" {
+		t.Fatalf("expected user_message, got %s", evt.Item.Type)
 	}
-	item := payload["item"].(TimelineItem)
-	if item.Type != "user_message" {
-		t.Fatalf("expected user_message, got %s", item.Type)
-	}
-	if item.Text != "hello" {
-		t.Fatalf("expected text 'hello', got %s", item.Text)
+	if evt.Item.Text != "hello" {
+		t.Fatalf("expected text 'hello', got %s", evt.Item.Text)
 	}
 }
 
@@ -179,13 +172,12 @@ func TestPiTranslator_ThinkingDelta(t *testing.T) {
 	}
 
 	streamEvt := events[0].(AgentStreamEvent)
-	payload := streamEvt.Event.(map[string]interface{})
-	item := payload["item"].(TimelineItem)
-	if item.Type != "reasoning" {
-		t.Fatalf("expected reasoning, got %s", item.Type)
+	evt := streamEvt.Event.(protocol.TimelineStreamEvent)
+	if evt.Item.Type != "reasoning" {
+		t.Fatalf("expected reasoning, got %s", evt.Item.Type)
 	}
-	if item.Text != "thinking..." {
-		t.Fatalf("expected text 'thinking...', got %s", item.Text)
+	if evt.Item.Text != "thinking..." {
+		t.Fatalf("expected text 'thinking...', got %s", evt.Item.Text)
 	}
 }
 
@@ -204,13 +196,12 @@ func TestPiTranslator_TextDelta(t *testing.T) {
 	}
 
 	streamEvt := events[0].(AgentStreamEvent)
-	payload := streamEvt.Event.(map[string]interface{})
-	item := payload["item"].(TimelineItem)
-	if item.Type != "assistant_message" {
-		t.Fatalf("expected assistant_message, got %s", item.Type)
+	evt := streamEvt.Event.(protocol.TimelineStreamEvent)
+	if evt.Item.Type != "assistant_message" {
+		t.Fatalf("expected assistant_message, got %s", evt.Item.Type)
 	}
-	if item.Text != "Hello world" {
-		t.Fatalf("expected text 'Hello world', got %s", item.Text)
+	if evt.Item.Text != "Hello world" {
+		t.Fatalf("expected text 'Hello world', got %s", evt.Item.Text)
 	}
 }
 
@@ -230,19 +221,15 @@ func TestPiTranslator_ToolCall(t *testing.T) {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
 	streamEvt := events[0].(AgentStreamEvent)
-	payload := streamEvt.Event.(map[string]interface{})
-	item := payload["item"].(TimelineItem)
-	if item.Type != "tool_call" {
-		t.Fatalf("expected tool_call, got %s", item.Type)
+	evt := streamEvt.Event.(protocol.TimelineStreamEvent)
+	if evt.Item.Type != "tool_call" {
+		t.Fatalf("expected tool_call, got %s", evt.Item.Type)
 	}
-	if item.Status != "running" {
-		t.Fatalf("expected status running, got %s", item.Status)
+	if evt.Item.Status != "running" {
+		t.Fatalf("expected status running, got %s", evt.Item.Status)
 	}
-	if item.Detail == nil {
+	if evt.Item.Detail == nil {
 		t.Fatal("expected detail for toolcall_start")
-	}
-	if item.Error != nil {
-		t.Fatalf("expected nil error for running tool call, got %v", item.Error)
 	}
 
 	// toolcall_end with 'toolCall' field (Pi's actual format)
@@ -254,16 +241,12 @@ func TestPiTranslator_ToolCall(t *testing.T) {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
 	streamEvt = events[0].(AgentStreamEvent)
-	payload = streamEvt.Event.(map[string]interface{})
-	item = payload["item"].(TimelineItem)
-	if item.Status != "completed" {
-		t.Fatalf("expected status completed, got %s", item.Status)
+	evt = streamEvt.Event.(protocol.TimelineStreamEvent)
+	if evt.Item.Status != "completed" {
+		t.Fatalf("expected status completed, got %s", evt.Item.Status)
 	}
-	if item.Detail == nil {
+	if evt.Item.Detail == nil {
 		t.Fatal("expected detail for toolcall_end")
-	}
-	if item.Error != nil {
-		t.Fatalf("expected nil error for completed tool call, got %v", item.Error)
 	}
 }
 
@@ -285,13 +268,10 @@ func TestPiTranslator_TurnEnd(t *testing.T) {
 	}
 
 	streamEvt := events[0].(AgentStreamEvent)
-	payload := streamEvt.Event.(map[string]interface{})
-	if payload["type"] != "turn_completed" {
-		t.Fatalf("expected turn_completed, got %v", payload["type"])
-	}
-	usage, ok := payload["usage"].(*protocol.AgentUsage)
-	if !ok {
-		t.Fatalf("expected usage, got %T", payload["usage"])
+	evt := streamEvt.Event.(protocol.TurnCompletedStreamEvent)
+	usage := evt.Usage
+	if usage == nil {
+		t.Fatal("expected usage")
 	}
 	if *usage.InputTokens != 10 {
 		t.Fatalf("expected input tokens 10, got %v", *usage.InputTokens)
@@ -322,12 +302,9 @@ func TestPiTranslator_TurnEnd_NoUsage(t *testing.T) {
 	}
 
 	streamEvt := events[0].(AgentStreamEvent)
-	payload := streamEvt.Event.(map[string]interface{})
-	if payload["type"] != "turn_completed" {
-		t.Fatalf("expected turn_completed, got %v", payload["type"])
-	}
-	if _, hasUsage := payload["usage"]; hasUsage {
-		t.Fatal("expected usage to be omitted when nil")
+	evt := streamEvt.Event.(protocol.TurnCompletedStreamEvent)
+	if evt.Usage != nil {
+		t.Fatal("expected usage to be nil")
 	}
 }
 
@@ -338,7 +315,7 @@ func TestPiTerminalDetector_TurnEnd(t *testing.T) {
 	detector := &piTerminalDetector{session: sess}
 
 	evt := AgentStreamEvent{
-		Event: map[string]interface{}{"type": "turn_completed", "provider": "pi"},
+		Event: protocol.TurnCompletedStreamEvent{Provider: "pi"},
 	}
 	result, err, isTerminal := detector.IsTerminal(evt)
 	if !isTerminal {
@@ -372,24 +349,18 @@ func TestPiTranslator_TurnEnd_WithText(t *testing.T) {
 
 	// First event should be assistant_message
 	streamEvt := events[0].(AgentStreamEvent)
-	payload := streamEvt.Event.(map[string]interface{})
-	if payload["type"] != "timeline" {
-		t.Fatalf("expected timeline, got %v", payload["type"])
+	evt := streamEvt.Event.(protocol.TimelineStreamEvent)
+	if evt.Item.Type != "assistant_message" {
+		t.Fatalf("expected assistant_message, got %s", evt.Item.Type)
 	}
-	item := payload["item"].(TimelineItem)
-	if item.Type != "assistant_message" {
-		t.Fatalf("expected assistant_message, got %s", item.Type)
-	}
-	if item.Text != "Here is the result." {
-		t.Fatalf("expected text 'Here is the result.', got %s", item.Text)
+	if evt.Item.Text != "Here is the result." {
+		t.Fatalf("expected text 'Here is the result.', got %s", evt.Item.Text)
 	}
 
 	// Second event should be turn_completed
 	streamEvt = events[1].(AgentStreamEvent)
-	payload = streamEvt.Event.(map[string]interface{})
-	if payload["type"] != "turn_completed" {
-		t.Fatalf("expected turn_completed, got %v", payload["type"])
-	}
+	evt2 := streamEvt.Event.(protocol.TurnCompletedStreamEvent)
+	_ = evt2
 }
 
 // TestPiTranslator_TurnEnd_NoDuplicateText verifies that turn_end does NOT
@@ -414,10 +385,7 @@ func TestPiTranslator_TurnEnd_NoDuplicateText(t *testing.T) {
 		t.Fatalf("expected 1 event (turn_completed only), got %d", len(events))
 	}
 	streamEvt := events[0].(AgentStreamEvent)
-	payload := streamEvt.Event.(map[string]interface{})
-	if payload["type"] != "turn_completed" {
-		t.Fatalf("expected turn_completed, got %v", payload["type"])
-	}
+	_ = streamEvt.Event.(protocol.TurnCompletedStreamEvent)
 }
 
 // TestPiTranslator_MessageEnd_WithText emits assistant_message from message_end
@@ -443,16 +411,12 @@ func TestPiTranslator_MessageEnd_WithText(t *testing.T) {
 	}
 
 	streamEvt := events[0].(AgentStreamEvent)
-	payload := streamEvt.Event.(map[string]interface{})
-	if payload["type"] != "timeline" {
-		t.Fatalf("expected timeline, got %v", payload["type"])
+	evt := streamEvt.Event.(protocol.TimelineStreamEvent)
+	if evt.Item.Type != "assistant_message" {
+		t.Fatalf("expected assistant_message, got %s", evt.Item.Type)
 	}
-	item := payload["item"].(TimelineItem)
-	if item.Type != "assistant_message" {
-		t.Fatalf("expected assistant_message, got %s", item.Type)
-	}
-	if item.Text != "Response text" {
-		t.Fatalf("expected text 'Response text', got %s", item.Text)
+	if evt.Item.Text != "Response text" {
+		t.Fatalf("expected text 'Response text', got %s", evt.Item.Text)
 	}
 }
 
@@ -474,11 +438,7 @@ func TestPiTerminalEventValueIsDispatcherCritical(t *testing.T) {
 		if !ok {
 			continue
 		}
-		payload, ok := evt.Event.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		if payload["type"] == "turn_completed" {
+		if _, ok := evt.Event.(protocol.TurnCompletedStreamEvent); ok {
 			copied := evt
 			terminal = &copied
 			break
@@ -518,11 +478,7 @@ func TestPiTranslator_TurnEnd_ToolUse_NotTerminal(t *testing.T) {
 		if !ok {
 			continue
 		}
-		payload, ok := evt.Event.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		if payload["type"] == "turn_completed" {
+		if _, ok := evt.Event.(protocol.TurnCompletedStreamEvent); ok {
 			t.Fatal("turn_end with stopReason=toolUse must not emit turn_completed")
 		}
 	}
@@ -549,11 +505,7 @@ func TestPiTranslator_TurnEnd_Stop_IsTerminal(t *testing.T) {
 		if !ok {
 			continue
 		}
-		payload, ok := evt.Event.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		if payload["type"] == "turn_completed" {
+		if _, ok := evt.Event.(protocol.TurnCompletedStreamEvent); ok {
 			gotTurnCompleted = true
 		}
 	}
@@ -608,13 +560,8 @@ func TestPiTranslator_TurnStart_ResetsTurnState(t *testing.T) {
 		if !ok {
 			continue
 		}
-		payload, ok := evt.Event.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		if payload["type"] == "timeline" {
-			item, ok := payload["item"].(TimelineItem)
-			if ok && item.Type == "assistant_message" && item.Text == "Today is Sunday, May 24 2026." {
+		if e, ok := evt.Event.(protocol.TimelineStreamEvent); ok {
+			if e.Item.Type == "assistant_message" && e.Item.Text == "Today is Sunday, May 24 2026." {
 				gotText = true
 			}
 		}

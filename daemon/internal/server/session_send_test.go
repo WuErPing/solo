@@ -22,7 +22,7 @@ func TestIsCriticalMessage_AgentStreamTerminal(t *testing.T) {
 		Message: &protocol.AgentStreamMessage{
 			Type: "agent_stream",
 			Payload: protocol.AgentStreamPayload{
-				Event: map[string]interface{}{"type": "turn_completed"},
+				Event: protocol.TurnCompletedStreamEvent{},
 			},
 		},
 	}
@@ -33,7 +33,7 @@ func TestIsCriticalMessage_AgentStreamTerminal(t *testing.T) {
 	msg.Message = &protocol.AgentStreamMessage{
 		Type: "agent_stream",
 		Payload: protocol.AgentStreamPayload{
-			Event: map[string]interface{}{"type": "turn_failed"},
+			Event: protocol.TurnFailedStreamEvent{Error: "failed"},
 		},
 	}
 	if !isCriticalMessage(msg) {
@@ -55,7 +55,7 @@ func TestIsCriticalMessage_NonCritical(t *testing.T) {
 		Message: &protocol.AgentStreamMessage{
 			Type: "agent_stream",
 			Payload: protocol.AgentStreamPayload{
-				Event: map[string]interface{}{"type": "text_delta"},
+				Event: protocol.TimelineStreamEvent{Item: protocol.TimelineItem{Type: "text_delta"}},
 			},
 		},
 	}

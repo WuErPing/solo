@@ -3,132 +3,58 @@ package agent
 import (
 	"testing"
 	"time"
+
+	"github.com/WuErPing/solo/protocol"
 )
 
 func TestIsCriticalEvent_AllTerminalTypes(t *testing.T) {
 	cases := []struct {
-		eventType string
-		expected  bool
-	}{
-		{"turn_completed", true},
-		{"turn_failed", true},
-		{"turn_canceled", true},
-		{"user_message", false},
-		{"assistant_message", false},
-		{"tool_use", false},
-		{"", false},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.eventType, func(t *testing.T) {
-			evt := AgentStreamEvent{
-				Event: map[string]interface{}{
-					"type": tc.eventType,
-				},
-				Timestamp: time.Now(),
-			}
-
-			if got := evt.IsCriticalEvent(); got != tc.expected {
-				t.Errorf("IsCriticalEvent() for type %q = %v, want %v", tc.eventType, got, tc.expected)
-			}
-		})
-	}
-}
-
-func TestIsCriticalEvent_NonMapEvent(t *testing.T) {
-	evt := AgentStreamEvent{
-		Event:     "not a map",
-		Timestamp: time.Now(),
-	}
-
-	if evt.IsCriticalEvent() {
-		t.Error("expected false for non-map event")
-	}
-}
-
-func TestIsCriticalEvent_MapWithoutType(t *testing.T) {
-	evt := AgentStreamEvent{
-		Event: map[string]interface{}{
-			"data": "no type key",
-		},
-		Timestamp: time.Now(),
-	}
-
-	if evt.IsCriticalEvent() {
-		t.Error("expected false for map without type key")
-	}
-}
-
-func TestIsCriticalEvent_TypeNotString(t *testing.T) {
-	evt := AgentStreamEvent{
-		Event: map[string]interface{}{
-			"type": 123,
-		},
-		Timestamp: time.Now(),
-	}
-
-	if evt.IsCriticalEvent() {
-		t.Error("expected false when type is not string")
-	}
-}
-
-func TestIsSemiCriticalEvent_ReasoningType(t *testing.T) {
-	evt := AgentStreamEvent{
-		Event: map[string]interface{}{
-			"type": "reasoning",
-		},
-		Timestamp: time.Now(),
-	}
-
-	if !evt.IsSemiCriticalEvent() {
-		t.Error("expected true for reasoning type")
-	}
-}
-
-func TestIsSemiCriticalEvent_TimelineWithReasoningItem(t *testing.T) {
-	cases := []struct {
 		name     string
-		item     interface{}
+		event    interface{}
 		expected bool
 	}{
-		{
-			name:     "reasoning struct",
-			item:     TimelineItem{Type: "reasoning"},
-			expected: true,
-		},
-		{
-			name:     "reasoning map",
-			item:     map[string]interface{}{"type": "reasoning"},
-			expected: true,
-		},
-		{
-			name:     "text struct",
-			item:     TimelineItem{Type: "text"},
-			expected: false,
-		},
-		{
-			name:     "text map",
-			item:     map[string]interface{}{"type": "text"},
-			expected: false,
-		},
-		{
-			name:     "nil item",
-			item:     nil,
-			expected: false,
-		},
-		{
-			name:     "string item",
-			item:     "not a valid item",
-			expected: false,
-		},
+		{"turn_completed", protocol.TurnCompletedStreamEvent{}, true},
+		{"turn_failed", protocol.TurnFailedStreamEvent{Error: "fail"}, true},
+		{"turn_canceled", protocol.TurnCanceledStreamEvent{}, true},
+		{"timeline", protocol.TimelineStreamEvent{Item: protocol.TimelineItem{Type: "text"}}, false},
+		{"thread_started", protocol.ThreadStartedStreamEvent{}, false},
+		{"usage_updated", protocol.UsageUpdatedStreamEvent{}, false},
+		{"permission_requested", protocol.PermissionRequestedStreamEvent{}, false},
+		{"string_event", "not a stream event", false},
+		{"nil_event", nil, false},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			evt := AgentStreamEvent{
-				Event: map[string]interface{}{
-					"type": "timeline",
-					"item": tc.item,
+				Event:     tc.event,
+				Timestamp: time.Now(),
+			}
+
+			if got := evt.IsCriticalEvent(); got != tc.expected {
+				t.Errorf("IsCriticalEvent() for %q = %v, want %v", tc.name, got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestIsSemiCriticalEvent_ReasoningTimeline(t *testing.T) {
+	cases := []struct {
+		name     string
+		itemType string
+		expected bool
+	}{
+		{"reasoning", "reasoning", true},
+		{"text", "text", false},
+		{"assistant_message", "assistant_message", false},
+		{"tool_call", "tool_call", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			evt := AgentStreamEvent{
+				Event: protocol.TimelineStreamEvent{
+					Item: protocol.TimelineItem{Type: tc.itemType},
 				},
 				Timestamp: time.Now(),
 			}
@@ -140,51 +66,29 @@ func TestIsSemiCriticalEvent_TimelineWithReasoningItem(t *testing.T) {
 	}
 }
 
-func TestIsSemiCriticalEvent_NonTimelineNonReasoning(t *testing.T) {
-	cases := []string{
-		"user_message",
-		"assistant_message",
-		"tool_use",
-		"tool_result",
-		"",
+func TestIsSemiCriticalEvent_NonTimelineEvents(t *testing.T) {
+	cases := []struct {
+		name  string
+		event interface{}
+	}{
+		{"turn_completed", protocol.TurnCompletedStreamEvent{}},
+		{"turn_failed", protocol.TurnFailedStreamEvent{}},
+		{"thread_started", protocol.ThreadStartedStreamEvent{}},
+		{"usage_updated", protocol.UsageUpdatedStreamEvent{}},
+		{"string", "not a stream event"},
+		{"nil", nil},
 	}
 
-	for _, eventType := range cases {
-		t.Run(eventType, func(t *testing.T) {
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
 			evt := AgentStreamEvent{
-				Event: map[string]interface{}{
-					"type": eventType,
-				},
+				Event:     tc.event,
 				Timestamp: time.Now(),
 			}
 
 			if evt.IsSemiCriticalEvent() {
-				t.Errorf("expected false for type %q", eventType)
+				t.Errorf("expected false for %q", tc.name)
 			}
 		})
-	}
-}
-
-func TestIsSemiCriticalEvent_NonMapEvent(t *testing.T) {
-	evt := AgentStreamEvent{
-		Event:     "not a map",
-		Timestamp: time.Now(),
-	}
-
-	if evt.IsSemiCriticalEvent() {
-		t.Error("expected false for non-map event")
-	}
-}
-
-func TestIsSemiCriticalEvent_MapWithoutType(t *testing.T) {
-	evt := AgentStreamEvent{
-		Event: map[string]interface{}{
-			"data": "no type key",
-		},
-		Timestamp: time.Now(),
-	}
-
-	if evt.IsSemiCriticalEvent() {
-		t.Error("expected false for map without type key")
 	}
 }

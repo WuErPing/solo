@@ -9,7 +9,30 @@ Based on comprehensive codebase analysis of the Solo AI coding assistant platfor
 ## 10 Major Feature Opportunities
 
 ### 1. Schedule Management UI
-**Status**: ✅ Fully implemented
+**Status**: ✅ Fully implemented (v0.2.0)
+
+### 0. Tmux Dashboard & Terminal Themes
+**Status**: ✅ Fully implemented (v0.4.0)
+**Location**: `app/src/screens/tmux-dashboard-screen.tsx`, `app/src/screens/tmux-pane-screen.tsx`, `app/src/styles/terminal-themes.ts`
+**Details**:
+- Full tmux agent detection with three-layer scanning (command name, pane title, child process)
+- Pane content capture with ANSI rendering and lazy history loading
+- Custom terminal themes (8 presets: System/Dark/Light/Midnight/Ghostty/Solarized Dark/Monokai/Dracula)
+- ANSI text rendering in dashboard status line with 256-color palette detection
+- Tmux window list display in status line
+- Auto-refresh toggle with manual refresh button
+- ErrorBoundary crash protection
+- Full-screen pane page (replaced bottom sheet modal)
+**Impact**: High — enables monitoring and controlling AI agents running in tmux sessions
+
+### 0. SVG Preview
+**Status**: ✅ Fully implemented (v0.4.0)
+**Location**: `app/src/components/svg-preview.tsx`, `app/src/components/svg-preview.web.tsx`
+**Details**:
+- SVG file preview for web (native rendering) and mobile (WebView rendering)
+- Utility functions for SVG content processing
+- E2E test coverage
+**Impact**: Medium — enables viewing SVG files directly in the app
 **Location**: `app-bridge/src/server/schedule/`, `app/src/components/schedule-*.tsx`, `daemon/internal/schedule/`
 **Details**:
 - Full CRUD backend with timezone-aware cron scheduling
@@ -136,6 +159,8 @@ Based on comprehensive codebase analysis of the Solo AI coding assistant platfor
 | Feature | Impact | Effort | Priority |
 |---------|--------|--------|----------|
 | ~~Schedule Management UI~~ | ~~High~~ | ~~Medium~~ | ✅ Done |
+| ~~Tmux Dashboard & Terminal Themes~~ | ~~High~~ | ~~High~~ | ✅ Done |
+| ~~SVG Preview~~ | ~~Medium~~ | ~~Low~~ | ✅ Done |
 | MCP Server Configuration | High | Medium | **P1** |
 | Session Persistence | Medium | Low | **P2** |
 | Feature Toggle Expansion | Medium | Low | **P2** |

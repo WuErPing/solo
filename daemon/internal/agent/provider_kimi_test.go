@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -168,184 +169,245 @@ func TestKimiAgentClient_ResumeSession_ReturnsSession(t *testing.T) {
 
 // --- RED Phase: kimiWireTranslator tests ---
 
-func TestKimiWireTranslator_ContentPartText(t *testing.T) {
+func TestKimiWireTranslator_EmitsStreamEvents(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	sess := newKimiSession("fake-kimi", &protocol.AgentSessionConfig{}, logger)
 	tr := &kimiWireTranslator{session: sess}
 
-	wireEvent := `{"jsonrpc":"2.0","method":"event","params":{"type":"ContentPart","payload":{"type":"text","text":"Hello world"}}}`
-	events, isTerminal, err := tr.Translate([]byte(wireEvent), time.Now())
-	if err != nil {
-		t.Fatalf("Translate error: %v", err)
-	}
-	if isTerminal {
-		t.Error("expected non-terminal")
-	}
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
+	tests := []struct {
+		name         string
+		wire         string
+		wantTerminal bool
+		wantLen      int
+		check        func(t *testing.T, evts []interface{})
+	}{
+		{
+			name:         "TurnBegin",
+			wire:         `{"jsonrpc":"2.0","method":"event","params":{"type":"TurnBegin","payload":{"user_input":"test prompt"}}}`,
+			wantTerminal: false,
+			wantLen:      1,
+			check: func(t *testing.T, evts []interface{}) {
+				evt := evts[0].(AgentStreamEvent)
+				se, ok := evt.Event.(protocol.StreamEvent)
+				if !ok {
+					t.Fatalf("expected protocol.StreamEvent, got %T", evt.Event)
+				}
+				if se.StreamEventType() != "thread_started" {
+					t.Errorf("type = %q, want thread_started", se.StreamEventType())
+				}
+				ts, ok := se.(protocol.ThreadStartedStreamEvent)
+				if !ok {
+					t.Fatalf("expected ThreadStartedStreamEvent, got %T", se)
+				}
+				if ts.Provider != "kimi" {
+					t.Errorf("provider = %q, want kimi", ts.Provider)
+				}
+			},
+		},
+		{
+			name:         "ContentPart text",
+			wire:         `{"jsonrpc":"2.0","method":"event","params":{"type":"ContentPart","payload":{"type":"text","text":"Hello world"}}}`,
+			wantTerminal: false,
+			wantLen:      1,
+			check: func(t *testing.T, evts []interface{}) {
+				evt := evts[0].(AgentStreamEvent)
+				tl, ok := evt.Event.(protocol.TimelineStreamEvent)
+				if !ok {
+					t.Fatalf("expected TimelineStreamEvent, got %T", evt.Event)
+				}
+				if tl.Provider != "kimi" {
+					t.Errorf("provider = %q, want kimi", tl.Provider)
+				}
+				if tl.Item.Type != "assistant_message" || tl.Item.Text != "Hello world" {
+					t.Errorf("item = %+v, want assistant_message/Hello world", tl.Item)
+				}
+				data, err := json.Marshal(tl)
+				if err != nil {
+					t.Fatalf("marshal: %v", err)
+				}
+				if !strings.Contains(string(data), `"type":"timeline"`) {
+					t.Errorf("JSON missing timeline type: %s", data)
+				}
+			},
+		},
+		{
+			name:         "ContentPart think",
+			wire:         `{"jsonrpc":"2.0","method":"event","params":{"type":"ContentPart","payload":{"type":"think","think":"Let me think..."}}}`,
+			wantTerminal: false,
+			wantLen:      1,
+			check: func(t *testing.T, evts []interface{}) {
+				evt := evts[0].(AgentStreamEvent)
+				tl := evt.Event.(protocol.TimelineStreamEvent)
+				if tl.Item.Type != "reasoning" || tl.Item.Text != "Let me think..." {
+					t.Errorf("item = %+v", tl.Item)
+				}
+			},
+		},
+		{
+			name:         "ToolCall",
+			wire:         `{"jsonrpc":"2.0","method":"event","params":{"type":"ToolCall","payload":{"type":"function","id":"tc-1","function":{"name":"read_file","arguments":"{\"path\":\"main.py\"}"}}}}`,
+			wantTerminal: false,
+			wantLen:      1,
+			check: func(t *testing.T, evts []interface{}) {
+				evt := evts[0].(AgentStreamEvent)
+				tl := evt.Event.(protocol.TimelineStreamEvent)
+				if tl.Item.Type != "tool_call" {
+					t.Errorf("item.Type = %q, want tool_call", tl.Item.Type)
+				}
+				if tl.Item.CallID != "tc-1" {
+					t.Errorf("item.CallID = %q, want tc-1", tl.Item.CallID)
+				}
+				if tl.Item.Name != "read_file" {
+					t.Errorf("item.Name = %q, want read_file", tl.Item.Name)
+				}
+				if tl.Item.Status != "running" {
+					t.Errorf("item.Status = %q, want running", tl.Item.Status)
+				}
+			},
+		},
+		{
+			name:         "ToolResult completed",
+			wire:         `{"jsonrpc":"2.0","method":"event","params":{"type":"ToolResult","payload":{"tool_call_id":"tc-1","return_value":{"is_error":false}}}}`,
+			wantTerminal: false,
+			wantLen:      1,
+			check: func(t *testing.T, evts []interface{}) {
+				evt := evts[0].(AgentStreamEvent)
+				tl := evt.Event.(protocol.TimelineStreamEvent)
+				if tl.Item.Type != "tool_call" || tl.Item.CallID != "tc-1" || tl.Item.Status != "completed" {
+					t.Errorf("item = %+v", tl.Item)
+				}
+			},
+		},
+		{
+			name:         "ToolResult failed",
+			wire:         `{"jsonrpc":"2.0","method":"event","params":{"type":"ToolResult","payload":{"tool_call_id":"tc-1","return_value":{"is_error":true}}}}`,
+			wantTerminal: false,
+			wantLen:      1,
+			check: func(t *testing.T, evts []interface{}) {
+				evt := evts[0].(AgentStreamEvent)
+				tl := evt.Event.(protocol.TimelineStreamEvent)
+				if tl.Item.Status != "failed" {
+					t.Errorf("status = %q, want failed", tl.Item.Status)
+				}
+			},
+		},
+		{
+			name:         "TurnEnd",
+			wire:         `{"jsonrpc":"2.0","method":"event","params":{"type":"TurnEnd","payload":{}}}`,
+			wantTerminal: true,
+			wantLen:      1,
+			check: func(t *testing.T, evts []interface{}) {
+				evt := evts[0].(AgentStreamEvent)
+				tc, ok := evt.Event.(protocol.TurnCompletedStreamEvent)
+				if !ok {
+					t.Fatalf("expected TurnCompletedStreamEvent, got %T", evt.Event)
+				}
+				if tc.Provider != "kimi" {
+					t.Errorf("provider = %q, want kimi", tc.Provider)
+				}
+				data, err := json.Marshal(tc)
+				if err != nil {
+					t.Fatalf("marshal: %v", err)
+				}
+				if !strings.Contains(string(data), `"type":"turn_completed"`) {
+					t.Errorf("JSON missing turn_completed type: %s", data)
+				}
+			},
+		},
+		{
+			name:         "ApprovalRequest",
+			wire:         `{"jsonrpc":"2.0","method":"event","params":{"type":"ApprovalRequest","payload":{"id":"appr-1","tool_call_id":"tc-1","sender":"file_editor","action":"write","description":"write main.py"}}}`,
+			wantTerminal: false,
+			wantLen:      1,
+			check: func(t *testing.T, evts []interface{}) {
+				evt := evts[0].(AgentStreamEvent)
+				pr, ok := evt.Event.(protocol.PermissionRequestedStreamEvent)
+				if !ok {
+					t.Fatalf("expected PermissionRequestedStreamEvent, got %T", evt.Event)
+				}
+				if pr.Provider != "kimi" {
+					t.Errorf("provider = %q, want kimi", pr.Provider)
+				}
+				if pr.Request.ID != "appr-1" || pr.Request.Kind != "tool" || pr.Request.Title != "write" {
+					t.Errorf("request = %+v", pr.Request)
+				}
+			},
+		},
+		{
+			name:         "CompactionBegin",
+			wire:         `{"jsonrpc":"2.0","method":"event","params":{"type":"CompactionBegin","payload":{}}}`,
+			wantTerminal: false,
+			wantLen:      1,
+			check: func(t *testing.T, evts []interface{}) {
+				evt := evts[0].(AgentStreamEvent)
+				tl := evt.Event.(protocol.TimelineStreamEvent)
+				if tl.Item.Type != "compaction" || tl.Item.CompactionStatus != "loading" {
+					t.Errorf("item = %+v", tl.Item)
+				}
+			},
+		},
+		{
+			name:         "CompactionEnd",
+			wire:         `{"jsonrpc":"2.0","method":"event","params":{"type":"CompactionEnd","payload":{}}}`,
+			wantTerminal: false,
+			wantLen:      1,
+			check: func(t *testing.T, evts []interface{}) {
+				evt := evts[0].(AgentStreamEvent)
+				tl := evt.Event.(protocol.TimelineStreamEvent)
+				if tl.Item.Type != "compaction" || tl.Item.CompactionStatus != "completed" {
+					t.Errorf("item = %+v", tl.Item)
+				}
+			},
+		},
+		{
+			name:         "StepRetry",
+			wire:         `{"jsonrpc":"2.0","method":"event","params":{"type":"StepRetry","payload":{"n":1,"next_attempt":2,"max_attempts":3,"wait_s":5,"error_type":"rate_limit"}}}`,
+			wantTerminal: false,
+			wantLen:      1,
+			check: func(t *testing.T, evts []interface{}) {
+				evt := evts[0].(AgentStreamEvent)
+				tl := evt.Event.(protocol.TimelineStreamEvent)
+				if tl.Item.Type != "error" {
+					t.Errorf("item.Type = %q, want error", tl.Item.Type)
+				}
+				want := "Step 1 retry 2/3 after 5s: rate_limit"
+				if tl.Item.Text != want {
+					t.Errorf("item.Text = %q, want %q", tl.Item.Text, want)
+				}
+			},
+		},
+		{
+			name:         "UnknownEvent ignored",
+			wire:         `{"jsonrpc":"2.0","method":"event","params":{"type":"UnknownEvent","payload":{}}}`,
+			wantTerminal: false,
+			wantLen:      0,
+			check:        func(t *testing.T, evts []interface{}) {},
+		},
+		{
+			name:         "NonEvent method ignored",
+			wire:         `{"jsonrpc":"2.0","id":"2","result":{"status":"finished"}}`,
+			wantTerminal: false,
+			wantLen:      0,
+			check:        func(t *testing.T, evts []interface{}) {},
+		},
 	}
 
-	evt, ok := events[0].(AgentStreamEvent)
-	if !ok {
-		t.Fatalf("expected AgentStreamEvent, got %T", events[0])
-	}
-	payload, ok := evt.Event.(map[string]interface{})
-	if !ok {
-		t.Fatalf("expected map event, got %T", evt.Event)
-	}
-	if payload["type"] != "timeline" {
-		t.Errorf("type = %q, want timeline", payload["type"])
-	}
-	item, ok := payload["item"].(TimelineItem)
-	if !ok {
-		t.Fatalf("expected TimelineItem, got %T", payload["item"])
-	}
-	if item.Type != "assistant_message" {
-		t.Errorf("item.Type = %q, want assistant_message", item.Type)
-	}
-	if item.Text != "Hello world" {
-		t.Errorf("item.Text = %q, want Hello world", item.Text)
-	}
-}
-
-func TestKimiWireTranslator_ContentPartThink(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	sess := newKimiSession("fake-kimi", &protocol.AgentSessionConfig{}, logger)
-	tr := &kimiWireTranslator{session: sess}
-
-	wireEvent := `{"jsonrpc":"2.0","method":"event","params":{"type":"ContentPart","payload":{"type":"think","think":"Let me think..."}}}`
-	events, _, err := tr.Translate([]byte(wireEvent), time.Now())
-	if err != nil {
-		t.Fatalf("Translate error: %v", err)
-	}
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
-	}
-
-	evt := events[0].(AgentStreamEvent)
-	payload := evt.Event.(map[string]interface{})
-	item := payload["item"].(TimelineItem)
-	if item.Type != "reasoning" {
-		t.Errorf("item.Type = %q, want reasoning", item.Type)
-	}
-	if item.Text != "Let me think..." {
-		t.Errorf("item.Text = %q, want Let me think...", item.Text)
-	}
-}
-
-func TestKimiWireTranslator_ToolCall(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	sess := newKimiSession("fake-kimi", &protocol.AgentSessionConfig{}, logger)
-	tr := &kimiWireTranslator{session: sess}
-
-	wireEvent := `{"jsonrpc":"2.0","method":"event","params":{"type":"ToolCall","payload":{"type":"function","id":"tc-1","function":{"name":"read_file","arguments":"{\"path\":\"main.py\"}"}}}}`
-	events, _, err := tr.Translate([]byte(wireEvent), time.Now())
-	if err != nil {
-		t.Fatalf("Translate error: %v", err)
-	}
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
-	}
-
-	evt := events[0].(AgentStreamEvent)
-	payload := evt.Event.(map[string]interface{})
-	item := payload["item"].(TimelineItem)
-	if item.Type != "tool_call" {
-		t.Errorf("item.Type = %q, want tool_call", item.Type)
-	}
-	if item.CallID != "tc-1" {
-		t.Errorf("item.CallID = %q, want tc-1", item.CallID)
-	}
-	if item.Name != "read_file" {
-		t.Errorf("item.Name = %q, want read_file", item.Name)
-	}
-	if item.Status != "running" {
-		t.Errorf("item.Status = %q, want running", item.Status)
-	}
-}
-
-func TestKimiWireTranslator_TurnBegin(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	sess := newKimiSession("fake-kimi", &protocol.AgentSessionConfig{}, logger)
-	tr := &kimiWireTranslator{session: sess}
-
-	wireEvent := `{"jsonrpc":"2.0","method":"event","params":{"type":"TurnBegin","payload":{"user_input":"test prompt"}}}`
-	events, isTerminal, err := tr.Translate([]byte(wireEvent), time.Now())
-	if err != nil {
-		t.Fatalf("Translate error: %v", err)
-	}
-	if isTerminal {
-		t.Error("expected non-terminal")
-	}
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
-	}
-
-	evt := events[0].(AgentStreamEvent)
-	payload := evt.Event.(map[string]interface{})
-	if payload["type"] != "thread_started" {
-		t.Errorf("type = %q, want thread_started", payload["type"])
-	}
-	if payload["provider"] != "kimi" {
-		t.Errorf("provider = %q, want kimi", payload["provider"])
-	}
-}
-
-func TestKimiWireTranslator_TurnEnd(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	sess := newKimiSession("fake-kimi", &protocol.AgentSessionConfig{}, logger)
-	tr := &kimiWireTranslator{session: sess}
-
-	wireEvent := `{"jsonrpc":"2.0","method":"event","params":{"type":"TurnEnd","payload":{}}}`
-	events, isTerminal, err := tr.Translate([]byte(wireEvent), time.Now())
-	if err != nil {
-		t.Fatalf("Translate error: %v", err)
-	}
-	if !isTerminal {
-		t.Error("expected terminal")
-	}
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
-	}
-
-	evt := events[0].(AgentStreamEvent)
-	payload := evt.Event.(map[string]interface{})
-	if payload["type"] != "turn_completed" {
-		t.Errorf("type = %q, want turn_completed", payload["type"])
-	}
-}
-
-func TestKimiWireTranslator_IgnoresNonEventMethods(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	sess := newKimiSession("fake-kimi", &protocol.AgentSessionConfig{}, logger)
-	tr := &kimiWireTranslator{session: sess}
-
-	// prompt response — not an event notification
-	wireEvent := `{"jsonrpc":"2.0","id":"2","result":{"status":"finished"}}`
-	events, isTerminal, err := tr.Translate([]byte(wireEvent), time.Now())
-	if err != nil {
-		t.Fatalf("Translate error: %v", err)
-	}
-	if isTerminal {
-		t.Error("expected non-terminal")
-	}
-	if len(events) != 0 {
-		t.Errorf("expected 0 events, got %d", len(events))
-	}
-}
-
-func TestKimiWireTranslator_UnknownEventType(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	sess := newKimiSession("fake-kimi", &protocol.AgentSessionConfig{}, logger)
-	tr := &kimiWireTranslator{session: sess}
-
-	wireEvent := `{"jsonrpc":"2.0","method":"event","params":{"type":"UnknownEvent","payload":{}}}`
-	events, _, err := tr.Translate([]byte(wireEvent), time.Now())
-	if err != nil {
-		t.Fatalf("Translate error: %v", err)
-	}
-	if len(events) != 0 {
-		t.Errorf("expected 0 events for unknown type, got %d", len(events))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			events, isTerminal, err := tr.Translate([]byte(tt.wire), time.Now())
+			if err != nil {
+				t.Fatalf("Translate error: %v", err)
+			}
+			if isTerminal != tt.wantTerminal {
+				t.Errorf("isTerminal = %v, want %v", isTerminal, tt.wantTerminal)
+			}
+			if len(events) != tt.wantLen {
+				t.Fatalf("expected %d events, got %d", tt.wantLen, len(events))
+			}
+			if tt.wantLen > 0 {
+				tt.check(t, events)
+			}
+		})
 	}
 }
 
@@ -357,9 +419,8 @@ func TestKimiWireTerminalDetector_IsTerminal_TurnCompleted(t *testing.T) {
 	det := &kimiWireTerminalDetector{session: sess}
 
 	evt := AgentStreamEvent{
-		Event: map[string]interface{}{
-			"type":     "turn_completed",
-			"provider": "kimi",
+		Event: protocol.TurnCompletedStreamEvent{
+			Provider: kimiProviderName,
 		},
 	}
 
@@ -384,9 +445,9 @@ func TestKimiWireTerminalDetector_IsTerminal_NonTerminal(t *testing.T) {
 	det := &kimiWireTerminalDetector{session: sess}
 
 	evt := AgentStreamEvent{
-		Event: map[string]interface{}{
-			"type":     "timeline",
-			"provider": "kimi",
+		Event: protocol.TimelineStreamEvent{
+			Provider: kimiProviderName,
+			Item:     protocol.TimelineItem{Type: "assistant_message", Text: "hi"},
 		},
 	}
 
@@ -566,20 +627,14 @@ func TestKimiSession_StartTurn_DeliversEvents(t *testing.T) {
 				done = true
 				break
 			}
-			payload, ok := evt.Event.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			switch payload["type"] {
-			case "thread_started":
+			switch se := evt.Event.(type) {
+			case protocol.ThreadStartedStreamEvent:
 				gotThreadStarted = true
-			case "timeline":
-				if item, ok := payload["item"].(TimelineItem); ok {
-					if item.Type == "assistant_message" {
-						gotText = true
-					}
+			case protocol.TimelineStreamEvent:
+				if se.Item.Type == "assistant_message" {
+					gotText = true
 				}
-			case "turn_completed":
+			case protocol.TurnCompletedStreamEvent:
 				gotTurnEnd = true
 				done = true
 			}

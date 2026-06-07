@@ -1,8 +1,8 @@
 # Solo - Product Feature Detailed Analysis
 
-> Analysis Date: 2026-06-01
+> Analysis Date: 2026-06-07
 > Repository: /Users/wuerping/code/wuerping/solo
-> Version: v0.1.0
+> Version: v0.4.0
 
 ## Product Overview
 
@@ -154,7 +154,14 @@ Missing providers (Paseo has 9): Generic ACP, ACP Agent, Cursor-Agent (planned)
 - **Tmux Dashboard**：自动检测 tmux 会话中的 AI 代理，提供交互式控制
   - 三层代理检测（命令名 / 窗格标题 Unicode 归一化 / 子进程检查）
   - 代理卡片按名称分组，支持筛选
-  - 窗格内容捕获（最近 500 行，5 秒自动刷新）
+  - 窗格内容捕获（默认 200 行，5 秒自动刷新，可关闭自动刷新）
+  - 懒加载历史（滚动驱动，每次 200 行，最大 5000 行）
+  - 自定义终端主题（System/Dark/Light/Midnight/Ghostty/Solarized Dark/Monokai/Dracula）
+  - ANSI 文本渲染（状态栏支持 ANSI 颜色）
+  - 窗口列表显示（状态栏显示 tmux 窗口信息，如 `0:claude*`）
+  - 256 色调色板检测（`detect-ansi-colors.ts`）
+  - 全屏窗格页面（替代底部弹窗）
+  - ErrorBoundary 崩溃保护
   - 快捷操作按钮：方向键（↑↓←→）、Enter、Esc、Tab、Ctrl+C、数字键（1–4）
   - 支持代理：claude、pi、kimi、kimi-cli、opencode、qoder、cursor
 - **Workspace Screen**：多标签工作区管理
@@ -169,8 +176,11 @@ Missing providers (Paseo has 9): Generic ACP, ACP Agent, Cursor-Agent (planned)
   - 代码插入
 - **Projects Screen**：项目管理
 - **Sessions Screen**：会话历史
-- **Settings Screen**：设置管理
+- **Settings Screen**：设置管理（含终端主题选择器）
 - **Mermaid Preview**：Markdown 文件面板内嵌 Mermaid 图表实时渲染
+- **SVG Preview**：SVG 文件预览，支持 Web 和移动端（WebView 渲染）
+- **ANSI Text Renderer**：ANSI 转义序列渲染组件，用于终端内容和状态栏
+- **Error Boundary**：React 错误边界，包裹 TmuxDashboard 和 TmuxPaneScreen
 
 #### 7.2 连接管理
 - **Host 管理**：添加/编辑/删除主机
@@ -208,14 +218,14 @@ Missing providers (Paseo has 9): Generic ACP, ACP Agent, Cursor-Agent (planned)
 ### 9. 测试覆盖
 
 #### 9.1 测试规模
-- **App 单元测试**：**207** 个测试文件（Vitest），已接入 CI
+- **App 单元测试**：**250+** 个测试文件（Vitest），已接入 CI（含 tmux dashboard、pane screen、status line、ANSI renderer、SVG preview 等新增测试）
 - **App browser 测试**：1 个文件（Chromium via Playwright），未接入 CI
 - **App-bridge 测试**：3 个文件，**32 个测试用例**（Vitest），已接入 CI
 - **Daemon 测试文件**：**129** 个（Go），已接入 CI
 - **Relay-go 测试文件**：**8** 个（Go），已接入 CI
 - **Protocol 测试文件**：**4** 个（Go），已接入 CI
 - **CLI 测试文件**：**13** 个（Go），已接入 CI
-- **E2E 测试**：**30** 个 `.spec.ts`（Playwright），**nightly 运行**
+- **E2E 测试**：**30+** 个 `.spec.ts`（Playwright），**nightly 运行**（含 SVG preview E2E）
 - **Maestro 移动端**：~20 个 YAML flow，ad-hoc / 未接入 CI
 
 #### 9.2 关键测试域
@@ -250,6 +260,8 @@ Missing providers (Paseo has 9): Generic ACP, ACP Agent, Cursor-Agent (planned)
 ### 已实现（此前标记为缺失）
 1. **GitHub 集成**：PR 状态查看、Git diff、分支切换、Workspace git actions
 2. **MCP 服务器**：Daemon 端完整实现，App 端设置页面有 "Automatically inject Solo MCP tools" 开关
+3. **Tmux Dashboard**：完整的 tmux 代理检测、窗格内容捕获、终端主题、ANSI 渲染
+4. **SVG Preview**：Web 和移动端 SVG 文件预览
 
 ### 高优先级缺失
 1. **Chat 系统**：多 Agent 协作场景
@@ -264,7 +276,7 @@ Missing providers (Paseo has 9): Generic ACP, ACP Agent, Cursor-Agent (planned)
 ## 技术栈
 
 ### 后端
-- **语言**：Go 1.25.6
+- **语言**：Go 1.25
 - **WebSocket**：gorilla/websocket
 - **PTY**：creack/pty
 - **加密**：E2EE（X25519 + XSalsa20-Poly1305）
@@ -294,4 +306,4 @@ Solo 是一个功能完整的 AI 开发助手平台，核心功能包括：
 5. **安全中继**：E2EE 加密、CORS 保护
 6. **生产就绪**：测试覆盖、监控、CI/CD
 
-当前完成度约 **80-87%**，主要差距在 GitHub 集成、语音（TTS/STT）和更多 AI Provider（Cursor-Agent、Generic ACP）支持。
+当前完成度约 **85-90%**，主要差距在 Chat 系统（多 Agent 协作）、Cursor-Agent / ACP Provider 支持。

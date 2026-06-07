@@ -1,7 +1,7 @@
 # Docs/ Directory Structure Audit
 
-> Date: 2026-06-03
-> Scope: `docs/` directory (27 files across 4 subdirectories)
+> Date: 2026-06-03 (updated 2026-06-07)
+> Scope: `docs/` directory (34 files across 4 subdirectories + demo/)
 > Context: Combined with `.agents/skills/solo-dev-base` and `.agents/rules/architecture.md`
 
 ---
@@ -11,7 +11,7 @@
 ```
 docs/
 ├── README.md                    # Master index
-├── architecture/                # System architecture (8 files)
+├── architecture/                # System architecture (11 files)
 │   ├── README.md
 │   ├── components.md
 │   ├── data-flow.md
@@ -20,7 +20,10 @@ docs/
 │   ├── timeline-design.md
 │   ├── session-memory-persistence.md
 │   ├── agent-stall-detection.md
-│   └── push-notifications.md
+│   ├── push-notifications.md
+│   ├── solo-system-architecture.png
+│   ├── solo-system-architecture.svg
+│   └── tmux-pane-content-loading.md
 ├── product/                     # Product features (4 files)
 │   ├── features.md
 │   ├── product-analysis.md
@@ -29,18 +32,22 @@ docs/
 ├── providers/                   # AI provider integration (2 files)
 │   ├── kimi-wire-vs-acp.md
 │   └── kimi-cursor-integration.md
-└── analysis/                    # Technical analysis (11 files)
+└── analysis/                    # Technical analysis (13 files + demo/)
     ├── agent-provider-status-unification.md
     ├── app-agent-status-analysis.md
     ├── app-bridge-schedule-module.md
     ├── app-coverage-analysis.md
     ├── app-lint-analysis.md
     ├── create-schedule-flow.md
+    ├── demo/                      # Demo code (iterm2-agent-detection)
     ├── go-coverage-report.md
     ├── host-status-check.md
+    ├── iterm2-agent-observation.md
     ├── lint-capability-plan.md
+    ├── README.md
     ├── session-timeline-e2e-gaps.md
-    └── test-suite-analysis.md
+    ├── test-suite-analysis.md
+    └── tmux-transport-disposed-race.md
 ```
 
 ---
@@ -162,7 +169,7 @@ docs/
 
 | Dimension | Current | Recommendation |
 |-----------|---------|----------------|
-| File count | 27 | ~12 (delete/archive 15) |
+| File count | 34 | ~12 (delete/archive 22) |
 | Overlap with rules | 2 files | 0 |
 | Snapshot docs | 4 | 0 (archive or delete) |
 | ADR | None | New directory |

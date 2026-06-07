@@ -35,9 +35,8 @@ func TestPiIntegration_RealProcess(t *testing.T) {
 	go func() {
 		for evt := range ch {
 			events = append(events, evt)
-			payload, ok := evt.Event.(map[string]interface{})
-			if ok {
-				t.Logf("event: %s", payload["type"])
+			if e, ok := evt.Event.(protocol.StreamEvent); ok {
+				t.Logf("event: %s", e.StreamEventType())
 			}
 		}
 		close(done)
@@ -62,18 +61,14 @@ func TestPiIntegration_RealProcess(t *testing.T) {
 
 	var hasThreadStarted, hasAssistantMessage, hasTurnCompleted bool
 	for _, evt := range events {
-		payload, ok := evt.Event.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		switch payload["type"] {
-		case "thread_started":
+		switch e := evt.Event.(type) {
+		case protocol.ThreadStartedStreamEvent:
 			hasThreadStarted = true
-		case "timeline":
-			if item, ok := payload["item"].(TimelineItem); ok && item.Type == "assistant_message" {
+		case protocol.TimelineStreamEvent:
+			if e.Item.Type == "assistant_message" {
 				hasAssistantMessage = true
 			}
-		case "turn_completed":
+		case protocol.TurnCompletedStreamEvent:
 			hasTurnCompleted = true
 		}
 	}

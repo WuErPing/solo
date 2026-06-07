@@ -451,10 +451,8 @@ func (s *openCodeSession) Interrupt(ctx context.Context) error {
 	go opencodePostJSON(context.Background(), s.baseURL, "/session/"+s.base.SessionID()+"/abort", s.base.Config().Cwd, nil, nil)
 
 	s.notifySubscribers(AgentStreamEvent{
-		Event: map[string]interface{}{
-			"type":     "turn_canceled",
-			"provider": opencodeProviderName,
-			"reason":   "interrupted",
+		Event: protocol.TurnCanceledStreamEvent{
+			Provider: opencodeProviderName,
 		},
 		Timestamp: time.Now(),
 	})
@@ -477,10 +475,9 @@ func (s *openCodeSession) Close() error {
 	var notifyEvents []AgentStreamEvent
 	for callID, item := range s.runningToolCalls {
 		notifyEvents = append(notifyEvents, AgentStreamEvent{
-			Event: map[string]interface{}{
-				"type":     "timeline",
-				"item":     TimelineItem{Type: "tool_call", CallID: callID, Name: item.Name, Status: "failed", Error: map[string]interface{}{"message": "Session closed"}},
-				"provider": opencodeProviderName,
+			Event: protocol.TimelineStreamEvent{
+				Item:     TimelineItem{Type: "tool_call", CallID: callID, Name: item.Name, Status: "failed", Error: map[string]interface{}{"message": "Session closed"}},
+				Provider: opencodeProviderName,
 			},
 			Timestamp: time.Now(),
 		})
@@ -507,9 +504,9 @@ func (s *openCodeSession) Close() error {
 
 	// Emit session_closed event
 	s.dispatcher.Emit(AgentStreamEvent{
-		Event: map[string]interface{}{
-			"type":     "session_closed",
-			"provider": opencodeProviderName,
+		Event: protocol.TimelineStreamEvent{
+			Item:     TimelineItem{Type: "session_closed"},
+			Provider: opencodeProviderName,
 		},
 		Timestamp: time.Now(),
 	})
@@ -707,10 +704,9 @@ func (s *openCodeSession) StreamHistory(ctx context.Context) ([]AgentStreamEvent
 			}
 			if text != "" {
 				events = append(events, AgentStreamEvent{
-					Event: map[string]interface{}{
-						"type":     "timeline",
-						"item":     TimelineItem{Type: "user_message", Text: text},
-						"provider": opencodeProviderName,
+					Event: protocol.TimelineStreamEvent{
+						Item:     TimelineItem{Type: "user_message", Text: text},
+						Provider: opencodeProviderName,
 					},
 					Timestamp: time.Now(),
 				})
@@ -723,10 +719,9 @@ func (s *openCodeSession) StreamHistory(ctx context.Context) ([]AgentStreamEvent
 					if part.Text != "" {
 						emittedAssistantText = true
 						events = append(events, AgentStreamEvent{
-							Event: map[string]interface{}{
-								"type":     "timeline",
-								"item":     TimelineItem{Type: "assistant_message", Text: part.Text},
-								"provider": opencodeProviderName,
+							Event: protocol.TimelineStreamEvent{
+								Item:     TimelineItem{Type: "assistant_message", Text: part.Text},
+								Provider: opencodeProviderName,
 							},
 							Timestamp: time.Now(),
 						})
@@ -734,10 +729,9 @@ func (s *openCodeSession) StreamHistory(ctx context.Context) ([]AgentStreamEvent
 				case "reasoning":
 					if part.Text != "" {
 						events = append(events, AgentStreamEvent{
-							Event: map[string]interface{}{
-								"type":     "timeline",
-								"item":     TimelineItem{Type: "reasoning", Text: part.Text},
-								"provider": opencodeProviderName,
+							Event: protocol.TimelineStreamEvent{
+								Item:     TimelineItem{Type: "reasoning", Text: part.Text},
+								Provider: opencodeProviderName,
 							},
 							Timestamp: time.Now(),
 						})
@@ -763,10 +757,9 @@ func (s *openCodeSession) StreamHistory(ctx context.Context) ([]AgentStreamEvent
 					}
 					status := normalizeToolStatus(toolStatus.(string))
 					events = append(events, AgentStreamEvent{
-						Event: map[string]interface{}{
-							"type":     "timeline",
-							"item":     buildToolCallTimelineItem(callID, part.Tool, status, toolInput, toolOutput, toolError),
-							"provider": opencodeProviderName,
+						Event: protocol.TimelineStreamEvent{
+							Item:     buildToolCallTimelineItem(callID, part.Tool, status, toolInput, toolOutput, toolError),
+							Provider: opencodeProviderName,
 						},
 						Timestamp: time.Now(),
 					})
@@ -775,10 +768,9 @@ func (s *openCodeSession) StreamHistory(ctx context.Context) ([]AgentStreamEvent
 			if !emittedAssistantText {
 				if text := stringifyStructuredMessage(msg.Info.Structured); text != "" {
 					events = append(events, AgentStreamEvent{
-						Event: map[string]interface{}{
-							"type":     "timeline",
-							"item":     map[string]interface{}{"type": "assistant_message", "text": text},
-							"provider": opencodeProviderName,
+						Event: protocol.TimelineStreamEvent{
+							Item:     TimelineItem{Type: "assistant_message", Text: text},
+							Provider: opencodeProviderName,
 						},
 						Timestamp: time.Now(),
 					})

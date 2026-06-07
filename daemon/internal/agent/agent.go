@@ -262,10 +262,11 @@ type AgentStreamEvent struct {
 
 // IsCriticalEvent returns true for terminal stream events that must never be dropped.
 func (e AgentStreamEvent) IsCriticalEvent() bool {
-	if m, ok := e.Event.(map[string]interface{}); ok {
-		if t, ok := m["type"].(string); ok {
-			return t == "turn_completed" || t == "turn_failed" || t == "turn_canceled"
-		}
+	switch e.Event.(type) {
+	case protocol.TurnCompletedStreamEvent,
+		protocol.TurnFailedStreamEvent,
+		protocol.TurnCanceledStreamEvent:
+		return true
 	}
 	return false
 }
@@ -274,25 +275,9 @@ func (e AgentStreamEvent) IsCriticalEvent() bool {
 // should survive transient backpressure with a short blocking timeout rather
 // than being silently dropped.
 func (e AgentStreamEvent) IsSemiCriticalEvent() bool {
-	m, ok := e.Event.(map[string]interface{})
-	if !ok {
-		return false
-	}
-	t, _ := m["type"].(string)
-	if t == "reasoning" {
-		return true
-	}
-	if t != "timeline" {
-		return false
-	}
-	switch item := m["item"].(type) {
-	case TimelineItem:
-		return item.Type == "reasoning"
-	case *TimelineItem:
-		return item != nil && item.Type == "reasoning"
-	case map[string]interface{}:
-		itemType, _ := item["type"].(string)
-		return itemType == "reasoning"
+	switch evt := e.Event.(type) {
+	case protocol.TimelineStreamEvent:
+		return evt.Item.Type == "reasoning"
 	}
 	return false
 }

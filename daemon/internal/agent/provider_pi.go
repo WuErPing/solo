@@ -374,10 +374,8 @@ func (s *piSession) Interrupt(ctx context.Context) error {
 	s.mu.Unlock()
 
 	s.dispatcher.Emit(AgentStreamEvent{
-		Event: map[string]interface{}{
-			"type":     "turn_canceled",
-			"provider": piProviderName,
-			"reason":   "user_cancel",
+		Event: protocol.TurnCanceledStreamEvent{
+			Provider: piProviderName,
 		},
 		Timestamp: time.Now(),
 	})
@@ -481,10 +479,9 @@ func (t *piTranslator) translateEvent(msg piEvent, now time.Time) []interface{} 
 			t.session.base.SetSessionID(msg.ID)
 		}
 		events = append(events, AgentStreamEvent{
-			Event: map[string]interface{}{
-				"type":      "thread_started",
-				"sessionId": msg.ID,
-				"provider":  piProviderName,
+			Event: protocol.ThreadStartedStreamEvent{
+				SessionID: msg.ID,
+				Provider:  piProviderName,
 			},
 			Timestamp: now,
 		})
@@ -507,10 +504,9 @@ func (t *piTranslator) translateEvent(msg piEvent, now time.Time) []interface{} 
 			}
 			if len(textParts) > 0 {
 				events = append(events, AgentStreamEvent{
-					Event: map[string]interface{}{
-						"type":     "timeline",
-						"item":     TimelineItem{Type: "user_message", Text: strings.Join(textParts, "\n"), MessageID: t.messageID},
-						"provider": piProviderName,
+					Event: protocol.TimelineStreamEvent{
+						Item:     protocol.TimelineItem{Type: "user_message", Text: strings.Join(textParts, "\n"), MessageID: t.messageID},
+						Provider: piProviderName,
 					},
 					Timestamp: now,
 				})
@@ -524,10 +520,9 @@ func (t *piTranslator) translateEvent(msg piEvent, now time.Time) []interface{} 
 				text := extractAssistantText(msg.Message)
 				if text != "" {
 					events = append(events, AgentStreamEvent{
-						Event: map[string]interface{}{
-							"type":     "timeline",
-							"item":     TimelineItem{Type: "assistant_message", Text: text},
-							"provider": piProviderName,
+						Event: protocol.TimelineStreamEvent{
+							Item:     protocol.TimelineItem{Type: "assistant_message", Text: text},
+							Provider: piProviderName,
 						},
 						Timestamp: now,
 					})
@@ -540,10 +535,9 @@ func (t *piTranslator) translateEvent(msg piEvent, now time.Time) []interface{} 
 				usage := t.buildUsage(msg.Message.Usage)
 				if usage != nil {
 					events = append(events, AgentStreamEvent{
-						Event: map[string]interface{}{
-							"type":     "usage_updated",
-							"provider": piProviderName,
-							"usage":    usage,
+						Event: protocol.UsageUpdatedStreamEvent{
+							Provider: piProviderName,
+							Usage:    usage,
 						},
 						Timestamp: now,
 					})
@@ -570,10 +564,9 @@ func (t *piTranslator) translateEvent(msg piEvent, now time.Time) []interface{} 
 			text := extractAssistantText(msg.Message)
 			if text != "" {
 				events = append(events, AgentStreamEvent{
-					Event: map[string]interface{}{
-						"type":     "timeline",
-						"item":     TimelineItem{Type: "assistant_message", Text: text},
-						"provider": piProviderName,
+					Event: protocol.TimelineStreamEvent{
+						Item:     protocol.TimelineItem{Type: "assistant_message", Text: text},
+						Provider: piProviderName,
 					},
 					Timestamp: now,
 				})
@@ -585,15 +578,11 @@ func (t *piTranslator) translateEvent(msg piEvent, now time.Time) []interface{} 
 		if usage == nil && msg.Message != nil {
 			usage = t.buildUsage(msg.Message.Usage)
 		}
-		evt := map[string]interface{}{
-			"type":     "turn_completed",
-			"provider": piProviderName,
-		}
-		if usage != nil {
-			evt["usage"] = usage
-		}
 		events = append(events, AgentStreamEvent{
-			Event:     evt,
+			Event: protocol.TurnCompletedStreamEvent{
+				Provider: piProviderName,
+				Usage:    usage,
+			},
 			Timestamp: now,
 		})
 
@@ -614,10 +603,9 @@ func (t *piTranslator) translateAssistantMessageEvent(evt *piAssistantMessageEve
 	case "thinking_delta":
 		if evt.Delta != "" {
 			events = append(events, AgentStreamEvent{
-				Event: map[string]interface{}{
-					"type":     "timeline",
-					"item":     TimelineItem{Type: "reasoning", Text: evt.Delta},
-					"provider": piProviderName,
+				Event: protocol.TimelineStreamEvent{
+					Item:     protocol.TimelineItem{Type: "reasoning", Text: evt.Delta},
+					Provider: piProviderName,
 				},
 				Timestamp: now,
 			})
@@ -630,10 +618,9 @@ func (t *piTranslator) translateAssistantMessageEvent(evt *piAssistantMessageEve
 		if evt.Delta != "" {
 			t.textEmitted = true
 			events = append(events, AgentStreamEvent{
-				Event: map[string]interface{}{
-					"type":     "timeline",
-					"item":     TimelineItem{Type: "assistant_message", Text: evt.Delta},
-					"provider": piProviderName,
+				Event: protocol.TimelineStreamEvent{
+					Item:     protocol.TimelineItem{Type: "assistant_message", Text: evt.Delta},
+					Provider: piProviderName,
 				},
 				Timestamp: now,
 			})
@@ -647,10 +634,9 @@ func (t *piTranslator) translateAssistantMessageEvent(evt *piAssistantMessageEve
 		}
 		if tc != nil {
 			events = append(events, AgentStreamEvent{
-				Event: map[string]interface{}{
-					"type":     "timeline",
-					"item":     TimelineItem{Type: "tool_call", CallID: tc.ID, Name: tc.Name, Detail: t.buildToolCallDetail(tc), Status: "running", Error: nil},
-					"provider": piProviderName,
+				Event: protocol.TimelineStreamEvent{
+					Item:     protocol.TimelineItem{Type: "tool_call", CallID: tc.ID, Name: tc.Name, Detail: t.buildToolCallDetail(tc), Status: "running"},
+					Provider: piProviderName,
 				},
 				Timestamp: now,
 			})
@@ -668,10 +654,9 @@ func (t *piTranslator) translateAssistantMessageEvent(evt *piAssistantMessageEve
 		// Pi uses 'toolcall_end' (no underscore) with 'toolCall' field.
 		if evt.ToolCall != nil {
 			events = append(events, AgentStreamEvent{
-				Event: map[string]interface{}{
-					"type":     "timeline",
-					"item":     TimelineItem{Type: "tool_call", CallID: evt.ToolCall.ID, Name: evt.ToolCall.Name, Detail: t.buildToolCallDetail(evt.ToolCall), Status: "completed", Error: nil},
-					"provider": piProviderName,
+				Event: protocol.TimelineStreamEvent{
+					Item:     protocol.TimelineItem{Type: "tool_call", CallID: evt.ToolCall.ID, Name: evt.ToolCall.Name, Detail: t.buildToolCallDetail(evt.ToolCall), Status: "completed"},
+					Provider: piProviderName,
 				},
 				Timestamp: now,
 			})
@@ -730,17 +715,9 @@ func (d *piTerminalDetector) IsTerminal(evt interface{}) (*base.AgentRunResult, 
 	if !ok {
 		return nil, nil, false
 	}
-	payload, ok := streamEvt.Event.(map[string]interface{})
-	if !ok {
-		return nil, nil, false
-	}
-	eventType, _ := payload["type"].(string)
-	if eventType == "turn_completed" {
-		var usage *protocol.AgentUsage
-		if u, ok := payload["usage"].(*protocol.AgentUsage); ok {
-			usage = u
-		}
-		return &base.AgentRunResult{Usage: usage}, nil, true
+	switch e := streamEvt.Event.(type) {
+	case protocol.TurnCompletedStreamEvent:
+		return &base.AgentRunResult{Usage: e.Usage}, nil, true
 	}
 	return nil, nil, false
 }

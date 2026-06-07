@@ -54,7 +54,7 @@ func TestAgentManager_DroppedEventCount_IncrementOnDrop(t *testing.T) {
 	// With workChCapacity=1, most will be dropped.
 	nonCritical := AgentStreamEvent{
 		AgentID: ag.ID,
-		Event:   map[string]interface{}{"type": "timeline"},
+		Event:   protocol.TimelineStreamEvent{Item: protocol.TimelineItem{Type: "text", Text: "filler"}},
 	}
 	for i := 0; i < 200; i++ {
 		mockSession.events <- nonCritical

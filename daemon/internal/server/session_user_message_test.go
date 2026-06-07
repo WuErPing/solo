@@ -8,6 +8,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
+	"github.com/WuErPing/solo/protocol"
 )
 
 // TestSession_UserMessageTimelineEventIsStoredAndSent verifies that user_message
@@ -34,14 +35,7 @@ func TestSession_UserMessageTimelineEventIsStoredAndSent(t *testing.T) {
 	// Simulate a user_message timeline event arriving from the agent provider
 	sess.handleStreamEvent(agent.AgentStreamEvent{
 		AgentID: "agent-1",
-		Event: map[string]interface{}{
-			"type":     "timeline",
-			"provider": "claude",
-			"item": map[string]interface{}{
-				"type": "user_message",
-				"text": "hello from user",
-			},
-		},
+		Event: protocol.TimelineStreamEvent{Provider: "claude", Item: protocol.TimelineItem{Type: "user_message", Text: "hello from user"}},
 		Timestamp: time.Now(),
 	})
 

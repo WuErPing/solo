@@ -39,10 +39,8 @@ func TestAgentManager_EmitAttentionRequired_OnTurnCompleted(t *testing.T) {
 	var attentionEvents []AgentEvent
 	manager.Subscribe(func(event AgentEvent) {
 		if event.Type == EventAgentStream && event.Stream != nil {
-			if payload, ok := event.Stream.Event.(map[string]interface{}); ok {
-				if payload["type"] == "attention_required" {
-					attentionEvents = append(attentionEvents, event)
-				}
+			if _, ok := event.Stream.Event.(protocol.AttentionRequiredStreamEvent); ok {
+				attentionEvents = append(attentionEvents, event)
 			}
 		}
 	})
@@ -50,9 +48,7 @@ func TestAgentManager_EmitAttentionRequired_OnTurnCompleted(t *testing.T) {
 	// Simulate turn_completed event
 	event := AgentStreamEvent{
 		AgentID: ag.ID,
-		Event: map[string]interface{}{
-			"type": "turn_completed",
-		},
+		Event:   protocol.TurnCompletedStreamEvent{},
 		Timestamp: time.Now(),
 	}
 	manager.handleStreamEvent(ag, event)
@@ -61,12 +57,12 @@ func TestAgentManager_EmitAttentionRequired_OnTurnCompleted(t *testing.T) {
 		t.Fatalf("expected 1 attention event, got %d", len(attentionEvents))
 	}
 
-	payload := attentionEvents[0].Stream.Event.(map[string]interface{})
-	if payload["reason"] != "finished" {
-		t.Errorf("expected reason 'finished', got %v", payload["reason"])
+	payload := attentionEvents[0].Stream.Event.(protocol.AttentionRequiredStreamEvent)
+	if payload.Reason != "finished" {
+		t.Errorf("expected reason 'finished', got %v", payload.Reason)
 	}
-	if payload["provider"] != ag.Provider {
-		t.Errorf("expected provider %s, got %v", ag.Provider, payload["provider"])
+	if payload.Provider != ag.Provider {
+		t.Errorf("expected provider %s, got %v", ag.Provider, payload.Provider)
 	}
 
 	// Verify attention state
@@ -92,10 +88,8 @@ func TestAgentManager_EmitAttentionRequired_OnTurnFailed(t *testing.T) {
 	var attentionEvents []AgentEvent
 	manager.Subscribe(func(event AgentEvent) {
 		if event.Type == EventAgentStream && event.Stream != nil {
-			if payload, ok := event.Stream.Event.(map[string]interface{}); ok {
-				if payload["type"] == "attention_required" {
-					attentionEvents = append(attentionEvents, event)
-				}
+			if _, ok := event.Stream.Event.(protocol.AttentionRequiredStreamEvent); ok {
+				attentionEvents = append(attentionEvents, event)
 			}
 		}
 	})
@@ -103,10 +97,7 @@ func TestAgentManager_EmitAttentionRequired_OnTurnFailed(t *testing.T) {
 	// Simulate turn_failed event
 	event := AgentStreamEvent{
 		AgentID: ag.ID,
-		Event: map[string]interface{}{
-			"type":  "turn_failed",
-			"error": "something went wrong",
-		},
+		Event:   protocol.TurnFailedStreamEvent{Error: "something went wrong"},
 		Timestamp: time.Now(),
 	}
 	manager.handleStreamEvent(ag, event)
@@ -115,9 +106,9 @@ func TestAgentManager_EmitAttentionRequired_OnTurnFailed(t *testing.T) {
 		t.Fatalf("expected 1 attention event, got %d", len(attentionEvents))
 	}
 
-	payload := attentionEvents[0].Stream.Event.(map[string]interface{})
-	if payload["reason"] != "error" {
-		t.Errorf("expected reason 'error', got %v", payload["reason"])
+	payload := attentionEvents[0].Stream.Event.(protocol.AttentionRequiredStreamEvent)
+	if payload.Reason != "error" {
+		t.Errorf("expected reason 'error', got %v", payload.Reason)
 	}
 
 	// Verify error state
@@ -140,10 +131,8 @@ func TestAgentManager_EmitAttentionRequired_OnPermissionRequested(t *testing.T) 
 	var attentionEvents []AgentEvent
 	manager.Subscribe(func(event AgentEvent) {
 		if event.Type == EventAgentStream && event.Stream != nil {
-			if payload, ok := event.Stream.Event.(map[string]interface{}); ok {
-				if payload["type"] == "attention_required" {
-					attentionEvents = append(attentionEvents, event)
-				}
+			if _, ok := event.Stream.Event.(protocol.AttentionRequiredStreamEvent); ok {
+				attentionEvents = append(attentionEvents, event)
 			}
 		}
 	})
@@ -151,12 +140,8 @@ func TestAgentManager_EmitAttentionRequired_OnPermissionRequested(t *testing.T) 
 	// Simulate permission_requested event
 	event := AgentStreamEvent{
 		AgentID: ag.ID,
-		Event: map[string]interface{}{
-			"type": "permission_requested",
-			"request": map[string]interface{}{
-				"id":   "perm-1",
-				"name": "shell",
-			},
+		Event: protocol.PermissionRequestedStreamEvent{
+			Request: protocol.PermissionRequest{ID: "perm-1", Name: "shell"},
 		},
 		Timestamp: time.Now(),
 	}
@@ -166,9 +151,9 @@ func TestAgentManager_EmitAttentionRequired_OnPermissionRequested(t *testing.T) 
 		t.Fatalf("expected 1 attention event, got %d", len(attentionEvents))
 	}
 
-	payload := attentionEvents[0].Stream.Event.(map[string]interface{})
-	if payload["reason"] != "permission" {
-		t.Errorf("expected reason 'permission', got %v", payload["reason"])
+	payload := attentionEvents[0].Stream.Event.(protocol.AttentionRequiredStreamEvent)
+	if payload.Reason != "permission" {
+		t.Errorf("expected reason 'permission', got %v", payload.Reason)
 	}
 
 	// Verify attention state
@@ -194,10 +179,8 @@ func TestAgentManager_EmitAttentionRequired_MultipleEvents(t *testing.T) {
 	var attentionEvents []AgentEvent
 	manager.Subscribe(func(event AgentEvent) {
 		if event.Type == EventAgentStream && event.Stream != nil {
-			if payload, ok := event.Stream.Event.(map[string]interface{}); ok {
-				if payload["type"] == "attention_required" {
-					attentionEvents = append(attentionEvents, event)
-				}
+			if _, ok := event.Stream.Event.(protocol.AttentionRequiredStreamEvent); ok {
+				attentionEvents = append(attentionEvents, event)
 			}
 		}
 	})
@@ -205,13 +188,13 @@ func TestAgentManager_EmitAttentionRequired_MultipleEvents(t *testing.T) {
 	// First: permission requested
 	manager.handleStreamEvent(ag, AgentStreamEvent{
 		AgentID: ag.ID,
-		Event:   map[string]interface{}{"type": "permission_requested"},
+		Event:   protocol.PermissionRequestedStreamEvent{},
 	})
 
 	// Then: turn completed
 	manager.handleStreamEvent(ag, AgentStreamEvent{
 		AgentID: ag.ID,
-		Event:   map[string]interface{}{"type": "turn_completed"},
+		Event:   protocol.TurnCompletedStreamEvent{},
 	})
 
 	if len(attentionEvents) != 2 {
@@ -233,35 +216,29 @@ func TestAgentManager_EmitAttentionRequired_IncludesNotificationPayload(t *testi
 	var attentionEvent AgentEvent
 	manager.Subscribe(func(event AgentEvent) {
 		if event.Type == EventAgentStream && event.Stream != nil {
-			if payload, ok := event.Stream.Event.(map[string]interface{}); ok {
-				if payload["type"] == "attention_required" {
-					attentionEvent = event
-				}
+			if _, ok := event.Stream.Event.(protocol.AttentionRequiredStreamEvent); ok {
+				attentionEvent = event
 			}
 		}
 	})
 
 	manager.handleStreamEvent(ag, AgentStreamEvent{
 		AgentID: ag.ID,
-		Event:   map[string]interface{}{"type": "turn_completed"},
+		Event:   protocol.TurnCompletedStreamEvent{},
 	})
 
-	payload := attentionEvent.Stream.Event.(map[string]interface{})
+	payload := attentionEvent.Stream.Event.(protocol.AttentionRequiredStreamEvent)
 
-	notification, ok := payload["notification"].(map[string]interface{})
-	if !ok {
-		t.Fatalf("expected notification to be map[string]interface{}, got %T", payload["notification"])
+	if payload.Notification["title"] != "Agent finished" {
+		t.Errorf("expected notification title 'Agent finished', got %v", payload.Notification["title"])
 	}
-	if notification["title"] != "Agent finished" {
-		t.Errorf("expected notification title 'Agent finished', got %v", notification["title"])
-	}
-	body, _ := notification["body"].(string)
+	body, _ := payload.Notification["body"].(string)
 	if body == "" {
 		t.Error("expected notification body to be non-empty")
 	}
-	data, ok := notification["data"].(map[string]interface{})
+	data, ok := payload.Notification["data"].(map[string]interface{})
 	if !ok {
-		t.Fatalf("expected notification data to be map[string]interface{}, got %T", notification["data"])
+		t.Fatalf("expected notification data to be map[string]interface{}, got %T", payload.Notification["data"])
 	}
 	if data["agentId"] != ag.ID {
 		t.Errorf("expected notification data agentId %s, got %v", ag.ID, data["agentId"])
@@ -285,31 +262,20 @@ func TestAgentManager_EmitAttentionRequired_IncludesShouldNotifyAndTimestamp(t *
 	var attentionEvent AgentEvent
 	manager.Subscribe(func(event AgentEvent) {
 		if event.Type == EventAgentStream && event.Stream != nil {
-			if payload, ok := event.Stream.Event.(map[string]interface{}); ok {
-				if payload["type"] == "attention_required" {
-					attentionEvent = event
-				}
+			if _, ok := event.Stream.Event.(protocol.AttentionRequiredStreamEvent); ok {
+				attentionEvent = event
 			}
 		}
 	})
 
 	manager.handleStreamEvent(ag, AgentStreamEvent{
 		AgentID: ag.ID,
-		Event:   map[string]interface{}{"type": "turn_completed"},
+		Event:   protocol.TurnCompletedStreamEvent{},
 	})
 
-	payload := attentionEvent.Stream.Event.(map[string]interface{})
+	payload := attentionEvent.Stream.Event.(protocol.AttentionRequiredStreamEvent)
 
-	shouldNotify, ok := payload["shouldNotify"].(bool)
-	if !ok {
-		t.Fatalf("expected shouldNotify to be bool, got %T", payload["shouldNotify"])
-	}
-	if shouldNotify != false {
-		t.Errorf("expected shouldNotify false from manager (Session overrides), got %v", shouldNotify)
-	}
-
-	timestamp, _ := payload["timestamp"].(string)
-	if timestamp == "" {
-		t.Error("expected timestamp to be non-empty string")
+	if payload.ShouldNotify != false {
+		t.Errorf("expected shouldNotify false from manager (Session overrides), got %v", payload.ShouldNotify)
 	}
 }

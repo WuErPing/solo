@@ -811,12 +811,13 @@ func (m *AgentManager) HydrateTimeline(ctx context.Context, agentID string, stor
 	}
 
 	for _, evt := range events {
-		payload, ok := evt.Event.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		if evtType, _ := payload["type"].(string); evtType == "timeline" {
-			store.AppendFromHistory(agentID, payload["item"])
+		switch e := evt.Event.(type) {
+		case protocol.TimelineStreamEvent:
+			store.AppendFromHistory(agentID, e.Item)
+		case map[string]interface{}:
+			if evtType, _ := e["type"].(string); evtType == "timeline" {
+				store.AppendFromHistory(agentID, e["item"])
+			}
 		}
 	}
 	return nil
@@ -896,10 +897,7 @@ func (m *AgentManager) subscribeToSession(agent *ManagedAgent) {
 			select {
 			case workCh <- event:
 			case <-time.After(criticalWorkChSendTimeout):
-				eventType := ""
-				if payload, ok := event.Event.(map[string]interface{}); ok {
-					eventType, _ = payload["type"].(string)
-				}
+				eventType := streamEventTypeString(event.Event)
 				m.logger.Warn("workCh full: applying critical event state directly",
 					"agentId", agent.ID,
 					"eventType", eventType)
@@ -923,10 +921,7 @@ func (m *AgentManager) subscribeToSession(agent *ManagedAgent) {
 			case workCh <- event:
 			case <-time.After(semiCriticalWorkChTimeout):
 				total := m.droppedEventCount.Add(1)
-				eventType := ""
-				if payload, ok := event.Event.(map[string]interface{}); ok {
-					eventType, _ = payload["type"].(string)
-				}
+				eventType := streamEventTypeString(event.Event)
 				m.logger.Warn("semi-critical event dropped, workCh full after timeout",
 					"agentId", agent.ID,
 					"eventType", eventType,
@@ -939,10 +934,7 @@ func (m *AgentManager) subscribeToSession(agent *ManagedAgent) {
 			case workCh <- event:
 			default:
 				total := m.droppedEventCount.Add(1)
-				eventType := ""
-				if payload, ok := event.Event.(map[string]interface{}); ok {
-					eventType, _ = payload["type"].(string)
-				}
+				eventType := streamEventTypeString(event.Event)
 				m.logger.Warn("non-critical event dropped, workCh full",
 					"agentId", agent.ID,
 					"eventType", eventType,
@@ -1000,11 +992,10 @@ func (m *AgentManager) handleStreamEvent(agent *ManagedAgent, event AgentStreamE
 	})
 
 	// Handle permission requests
-	if payload, ok := event.Event.(map[string]interface{}); ok {
-		if eventType, _ := payload["type"].(string); eventType == "permission_requested" {
-			agent.SetAttention(true, "permission")
-			m.emitAttentionRequired(agent, "permission")
-		}
+	switch event.Event.(type) {
+	case protocol.PermissionRequestedStreamEvent:
+		agent.SetAttention(true, "permission")
+		m.emitAttentionRequired(agent, "permission")
 	}
 
 	// Persist state changes
@@ -1015,32 +1006,40 @@ func (m *AgentManager) handleStreamEvent(agent *ManagedAgent, event AgentStreamE
 	}
 }
 
-func (m *AgentManager) applyTerminalStreamState(agent *ManagedAgent, event AgentStreamEvent) bool {
-	payload, ok := event.Event.(map[string]interface{})
-	if !ok {
-		return false
+// streamEventTypeString returns a human-readable type for logging purposes.
+func streamEventTypeString(event interface{}) string {
+	switch e := event.(type) {
+	case protocol.StreamEvent:
+		return e.StreamEventType()
+	case map[string]interface{}:
+		if t, ok := e["type"].(string); ok {
+			return t
+		}
 	}
-	eventType, _ := payload["type"].(string)
-	switch eventType {
-	case "turn_completed":
+	return ""
+}
+
+func (m *AgentManager) applyTerminalStreamState(agent *ManagedAgent, event AgentStreamEvent) bool {
+	switch e := event.Event.(type) {
+	case protocol.TurnCompletedStreamEvent:
 		m.stallMonitor.UnregisterAgent(agent.ID)
-		if usage, ok := payload["usage"].(*protocol.AgentUsage); ok {
+		if e.Usage != nil {
 			agent.mu.Lock()
-			agent.LastUsage = usage
+			agent.LastUsage = e.Usage
 			agent.mu.Unlock()
 		}
 		agent.SetLifecycle(protocol.AgentIdle)
 		agent.SetAttention(true, "finished")
 		m.emitAttentionRequired(agent, "finished")
-	case "turn_failed":
+	case protocol.TurnFailedStreamEvent:
 		m.stallMonitor.UnregisterAgent(agent.ID)
-		errMsg := "agent turn failed"
-		if errValue, ok := payload["error"]; ok && errValue != nil {
-			errMsg = fmt.Sprint(errValue)
+		errMsg := e.Error
+		if errMsg == "" {
+			errMsg = "agent turn failed"
 		}
 		agent.SetError(errMsg)
 		m.emitAttentionRequired(agent, "error")
-	case "turn_canceled":
+	case protocol.TurnCanceledStreamEvent:
 		m.stallMonitor.UnregisterAgent(agent.ID)
 		agent.SetLifecycle(protocol.AgentIdle)
 	default:
@@ -1059,13 +1058,10 @@ func (m *AgentManager) emitAttentionRequired(agent *ManagedAgent, reason string)
 		AgentID: agent.ID,
 		Stream: &AgentStreamEvent{
 			AgentID: agent.ID,
-			Event: map[string]interface{}{
-				"type":         "attention_required",
-				"provider":     agent.Provider,
-				"reason":       reason,
-				"timestamp":    time.Now().Format(time.RFC3339Nano),
-				"shouldNotify": false,
-				"notification": map[string]interface{}{
+			Event: protocol.AttentionRequiredStreamEvent{
+				Provider: agent.Provider,
+				Reason:   reason,
+				Notification: map[string]interface{}{
 					"title": notification.Title,
 					"body":  notification.Body,
 					"data": map[string]interface{}{

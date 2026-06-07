@@ -15,6 +15,16 @@
 - `src/screens/` - Page components
 - `src/components/` - Reusable components
 - `src/app/` - Expo Router routes
+- `src/hooks/` - Custom hooks
+- `src/stores/` - Zustand state stores
+- `src/styles/` - Theme and style definitions
+- `src/utils/` - Utility functions
+
+**Notable Components**:
+- `svg-preview.tsx` / `svg-preview.web.tsx` — SVG file preview (WebView for mobile, native for web)
+- `mermaid-preview.tsx` / `mermaid-preview.web.tsx` — Mermaid diagram rendering
+- `ansi-text-renderer.tsx` — ANSI escape sequence rendering
+- `error-boundary.tsx` — React error boundary
 
 ## 2. App-Bridge (Client Communication Library)
 
@@ -62,6 +72,7 @@
 | `chat/` | Chat functionality |
 | `loop/` | Main loop |
 | `schedule/` | Scheduler |
+| `tmux/` | Tmux RPC schemas and types |
 
 ## 3. Daemon
 
@@ -104,6 +115,8 @@ Core files:
 - `session.go` - Session management
 - `session_agent.go` - Agent sessions
 - `session_terminal.go` - Terminal sessions
+- `session_tmux.go` - Tmux subprocess management, agent scanning, pane capture, key injection
+- `session_register_handlers.go` - WebSocket handler registration (routes tmux messages)
 - `handler_registry.go` - Handler registry
 
 ### 3.2 Relay Client
@@ -156,6 +169,48 @@ Core structure:
 - `internal/server/memorybridge*.go` - Session scheduler layer hook injection
 
 See [Session Memory Persistence](session-memory-persistence.md) and [`../product/session-memory-spec.md`](../product/session-memory-spec.md).
+
+### 3.6 Tmux Subsystem
+
+**File**: `internal/server/session_tmux.go`
+
+Features:
+- **Agent scanning**: Three-layer detection (command name, pane title unicode normalization, child process inspection)
+- **Pane capture**: `tmux capture-pane -p -e -S {startLine}` with configurable scrollback
+- **Key injection**: `tmux send-keys -t {paneId} {keys} [Enter]`
+- **Status line**: `tmux display-message -p` for status-left, status-right, and window list
+- Supported agents: claude, pi, kimi, kimi-cli, opencode, qoder, cursor
+
+### 3.7 App-Bridge Tmux Modules
+
+**Directory**: `app-bridge/src/server/tmux/`
+
+| File | Responsibility |
+|------|---------------|
+| `rpc-schemas.ts` | Zod schemas for all tmux RPC messages (list_agents, capture_pane, send_keys, get_theme) |
+
+**DaemonClient methods** (in `app-bridge/src/client/daemon-client.ts`):
+- `tmuxListAgents(hostId)` — Discover AI agent panes across tmux sessions
+- `tmuxCapturePane(hostId, paneId, startLine?)` — Capture pane content with ANSI codes
+- `tmuxSendKeys(hostId, paneId, keys, sendEnter?)` — Send keystrokes to a tmux pane
+- `tmuxGetTheme(hostId, sessionId)` — Get tmux session theme colors (legacy, now uses terminal themes)
+
+### 3.8 App Tmux Components
+
+| Component | File | Responsibility |
+|-----------|------|---------------|
+| `TmuxDashboardScreen` | `screens/tmux-dashboard-screen.tsx` | Dashboard showing aggregated tmux agents from all hosts |
+| `TmuxPaneScreen` | `screens/tmux-pane-screen.tsx` | Full-screen pane content view with ANSI rendering and input |
+| `tmux-agent-store` | `stores/tmux-agent-store.ts` | Zustand store for selected agent (serverId + paneId) |
+| `useAggregatedTmuxAgents` | `hooks/use-tmux-agents.ts` | Parallel useQueries across all hosts for agent discovery |
+| `useTmuxCapturePane` | `hooks/use-tmux-capture-pane.ts` | Polling useQuery for pane content with foreground awareness |
+| `useTmuxTheme` | `hooks/use-tmux-theme.ts` | Query for terminal theme colors |
+| `useTmuxStatusLine` | `hooks/use-tmux-status-line.ts` | Parse and render tmux status line with ANSI colors |
+| `useTmuxStatusLines` | `hooks/use-tmux-status-lines.ts` | Aggregate status lines from multiple hosts |
+| `ansi-text-renderer` | `components/ansi-text-renderer.tsx` | ANSI escape sequence rendering component |
+| `error-boundary` | `components/error-boundary.tsx` | React error boundary wrapping tmux screens |
+| `terminal-themes` | `styles/terminal-themes.ts` | 8 terminal theme presets |
+| `detect-ansi-colors` | `utils/detect-ansi-colors.ts` | 256-color palette detection from ANSI content |
 
 ## 4. Relay (Relay Server)
 

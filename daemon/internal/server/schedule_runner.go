@@ -139,16 +139,3 @@ func agentResult(agentID string, snapshot protocol.AgentSnapshotPayload) schedul
 	return result
 }
 
-// startScheduleExecutor creates and starts the background schedule executor.
-// The executor polls for due schedules and runs them using the daemonRunner.
-func (s *Session) startScheduleExecutor() {
-	runner := newDaemonRunner(s.agentMgr, s.logger)
-	s.scheduleExecutor = schedule.NewExecutor(s.scheduleStore, runner, 30*time.Second, s.logger)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		<-s.done
-		cancel()
-	}()
-	s.scheduleExecutor.Start(ctx)
-}

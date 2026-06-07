@@ -44,10 +44,7 @@ type hangingAfterTerminalSession struct {
 
 func (s *hangingAfterTerminalSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
 	s.events <- AgentStreamEvent{
-		Event: map[string]interface{}{
-			"type":     "turn_completed",
-			"provider": "hanging-terminal",
-		},
+		Event:     protocol.TurnCompletedStreamEvent{Provider: "hanging-terminal"},
 		Timestamp: time.Now(),
 	}
 	<-ctx.Done()
