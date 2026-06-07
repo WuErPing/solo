@@ -695,7 +695,7 @@ describe("processAgentStreamEvent", () => {
     expect(result.agent).toBe(null);
   });
 
-  it("does not change agent when status is not running", () => {
+  it("derives optimistic idle on turn_completed even when status is idle (buffered update race)", () => {
     const turnCompletedEvent: AgentStreamEventPayload = {
       type: "turn_completed",
       provider: "claude",
@@ -712,8 +712,11 @@ describe("processAgentStreamEvent", () => {
       timestamp: new Date(2000),
     });
 
-    expect(result.agentChanged).toBe(false);
-    expect(result.agent).toBe(null);
+    expect(result.agentChanged).toBe(true);
+    expect(result.agent).not.toBe(null);
+    expect(result.agent!.status).toBe("idle");
+    expect(result.agent!.updatedAt.getTime()).toBe(2000);
+    expect(result.agent!.lastActivityAt.getTime()).toBe(2000);
   });
 
   it("does not change agent when no agent is provided", () => {
