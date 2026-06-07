@@ -20,6 +20,7 @@ import (
 	"github.com/WuErPing/solo/daemon/internal/metrics"
 	"github.com/WuErPing/solo/daemon/internal/push"
 	"github.com/WuErPing/solo/daemon/internal/relayclient"
+	"github.com/WuErPing/solo/daemon/internal/schedule"
 	"github.com/WuErPing/solo/daemon/internal/terminal"
 	"github.com/WuErPing/solo/daemon/internal/workspace"
 	"github.com/WuErPing/solo/protocol"
@@ -27,24 +28,27 @@ import (
 
 // Daemon is the core server managing WebSocket connections and agent lifecycle.
 type Daemon struct {
-	cfg            *config.Config
-	logger         *slog.Logger
-	http           *http.Server
-	ws             *WSServer
-	agentMgr       *agent.AgentManager
-	agentStorage   *agent.AgentStorage
-	registry       *agent.ProviderRegistry
-	workspaceStore *WorkspaceStore
-	terminalMgr    *terminal.TerminalManager
-	projectReg     *workspace.ProjectRegistry
-	workspaceReg   *workspace.WorkspaceRegistry
-	gitSvc         workspace.WorkspaceGitService
-	scriptMgr      *workspace.ScriptManager
-	scriptProxy    *workspace.ScriptProxy
-	relayClient    *relayclient.Client
-	ln             net.Listener
-	memoryRecorder MemoryRecorder
-	memoryBridge   MemoryBridge
+	cfg              *config.Config
+	logger           *slog.Logger
+	http             *http.Server
+	ws               *WSServer
+	agentMgr         *agent.AgentManager
+	agentStorage     *agent.AgentStorage
+	registry         *agent.ProviderRegistry
+	workspaceStore   *WorkspaceStore
+	terminalMgr      *terminal.TerminalManager
+	projectReg       *workspace.ProjectRegistry
+	workspaceReg     *workspace.WorkspaceRegistry
+	gitSvc           workspace.WorkspaceGitService
+	scriptMgr        *workspace.ScriptManager
+	scriptProxy      *workspace.ScriptProxy
+	relayClient      *relayclient.Client
+	ln               net.Listener
+	memoryRecorder   MemoryRecorder
+	memoryBridge     MemoryBridge
+	scheduleStore    *schedule.Store
+	scheduleExecutor *schedule.Executor
+	executorCancel   context.CancelFunc
 }
 
 // MemoryRecorder is the minimal contract the daemon needs to flush/close
@@ -170,6 +174,12 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 		}
 	}
 
+	// Create shared schedule store (single instance for all sessions)
+	scheduleStore := schedule.NewStore(
+		schedule.WithDataPath(filepath.Join(cfg.SoloHome, "schedules.json")),
+		schedule.WithLogger(logger),
+	)
+
 	// Create WS server with dependencies
 	ws := NewWSServerWithConfig(DaemonConfig{
 		Config:          cfg,
@@ -188,6 +198,7 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 		Pusher:          pusher,
 		ActivityTracker: activityTracker,
 		MemoryBridge:    memoryBridge,
+		ScheduleStore:   scheduleStore,
 	})
 
 	mux := http.NewServeMux()
@@ -214,6 +225,7 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 		scriptProxy:    scriptProxy,
 		memoryRecorder: memoryRecorder,
 		memoryBridge:   memoryBridge,
+		scheduleStore:  scheduleStore,
 		http: &http.Server{
 			Handler: mux,
 		},
@@ -281,11 +293,24 @@ func (d *Daemon) Start() error {
 	// block the session handler waiting for the server to cold-start.
 	go d.prewarmOpenCodeServer()
 
+	// Start the schedule executor at daemon level so it survives session disconnects.
+	runner := newDaemonRunner(d.agentMgr, d.logger)
+	d.scheduleExecutor = schedule.NewExecutor(d.scheduleStore, runner, 30*time.Second, d.logger)
+	execCtx, execCancel := context.WithCancel(context.Background())
+	d.executorCancel = execCancel
+	d.scheduleExecutor.Start(execCtx)
+
 	return nil
 }
 
 // Stop gracefully shuts down the daemon.
 func (d *Daemon) Stop(ctx context.Context) error {
+	if d.executorCancel != nil {
+		d.executorCancel()
+	}
+	if d.scheduleExecutor != nil {
+		d.scheduleExecutor.Wait()
+	}
 	if d.relayClient != nil {
 		d.relayClient.Stop()
 	}
@@ -398,6 +423,7 @@ type WSServer struct {
 	pusher          push.Pusher
 	activityTracker ActivityTracker
 	memoryBridge    MemoryBridge
+	scheduleStore   *schedule.Store
 	done            chan struct{}
 	mu              sync.RWMutex
 	gracePeriod     time.Duration // override for SessionDisconnectGraceMs; 0 = use default
@@ -408,7 +434,7 @@ type WSServer struct {
 
 // NewWSServer creates a new WebSocket server with agent dependencies.
 // Deprecated: use NewWSServerWithConfig
-func NewWSServer(cfg *config.Config, logger *slog.Logger, agentMgr *agent.AgentManager, timelineStore *agent.InMemoryTimelineStore, registry *agent.ProviderRegistry, workspaceStore *WorkspaceStore, terminalMgr *terminal.TerminalManager, projectReg *workspace.ProjectRegistry, workspaceReg *workspace.WorkspaceRegistry, gitSvc workspace.WorkspaceGitService, scriptMgr *workspace.ScriptManager, scriptProxy *workspace.ScriptProxy, pushTokenStore push.TokenStore, pusher push.Pusher, activityTracker ActivityTracker, memoryBridge MemoryBridge) *WSServer {
+func NewWSServer(cfg *config.Config, logger *slog.Logger, agentMgr *agent.AgentManager, timelineStore *agent.InMemoryTimelineStore, registry *agent.ProviderRegistry, workspaceStore *WorkspaceStore, terminalMgr *terminal.TerminalManager, projectReg *workspace.ProjectRegistry, workspaceReg *workspace.WorkspaceRegistry, gitSvc workspace.WorkspaceGitService, scriptMgr *workspace.ScriptManager, scriptProxy *workspace.ScriptProxy, pushTokenStore push.TokenStore, pusher push.Pusher, activityTracker ActivityTracker, memoryBridge MemoryBridge, scheduleStore *schedule.Store) *WSServer {
 	return &WSServer{
 		cfg:             cfg,
 		logger:          logger,
@@ -427,6 +453,7 @@ func NewWSServer(cfg *config.Config, logger *slog.Logger, agentMgr *agent.AgentM
 		pusher:          pusher,
 		activityTracker: activityTracker,
 		memoryBridge:    memoryBridge,
+		scheduleStore:   scheduleStore,
 		done:            make(chan struct{}),
 	}
 }
@@ -450,6 +477,7 @@ type DaemonConfig struct {
 	Pusher          push.Pusher
 	ActivityTracker ActivityTracker
 	MemoryBridge    MemoryBridge
+	ScheduleStore   *schedule.Store
 }
 
 // NewWSServerWithConfig creates a new WebSocket server using a DaemonConfig.
@@ -471,6 +499,7 @@ func NewWSServerWithConfig(cfg DaemonConfig) *WSServer {
 		cfg.Pusher,
 		cfg.ActivityTracker,
 		cfg.MemoryBridge,
+		cfg.ScheduleStore,
 	)
 }
 
@@ -708,6 +737,7 @@ func (s *WSServer) handleNewConnection(conn WSConn) {
 		ScriptMgr:      s.scriptMgr,
 		ScriptProxy:    s.scriptProxy,
 		Broadcast:      s.broadcast,
+		ScheduleStore:  s.scheduleStore,
 	})
 	if _, isRelay := conn.(*relayclient.E2EEConn); isRelay {
 		sess.SetIsRelay(true)

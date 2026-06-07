@@ -62,9 +62,10 @@ func (st *Store) RecordRun(scheduleID string, result RunResult) (*protocol.Store
 		s.Status = "completed"
 	}
 
+	err := st.saveLocked()
 	st.mu.Unlock()
 
-	if err := st.save(); err != nil {
+	if err != nil {
 		return nil, err
 	}
 

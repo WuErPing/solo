@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -45,7 +44,6 @@ type Session struct {
 	pusher          push.Pusher
 	memoryBridge    MemoryBridge
 	scheduleStore    *schedule.Store
-	scheduleExecutor *schedule.Executor
 
 	workspaces   map[string]*protocol.WorkspaceDescriptor
 	workspacesMu sync.RWMutex
@@ -143,7 +141,7 @@ type inboundQueueItem struct {
 
 // NewSession creates a new session.
 // Deprecated: use NewSessionWithConfig
-func NewSession(clientID, clientType string, conn WSConn, cfg *config.Config, logger *slog.Logger, agentMgr *agent.AgentManager, timelineStore *agent.InMemoryTimelineStore, registry *agent.ProviderRegistry, workspaceStore *WorkspaceStore, terminalMgr *terminal.TerminalManager, projectReg *workspace.ProjectRegistry, workspaceReg *workspace.WorkspaceRegistry, gitSvc workspace.WorkspaceGitService, scriptMgr *workspace.ScriptManager, scriptProxy *workspace.ScriptProxy, broadcast func(protocol.WSOutboundMessage)) *Session {
+func NewSession(clientID, clientType string, conn WSConn, cfg *config.Config, logger *slog.Logger, agentMgr *agent.AgentManager, timelineStore *agent.InMemoryTimelineStore, registry *agent.ProviderRegistry, workspaceStore *WorkspaceStore, terminalMgr *terminal.TerminalManager, projectReg *workspace.ProjectRegistry, workspaceReg *workspace.WorkspaceRegistry, gitSvc workspace.WorkspaceGitService, scriptMgr *workspace.ScriptManager, scriptProxy *workspace.ScriptProxy, broadcast func(protocol.WSOutboundMessage), scheduleStore *schedule.Store) *Session {
 	sess := &Session{
 		clientID:       clientID,
 		clientType:     clientType,
@@ -165,7 +163,7 @@ func NewSession(clientID, clientType string, conn WSConn, cfg *config.Config, lo
 		slotToTerminal: make(map[byte]*terminal.TerminalProcess),
 		terminalToSlot: make(map[string]byte),
 		setupProgress:  make(map[string]*workspace.SetupProgressEvent),
-		scheduleStore:  schedule.NewStore(schedule.WithDataPath(filepath.Join(cfg.SoloHome, "schedules.json"))),
+		scheduleStore:  scheduleStore,
 		done:           make(chan struct{}),
 		gracePeriod:    time.Duration(protocol.SessionDisconnectGraceMs) * time.Millisecond,
 		sendQueue:      newSendQueue(),
@@ -209,6 +207,7 @@ type SessionConfig struct {
 	ScriptMgr      *workspace.ScriptManager
 	ScriptProxy    *workspace.ScriptProxy
 	Broadcast      func(protocol.WSOutboundMessage)
+	ScheduleStore  *schedule.Store
 }
 
 // NewSessionWithConfig creates a new session using a SessionConfig.
@@ -230,6 +229,7 @@ func NewSessionWithConfig(clientID, clientType string, conn WSConn, cfg SessionC
 		cfg.ScriptMgr,
 		cfg.ScriptProxy,
 		cfg.Broadcast,
+		cfg.ScheduleStore,
 	)
 }
 
@@ -260,9 +260,6 @@ func (s *Session) Run() {
 	// This prevents agent_stream events from being received for agents that
 	// are not yet in the store (which would cause messages to be invisible).
 	s.pushActiveAgents()
-
-	// Start the schedule executor
-	s.startScheduleExecutor()
 
 	// Send provider snapshot
 	s.sendProviderSnapshot()

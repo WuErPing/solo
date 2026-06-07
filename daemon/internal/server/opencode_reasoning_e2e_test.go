@@ -18,6 +18,7 @@ import (
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/config"
 	"github.com/WuErPing/solo/daemon/internal/push"
+	"github.com/WuErPing/solo/daemon/internal/schedule"
 	"github.com/WuErPing/solo/daemon/internal/terminal"
 	"github.com/WuErPing/solo/daemon/internal/workspace"
 	"github.com/WuErPing/solo/protocol"
@@ -108,6 +109,7 @@ func newTestWSServerWithOpenCode(t *testing.T) (*WSServer, *httptest.Server, boo
 		PushTokenStore:  pushTokenStore,
 		Pusher:          pusher,
 		ActivityTracker: activityTracker,
+		ScheduleStore:   schedule.NewStore(),
 	})
 
 	mux := http.NewServeMux()

@@ -9,6 +9,7 @@ import (
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/config"
 	"github.com/WuErPing/solo/daemon/internal/push"
+	"github.com/WuErPing/solo/daemon/internal/schedule"
 	"github.com/WuErPing/solo/daemon/internal/terminal"
 	"github.com/WuErPing/solo/daemon/internal/workspace"
 	"github.com/WuErPing/solo/protocol"
@@ -126,6 +127,7 @@ func TestProveIt_WSServerHasActivityTracker(t *testing.T) {
 		PushTokenStore:  tokenStore,
 		Pusher:          pusher,
 		ActivityTracker: activityTracker,
+		ScheduleStore:   schedule.NewStore(),
 	})
 
 	if ws.activityTracker == nil {
