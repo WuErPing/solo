@@ -157,3 +157,48 @@ Plan A + Plan B 以 TDD 落地，详见 `/Users/wuerping/.qoder/plans/northern-d
 - 全量 `vitest run src/`：223 文件 / 1472 用例全部通过。
 - `tsc --noEmit`：改动前 1030 个错误 → 改动后 1030 个错误（`tmux-rpc.ts` 0 个，所有新增/修改文件未引入新错误）。
 - `expo lint --max-warnings 0`：改动引入 0 个新 warning（已有的 3 个 warning 来自未触碰文件，遗留）。
+
+---
+
+## 九、二次发现（2026-06-07）：遗漏 `use-tmux-theme.ts`
+
+### 现象
+Plan A 落地后，"Transport not connected (status: disposed)" 仍在出现。复盘发现 `use-tmux-theme.ts` 的 `queryFn` 没有走 `withLiveTmuxClient`，是 Plan A 唯一漏掉的 tmux RPC 调用点。
+
+### 根因（与第八节对照）
+- Plan A 迁移的 5 个调用点：`use-tmux-capture-pane.ts` / `use-tmux-agents.ts` / `use-tmux-status-line.ts` / `use-tmux-status-lines.ts` / `tmux-pane-screen.tsx`（`handleSend` / `sendKey`）
+- 漏掉的 1 个调用点：`use-tmux-theme.ts:47-56`
+
+旧实现：
+```ts
+const liveClient = store.getClient(serverId);
+if (!liveClient || liveClient.getConnectionState().status === "disposed") {
+  throw new Error("Daemon client not available");
+}
+const payload = await liveClient.tmuxGetTheme(sessionId);
+```
+
+`getConnectionState().status === "disposed"` 是 **await 之前** 的快照检查；进入 `await` 后 client 被 probe 周期切走 → `tmuxGetTheme` 抛"disposed" → 错误透传到 `useQuery` → tmux theme 闪一下错误。`tmuxGetTheme` 同样走 `sendSessionMessageOrThrow`，错误抛出条件与其他 tmux RPC 完全一致。
+
+### 为什么 Plan A 没扫到
+原始搜索（`docs/analysis/tmux-transport-disposed-race.md` 第五节）只列了"`use-tmux-capture-pane` / `use-tmux-agents` / `tmux-pane-screen.handleSend`"三个点，没有把 `use-tmux-theme` 列在清单上。Plan A 实施时按清单迁移，遗漏点不在清单中。
+
+### 修复
+`app/src/hooks/use-tmux-theme.ts`：
+- 替换 queryFn 体为 `withLiveTmuxClient(serverId, (c) => c.tmuxGetTheme(sessionId))`，与 `use-tmux-capture-pane.ts` 同形
+- diff：1 行 import + 替换 7 行直接调用为 3 行 helper 调用
+
+### 测试
+`app/src/hooks/use-tmux-theme.test.ts`：
+- mock `@/utils/tmux-rpc` 的 `withLiveTmuxClient`
+- 新增 1 个集成用例："routes tmuxGetTheme through withLiveTmuxClient so disposed retries are handled by the helper" —— 验证 `withLiveTmuxClient` 被以 `("server-1", fn)` 形式调用
+- 此用例在旧实现下 fail（`mockWithLiveTmuxClient.mock.calls.length === 0`），新实现下 pass
+
+### 验证
+- `vitest run src/hooks/use-tmux-theme.test.ts`：6 用例全过（5 旧 + 1 新）
+- 全量 `vitest run src/`：229 文件 / 1541 用例全过（较第八节 +6 文件 / +69 用例，主要是 e2e / 新 hooks 累计）
+- `tsc --noEmit`：改动文件 0 个新错误（已有 pre-existing 错误 1030 个，未触碰）
+- `eslint src/hooks/use-tmux-theme.ts src/hooks/use-tmux-theme.test.ts src/utils/tmux-rpc.ts`：0 warning
+
+### 教训
+Plan A 的"调用点清单"是手写枚举，遗漏是必然。后续对 helper 迁移类工作，应该用 AST-grep 之类的工具按"直接调 `client.tmuxXxx`"模式全量扫描，而不是按文件名清单。
