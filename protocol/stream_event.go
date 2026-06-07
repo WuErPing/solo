@@ -31,9 +31,9 @@ type TimelineItem struct {
 	MessageID        string                 `json:"messageId,omitempty"`
 	CallID           string                 `json:"callId,omitempty"`
 	Name             string                 `json:"name,omitempty"`
-	Detail           interface{}            `json:"detail,omitempty"`
+	Detail           ToolCallDetail         `json:"detail,omitempty"`
 	Status           string                 `json:"status,omitempty"` // running|completed|failed|canceled
-	Error            interface{}            `json:"error,omitempty"`
+	Error            *ToolError             `json:"error,omitempty"`
 	Metadata         map[string]interface{} `json:"metadata,omitempty"`
 	TodoItems        []TodoItem             `json:"items,omitempty"`
 	Message          string                 `json:"message,omitempty"` // for error type
@@ -46,6 +46,36 @@ type TimelineItem struct {
 type TodoItem struct {
 	Text      string `json:"text"`
 	Completed bool   `json:"completed"`
+}
+
+// UnmarshalJSON implements custom deserialization for Detail (ToolCallDetail) and Error (*ToolError).
+func (item *TimelineItem) UnmarshalJSON(data []byte) error {
+	type alias TimelineItem
+	var raw struct {
+		*alias
+		Detail json.RawMessage `json:"detail,omitempty"`
+		Error  json.RawMessage `json:"error,omitempty"`
+	}
+	raw.alias = (*alias)(item)
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	if len(raw.Detail) > 0 && string(raw.Detail) != "null" {
+		var wrapper ToolCallDetailWrapper
+		if err := json.Unmarshal(raw.Detail, &wrapper); err == nil {
+			item.Detail = wrapper.Detail
+		}
+	}
+
+	if len(raw.Error) > 0 && string(raw.Error) != "null" {
+		var errVal ToolError
+		if err := json.Unmarshal(raw.Error, &errVal); err == nil {
+			item.Error = &errVal
+		}
+	}
+
+	return nil
 }
 
 // ToProtocolMap converts a TimelineItem to a protocol-compatible map.
@@ -67,9 +97,17 @@ func (item *TimelineItem) ToProtocolMap() map[string]interface{} {
 	case "tool_call":
 		m["callId"] = item.CallID
 		m["name"] = item.Name
-		m["detail"] = item.Detail
+		if item.Detail != nil {
+			data, _ := json.Marshal(item.Detail)
+			var detailMap map[string]interface{}
+			if err := json.Unmarshal(data, &detailMap); err == nil {
+				m["detail"] = detailMap
+			}
+		}
 		m["status"] = item.Status
-		m["error"] = item.Error
+		if item.Error != nil {
+			m["error"] = item.Error.Message
+		}
 		if item.Metadata != nil {
 			m["metadata"] = item.Metadata
 		}

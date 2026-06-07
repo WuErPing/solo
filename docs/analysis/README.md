@@ -4,6 +4,28 @@ This directory contains analysis documents for the Solo project.
 
 ## Recent Analyses
 
+### 2026-06-07: Tmux Pane Refresh Jitter Analysis
+
+**Status:** Analysis Complete
+**Priority:** Medium (UX)
+
+**Summary:**
+- Root cause analysis of tmux pane viewer jitter on refresh
+- Comparison with host tmux cell-based rendering model
+- Box drawing character handling and width adaptation gap
+- 6 proposed solutions ranked by priority (P0–P4)
+
+**Key Findings:**
+1. Full content replacement on 5s poll causes complete React tree re-render
+2. `scrollToEnd({ animated: true })` fires on every content change, including unchanged content
+3. Background color dynamically derived from content causes visual flash
+4. Box drawing characters stripped because no width adaptation exists
+5. Host tmux uses cell-based incremental rendering; app uses full-string replacement
+
+**Document:** [tmux-pane-jitter-analysis.md](tmux-pane-jitter-analysis.md)
+
+---
+
 ### 2026-06-07: Go Provider Type Erasure Analysis
 
 **Status:** Analysis Complete

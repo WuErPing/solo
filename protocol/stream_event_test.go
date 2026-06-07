@@ -32,12 +32,12 @@ func TestStreamEventMarshalRoundTrip(t *testing.T) {
 					CallID: "call-1",
 					Name:   "shell",
 					Status: "running",
-					Detail: map[string]interface{}{"type": "shell", "command": "ls"},
+					Detail: ShellDetail{Type: "shell", Command: "ls"},
 				},
 				Provider: "opencode",
 				TurnID:   "turn-1",
 			},
-			wantJSON: `{"type":"timeline","item":{"type":"tool_call","callId":"call-1","name":"shell","detail":{"command":"ls","type":"shell"},"status":"running"},"provider":"opencode","turnId":"turn-1"}`,
+			wantJSON: `{"type":"timeline","item":{"type":"tool_call","callId":"call-1","name":"shell","detail":{"type":"shell","command":"ls"},"status":"running"},"provider":"opencode","turnId":"turn-1"}`,
 		},
 		{
 			name: "timeline_reasoning",
@@ -116,8 +116,8 @@ func TestStreamEventMarshalRoundTrip(t *testing.T) {
 			wantJSON: `{"type":"permission_requested","provider":"opencode","request":{"id":"perm-1","provider":"opencode","name":"bash","kind":"tool","title":"Run shell command"}}`,
 		},
 		{
-			name: "flush_signal",
-			event: FlushSignalStreamEvent{},
+			name:     "flush_signal",
+			event:    FlushSignalStreamEvent{},
 			wantJSON: `{"type":"flush_signal"}`,
 		},
 		{
@@ -323,12 +323,12 @@ func TestAgentStreamPayloadBackwardCompatible(t *testing.T) {
 // TestTimelineItemMarshal verifies that moved TimelineItem serializes identically.
 func TestTimelineItemMarshal(t *testing.T) {
 	item := TimelineItem{
-		Type:    "tool_call",
-		CallID:  "c1",
-		Name:    "read",
-		Status:  "completed",
-		Detail:  map[string]interface{}{"type": "read", "filePath": "/tmp/a"},
-		Error:   nil,
+		Type:     "tool_call",
+		CallID:   "c1",
+		Name:     "read",
+		Status:   "completed",
+		Detail:   ReadDetail{Type: "read", FilePath: "/tmp/a"},
+		Error:    nil,
 		Metadata: map[string]interface{}{"key": "val"},
 	}
 

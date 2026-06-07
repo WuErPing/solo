@@ -219,7 +219,7 @@ func (s *openCodeSession) finishForegroundTurn(evt AgentStreamEvent, turnID stri
 		for callID, item := range s.runningToolCalls {
 			notifyEvents = append(notifyEvents, AgentStreamEvent{
 				Event: protocol.TimelineStreamEvent{
-					Item:     TimelineItem{Type: "tool_call", CallID: callID, Name: item.Name, Status: "failed", Error: map[string]interface{}{"message": "Tool execution aborted"}},
+					Item:     TimelineItem{Type: "tool_call", CallID: callID, Name: item.Name, Status: "failed", Error: &protocol.ToolError{Message: "Tool execution aborted"}},
 					Provider: opencodeProviderName,
 				},
 				Timestamp: time.Now(),

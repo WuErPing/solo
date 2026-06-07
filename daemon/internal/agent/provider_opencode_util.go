@@ -58,9 +58,9 @@ func buildToolCallTimelineItem(callID, toolName, status string, input, output, e
 
 	if status == "failed" {
 		if errorVal != nil {
-			item.Error = errorVal
+			item.Error = &protocol.ToolError{Message: normalizeError(errorVal)}
 		} else {
-			item.Error = map[string]interface{}{"message": "Tool call failed"}
+			item.Error = &protocol.ToolError{Message: "Tool call failed"}
 		}
 	}
 
@@ -68,7 +68,7 @@ func buildToolCallTimelineItem(callID, toolName, status string, input, output, e
 }
 
 // deriveToolCallDetail parses tool input/output into typed detail (matches Solo's deriveOpencodeToolDetail).
-func deriveToolCallDetail(toolName string, input, output interface{}) map[string]interface{} {
+func deriveToolCallDetail(toolName string, input, output interface{}) protocol.ToolCallDetail {
 	switch toolName {
 	case "shell", "bash", "exec_command":
 		return deriveShellDetail(input, output)
@@ -84,183 +84,188 @@ func deriveToolCallDetail(toolName string, input, output interface{}) map[string
 		return deriveFetchDetail(input, output)
 	default:
 		if input != nil || output != nil {
-			return map[string]interface{}{
-				"type":   "unknown",
-				"input":  input,
-				"output": output,
+			return protocol.UnknownDetail{
+				Type:   "unknown",
+				Input:  input,
+				Output: output,
 			}
 		}
 		return nil
 	}
 }
-func deriveShellDetail(input, output interface{}) map[string]interface{} {
-	detail := map[string]interface{}{
-		"type":    "shell",
-		"command": "",
+
+func intPtr(v int) *int {
+	return &v
+}
+
+func deriveShellDetail(input, output interface{}) protocol.ToolCallDetail {
+	detail := protocol.ShellDetail{
+		Type:    "shell",
+		Command: "",
 	}
 
 	if input != nil {
 		if m, ok := input.(map[string]interface{}); ok {
 			// Command can be string or string array
 			if cmd := extractStringOrJoinArray(m, "command", "cmd"); cmd != "" {
-				detail["command"] = cmd
+				detail.Command = cmd
 			}
 			if cwd := extractString(m, "cwd", "directory"); cwd != "" {
-				detail["cwd"] = cwd
+				detail.Cwd = cwd
 			}
 		}
 	}
 	if output != nil {
 		if m, ok := output.(map[string]interface{}); ok {
 			if out := extractString(m, "output", "text", "content", "aggregated_output", "aggregatedOutput"); out != "" {
-				detail["output"] = truncateText(out, 2000)
+				detail.Output = truncateText(out, 2000)
 			}
 			// Also check structuredContent/structured_content/result
 			if out := extractNestedString(m, "structuredContent", "structured_content", "result"); out != "" {
-				if _, exists := detail["output"]; !exists {
-					detail["output"] = truncateText(out, 2000)
+				if detail.Output == "" {
+					detail.Output = truncateText(out, 2000)
 				}
 			}
-			if ec := extractNumber(m, "exitCode", "exit_code"); ec != nil {
-				detail["exitCode"] = ec
+			if ec := extractInt(m, "exitCode", "exit_code"); ec != nil {
+				detail.ExitCode = ec
 			}
 			// Also check metadata.exitCode
-			if ec := extractNestedNumber(m, "metadata", "exitCode", "exit_code"); ec != nil {
-				if _, exists := detail["exitCode"]; !exists {
-					detail["exitCode"] = ec
+			if ec := extractNestedInt(m, "metadata", "exitCode", "exit_code"); ec != nil {
+				if detail.ExitCode == nil {
+					detail.ExitCode = ec
 				}
 			}
 		} else if s, ok := output.(string); ok {
-			detail["output"] = truncateText(s, 2000)
+			detail.Output = truncateText(s, 2000)
 		}
 	}
 	return detail
 }
-func deriveReadDetail(input, output interface{}) map[string]interface{} {
-	detail := map[string]interface{}{
-		"type":     "read",
-		"filePath": "",
+func deriveReadDetail(input, output interface{}) protocol.ToolCallDetail {
+	detail := protocol.ReadDetail{
+		Type:     "read",
+		FilePath: "",
 	}
 
 	if input != nil {
 		if m, ok := input.(map[string]interface{}); ok {
 			if fp := extractString(m, "path", "file_path", "filePath"); fp != "" {
-				detail["filePath"] = fp
+				detail.FilePath = fp
 			}
-			if offset := extractNumber(m, "offset"); offset != nil {
-				detail["offset"] = offset
+			if offset := extractInt(m, "offset"); offset != nil {
+				detail.Offset = offset
 			}
-			if limit := extractNumber(m, "limit"); limit != nil {
-				detail["limit"] = limit
+			if limit := extractInt(m, "limit"); limit != nil {
+				detail.Limit = limit
 			}
 		}
 	}
 	if output != nil {
 		if m, ok := output.(map[string]interface{}); ok {
 			if content := extractString(m, "content", "text", "output"); content != "" {
-				detail["content"] = truncateText(content, 2000)
+				detail.Content = truncateText(content, 2000)
 			}
 			// Check nested data/structuredContent
 			if content := extractNestedString(m, "data", "structuredContent", "structured_content"); content != "" {
-				if _, exists := detail["content"]; !exists {
-					detail["content"] = truncateText(content, 2000)
+				if detail.Content == "" {
+					detail.Content = truncateText(content, 2000)
 				}
 			}
 		} else if s, ok := output.(string); ok {
-			detail["content"] = truncateText(s, 2000)
+			detail.Content = truncateText(s, 2000)
 		}
 	}
 	return detail
 }
-func deriveWriteDetail(input, output interface{}) map[string]interface{} {
-	detail := map[string]interface{}{
-		"type":     "write",
-		"filePath": "",
+func deriveWriteDetail(input, output interface{}) protocol.ToolCallDetail {
+	detail := protocol.WriteDetail{
+		Type:     "write",
+		FilePath: "",
 	}
 
 	if input != nil {
 		if m, ok := input.(map[string]interface{}); ok {
 			if fp := extractString(m, "path", "file_path", "filePath"); fp != "" {
-				detail["filePath"] = fp
+				detail.FilePath = fp
 			}
 			if content := extractString(m, "content", "new_content", "newContent"); content != "" {
-				detail["content"] = truncateText(content, 2000)
+				detail.Content = truncateText(content, 2000)
 			}
 		}
 	}
 	return detail
 }
-func deriveEditDetail(input, output interface{}) map[string]interface{} {
-	detail := map[string]interface{}{
-		"type":     "edit",
-		"filePath": "",
+func deriveEditDetail(input, output interface{}) protocol.ToolCallDetail {
+	detail := protocol.EditDetail{
+		Type:     "edit",
+		FilePath: "",
 	}
 
 	if input != nil {
 		if m, ok := input.(map[string]interface{}); ok {
 			if fp := extractString(m, "path", "file_path", "filePath"); fp != "" {
-				detail["filePath"] = fp
+				detail.FilePath = fp
 			}
 			if old := extractString(m, "old_string", "old_str", "oldContent", "old_content"); old != "" {
-				detail["oldString"] = old
+				detail.OldString = old
 			}
 			if new := extractString(m, "new_string", "new_str", "newContent", "new_content", "content"); new != "" {
-				detail["newString"] = truncateText(new, 2000)
+				detail.NewString = truncateText(new, 2000)
 			}
 			if diff := extractString(m, "patch", "diff", "unified_diff", "unifiedDiff"); diff != "" {
-				detail["unifiedDiff"] = truncateText(diff, 2000)
+				detail.UnifiedDiff = truncateText(diff, 2000)
 			}
 		}
 	}
 	return detail
 }
-func deriveSearchDetail(input, output interface{}) map[string]interface{} {
-	detail := map[string]interface{}{
-		"type":  "search",
-		"query": "",
+func deriveSearchDetail(input, output interface{}) protocol.ToolCallDetail {
+	detail := protocol.SearchDetail{
+		Type:  "search",
+		Query: "",
 	}
 
 	if input != nil {
 		if m, ok := input.(map[string]interface{}); ok {
 			if q := extractString(m, "query", "q", "pattern"); q != "" {
-				detail["query"] = q
+				detail.Query = q
 			}
 			if toolName := extractString(m, "toolName", "tool_name"); toolName != "" {
-				detail["toolName"] = toolName
+				detail.ToolName = toolName
 			}
 		}
 	}
 	return detail
 }
-func deriveFetchDetail(input, output interface{}) map[string]interface{} {
-	detail := map[string]interface{}{
-		"type": "fetch",
-		"url":  "",
+func deriveFetchDetail(input, output interface{}) protocol.ToolCallDetail {
+	detail := protocol.FetchDetail{
+		Type: "fetch",
+		URL:  "",
 	}
 
 	if input != nil {
 		if m, ok := input.(map[string]interface{}); ok {
 			if url := extractString(m, "url"); url != "" {
-				detail["url"] = url
+				detail.URL = url
 			}
 			if prompt := extractString(m, "prompt"); prompt != "" {
-				detail["prompt"] = prompt
+				detail.Prompt = prompt
 			}
 		}
 	}
 	if output != nil {
 		if m, ok := output.(map[string]interface{}); ok {
 			if result := extractString(m, "result", "content", "text"); result != "" {
-				detail["result"] = truncateText(result, 2000)
+				detail.Result = truncateText(result, 2000)
 			}
-			if code := extractNumber(m, "code", "statusCode"); code != nil {
-				detail["code"] = code
+			if code := extractInt(m, "code", "statusCode"); code != nil {
+				detail.Code = code
 			}
-			if bytes := extractNumber(m, "bytes", "size"); bytes != nil {
-				detail["bytes"] = bytes
+			if bytes := extractInt(m, "bytes", "size"); bytes != nil {
+				detail.Bytes = bytes
 			}
-			if duration := extractNumber(m, "durationMs", "duration_ms"); duration != nil {
-				detail["durationMs"] = duration
+			if duration := extractInt(m, "durationMs", "duration_ms"); duration != nil {
+				detail.DurationMs = duration
 			}
 		}
 	}
@@ -285,6 +290,37 @@ func extractNumber(m map[string]interface{}, keys ...string) interface{} {
 		}
 	}
 	return nil
+}
+
+func extractInt(m map[string]interface{}, keys ...string) *int {
+	for _, k := range keys {
+		if v, ok := m[k]; ok && v != nil {
+			switch n := v.(type) {
+			case int:
+				return &n
+			case int64:
+				i := int(n)
+				return &i
+			case float64:
+				i := int(n)
+				return &i
+			case json.Number:
+				if i, err := n.Int64(); err == nil {
+					vi := int(i)
+					return &vi
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func extractNestedInt(m map[string]interface{}, nestedKey string, keys ...string) *int {
+	nested, ok := m[nestedKey].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return extractInt(nested, keys...)
 }
 
 // extractStringOrJoinArray extracts a string value, or joins an array of strings with spaces.

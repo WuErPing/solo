@@ -476,7 +476,7 @@ func (s *openCodeSession) Close() error {
 	for callID, item := range s.runningToolCalls {
 		notifyEvents = append(notifyEvents, AgentStreamEvent{
 			Event: protocol.TimelineStreamEvent{
-				Item:     TimelineItem{Type: "tool_call", CallID: callID, Name: item.Name, Status: "failed", Error: map[string]interface{}{"message": "Session closed"}},
+				Item:     TimelineItem{Type: "tool_call", CallID: callID, Name: item.Name, Status: "failed", Error: &protocol.ToolError{Message: "Session closed"}},
 				Provider: opencodeProviderName,
 			},
 			Timestamp: time.Now(),

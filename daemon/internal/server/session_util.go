@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -313,11 +314,25 @@ func extractTimelineItem(v interface{}) agent.TimelineItem {
 	if t, ok := m["name"].(string); ok {
 		item.Name = t
 	}
-	item.Detail = m["detail"]
+	if detail, ok := m["detail"]; ok && detail != nil {
+		if data, err := json.Marshal(detail); err == nil {
+			var wrapper protocol.ToolCallDetailWrapper
+			if err := json.Unmarshal(data, &wrapper); err == nil {
+				item.Detail = wrapper.Detail
+			}
+		}
+	}
 	if t, ok := m["status"].(string); ok {
 		item.Status = t
 	}
-	item.Error = m["error"]
+	if errVal, ok := m["error"]; ok && errVal != nil {
+		if data, err := json.Marshal(errVal); err == nil {
+			var te protocol.ToolError
+			if err := json.Unmarshal(data, &te); err == nil {
+				item.Error = &te
+			}
+		}
+	}
 	if md, ok := m["metadata"].(map[string]interface{}); ok {
 		item.Metadata = md
 	}

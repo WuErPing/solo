@@ -555,9 +555,9 @@ func (t *claudeTranslator) translateMessage(msg sdkMessage, now time.Time) []int
 	case "tool_progress":
 		events = append(events, AgentStreamEvent{
 			Event: protocol.TimelineStreamEvent{
-					Item:     protocol.TimelineItem{Type: "tool_call", CallID: msg.ToolUseID, Name: msg.ToolName, Status: "running"},
-					Provider: claudeProviderName,
-				},
+				Item:     protocol.TimelineItem{Type: "tool_call", CallID: msg.ToolUseID, Name: msg.ToolName, Status: "running"},
+				Provider: claudeProviderName,
+			},
 			Timestamp: now,
 		})
 
@@ -579,9 +579,9 @@ func (t *claudeTranslator) translateSystemMessage(msg sdkMessage, now time.Time)
 
 		events = append(events, AgentStreamEvent{
 			Event: protocol.ThreadStartedStreamEvent{
-					SessionID: msg.SessionID,
-					Provider:  claudeProviderName,
-				},
+				SessionID: msg.SessionID,
+				Provider:  claudeProviderName,
+			},
 			Timestamp: now,
 		})
 
@@ -618,9 +618,9 @@ func (t *claudeTranslator) translateSystemMessage(msg sdkMessage, now time.Time)
 		}
 		events = append(events, AgentStreamEvent{
 			Event: protocol.TimelineStreamEvent{
-					Item:     protocol.TimelineItem{Type: "tool_call", CallID: msg.TaskID, Name: "task", Detail: msg.Summary, Status: status},
-					Provider: claudeProviderName,
-				},
+				Item:     protocol.TimelineItem{Type: "tool_call", CallID: msg.TaskID, Name: "task", Detail: protocol.PlainTextDetail{Type: "plain_text", Text: msg.Summary}, Status: status},
+				Provider: claudeProviderName,
+			},
 			Timestamp: now,
 		})
 		// Also emit as a todo item (matches OpenCode's todo.updated behavior)
@@ -835,7 +835,7 @@ func (t *claudeTranslator) translateStreamEvent(msg sdkMessage, now time.Time) [
 
 	case "content_block_stop":
 		events = append(events, AgentStreamEvent{
-			Event: protocol.FlushSignalStreamEvent{Type: "flush_signal"},
+			Event:     protocol.FlushSignalStreamEvent{Type: "flush_signal"},
 			Timestamp: now,
 		})
 
@@ -950,9 +950,9 @@ func (t *claudeTranslator) translatePermissionRequest(msg sdkMessage, now time.T
 
 	return []interface{}{AgentStreamEvent{
 		Event: protocol.PermissionRequestedStreamEvent{
-					Provider: claudeProviderName,
-					Request:  request,
-				},
+			Provider: claudeProviderName,
+			Request:  request,
+		},
 		Timestamp: now,
 	}}
 }

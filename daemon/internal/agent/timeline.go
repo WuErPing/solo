@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -373,11 +374,21 @@ func timelineItemFromMap(m map[string]interface{}) TimelineItem {
 	if status, ok := m["status"].(string); ok {
 		ti.Status = status
 	}
-	if detail, ok := m["detail"]; ok {
-		ti.Detail = detail
+	if detail, ok := m["detail"]; ok && detail != nil {
+		if data, err := json.Marshal(detail); err == nil {
+			var wrapper protocol.ToolCallDetailWrapper
+			if err := json.Unmarshal(data, &wrapper); err == nil {
+				ti.Detail = wrapper.Detail
+			}
+		}
 	}
-	if errVal, ok := m["error"]; ok {
-		ti.Error = errVal
+	if errVal, ok := m["error"]; ok && errVal != nil {
+		if data, err := json.Marshal(errVal); err == nil {
+			var te protocol.ToolError
+			if err := json.Unmarshal(data, &te); err == nil {
+				ti.Error = &te
+			}
+		}
 	}
 	return ti
 }

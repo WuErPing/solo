@@ -333,7 +333,6 @@ func (s *piSession) buildArgs(prompt string) []string {
 		args = append(args, "--session", s.base.SessionID())
 	}
 
-
 	if config != nil && config.SystemPrompt != "" {
 		args = append(args, "--system-prompt", config.SystemPrompt)
 	}
@@ -689,7 +688,7 @@ func (t *piTranslator) buildUsage(u *piUsage) *protocol.AgentUsage {
 	return usage
 }
 
-func (t *piTranslator) buildToolCallDetail(tc *piToolCall) interface{} {
+func (t *piTranslator) buildToolCallDetail(tc *piToolCall) protocol.ToolCallDetail {
 	var input interface{} = tc.Arguments
 	if tc.Arguments != "" {
 		var parsed map[string]interface{}
@@ -697,10 +696,10 @@ func (t *piTranslator) buildToolCallDetail(tc *piToolCall) interface{} {
 			input = parsed
 		}
 	}
-	return map[string]interface{}{
-		"type":   "unknown",
-		"input":  input,
-		"output": nil,
+	return protocol.UnknownDetail{
+		Type:   "unknown",
+		Input:  input,
+		Output: nil,
 	}
 }
 
@@ -741,13 +740,13 @@ type piMessage struct {
 }
 
 type piContent struct {
-	Type    string `json:"type"`
-	Text    string `json:"text"`
+	Type string `json:"type"`
+	Text string `json:"text"`
 }
 
 type piAssistantMessageEvent struct {
-	Type    string      `json:"type"`
-	Delta   string      `json:"delta"`
+	Type     string      `json:"type"`
+	Delta    string      `json:"delta"`
 	ToolCall *piToolCall `json:"toolCall"`
 	Partial  *piToolCall `json:"partial"`
 }
@@ -759,18 +758,18 @@ type piToolCall struct {
 }
 
 type piUsage struct {
-	InputTokens  int       `json:"input"`
-	OutputTokens int       `json:"output"`
-	CacheRead    int       `json:"cacheRead"`
-	CacheWrite   int       `json:"cacheWrite"`
-	TotalTokens  int       `json:"totalTokens"`
-	Cost         *piCost   `json:"cost"`
+	InputTokens  int     `json:"input"`
+	OutputTokens int     `json:"output"`
+	CacheRead    int     `json:"cacheRead"`
+	CacheWrite   int     `json:"cacheWrite"`
+	TotalTokens  int     `json:"totalTokens"`
+	Cost         *piCost `json:"cost"`
 }
 
 type piCost struct {
-	Input     float64 `json:"input"`
-	Output    float64 `json:"output"`
-	CacheRead float64 `json:"cacheRead"`
+	Input      float64 `json:"input"`
+	Output     float64 `json:"output"`
+	CacheRead  float64 `json:"cacheRead"`
 	CacheWrite float64 `json:"cacheWrite"`
-	Total     float64 `json:"total"`
+	Total      float64 `json:"total"`
 }

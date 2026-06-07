@@ -427,28 +427,40 @@ func TestDeriveToolCallDetail(t *testing.T) {
 	input := map[string]interface{}{"command": "ls -la"}
 	output := map[string]interface{}{"exit_code": 0.0}
 	detail := deriveToolCallDetail("shell", input, output)
-	if detail["type"] != "shell" {
-		t.Errorf("shell type = %v", detail["type"])
+	shell, ok := detail.(protocol.ShellDetail)
+	if !ok {
+		t.Fatalf("expected ShellDetail, got %T", detail)
 	}
-	if detail["command"] != "ls -la" {
-		t.Errorf("shell command = %v", detail["command"])
+	if shell.Type != "shell" {
+		t.Errorf("shell type = %v", shell.Type)
+	}
+	if shell.Command != "ls -la" {
+		t.Errorf("shell command = %v", shell.Command)
 	}
 
 	// Read file
 	readInput := map[string]interface{}{"file_path": "/tmp/test.txt"}
 	readDetail := deriveToolCallDetail("read", readInput, nil)
-	if readDetail["type"] != "read" {
-		t.Errorf("read type = %v", readDetail["type"])
+	read, ok := readDetail.(protocol.ReadDetail)
+	if !ok {
+		t.Fatalf("expected ReadDetail, got %T", readDetail)
 	}
-	if readDetail["filePath"] != "/tmp/test.txt" {
-		t.Errorf("read filePath = %v", readDetail["filePath"])
+	if read.Type != "read" {
+		t.Errorf("read type = %v", read.Type)
+	}
+	if read.FilePath != "/tmp/test.txt" {
+		t.Errorf("read filePath = %v", read.FilePath)
 	}
 
 	// Unknown tool with input should return type "unknown"
 	unknownInput := map[string]interface{}{"foo": "bar"}
 	unknownDetail := deriveToolCallDetail("custom_tool", unknownInput, nil)
-	if unknownDetail["type"] != "unknown" {
-		t.Errorf("unknown tool type = %v", unknownDetail["type"])
+	unk, ok := unknownDetail.(protocol.UnknownDetail)
+	if !ok {
+		t.Fatalf("expected UnknownDetail, got %T", unknownDetail)
+	}
+	if unk.Type != "unknown" {
+		t.Errorf("unknown tool type = %v", unk.Type)
 	}
 }
 
@@ -485,30 +497,29 @@ func TestDeriveShellDetail(t *testing.T) {
 		"output":    "file1\nfile2",
 		"exit_code": 0.0,
 	}
-	detail := deriveShellDetail(input, output)
-	if detail["command"] != "ls -la" {
-		t.Errorf("command = %v", detail["command"])
+	detail := deriveShellDetail(input, output).(protocol.ShellDetail)
+	if detail.Command != "ls -la" {
+		t.Errorf("command = %v", detail.Command)
 	}
-	if detail["cwd"] != "/tmp" {
-		t.Errorf("cwd = %v", detail["cwd"])
+	if detail.Cwd != "/tmp" {
+		t.Errorf("cwd = %v", detail.Cwd)
 	}
-	if detail["exitCode"] != 0.0 {
-		t.Errorf("exitCode = %v", detail["exitCode"])
+	if detail.ExitCode == nil || *detail.ExitCode != 0 {
+		t.Errorf("exitCode = %v", detail.ExitCode)
 	}
 }
-
 func TestDeriveReadDetail(t *testing.T) {
 	input := map[string]interface{}{
 		"file_path": "/tmp/test.go",
 		"offset":    10.0,
 		"limit":     50.0,
 	}
-	detail := deriveReadDetail(input, nil)
-	if detail["filePath"] != "/tmp/test.go" {
-		t.Errorf("filePath = %v", detail["filePath"])
+	detail := deriveReadDetail(input, nil).(protocol.ReadDetail)
+	if detail.FilePath != "/tmp/test.go" {
+		t.Errorf("filePath = %v", detail.FilePath)
 	}
-	if detail["offset"] != 10.0 {
-		t.Errorf("offset = %v", detail["offset"])
+	if detail.Offset == nil || *detail.Offset != 10 {
+		t.Errorf("offset = %v", detail.Offset)
 	}
 }
 
@@ -517,12 +528,12 @@ func TestDeriveWriteDetail(t *testing.T) {
 		"file_path": "/tmp/out.txt",
 		"content":   "hello world",
 	}
-	detail := deriveWriteDetail(input, nil)
-	if detail["filePath"] != "/tmp/out.txt" {
-		t.Errorf("filePath = %v", detail["filePath"])
+	detail := deriveWriteDetail(input, nil).(protocol.WriteDetail)
+	if detail.FilePath != "/tmp/out.txt" {
+		t.Errorf("filePath = %v", detail.FilePath)
 	}
-	if detail["content"] != "hello world" {
-		t.Errorf("content = %v", detail["content"])
+	if detail.Content != "hello world" {
+		t.Errorf("content = %v", detail.Content)
 	}
 }
 
@@ -532,15 +543,15 @@ func TestDeriveEditDetail(t *testing.T) {
 		"old_str":   "foo",
 		"new_str":   "bar",
 	}
-	detail := deriveEditDetail(input, nil)
-	if detail["filePath"] != "/tmp/test.go" {
-		t.Errorf("filePath = %v", detail["filePath"])
+	detail := deriveEditDetail(input, nil).(protocol.EditDetail)
+	if detail.FilePath != "/tmp/test.go" {
+		t.Errorf("filePath = %v", detail.FilePath)
 	}
-	if detail["oldString"] != "foo" {
-		t.Errorf("oldString = %v", detail["oldString"])
+	if detail.OldString != "foo" {
+		t.Errorf("oldString = %v", detail.OldString)
 	}
-	if detail["newString"] != "bar" {
-		t.Errorf("newString = %v", detail["newString"])
+	if detail.NewString != "bar" {
+		t.Errorf("newString = %v", detail.NewString)
 	}
 }
 
@@ -548,9 +559,9 @@ func TestDeriveSearchDetail(t *testing.T) {
 	input := map[string]interface{}{
 		"query": "TODO",
 	}
-	detail := deriveSearchDetail(input, nil)
-	if detail["query"] != "TODO" {
-		t.Errorf("query = %v", detail["query"])
+	detail := deriveSearchDetail(input, nil).(protocol.SearchDetail)
+	if detail.Query != "TODO" {
+		t.Errorf("query = %v", detail.Query)
 	}
 }
 
@@ -562,12 +573,12 @@ func TestDeriveFetchDetail(t *testing.T) {
 		"statusCode": 200.0,
 		"content":    "<html>hello</html>",
 	}
-	detail := deriveFetchDetail(input, output)
-	if detail["url"] != "https://example.com" {
-		t.Errorf("url = %v", detail["url"])
+	detail := deriveFetchDetail(input, output).(protocol.FetchDetail)
+	if detail.URL != "https://example.com" {
+		t.Errorf("url = %v", detail.URL)
 	}
-	if detail["code"] != 200.0 {
-		t.Errorf("code = %v", detail["code"])
+	if detail.Code == nil || *detail.Code != 200 {
+		t.Errorf("code = %v", detail.Code)
 	}
 }
 
@@ -601,7 +612,7 @@ func TestSortOpenCodeModes(t *testing.T) {
 
 func TestBuildToolCallTimelineItemWithError(t *testing.T) {
 	item := buildToolCallTimelineItem("c1", "shell", "failed", nil, nil, "custom error")
-	if item.Error != "custom error" {
+	if item.Error == nil || item.Error.Message != "custom error" {
 		t.Errorf("custom error = %v", item.Error)
 	}
 }
@@ -612,18 +623,18 @@ func TestDeriveToolCallDetailEdit(t *testing.T) {
 		"old_str":   "func old()",
 		"new_str":   "func new()",
 	}
-	detail := deriveToolCallDetail("edit", input, nil)
-	if detail["type"] != "edit" {
-		t.Errorf("type = %v", detail["type"])
+	detail := deriveToolCallDetail("edit", input, nil).(protocol.EditDetail)
+	if detail.Type != "edit" {
+		t.Errorf("type = %v", detail.Type)
 	}
-	if detail["filePath"] != "/tmp/test.go" {
-		t.Errorf("filePath = %v", detail["filePath"])
+	if detail.FilePath != "/tmp/test.go" {
+		t.Errorf("filePath = %v", detail.FilePath)
 	}
-	if detail["oldString"] != "func old()" {
-		t.Errorf("oldString = %v", detail["oldString"])
+	if detail.OldString != "func old()" {
+		t.Errorf("oldString = %v", detail.OldString)
 	}
-	if detail["newString"] != "func new()" {
-		t.Errorf("newString = %v", detail["newString"])
+	if detail.NewString != "func new()" {
+		t.Errorf("newString = %v", detail.NewString)
 	}
 }
 
@@ -632,9 +643,9 @@ func TestDeriveToolCallDetailSearch(t *testing.T) {
 		"query":     "func main",
 		"tool_name": "grep",
 	}
-	detail := deriveToolCallDetail("search", input, nil)
-	if detail["query"] != "func main" {
-		t.Errorf("query = %v", detail["query"])
+	detail := deriveToolCallDetail("search", input, nil).(protocol.SearchDetail)
+	if detail.Query != "func main" {
+		t.Errorf("query = %v", detail.Query)
 	}
 }
 
@@ -645,12 +656,12 @@ func TestDeriveToolCallDetailFetch(t *testing.T) {
 	output := map[string]interface{}{
 		"statusCode": 200.0,
 	}
-	detail := deriveToolCallDetail("fetch", input, output)
-	if detail["url"] != "https://example.com" {
-		t.Errorf("url = %v", detail["url"])
+	detail := deriveToolCallDetail("fetch", input, output).(protocol.FetchDetail)
+	if detail.URL != "https://example.com" {
+		t.Errorf("url = %v", detail.URL)
 	}
-	if detail["code"] != 200.0 {
-		t.Errorf("code = %v", detail["code"])
+	if detail.Code == nil || *detail.Code != 200 {
+		t.Errorf("code = %v", detail.Code)
 	}
 }
 
@@ -712,61 +723,61 @@ func TestExtractStringOrJoinArray_MixedTypes(t *testing.T) {
 // --- Regression tests for missing required detail fields when input is nil ---
 
 func TestDeriveShellDetailWithNilInput(t *testing.T) {
-	detail := deriveShellDetail(nil, nil)
-	if detail["type"] != "shell" {
-		t.Errorf("type = %v, want shell", detail["type"])
+	detail := deriveShellDetail(nil, nil).(protocol.ShellDetail)
+	if detail.Type != "shell" {
+		t.Errorf("type = %v, want shell", detail.Type)
 	}
-	if _, ok := detail["command"]; !ok {
+	if detail.Command != "" {
 		t.Errorf("command field missing: expected empty string default for client schema compatibility")
 	}
 }
 
 func TestDeriveReadDetailWithNilInput(t *testing.T) {
-	detail := deriveReadDetail(nil, nil)
-	if detail["type"] != "read" {
-		t.Errorf("type = %v, want read", detail["type"])
+	detail := deriveReadDetail(nil, nil).(protocol.ReadDetail)
+	if detail.Type != "read" {
+		t.Errorf("type = %v, want read", detail.Type)
 	}
-	if _, ok := detail["filePath"]; !ok {
+	if detail.FilePath != "" {
 		t.Errorf("filePath field missing: expected empty string default for client schema compatibility")
 	}
 }
 
 func TestDeriveWriteDetailWithNilInput(t *testing.T) {
-	detail := deriveWriteDetail(nil, nil)
-	if detail["type"] != "write" {
-		t.Errorf("type = %v, want write", detail["type"])
+	detail := deriveWriteDetail(nil, nil).(protocol.WriteDetail)
+	if detail.Type != "write" {
+		t.Errorf("type = %v, want write", detail.Type)
 	}
-	if _, ok := detail["filePath"]; !ok {
+	if detail.FilePath != "" {
 		t.Errorf("filePath field missing: expected empty string default for client schema compatibility")
 	}
 }
 
 func TestDeriveEditDetailWithNilInput(t *testing.T) {
-	detail := deriveEditDetail(nil, nil)
-	if detail["type"] != "edit" {
-		t.Errorf("type = %v, want edit", detail["type"])
+	detail := deriveEditDetail(nil, nil).(protocol.EditDetail)
+	if detail.Type != "edit" {
+		t.Errorf("type = %v, want edit", detail.Type)
 	}
-	if _, ok := detail["filePath"]; !ok {
+	if detail.FilePath != "" {
 		t.Errorf("filePath field missing: expected empty string default for client schema compatibility")
 	}
 }
 
 func TestDeriveSearchDetailWithNilInput(t *testing.T) {
-	detail := deriveSearchDetail(nil, nil)
-	if detail["type"] != "search" {
-		t.Errorf("type = %v, want search", detail["type"])
+	detail := deriveSearchDetail(nil, nil).(protocol.SearchDetail)
+	if detail.Type != "search" {
+		t.Errorf("type = %v, want search", detail.Type)
 	}
-	if _, ok := detail["query"]; !ok {
+	if detail.Query != "" {
 		t.Errorf("query field missing: expected empty string default for client schema compatibility")
 	}
 }
 
 func TestDeriveFetchDetailWithNilInput(t *testing.T) {
-	detail := deriveFetchDetail(nil, nil)
-	if detail["type"] != "fetch" {
-		t.Errorf("type = %v, want fetch", detail["type"])
+	detail := deriveFetchDetail(nil, nil).(protocol.FetchDetail)
+	if detail.Type != "fetch" {
+		t.Errorf("type = %v, want fetch", detail.Type)
 	}
-	if _, ok := detail["url"]; !ok {
+	if detail.URL != "" {
 		t.Errorf("url field missing: expected empty string default for client schema compatibility")
 	}
 }

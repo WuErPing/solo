@@ -3,6 +3,8 @@ package agent
 import (
 	"sync"
 	"time"
+
+	"github.com/WuErPing/solo/protocol"
 )
 
 const DefaultCoalesceWindowMs = 200
@@ -48,9 +50,9 @@ type pendingTextEntry struct {
 type pendingToolCallEntry struct {
 	CallID   string
 	Name     string
-	Detail   interface{}
+	Detail   protocol.ToolCallDetail
 	Status   string
-	Error    interface{}
+	Error    *protocol.ToolError
 	Metadata map[string]interface{}
 	Provider string
 	TurnID   string
