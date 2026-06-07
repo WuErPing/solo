@@ -85,8 +85,12 @@ func (st *Store) save() error {
 		return fmt.Errorf("marshal schedules: %w", err)
 	}
 
-	if err := os.WriteFile(st.dataPath, b, 0644); err != nil {
+	tmp := st.dataPath + ".tmp"
+	if err := os.WriteFile(tmp, b, 0644); err != nil {
 		return fmt.Errorf("write schedules file: %w", err)
+	}
+	if err := os.Rename(tmp, st.dataPath); err != nil {
+		return fmt.Errorf("rename schedules file: %w", err)
 	}
 	return nil
 }

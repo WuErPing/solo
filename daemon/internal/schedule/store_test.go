@@ -476,3 +476,60 @@ func TestStore_ConcurrentCreate(t *testing.T) {
 		t.Fatalf("expected 10 schedules, got %d", len(store.List()))
 	}
 }
+
+func TestStore_SaveAtomic(t *testing.T) {
+	tmpDir := t.TempDir()
+	dataPath := filepath.Join(tmpDir, "schedules.json")
+
+	store := NewStore(WithDataPath(dataPath))
+	for i := 0; i < 5; i++ {
+		_, err := store.Create(protocol.ScheduleCreateRequest{
+			Prompt:  fmt.Sprintf("prompt %d", i),
+			Cadence: protocol.ScheduleCadence{Type: "every", EveryMs: 3600000},
+			Target:  protocol.ScheduleTarget{Type: "agent", AgentID: "a"},
+		})
+		if err != nil {
+			t.Fatalf("create schedule %d: %v", i, err)
+		}
+	}
+
+	// Verify no temp files remain after save
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		t.Fatalf("read dir: %v", err)
+	}
+	for _, e := range entries {
+		if e.Name() != "schedules.json" {
+			t.Errorf("unexpected file left behind: %s", e.Name())
+		}
+	}
+
+	// Verify data file is valid JSON
+	b, err := os.ReadFile(dataPath)
+	if err != nil {
+		t.Fatalf("read data file: %v", err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(b, &raw); err != nil {
+		t.Fatalf("data file is not valid JSON: %v", err)
+	}
+	if len(raw) != 5 {
+		t.Errorf("expected 5 entries, got %d", len(raw))
+	}
+
+	// Verify round-trip: reload from disk matches in-memory
+	reloaded := NewStore(WithDataPath(dataPath))
+	if len(reloaded.List()) != 5 {
+		t.Fatalf("reloaded store has %d schedules, want 5", len(reloaded.List()))
+	}
+	for _, orig := range store.List() {
+		got, ok := reloaded.Get(orig.ID)
+		if !ok {
+			t.Errorf("schedule %s not found after reload", orig.ID)
+			continue
+		}
+		if got.Prompt != orig.Prompt {
+			t.Errorf("schedule %s prompt mismatch after reload: got %q, want %q", orig.ID, got.Prompt, orig.Prompt)
+		}
+	}
+}
