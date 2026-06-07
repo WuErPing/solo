@@ -83,15 +83,29 @@ function TmuxPaneScreenInner() {
     Boolean(agent),
   );
   const terminalThemeId = settings.terminalTheme;
+  const cachedColorsRef = useRef<{ background: string | null; foreground: string | null } | null>(null);
+  const colorContentRef = useRef<string | null>(null);
+  const prevColorContentRef = useRef<string | null>(null);
+  const [colorResetKey, setColorResetKey] = useState(0);
+
+  // Reset cached colors when content transitions from empty to non-empty (pane navigation)
+  if (!prevColorContentRef.current && content) {
+    cachedColorsRef.current = null;
+    setColorResetKey((k) => k + 1);
+  }
+  prevColorContentRef.current = content;
+  colorContentRef.current = content;
+
   const terminalColors = useMemo(() => {
     if (terminalThemeId !== "system") {
       return TERMINAL_THEME_PRESETS[terminalThemeId] ?? theme.colors.terminal;
     }
-    const contentColors = content
-      ? detectColorsFromAnsi(content)
-      : { background: null, foreground: null };
-    return mergeTerminalColors(theme.colors.terminal, contentColors);
-  }, [terminalThemeId, theme.colors.terminal, content]);
+    if (!cachedColorsRef.current && colorContentRef.current) {
+      cachedColorsRef.current = detectColorsFromAnsi(colorContentRef.current);
+    }
+    return mergeTerminalColors(theme.colors.terminal, cachedColorsRef.current ?? { background: null, foreground: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- content read via ref; re-detect only on pane change
+  }, [terminalThemeId, theme.colors.terminal, colorResetKey]);
   const segments = useMemo(
     () => (content ? parseAnsi(content) : null),
     [content],
@@ -114,16 +128,34 @@ function TmuxPaneScreenInner() {
   }, []);
 
   const scrollToBottom = useCallback(() => {
-    scrollRef.current?.scrollToEnd({ animated: true });
+    scrollRef.current?.scrollToEnd({ animated: false });
   }, []);
 
-  // Auto-scroll to bottom when content refreshes (only when autoRefresh is on and not loading history)
+  const contentHeightRef = useRef(0);
+  const isAtBottomRef = useRef(false);
+  const hasInitialScrolledRef = useRef(false);
+
+  // Initial scroll to bottom on first content load
   useEffect(() => {
-    if (content && !isLoadingMore && autoRefresh) {
-      const id = setTimeout(() => scrollToBottom(), 50);
+    if (content && !hasInitialScrolledRef.current && autoRefresh) {
+      hasInitialScrolledRef.current = true;
+      const id = setTimeout(() => {
+        scrollRef.current?.scrollToEnd({ animated: false });
+        isAtBottomRef.current = true;
+      }, 50);
       return () => clearTimeout(id);
     }
-  }, [content, isLoadingMore, autoRefresh, scrollToBottom]);
+  }, [content, autoRefresh]);
+
+  const handleContentSizeChange = useCallback(
+    (_w: number, h: number) => {
+      if (h !== contentHeightRef.current && isAtBottomRef.current && autoRefresh && !isLoadingMore) {
+        contentHeightRef.current = h;
+        scrollRef.current?.scrollToEnd({ animated: false });
+      }
+    },
+    [autoRefresh, isLoadingMore],
+  );
 
   // Auto-clear send error after 2 seconds
   useEffect(() => {
@@ -154,7 +186,9 @@ function TmuxPaneScreenInner() {
 
   const handleScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const { contentOffset } = event.nativeEvent;
+      const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+      isAtBottomRef.current =
+        contentOffset.y + layoutMeasurement.height >= contentSize.height - SCROLL_TOP_THRESHOLD;
       if (
         contentOffset.y < SCROLL_TOP_THRESHOLD &&
         !isLoadingMore &&
@@ -307,6 +341,7 @@ function TmuxPaneScreenInner() {
         style={[styles.contentScroll, { backgroundColor: terminalColors.background }]}
         keyboardShouldPersistTaps="handled"
         onScroll={handleScroll}
+        onContentSizeChange={handleContentSizeChange}
         scrollEventThrottle={400}
       >
         {isLoadingMore && (

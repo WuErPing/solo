@@ -10,7 +10,11 @@ interface AnsiTextContentProps {
   terminalColors?: { foreground: string; background: string; [key: string]: string };
 }
 
-export function AnsiTextContent({ segments, style, terminalColors }: AnsiTextContentProps) {
+export const AnsiTextContent = React.memo(function AnsiTextContent({
+  segments,
+  style,
+  terminalColors,
+}: AnsiTextContentProps) {
   const { theme } = useUnistyles();
   const terminal = terminalColors ?? theme.colors.terminal;
 
@@ -26,7 +30,7 @@ export function AnsiTextContent({ segments, style, terminalColors }: AnsiTextCon
   }, [segments, terminal]);
 
   return <Text style={style}>{children}</Text>;
-}
+});
 
 function ansiStyleToRN(
   style: AnsiStyle,

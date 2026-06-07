@@ -101,17 +101,30 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => React.createElement("div", null, children),
 }));
 
-vi.mock("@/utils/ansi-parser", () => ({
-  parseAnsi: (input: string) => [{ text: input, style: {} }],
+const { mockParseAnsi } = vi.hoisted(() => ({
+  mockParseAnsi: vi.fn((input: string) => [{ text: input, style: {} }]),
 }));
 
-const { autoRefreshRef } = vi.hoisted(() => ({
+vi.mock("@/utils/ansi-parser", () => ({
+  parseAnsi: (input: string) => mockParseAnsi(input),
+}));
+
+const { mockDetectColors } = vi.hoisted(() => ({
+  mockDetectColors: vi.fn(() => ({ background: "#1a1a2e", foreground: "#e0e0e0" })),
+}));
+
+vi.mock("@/utils/detect-ansi-colors", () => ({
+  detectColorsFromAnsi: mockDetectColors,
+}));
+
+const { autoRefreshRef, contentRef } = vi.hoisted(() => ({
   autoRefreshRef: { current: true },
+  contentRef: { current: "$ ls\nfile1.txt\nfile2.txt\n$ _" },
 }));
 
 vi.mock("@/hooks/use-tmux-capture-pane", () => ({
   useTmuxCapturePane: () => ({
-    content: "$ ls\nfile1.txt\nfile2.txt\n$ _",
+    content: contentRef.current,
     isLoading: false,
     isLoadingMore: false,
     error: null,
@@ -178,6 +191,7 @@ describe("TmuxPaneScreen", () => {
     cleanup();
     vi.clearAllMocks();
     autoRefreshRef.current = true;
+    contentRef.current = "$ ls\nfile1.txt\nfile2.txt\n$ _";
   });
 
   it("renders pane content text", () => {
@@ -284,5 +298,72 @@ describe("TmuxPaneScreen", () => {
     render(<TmuxPaneScreen />);
     fireEvent.click(screen.getByText("Refresh"));
     expect(mockRefetch).toHaveBeenCalled();
+  });
+
+  it("background color does not change when content changes with terminalTheme system", () => {
+    mockDetectColors.mockReturnValue({ background: "#1a1a2e", foreground: "#e0e0e0" });
+    const { rerender } = render(<TmuxPaneScreen />);
+
+    const scrollView = screen.getByTestId("tmux-pane-scroll");
+    const initialBg = (scrollView as HTMLElement).style.backgroundColor;
+
+    // Change content — detectColorsFromAnsi returns different colors now
+    mockDetectColors.mockReturnValue({ background: "#2a2a3e", foreground: "#f0f0f0" });
+    contentRef.current = "$ pwd\n/home/user\n$ _";
+    rerender(<TmuxPaneScreen />);
+
+    // Background should be stable (cached from first detection)
+    expect((scrollView as HTMLElement).style.backgroundColor).toBe(initialBg);
+  });
+
+  it("background color re-detects when content transitions from empty to non-empty", () => {
+    mockDetectColors.mockReturnValue({ background: "#1a1a2e", foreground: "#e0e0e0" });
+    const { rerender } = render(<TmuxPaneScreen />);
+
+    const scrollView = screen.getByTestId("tmux-pane-scroll");
+    const initialBg = (scrollView as HTMLElement).style.backgroundColor;
+
+    // Simulate pane navigation: content goes empty then new content arrives
+    contentRef.current = "";
+    rerender(<TmuxPaneScreen />);
+
+    mockDetectColors.mockReturnValue({ background: "#2a2a3e", foreground: "#f0f0f0" });
+    contentRef.current = "$ pwd\n/home/user\n$ _";
+    rerender(<TmuxPaneScreen />);
+
+    // Background should update because content went from empty to non-empty
+    expect((scrollView as HTMLElement).style.backgroundColor).not.toBe(initialBg);
+  });
+
+  it("does NOT re-parse ANSI content when content reference is stable across re-renders", () => {
+    // This is the TDD contract for "no jitter when content unchanged".
+    // The dedup hook returns the same content string reference when the payload
+    // is identical across polls; the screen must not re-invoke parseAnsi on
+    // stable content, otherwise every 5s poll would rebuild the <Text> tree
+    // and cause visible refresh jitter on Android.
+    const { rerender } = render(<TmuxPaneScreen />);
+
+    expect(mockParseAnsi).toHaveBeenCalledTimes(1);
+
+    // Re-render multiple times with the SAME content REFERENCE.
+    // (The mock hook captures contentRef.current once; rerender does not
+    // change it, so the content string reference is stable.)
+    rerender(<TmuxPaneScreen />);
+    rerender(<TmuxPaneScreen />);
+    rerender(<TmuxPaneScreen />);
+
+    // parseAnsi must NOT have been called again — memo should have short-circuited.
+    expect(mockParseAnsi).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-parses ANSI content only when content reference changes", () => {
+    const { rerender } = render(<TmuxPaneScreen />);
+    expect(mockParseAnsi).toHaveBeenCalledTimes(1);
+
+    // Change the content string reference — memo should recalculate.
+    contentRef.current = "$ pwd\n/home\n$ _";
+    rerender(<TmuxPaneScreen />);
+
+    expect(mockParseAnsi).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getHostRuntimeStore, isHostRuntimeConnected } from "@/runtime/host-runtime";
 import { useAppVisible } from "@/hooks/use-app-visible";
 import { withLiveTmuxClient } from "@/utils/tmux-rpc";
@@ -7,6 +7,25 @@ import { withLiveTmuxClient } from "@/utils/tmux-rpc";
 const DEFAULT_SCROLLBACK_LINES = 200;
 const SCROLLBACK_INCREMENT = 200;
 const MAX_SCROLLBACK_LINES = 5000;
+
+// Adaptive polling phases — the next-refetch delay depends on how long
+// ago content actually changed (tracked via React Query's dataUpdatedAt):
+//   active:  changed within last 2s   → 200ms (5 fps for ASCII animations)
+//   warm:    changed 2-10s ago        → 1000ms (ramp-down)
+//   idle:    stable >10s              → 5000ms (battery saver)
+const ACTIVE_POLL_INTERVAL = 200;
+const WARM_POLL_INTERVAL = 1000;
+const IDLE_POLL_INTERVAL = 5000;
+const ACTIVE_PHASE_MS = 2_000;
+const WARM_PHASE_MS = 10_000;
+
+export function computeAdaptiveInterval(dataUpdatedAt: number, now: number): number {
+  if (dataUpdatedAt === 0) return ACTIVE_POLL_INTERVAL;
+  const elapsed = now - dataUpdatedAt;
+  if (elapsed <= ACTIVE_PHASE_MS) return ACTIVE_POLL_INTERVAL;
+  if (elapsed <= WARM_PHASE_MS) return WARM_POLL_INTERVAL;
+  return IDLE_POLL_INTERVAL;
+}
 
 export interface TmuxCapturePaneResult {
   content: string;
@@ -42,26 +61,35 @@ export function useTmuxCapturePane(
   const isConnected = isHostRuntimeConnected(snapshot);
   const isAppVisible = useAppVisible();
 
-  // Reset scrollback when pane changes
+  const prevResultRef = useRef<{ content: string; error: string | null } | null>(null);
+
+  // Reset scrollback and dedup cache when pane changes
   useEffect(() => {
     setScrollbackLines(DEFAULT_SCROLLBACK_LINES);
+    prevResultRef.current = null;
   }, [paneId]);
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: tmuxCapturePaneQueryKey(serverId, paneId, scrollbackLines),
     enabled: enabled && Boolean(client) && isConnected,
     staleTime: 5_000,
-    refetchInterval: enabled && isAppVisible && autoRefresh ? 5_000 : false,
+    refetchInterval:
+      enabled && isAppVisible && autoRefresh
+        ? (query) => computeAdaptiveInterval(query.state.dataUpdatedAt, Date.now())
+        : false,
     placeholderData: keepPreviousData,
     retry: 1,
     queryFn: async () => {
       const payload = await withLiveTmuxClient(serverId, (c) =>
         c.tmuxCapturePane(paneId, -scrollbackLines),
       );
-      return {
-        content: payload.content ?? "",
-        error: payload.error ?? null,
-      };
+      const newContent = payload.content ?? "";
+      if (prevResultRef.current && prevResultRef.current.content === newContent) {
+        return prevResultRef.current;
+      }
+      const result = { content: newContent, error: payload.error ?? null };
+      prevResultRef.current = result;
+      return result;
     },
   });
 
@@ -70,7 +98,26 @@ export function useTmuxCapturePane(
     setScrollbackLines((prev) => Math.min(prev + SCROLLBACK_INCREMENT, MAX_SCROLLBACK_LINES));
   }, [scrollbackLines]);
 
-  const isLoadingMore = useMemo(() => isFetching && !!data, [isFetching, data]);
+  // Pagination-only loading flag: true between a loadMoreHistory() call and the
+  // completion of the resulting scrollback-driven fetch. Must NOT flicker on
+  // the 5s poll refetch — otherwise the "Loading more history..." row toggles
+  // in and out of the ScrollView, causing a content-height pulse every 5s.
+  const isPaginatingRef = useRef(false);
+  const prevScrollbackRef = useRef(scrollbackLines);
+  const [isPaginating, setIsPaginating] = useState(false);
+  if (scrollbackLines !== prevScrollbackRef.current) {
+    prevScrollbackRef.current = scrollbackLines;
+    isPaginatingRef.current = true;
+    setIsPaginating(true);
+  }
+  useEffect(() => {
+    if (isPaginatingRef.current && !isFetching) {
+      isPaginatingRef.current = false;
+      setIsPaginating(false);
+    }
+  }, [isFetching]);
+
+  const isLoadingMore = isPaginating;
   const hasMoreHistory = scrollbackLines < MAX_SCROLLBACK_LINES;
 
   return useMemo(
