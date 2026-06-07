@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { getHostRuntimeStore, isHostRuntimeConnected } from "@/runtime/host-runtime";
+import { withLiveTmuxClient } from "@/utils/tmux-rpc";
 
 export interface TmuxThemeColors {
   background: string;
@@ -44,11 +45,9 @@ export function useTmuxTheme(
     staleTime: 30_000,
     retry: 1,
     queryFn: async () => {
-      const liveClient = store.getClient(serverId);
-      if (!liveClient || liveClient.getConnectionState().status === "disposed") {
-        throw new Error("Daemon client not available");
-      }
-      const payload = await liveClient.tmuxGetTheme(sessionId);
+      const payload = await withLiveTmuxClient(serverId, (c) =>
+        c.tmuxGetTheme(sessionId),
+      );
       return {
         theme: payload.theme,
         error: payload.error ?? null,

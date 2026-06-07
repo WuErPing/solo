@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useTmuxTheme } from "./use-tmux-theme";
 
-const { mockStore, mockClient } = vi.hoisted(() => {
+const { mockStore, mockClient, mockWithLiveTmuxClient } = vi.hoisted(() => {
   const store = {
     getClient: vi.fn(),
     getSnapshot: vi.fn(),
@@ -17,15 +17,21 @@ const { mockStore, mockClient } = vi.hoisted(() => {
     tmuxGetTheme: vi.fn(),
     getConnectionState: vi.fn(),
   };
+  const withLiveTmuxClient = vi.fn();
   return {
     mockStore: store,
     mockClient: client,
+    mockWithLiveTmuxClient: withLiveTmuxClient,
   };
 });
 
 vi.mock("@/runtime/host-runtime", () => ({
   getHostRuntimeStore: () => mockStore,
   isHostRuntimeConnected: () => true,
+}));
+
+vi.mock("@/utils/tmux-rpc", () => ({
+  withLiveTmuxClient: mockWithLiveTmuxClient,
 }));
 
 function createQueryClient(): QueryClient {
@@ -53,9 +59,12 @@ function renderThemeHook(opts?: { serverId?: string; sessionId?: string; enabled
 }
 
 beforeEach(() => {
-  mockStore.getClient.mockReturnValue(mockClient);
+  mockStore.getClient.mockReset();
   mockStore.getSnapshot.mockReturnValue({ connectionStatus: "online" });
   mockClient.getConnectionState.mockReturnValue({ status: "connected" });
+  mockClient.tmuxGetTheme.mockReset();
+  mockWithLiveTmuxClient.mockReset();
+  mockStore.getClient.mockReturnValue(mockClient);
   mockClient.tmuxGetTheme.mockResolvedValue({
     theme: {
       background: "#181825",
@@ -66,6 +75,10 @@ beforeEach(() => {
     },
     error: null,
   });
+  mockWithLiveTmuxClient.mockImplementation(
+    async (_serverId: string, op: (client: typeof mockClient) => Promise<unknown>) =>
+      op(mockClient),
+  );
 });
 
 afterEach(() => {
@@ -123,5 +136,22 @@ describe("useTmuxTheme", () => {
     mockClient.getConnectionState.mockReturnValue({ status: "disposed" });
 
     expect(result.current.theme?.background).toBe("#181825");
+  });
+
+  it("routes tmuxGetTheme through withLiveTmuxClient so disposed retries are handled by the helper", async () => {
+    const { result } = renderThemeHook();
+
+    await waitFor(() => {
+      expect(result.current.theme).not.toBeNull();
+    });
+
+    expect(mockWithLiveTmuxClient).toHaveBeenCalledTimes(1);
+    expect(mockWithLiveTmuxClient).toHaveBeenCalledWith(
+      "server-1",
+      expect.any(Function),
+    );
+
+    const opArg = mockWithLiveTmuxClient.mock.calls[0]?.[1];
+    expect(typeof opArg).toBe("function");
   });
 });
