@@ -416,7 +416,7 @@ describe("processTimelineResponse", () => {
     });
   });
 
-  it("drops entries with epoch mismatch", () => {
+  it("resets cursor and accepts entries from a newer epoch", () => {
     const existingCursor: TimelineCursor = {
       epoch: "epoch-1",
       startSeq: 1,
@@ -430,6 +430,33 @@ describe("processTimelineResponse", () => {
         ...baseTimelineInput.payload,
         epoch: "epoch-2",
         entries: [makeTimelineEntry(6, "different epoch")],
+      },
+    });
+
+    expect(result.tail).not.toBe(baseTimelineInput.currentTail);
+    expect(result.tail).toHaveLength(1);
+    expect(result.cursorChanged).toBe(true);
+    expect(result.cursor).toEqual({
+      epoch: "epoch-2",
+      startSeq: 6,
+      endSeq: 6,
+    });
+  });
+
+  it("drops entries from an older epoch", () => {
+    const existingCursor: TimelineCursor = {
+      epoch: "epoch-2",
+      startSeq: 1,
+      endSeq: 5,
+    };
+
+    const result = processTimelineResponse({
+      ...baseTimelineInput,
+      currentCursor: existingCursor,
+      payload: {
+        ...baseTimelineInput.payload,
+        epoch: "epoch-1",
+        entries: [makeTimelineEntry(6, "stale epoch")],
       },
     });
 
@@ -616,7 +643,7 @@ describe("processAgentStreamEvent", () => {
     expect(result.sideEffects).toEqual([]);
   });
 
-  it("drops timeline event with epoch mismatch", () => {
+  it("resets cursor and accepts timeline event from a newer epoch", () => {
     const existingCursor: TimelineCursor = {
       epoch: "epoch-1",
       startSeq: 1,
@@ -625,9 +652,35 @@ describe("processAgentStreamEvent", () => {
 
     const result = processAgentStreamEvent({
       ...baseStreamInput,
-      event: makeTimelineEvent("wrong epoch"),
+      event: makeTimelineEvent("newer epoch"),
       seq: 6,
       epoch: "epoch-2",
+      currentCursor: existingCursor,
+    });
+
+    expect(result.cursorChanged).toBe(true);
+    expect(result.cursor).toEqual({
+      epoch: "epoch-2",
+      startSeq: 6,
+      endSeq: 6,
+    });
+    expect(result.changedTail).toBe(false);
+    expect(result.changedHead).toBe(true);
+    expect(result.sideEffects).toEqual([]);
+  });
+
+  it("drops timeline event from an older epoch", () => {
+    const existingCursor: TimelineCursor = {
+      epoch: "epoch-2",
+      startSeq: 1,
+      endSeq: 5,
+    };
+
+    const result = processAgentStreamEvent({
+      ...baseStreamInput,
+      event: makeTimelineEvent("stale epoch"),
+      seq: 6,
+      epoch: "epoch-1",
       currentCursor: existingCursor,
     });
 

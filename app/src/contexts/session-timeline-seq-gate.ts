@@ -21,6 +21,12 @@ export function classifySessionTimelineSeq({
     return "init";
   }
   if (cursor.epoch !== epoch) {
+    // Epochs are ULIDs (lexicographically sortable). A newer epoch means
+    // a fresh timeline (e.g. after reconnect / new turn). Reset cursor
+    // instead of dropping all events.
+    if (epoch > cursor.epoch) {
+      return "init";
+    }
     return "drop_epoch";
   }
   if (seq <= cursor.endSeq) {

@@ -32,11 +32,21 @@ describe("classifySessionTimelineSeq", () => {
     ).toBe("drop_stale");
   });
 
-  it("drops epoch mismatch", () => {
+  it("resets cursor when a newer epoch arrives", () => {
     expect(
       classifySessionTimelineSeq({
         cursor: { epoch: "epoch-1", endSeq: 4 },
         epoch: "epoch-2",
+        seq: 5,
+      }),
+    ).toBe("init");
+  });
+
+  it("drops stale events from an older epoch", () => {
+    expect(
+      classifySessionTimelineSeq({
+        cursor: { epoch: "epoch-2", endSeq: 4 },
+        epoch: "epoch-1",
         seq: 5,
       }),
     ).toBe("drop_epoch");
