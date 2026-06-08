@@ -465,12 +465,12 @@ const ToolCallBasePayloadSchema = z
 
 const ToolCallRunningPayloadSchema = ToolCallBasePayloadSchema.extend({
   status: z.literal("running"),
-  error: z.null(),
+  error: z.null().optional(),
 });
 
 const ToolCallCompletedPayloadSchema = ToolCallBasePayloadSchema.extend({
   status: z.literal("completed"),
-  error: z.null(),
+  error: z.null().optional(),
 });
 
 const ToolCallFailedPayloadSchema = ToolCallBasePayloadSchema.extend({
@@ -480,7 +480,7 @@ const ToolCallFailedPayloadSchema = ToolCallBasePayloadSchema.extend({
 
 const ToolCallCanceledPayloadSchema = ToolCallBasePayloadSchema.extend({
   status: z.literal("canceled"),
-  error: z.null(),
+  error: z.null().optional(),
 });
 
 const ToolCallTimelineItemPayloadSchema: z.ZodType<ToolCallTimelineItem, unknown> =

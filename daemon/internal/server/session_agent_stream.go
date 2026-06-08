@@ -93,6 +93,7 @@ func (s *Session) handleStreamEvent(evt agent.AgentStreamEvent) {
 
 	case protocol.AttentionRequiredStreamEvent:
 		// Enrich notification with assistant message from timeline and compute shouldNotify
+		e.Timestamp = evt.Timestamp.UTC().Format(time.RFC3339)
 		if s.activityTracker != nil {
 			assistantMessage := s.getLastAssistantMessage(evt.AgentID)
 			notification := push.BuildAttentionNotificationWithServerID(evt.AgentID, e.Reason, assistantMessage, s.cfg.ServerID)
@@ -112,6 +113,10 @@ func (s *Session) handleStreamEvent(evt agent.AgentStreamEvent) {
 			e.ShouldNotify = plan.InAppRecipientIndex != nil
 		}
 		s.broadcastAgentAttention(evt.AgentID, e.Reason)
+		s.sendAgentStream(evt.AgentID, e, evt.Timestamp, nil, nil)
+		return
+
+	case protocol.SessionClosedStreamEvent:
 		s.sendAgentStream(evt.AgentID, e, evt.Timestamp, nil, nil)
 		return
 	}

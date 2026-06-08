@@ -191,6 +191,7 @@ func (e TurnFailedStreamEvent) MarshalJSON() ([]byte, error) {
 type TurnCanceledStreamEvent struct {
 	Type     string `json:"type"` // always "turn_canceled"
 	Provider string `json:"provider"`
+	Reason   string `json:"reason,omitempty"`
 }
 
 func (TurnCanceledStreamEvent) StreamEventType() string { return "turn_canceled" }
@@ -206,7 +207,7 @@ func (e TurnCanceledStreamEvent) MarshalJSON() ([]byte, error) {
 type UsageUpdatedStreamEvent struct {
 	Type     string      `json:"type"` // always "usage_updated"
 	Provider string      `json:"provider"`
-	Usage    *AgentUsage `json:"usage"`
+	Usage    *AgentUsage `json:"usage,omitempty"`
 }
 
 func (UsageUpdatedStreamEvent) StreamEventType() string { return "usage_updated" }
@@ -285,6 +286,7 @@ type AttentionRequiredStreamEvent struct {
 	Type         string                 `json:"type"` // always "attention_required"
 	Provider     string                 `json:"provider"`
 	Reason       string                 `json:"reason"`
+	Timestamp    string                 `json:"timestamp,omitempty"`
 	ShouldNotify bool                   `json:"shouldNotify"`
 	Notification map[string]interface{} `json:"notification,omitempty"`
 }
@@ -295,6 +297,21 @@ func (AttentionRequiredStreamEvent) StreamEventType() string { return "attention
 func (e AttentionRequiredStreamEvent) MarshalJSON() ([]byte, error) {
 	e.Type = e.StreamEventType()
 	type alias AttentionRequiredStreamEvent
+	return json.Marshal(alias(e))
+}
+
+// SessionClosedStreamEvent signals that an agent session has closed.
+type SessionClosedStreamEvent struct {
+	Type     string `json:"type"` // always "session_closed"
+	Provider string `json:"provider"`
+}
+
+func (SessionClosedStreamEvent) StreamEventType() string { return "session_closed" }
+
+// MarshalJSON ensures the "type" field is always correct.
+func (e SessionClosedStreamEvent) MarshalJSON() ([]byte, error) {
+	e.Type = e.StreamEventType()
+	type alias SessionClosedStreamEvent
 	return json.Marshal(alias(e))
 }
 
@@ -400,6 +417,12 @@ func (p *AgentStreamPayload) UnmarshalJSON(data []byte) error {
 		var evt AttentionRequiredStreamEvent
 		if err := json.Unmarshal(raw.Event, &evt); err != nil {
 			return fmt.Errorf("unmarshal attention_required event: %w", err)
+		}
+		p.Event = evt
+	case "session_closed":
+		var evt SessionClosedStreamEvent
+		if err := json.Unmarshal(raw.Event, &evt); err != nil {
+			return fmt.Errorf("unmarshal session_closed event: %w", err)
 		}
 		p.Event = evt
 	default:

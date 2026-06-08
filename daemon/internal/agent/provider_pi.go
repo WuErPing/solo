@@ -375,6 +375,7 @@ func (s *piSession) Interrupt(ctx context.Context) error {
 	s.dispatcher.Emit(AgentStreamEvent{
 		Event: protocol.TurnCanceledStreamEvent{
 			Provider: piProviderName,
+			Reason:   "user_cancel",
 		},
 		Timestamp: time.Now(),
 	})

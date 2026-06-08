@@ -210,3 +210,61 @@ func TestTimelineItemToProtocolMapIncludesRequiredDetailFields(t *testing.T) {
 		t.Error("invalid JSON")
 	}
 }
+
+// TestAppendFromHistory_DeduplicatesNonAdjacentLiveEvents verifies that
+// history hydration does not insert duplicates of items already added by
+// live events when they are no longer the most recent row.
+func TestAppendFromHistory_DeduplicatesNonAdjacentLiveEvents(t *testing.T) {
+	s := NewInMemoryTimelineStore()
+	s.Initialize("agent-1")
+
+	// Simulate live events: user message followed by assistant response.
+	s.Append("agent-1", TimelineItem{Type: "user_message", Text: "hello"})
+	s.Append("agent-1", TimelineItem{Type: "assistant_message", Text: "hi there"})
+
+	// Hydrate history containing the same user message (now not the last row).
+	s.AppendFromHistory("agent-1", TimelineItem{Type: "user_message", Text: "hello"})
+
+	result := s.Fetch("agent-1", "tail", nil, 0)
+	if len(result.Rows) != 2 {
+		t.Fatalf("expected 2 rows after hydration, got %d: %+v", len(result.Rows), result.Rows)
+	}
+	if result.Rows[0].Item.Type != "user_message" || result.Rows[0].Item.Text != "hello" {
+		t.Errorf("row 0: got %+v, want user_message/hello", result.Rows[0].Item)
+	}
+	if result.Rows[1].Item.Type != "assistant_message" || result.Rows[1].Item.Text != "hi there" {
+		t.Errorf("row 1: got %+v, want assistant_message/hi there", result.Rows[1].Item)
+	}
+}
+
+// TestAppendFromHistory_DeduplicatesDuplicateHistoryEntries verifies that
+// identical entries within a single history hydration batch are deduplicated.
+func TestAppendFromHistory_DeduplicatesDuplicateHistoryEntries(t *testing.T) {
+	s := NewInMemoryTimelineStore()
+	s.Initialize("agent-1")
+
+	s.AppendFromHistory("agent-1", TimelineItem{Type: "assistant_message", Text: "once"})
+	s.AppendFromHistory("agent-1", TimelineItem{Type: "assistant_message", Text: "once"})
+
+	result := s.Fetch("agent-1", "tail", nil, 0)
+	if len(result.Rows) != 1 {
+		t.Fatalf("expected 1 row, got %d", len(result.Rows))
+	}
+}
+
+// TestAppend_DoesNotDeduplicateNonAdjacentLiveDuplicates verifies that Append
+// still allows distinct live events with identical content separated by other
+// events (it only checks the last row).
+func TestAppend_DoesNotDeduplicateNonAdjacentLiveDuplicates(t *testing.T) {
+	s := NewInMemoryTimelineStore()
+	s.Initialize("agent-1")
+
+	s.Append("agent-1", TimelineItem{Type: "user_message", Text: "hello"})
+	s.Append("agent-1", TimelineItem{Type: "assistant_message", Text: "hi"})
+	s.Append("agent-1", TimelineItem{Type: "user_message", Text: "hello"})
+
+	result := s.Fetch("agent-1", "tail", nil, 0)
+	if len(result.Rows) != 3 {
+		t.Fatalf("expected 3 rows, got %d", len(result.Rows))
+	}
+}

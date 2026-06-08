@@ -337,6 +337,7 @@ func (s *kimiSession) Interrupt(ctx context.Context) error {
 	s.dispatcher.Emit(AgentStreamEvent{
 		Event: protocol.TurnCanceledStreamEvent{
 			Provider: kimiProviderName,
+			Reason:   "user_cancel",
 		},
 		Timestamp: time.Now(),
 	})

@@ -129,6 +129,13 @@ func TestStreamEventMarshalRoundTrip(t *testing.T) {
 			},
 			wantJSON: `{"type":"attention_required","provider":"claude","reason":"finished","shouldNotify":true}`,
 		},
+		{
+			name: "session_closed",
+			event: SessionClosedStreamEvent{
+				Provider: "opencode",
+			},
+			wantJSON: `{"type":"session_closed","provider":"opencode"}`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -241,6 +248,12 @@ func TestAgentStreamPayloadUnmarshal(t *testing.T) {
 			wantType: "attention_required",
 			wantProv: "claude",
 		},
+		{
+			name:     "session_closed",
+			json:     `{"agentId":"a1","event":{"type":"session_closed","provider":"opencode"},"timestamp":"2024-01-01T00:00:00Z"}`,
+			wantType: "session_closed",
+			wantProv: "opencode",
+		},
 	}
 
 	for _, tt := range tests {
@@ -289,6 +302,10 @@ func TestAgentStreamPayloadUnmarshal(t *testing.T) {
 					t.Errorf("provider: got %q, want %q", e.Provider, tt.wantProv)
 				}
 			case AttentionRequiredStreamEvent:
+				if e.Provider != tt.wantProv {
+					t.Errorf("provider: got %q, want %q", e.Provider, tt.wantProv)
+				}
+			case SessionClosedStreamEvent:
 				if e.Provider != tt.wantProv {
 					t.Errorf("provider: got %q, want %q", e.Provider, tt.wantProv)
 				}

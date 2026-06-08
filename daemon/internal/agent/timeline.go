@@ -86,6 +86,26 @@ func (s *InMemoryTimelineStore) Append(agentID string, item TimelineItem) Timeli
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	state := s.getOrCreateStateLocked(agentID)
+
+	// Deduplicate against the most recent row.
+	// Multiple sessions may process the same stream event and call Append
+	// in quick succession. The second (and subsequent) calls find the row
+	// that the first session just appended and return it instead of creating
+	// a duplicate.
+	if len(state.Rows) > 0 {
+		last := state.Rows[len(state.Rows)-1]
+		if timelineItemsEqual(last.Item, item) {
+			return last
+		}
+	}
+
+	return s.appendLocked(state, agentID, item)
+}
+
+// getOrCreateStateLocked returns the timeline state for agentID, creating one
+// if necessary. Caller must hold s.mu.
+func (s *InMemoryTimelineStore) getOrCreateStateLocked(agentID string) *TimelineState {
 	state, ok := s.states[agentID]
 	if !ok {
 		state = &TimelineState{
@@ -95,19 +115,11 @@ func (s *InMemoryTimelineStore) Append(agentID string, item TimelineItem) Timeli
 		}
 		s.states[agentID] = state
 	}
+	return state
+}
 
-	// Deduplicate against the most recent row.
-	// Multiple sessions may process the same stream event and call Append
-	// in quick succession. The second (and subsequent) calls find the row
-	// that the first session just added and return it instead of creating
-	// a duplicate.
-	if len(state.Rows) > 0 {
-		last := state.Rows[len(state.Rows)-1]
-		if timelineItemsEqual(last.Item, item) {
-			return last
-		}
-	}
-
+// appendLocked appends item to state and notifies waiters. Caller must hold s.mu.
+func (s *InMemoryTimelineStore) appendLocked(state *TimelineState, agentID string, item TimelineItem) TimelineRow {
 	row := TimelineRow{
 		Seq:       state.NextSeq,
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
@@ -337,6 +349,8 @@ func (s *InMemoryTimelineStore) WaitForAssistantMessage(agentID string, timeout 
 
 // AppendFromHistory appends a history item to the timeline without notifying waiters.
 // item may be a TimelineItem or a map[string]interface{} from StreamHistory.
+// It scans all existing rows to avoid inserting duplicates of items already
+// added by live events (which can be interleaved with history entries).
 func (s *InMemoryTimelineStore) AppendFromHistory(agentID string, item interface{}) {
 	var ti TimelineItem
 	switch v := item.(type) {
@@ -350,7 +364,18 @@ func (s *InMemoryTimelineStore) AppendFromHistory(agentID string, item interface
 	if ti.Type == "" {
 		return
 	}
-	s.Append(agentID, ti)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	state := s.getOrCreateStateLocked(agentID)
+	for i := len(state.Rows) - 1; i >= 0; i-- {
+		if timelineItemsEqual(state.Rows[i].Item, ti) {
+			return
+		}
+	}
+
+	s.appendLocked(state, agentID, ti)
 }
 
 // timelineItemFromMap converts a map[string]interface{} to a TimelineItem.

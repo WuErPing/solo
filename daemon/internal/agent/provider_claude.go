@@ -411,6 +411,7 @@ func (s *claudeSession) Interrupt(ctx context.Context) error {
 	s.dispatcher.Emit(AgentStreamEvent{
 		Event: protocol.TurnCanceledStreamEvent{
 			Provider: claudeProviderName,
+			Reason:   "user_cancel",
 		},
 		Timestamp: time.Now(),
 	})

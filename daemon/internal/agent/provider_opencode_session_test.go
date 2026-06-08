@@ -1,8 +1,13 @@
 package agent
 
 import (
+	"context"
+	"fmt"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -347,5 +352,115 @@ drainLoop:
 
 	if !foundCritical {
 		t.Error("Subscribe() dropped a critical event -- blocking send for critical events is broken")
+	}
+}
+
+// TestRun_EmitsUserMessageBeforeAssistantEvents verifies that OpenCode's Run()
+// synthesizes and emits a user_message event before any assistant events arrive
+// from the SSE stream. OpenCode does not echo the user prompt, so Solo must
+// emit this event itself; otherwise other connected clients never see the
+// prompt. This is a regression test for the cross-device sync bug where the
+// app missed prompts sent from the web.
+func TestRun_EmitsUserMessageBeforeAssistantEvents(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/command":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(w, `[]`)
+			return
+		case r.URL.Path == "/global/event":
+			flusher, ok := w.(http.Flusher)
+			if !ok {
+				t.Fatal("response writer does not support flushing")
+			}
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Connection", "keep-alive")
+			flusher.Flush()
+
+			// Wait for the prompt to be sent so the test does not race.
+			time.Sleep(50 * time.Millisecond)
+
+			// Emit an assistant text delta.
+			fmt.Fprintf(w, "data: {\"payload\":{\"type\":\"message.part.delta\",\"properties\":{\"sessionID\":\"test-session\",\"partID\":\"p1\",\"field\":\"text\",\"delta\":\"Hi there\"}}}\n\n")
+			flusher.Flush()
+
+			// Terminal event so Run() can return successfully.
+			fmt.Fprintf(w, "data: {\"payload\":{\"type\":\"session.status\",\"properties\":{\"sessionID\":\"test-session\",\"status\":{\"type\":\"idle\"}}}}\n\n")
+			flusher.Flush()
+			return
+		case strings.HasSuffix(r.URL.Path, "/prompt_async"):
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer ts.Close()
+
+	config := &protocol.AgentSessionConfig{
+		Provider: "opencode",
+		Cwd:      "/tmp/test",
+	}
+
+	session := newOpenCodeSession(ts.URL, "test-session", config, logger, func() {}, nil)
+
+	select {
+	case <-session.commandsReadyCh:
+	case <-time.After(5 * time.Second):
+		t.Fatal("command warmup did not complete")
+	}
+
+	// Subscribe before Run() so we receive the user_message emit.
+	eventsCh := session.Subscribe()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := session.Run(ctx, "hello opencode", nil, nil, "msg-123")
+	if err != nil {
+		t.Fatalf("Run() = %v", err)
+	}
+
+	// Drain events and verify ordering.
+	var sawUserMessage bool
+	var userMessageText string
+	var assistantBeforeUser bool
+	timeout := time.After(3 * time.Second)
+drainLoop:
+	for {
+		select {
+		case evt, ok := <-eventsCh:
+			if !ok {
+				break drainLoop
+			}
+			switch e := evt.Event.(type) {
+			case protocol.TimelineStreamEvent:
+				switch e.Item.Type {
+				case "user_message":
+					sawUserMessage = true
+					userMessageText = e.Item.Text
+				case "assistant_message":
+					if !sawUserMessage {
+						assistantBeforeUser = true
+					}
+				}
+			case protocol.TurnCompletedStreamEvent:
+				// Terminal event; the channel will close shortly after consumeSSE returns.
+			}
+		case <-timeout:
+			break drainLoop
+		}
+	}
+
+	if !sawUserMessage {
+		t.Fatal("Run() did not emit user_message -- other clients will not see the prompt")
+	}
+	if userMessageText != "hello opencode" {
+		t.Fatalf("user_message text = %q, want %q", userMessageText, "hello opencode")
+	}
+	if assistantBeforeUser {
+		t.Fatal("assistant_message appeared before user_message -- ordering is broken")
 	}
 }

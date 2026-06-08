@@ -294,11 +294,41 @@ func (s *InMemoryTimelineStore) Append(agentID string, item TimelineItem) Timeli
 **Why is checking only the last record enough?**
 Because `m.emit()` dispatches synchronously and sequentially; multiple Sessions' `Append()` calls for the same event occur almost consecutively in time. When the second Session calls, the last record is exactly the duplicate just appended by the first Session.
 
+**History hydration uses a stronger scan.**
+`AppendFromHistory()` (called when a client fetches timeline and the provider history has not yet been loaded) scans **all existing rows** backwards looking for an equivalent item. This prevents history from inserting duplicates of items already added by live events, which can be interleaved with later live events and therefore are no longer the most recent row.
+
 ### 11.4 Related Source Code
 
 - `daemon/internal/agent/timeline.go` — `Append()` idempotency logic
 - `daemon/internal/agent/manager.go` — `emit()` synchronous broadcast
 - `daemon/internal/server/session_agent_stream.go` — per-Session `handleStreamEvent`
+
+### 11.5 Provider Contract: `user_message` Must Be Emitted
+
+All providers MUST emit a `TimelineStreamEvent` with `Type: "user_message"` at the start of `Run()` / `StartTurn()`. This event is the canonical source of truth for the user's prompt; it is **not** optional.
+
+**Why this matters for multi-device sync:**
+
+- Some providers (notably **OpenCode**) do not echo the user prompt in their streaming response. If Solo does not synthesize and emit `user_message` locally, other connected clients (e.g. the mobile app when the message was sent from the web) never see the prompt.
+- The web client performs an optimistic local update when the user sends a message, but that update is **client-local** and is not broadcast to other sessions.
+- Once `historyPrimed` is set on a client, subsequent `fetch_agent_timeline` calls are no-ops on the server. Without a live `user_message` event, the client has no other mechanism to learn about the new prompt.
+
+**Contract check-list for new providers:**
+
+| Provider | `Run()` emits `user_message` | `StartTurn()` emits `user_message` | Notes |
+|---|---|---|---|
+| mock | ✅ | — | Used in tests |
+| claude | ✅ | — | Emits before streaming |
+| kimi | ✅ | — | Emits before streaming |
+| pi | ✅ | — | Emits before streaming |
+| opencode | ✅ | ✅ | Added 2026-06-08; OpenCode SSE does not echo the prompt |
+
+**Failure mode fixed:**
+> Web sends a message → app sees only the assistant reply, never the `who are you` prompt. Root cause: opencode's SSE stream contains only assistant-side events; Solo previously relied on `StreamHistory()` to backfill the `user_message`, which fails for already-primed clients.
+
+### 11.6 Event Type Discipline
+
+Stream events are a closed set of strongly-typed structs in `protocol/stream_event.go`. Events such as `session_closed` must use their dedicated struct (`SessionClosedStreamEvent`) rather than being shoe-horned into `TimelineStreamEvent` with a synthetic `Type` field. This prevents front-end Zod parse failures and keeps the event schema explicit.
 
 ---
 

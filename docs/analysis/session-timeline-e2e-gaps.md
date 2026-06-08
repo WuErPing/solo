@@ -108,16 +108,19 @@ Timeline:
   Session B flush "Hello"     → last row = " world" ≠ "Hello" → Append seq=3 ❌ Duplicate!
 ```
 
-#### Existing Tests
+#### Fixes Applied (2026-06-08)
 
-- `multi_client_sync_test.go`: Uses mock provider (no streaming delta), only verifies backend store has no duplicates, **does not verify per-client stream**。
-- `timeline_test.go`: Only verifies consecutive identical item deduplication, does not cover non-consecutive duplicates.
+1. **`Append()` still checks the last row** for live multi-Session dedup (performance-preserving).
+2. **`AppendFromHistory()` scans all rows backwards** to avoid inserting duplicates of items already added by live events, which can be interleaved with later live events.
+3. **Added regression tests** in `daemon/internal/agent/timeline_test.go` covering non-consecutive history/live dedup and duplicate history entries.
 
-#### Gaps
+These fixes do **not** address the per-Session Coalescer race itself (which remains a theoretical risk under extreme scheduling), but they harden the storage layer so that any duplicate flush does not create visible duplicates for clients.
 
-- ❌ No E2E that simultaneously opens web + app, sends messages, and verifies no duplicates in both DOMs.
-- ❌ No multi-client sync test using real provider (Claude/OpenCode).
-- ❌ `timelineItemsEqual` only compares `Text` for `assistant_message` / `reasoning`, no MessageID dimension.
+#### Remaining Gaps
+
+- ⚠️ No E2E that simultaneously opens web + app, sends messages, and verifies no duplicates in both DOMs.
+- ⚠️ No multi-client sync test using real provider (Claude/OpenCode).
+- ⚠️ `timelineItemsEqual` only compares `Text` for `assistant_message` / `reasoning`, no MessageID dimension.
 
 ---
 
@@ -155,9 +158,9 @@ Timeline:
 
 1. **TimelineItem is a "bag of fields"**: `Type string`, `Text string`, `Detail interface{}`, `Error interface{}`, with no compile-time or runtime schema validation. Different providers fill fields inconsistently for the same event type.
 2. **Implementation differences across providers**:
-   - **OpenCode**: SSE events, `messageID` parameter is **completely ignored**。
+   - **OpenCode**: SSE events, `messageID` was **completely ignored** until 2026-05-25; now propagated on `user_message` emits.
    - **Claude**: stream JSON, `Error` field shape differs from other providers.
-   - **Kimi**: JSON-RPC Wire, simplest translator, **completely lacks dedup logic**, and no `messageID` propagation.
+   - **Kimi**: JSON-RPC Wire, simplest translator, **completely lacks dedup logic**, and no `MessageID` propagation.
 3. **Structured message fallback**: OpenCode falls back to `stringifyStructuredMessage()` when there's no text delta, producing raw `map[string]interface{}`, not a typed `TimelineItem`。
 
 #### Existing Tests
@@ -231,8 +234,8 @@ Timeline:
 
 | Problem | Root Cause | Backend Unit/Integration Tests | Frontend Unit Tests | End-to-End Tests |
 |---------|------------|-------------------------------|---------------------|------------------|
-| **Message Duplication** | Per-Session Coalescer Race + Timeline Append only checks last row | ⚠️ Partial (mock provider) | ⚠️ Partial (seq-gate only prevents exact duplicates) | ✅ `multi-client-sync.spec.ts` + `optimistic-dedup.spec.ts` |
+| **Message Duplication** | Per-Session Coalescer Race + Timeline Append only checks last row | ✅ Backend dedup hardened (`Append` last-row + `AppendFromHistory` full scan) | ⚠️ Partial (seq-gate only prevents exact duplicates) | ✅ `multi-client-sync.spec.ts` + `optimistic-dedup.spec.ts` |
 | **Message Stuck** | Grace replay failure / Catch-up failure / Queue overflow / Write deadline | ✅ Relatively complete | ⚠️ Partial (reducer gap logic) | ✅ `reconnect-resilience.spec.ts` + `grace-period-recovery.spec.ts` + `rapid-fire-messages.spec.ts` + `message-ordering.spec.ts` |
-| **Message Format Anomalies** | Provider translator heterogeneity + TimelineItem no schema | ⚠️ Partial (single provider unit tests) | ❌ None | ❌ **None**（needs real provider environment） |
+| **Message Format Anomalies** | Provider translator heterogeneity + TimelineItem no schema | ✅ `session_closed` typed event added; `MessageID` propagated for opencode `user_message` | ❌ None | ❌ **None**（needs real provider environment） |
 
 > **Supplemented 7 E2E specs (10 tests total), covering core scenarios including multi-client sync, disconnect recovery, rapid messages, optimistic dedup, message ordering, pagination queries. Cross-provider format consistency still needs real provider integration environment before it can be supplemented.**

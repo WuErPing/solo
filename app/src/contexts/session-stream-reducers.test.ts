@@ -253,6 +253,33 @@ describe("processTimelineResponse", () => {
     });
   });
 
+  it("preserves user_message during bootstrap tail init", () => {
+    const result = processTimelineResponse({
+      ...baseTimelineInput,
+      isInitializing: true,
+      hasActiveInitDeferred: true,
+      initRequestDirection: "tail",
+      payload: {
+        ...baseTimelineInput.payload,
+        direction: "tail",
+        epoch: "epoch-1",
+        startCursor: { seq: 0 },
+        endCursor: { seq: 2 },
+        entries: [
+          makeTimelineEntry(0, "hi", "user_message"),
+          makeTimelineEntry(1, "Thinking", "reasoning"),
+          makeTimelineEntry(2, "Hi there! What can I help you with?", "assistant_message"),
+        ],
+      },
+    });
+
+    expect(result.tail.map((item) => ({ kind: item.kind, text: item.text }))).toEqual([
+      { kind: "user_message", text: "hi" },
+      { kind: "thought", text: "Thinking" },
+      { kind: "assistant_message", text: "Hi there! What can I help you with?" },
+    ]);
+  });
+
   it("appends incrementally for contiguous seqs", () => {
     const existingCursor: TimelineCursor = {
       epoch: "epoch-1",

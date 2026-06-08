@@ -208,6 +208,20 @@ func (s *openCodeSession) Run(ctx context.Context, text string, images []protoco
 	s.mu.Unlock()
 	defer cancel()
 
+	// Emit the user_message immediately so all connected clients see the prompt
+	// in real time. OpenCode's SSE stream does not echo the user prompt back,
+	// so without this emit other clients only see the assistant response.
+	if text != "" {
+		s.notifySubscribers(AgentStreamEvent{
+			Event: protocol.TimelineStreamEvent{
+				Item:     TimelineItem{Type: "user_message", Text: text, MessageID: messageID},
+				Provider: opencodeProviderName,
+				TurnID:   turnID,
+			},
+			Timestamp: time.Now(),
+		})
+	}
+
 	// Start consuming SSE BEFORE sending the prompt.
 	// OpenCode's SSE endpoint does not replay past events. If we connect
 	// after sending the prompt we miss events and the turn hangs.
@@ -252,6 +266,19 @@ func (s *openCodeSession) StartTurn(ctx context.Context, text string, images []p
 		s.accumulatedUsage.ContextWindowMaxTokens = &cw
 	}
 	s.mu.Unlock()
+
+	// Emit the user_message immediately so all connected clients see the prompt
+	// in real time. OpenCode's SSE stream does not echo the user prompt back.
+	if text != "" {
+		s.notifySubscribers(AgentStreamEvent{
+			Event: protocol.TimelineStreamEvent{
+				Item:     TimelineItem{Type: "user_message", Text: text},
+				Provider: opencodeProviderName,
+				TurnID:   turnID,
+			},
+			Timestamp: time.Now(),
+		})
+	}
 
 	ch := make(chan AgentStreamEvent, 256)
 	unsub := s.subscribeEvents(func(evt AgentStreamEvent) {
@@ -453,6 +480,7 @@ func (s *openCodeSession) Interrupt(ctx context.Context) error {
 	s.notifySubscribers(AgentStreamEvent{
 		Event: protocol.TurnCanceledStreamEvent{
 			Provider: opencodeProviderName,
+			Reason:   "interrupted",
 		},
 		Timestamp: time.Now(),
 	})
@@ -504,10 +532,7 @@ func (s *openCodeSession) Close() error {
 
 	// Emit session_closed event
 	s.dispatcher.Emit(AgentStreamEvent{
-		Event: protocol.TimelineStreamEvent{
-			Item:     TimelineItem{Type: "session_closed"},
-			Provider: opencodeProviderName,
-		},
+		Event:     protocol.SessionClosedStreamEvent{Provider: opencodeProviderName},
 		Timestamp: time.Now(),
 	})
 
