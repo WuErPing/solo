@@ -11,16 +11,6 @@ import (
 	"github.com/WuErPing/solo/protocol"
 )
 
-var tmuxAIAgentNames = map[string]bool{
-	"claude":   true,
-	"opencode": true,
-	"qodercli": true,
-	"pi":       true,
-	"cursor":   true,
-	"kimi":     true,
-	"kimi-cli": true,
-}
-
 // unicodeToASCII maps common unicode letters to ASCII equivalents for matching.
 var unicodeToASCII = map[rune]string{
 	'π': "pi",
@@ -28,11 +18,11 @@ var unicodeToASCII = map[rune]string{
 	'β': "b",
 }
 
-func isTmuxAIAgentName(cmd string) bool {
+func isTmuxAIAgentName(cmd string, agentNames map[string]bool) bool {
 	if idx := strings.LastIndex(cmd, "/"); idx >= 0 {
 		cmd = cmd[idx+1:]
 	}
-	return tmuxAIAgentNames[cmd]
+	return agentNames[cmd]
 }
 
 // normalizeTitleToLower strips non-alphanumeric chars and lowercases for matching.
@@ -50,22 +40,22 @@ func normalizeTitleToLower(title string) string {
 	return b.String()
 }
 
-// tmuxAIAgentNamesByLength is sorted longest-first so "kimi-cli" matches before "kimi".
-var tmuxAIAgentNamesByLength []string
-
-func init() {
-	for name := range tmuxAIAgentNames {
-		tmuxAIAgentNamesByLength = append(tmuxAIAgentNamesByLength, name)
+// agentNamesByLength returns agent names sorted longest-first so "kimi-cli" matches before "kimi".
+func agentNamesByLength(agentNames map[string]bool) []string {
+	names := make([]string, 0, len(agentNames))
+	for name := range agentNames {
+		names = append(names, name)
 	}
-	sort.Slice(tmuxAIAgentNamesByLength, func(i, j int) bool {
-		return len(tmuxAIAgentNamesByLength[i]) > len(tmuxAIAgentNamesByLength[j])
+	sort.Slice(names, func(i, j int) bool {
+		return len(names[i]) > len(names[j])
 	})
+	return names
 }
 
 // agentNameFromTitle checks if a pane title contains a known AI agent name.
-func agentNameFromTitle(title string) string {
+func agentNameFromTitle(title string, agentNames map[string]bool) string {
 	normalized := normalizeTitleToLower(title)
-	for _, name := range tmuxAIAgentNamesByLength {
+	for _, name := range agentNamesByLength(agentNames) {
 		// Match whole word: check that name appears surrounded by non-alphanum
 		idx := strings.Index(normalized, name)
 		if idx < 0 {
@@ -87,7 +77,8 @@ func isAlnum(r rune) bool {
 }
 
 func (s *Session) handleTmuxListAgents(m *protocol.TmuxListAgentsRequest) {
-	agents, err := scanTmuxAgents()
+	agentNames := s.cfg.GetTmuxAgentNames()
+	agents, err := scanTmuxAgents(agentNames)
 	if err != nil {
 		errMsg := err.Error()
 		s.sendTmuxListAgentsResponse(m.RequestID, nil, &errMsg)
@@ -107,18 +98,18 @@ func (s *Session) sendTmuxListAgentsResponse(requestID string, agents []protocol
 	}))
 }
 
-func scanTmuxAgents() ([]protocol.TmuxAgentInfo, error) {
+func scanTmuxAgents(agentNames map[string]bool) ([]protocol.TmuxAgentInfo, error) {
 	cmd := exec.Command("tmux", "list-panes", "-a", "-F",
 		"#{pane_id}|#{pane_index}|#{pane_pid}|#{pane_current_command}|#{session_name}|#{window_name}|#{pane_current_path}|#{pane_title}")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, err
 	}
-	return parseTmuxPaneLines(string(output)), nil
+	return parseTmuxPaneLines(string(output), agentNames), nil
 }
 
-func extractFirstPrompt(paneID string, paneTitle string) string {
-	for name := range tmuxAIAgentNames {
+func extractFirstPrompt(paneID string, paneTitle string, agentNames map[string]bool) string {
+	for name := range agentNames {
 		prefix := strings.ToUpper(name) + " | "
 		if strings.HasPrefix(paneTitle, prefix) {
 			return strings.TrimPrefix(paneTitle, prefix)
@@ -158,7 +149,7 @@ func getGitCommitHash(workingDir string) string {
 	return strings.TrimSpace(string(out))
 }
 
-func parseTmuxPaneLines(output string) []protocol.TmuxAgentInfo {
+func parseTmuxPaneLines(output string, agentNames map[string]bool) []protocol.TmuxAgentInfo {
 	var agents []protocol.TmuxAgentInfo
 	scanner := bufio.NewScanner(strings.NewReader(output))
 	for scanner.Scan() {
@@ -181,7 +172,7 @@ func parseTmuxPaneLines(output string) []protocol.TmuxAgentInfo {
 		agentName := ""
 
 		// Layer 1: Direct command match (works for claude, opencode, etc.)
-		if isTmuxAIAgentName(currentCmd) {
+		if isTmuxAIAgentName(currentCmd, agentNames) {
 			agentName = currentCmd
 			if idx := strings.LastIndex(agentName, "/"); idx >= 0 {
 				agentName = agentName[idx+1:]
@@ -190,19 +181,19 @@ func parseTmuxPaneLines(output string) []protocol.TmuxAgentInfo {
 
 		// Layer 2: Title match (works for pi, which sets title to "π - solo")
 		if agentName == "" && paneTitle != "" {
-			agentName = agentNameFromTitle(paneTitle)
+			agentName = agentNameFromTitle(paneTitle, agentNames)
 		}
 
 		// Layer 3: Child process match (works when pane_current_command is node/python/etc.)
 		if agentName == "" {
-			agentName = agentNameFromChildProcesses(panePID)
+			agentName = agentNameFromChildProcesses(panePID, agentNames)
 		}
 
 		if agentName == "" {
 			continue
 		}
 
-		title := extractFirstPrompt(paneID, paneTitle)
+		title := extractFirstPrompt(paneID, paneTitle, agentNames)
 
 		agents = append(agents, protocol.TmuxAgentInfo{
 			SessionName: sessionName,
@@ -222,7 +213,7 @@ func parseTmuxPaneLines(output string) []protocol.TmuxAgentInfo {
 // agentNameFromChildProcesses checks if any child process of the given PID
 // matches a known AI agent name. This catches cases where pane_current_command
 // shows "node" or "python" but the actual agent is a child process.
-func agentNameFromChildProcesses(ppid int) string {
+func agentNameFromChildProcesses(ppid int, agentNames map[string]bool) string {
 	out, err := exec.Command("pgrep", "-P", strconv.Itoa(ppid)).Output()
 	if err != nil {
 		return ""
@@ -236,7 +227,7 @@ func agentNameFromChildProcesses(ppid int) string {
 		if idx := strings.LastIndex(name, "/"); idx >= 0 {
 			name = name[idx+1:]
 		}
-		if tmuxAIAgentNames[name] {
+		if agentNames[name] {
 			return name
 		}
 	}

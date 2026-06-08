@@ -197,7 +197,7 @@ const disabledCodexEntry: ProviderSnapshotEntry = {
 };
 
 function makeConfig(providers: MutableDaemonConfig["providers"] = {}): MutableDaemonConfig {
-  return { mcp: { injectIntoAgents: false }, providers };
+  return { mcp: { injectIntoAgents: false }, providers, tmuxAgentNames: [] };
 }
 
 function descendants(el: HTMLElement): HTMLElement[] {

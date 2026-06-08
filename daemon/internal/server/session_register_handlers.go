@@ -48,6 +48,7 @@ func (s *Session) registerHandlers() {
 	r.Register("list_available_editors_request", typeHandler(s.handleListAvailableEditors))
 	r.Register("fetch_agent_history_request", typeHandler(s.handleFetchAgentHistory))
 	r.Register("get_daemon_config_request", typeHandler(s.handleGetDaemonConfig))
+	r.Register("set_daemon_config_request", typeHandler(s.handleSetDaemonConfig))
 	r.Register("get_providers_snapshot_request", typeHandler(s.handleGetProvidersSnapshot))
 
 	// --- Server control ---

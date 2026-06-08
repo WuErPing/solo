@@ -27,6 +27,15 @@ interface AgentNameGroup {
   count: number;
 }
 
+// Splits tmux statusRight like '"pane title" 22:45 06-Jun-26' into title and time/date parts.
+function splitStatusRight(statusRight: string): { title: string; timeDate?: string } {
+  const match = statusRight.match(/^(".*?")\s+(.+)$/);
+  if (match) {
+    return { title: match[1], timeDate: match[2] };
+  }
+  return { title: statusRight };
+}
+
 function AgentCard({
   agent,
   statusLine,
@@ -67,53 +76,38 @@ function AgentCard({
               : null,
           ]}
         >
-          {statusLine.statusLeft ? (
-            <AnsiTextContent
-              segments={parseAnsi(statusLine.statusLeft)}
-              style={[
-                styles.statusLineText,
-                statusLine.paneForeground
-                  ? { color: statusLine.paneForeground }
-                  : null,
-              ]}
-            />
-          ) : null}
-          {statusLine.statusCenter ? (
-            <AnsiTextContent
-              segments={parseAnsi(statusLine.statusCenter)}
-              style={[
-                styles.statusLineText,
-                statusLine.paneForeground
-                  ? { color: statusLine.paneForeground }
-                  : null,
-              ]}
-            />
-          ) : null}
-          {statusLine.statusRight ? (
-            <AnsiTextContent
-              segments={parseAnsi(statusLine.statusRight)}
-              style={[
-                styles.statusLineText,
-                statusLine.paneForeground
-                  ? { color: statusLine.paneForeground }
-                  : null,
-              ]}
-            />
-          ) : null}
+          {statusLine.statusRight ? (() => {
+            const { title, timeDate } = splitStatusRight(statusLine.statusRight);
+            return (
+              <>
+                <AnsiTextContent
+                  segments={parseAnsi(title)}
+                  style={[
+                    styles.statusLineText,
+                    statusLine.paneForeground
+                      ? { color: statusLine.paneForeground }
+                      : null,
+                  ]}
+                />
+                {timeDate ? (
+                  <AnsiTextContent
+                    segments={parseAnsi(timeDate)}
+                    style={[
+                      styles.statusLineText,
+                      statusLine.paneForeground
+                        ? { color: statusLine.paneForeground }
+                        : null,
+                    ]}
+                  />
+                ) : null}
+              </>
+            );
+          })() : null}
         </View>
       ) : null}
       <View style={styles.agentCardBody}>
         <Text style={styles.detailLabel}>
-          Session: <Text style={styles.detailValue}>{agent.sessionName}</Text>
-        </Text>
-        <Text style={styles.detailLabel}>
-          Window: <Text style={styles.detailValue}>{agent.windowName}</Text>
-        </Text>
-        <Text style={styles.detailLabel}>
-          Pane: <Text style={styles.detailValue}>{agent.paneId}</Text>
-        </Text>
-        <Text style={styles.detailLabel}>
-          PID: <Text style={styles.detailValue}>{agent.panePid}</Text>
+          S:{agent.sessionName} W:{agent.windowName} P:{agent.paneId} PID:{agent.panePid}
         </Text>
       </View>
     </Pressable>
@@ -406,10 +400,6 @@ const styles = StyleSheet.create((theme) => ({
   },
   detailLabel: {
     color: theme.colors.foregroundMuted,
-    fontSize: 12,
-  },
-  detailValue: {
-    color: theme.colors.foreground,
     fontSize: 12,
   },
   statusLineContainer: {

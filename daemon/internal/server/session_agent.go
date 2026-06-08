@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
+	"github.com/WuErPing/solo/daemon/internal/config"
 	"github.com/WuErPing/solo/protocol"
 )
 
@@ -618,14 +619,60 @@ func (s *Session) handleSetAgentModel(m *protocol.SetAgentModelRequest) {
 	}))
 }
 
+func buildDaemonConfigResponse(cfg *config.Config) map[string]interface{} {
+	return map[string]interface{}{
+		"mcp": map[string]interface{}{
+			"injectIntoAgents": cfg.MCPInjectIntoAgents,
+		},
+		"tmuxAgentNames": cfg.TmuxAgentNames,
+	}
+}
+
 func (s *Session) handleGetDaemonConfig(m *protocol.GetDaemonConfigRequest) {
 	s.sendMessage(protocol.NewSessionMessage(&protocol.GetDaemonConfigResponse{
 		Type: "get_daemon_config_response",
 		Payload: protocol.GetDaemonConfigResponsePayload{
 			RequestID: m.RequestID,
-			Config:    map[string]interface{}{},
+			Config:    buildDaemonConfigResponse(s.cfg),
 		},
 	}))
+}
+
+func (s *Session) handleSetDaemonConfig(m *protocol.SetDaemonConfigRequest) {
+	if names, ok := m.Config["tmuxAgentNames"]; ok {
+		if arr, ok := names.([]interface{}); ok {
+			var agentNames []string
+			for _, v := range arr {
+				if str, ok := v.(string); ok {
+					agentNames = append(agentNames, str)
+				}
+			}
+			s.cfg.TmuxAgentNames = agentNames
+			if err := s.cfg.Save(); err != nil {
+				s.sendRPCError(m.RequestID, "set_daemon_config_request", "failed to persist config: "+err.Error(), nil)
+				return
+			}
+		}
+	}
+
+	cfg := buildDaemonConfigResponse(s.cfg)
+	s.sendMessage(protocol.NewSessionMessage(&protocol.SetDaemonConfigResponse{
+		Type: "set_daemon_config_response",
+		Payload: protocol.SetDaemonConfigResponsePayload{
+			RequestID: m.RequestID,
+			Config:    cfg,
+		},
+	}))
+
+	if s.broadcast != nil {
+		s.broadcast(protocol.NewSessionMessage(&protocol.StatusMessage{
+			Type: "status",
+			Payload: map[string]interface{}{
+				"status": "daemon_config_changed",
+				"config": cfg,
+			},
+		}))
+	}
 }
 
 func (s *Session) handleFetchAgentHistory(m *protocol.FetchAgentHistoryRequest) {

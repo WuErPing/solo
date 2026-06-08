@@ -106,7 +106,7 @@ let isLoadingOverride = false;
 const mockRefreshAll = vi.fn();
 
 const mockStatusLines = [
-  { sessionName: "dev", serverId: "s1", statusLeft: "[#S]", statusCenter: "0:claude*", statusRight: "22:45 06-Jun-26", paneBackground: "#1e1e2e", paneForeground: "#cdd6f4" },
+  { sessionName: "dev", serverId: "s1", statusLeft: "[#S]", statusCenter: "0:claude*", statusRight: "\"Analyze tmux session\" 22:45 06-Jun-26", paneBackground: "#1e1e2e", paneForeground: "#cdd6f4" },
 ];
 
 vi.mock("@/hooks/use-tmux-agents", () => ({
@@ -169,16 +169,31 @@ describe("TmuxDashboardScreen", () => {
     expect(mockPush).toHaveBeenCalledWith("/tmux-pane");
   });
 
-  it("renders status line info in agent cards", () => {
+  it("renders agent details in compact S:/W:/P:/PID: format", () => {
     agentsOverride = mockAgents;
     render(<TmuxDashboardScreen />);
 
-    // Status line text should be rendered (one per agent card)
-    const statusLeftElements = screen.getAllByText("[#S]");
-    expect(statusLeftElements.length).toBe(2);
-    const statusCenterElements = screen.getAllByText("0:claude*");
-    expect(statusCenterElements.length).toBe(2);
-    const statusRightElements = screen.getAllByText("22:45 06-Jun-26");
-    expect(statusRightElements.length).toBe(2);
+    // Should show compact format on a single line per agent
+    const compactLines = screen.getAllByText("S:dev W:main P:%0 PID:100");
+    expect(compactLines.length).toBe(1);
+
+    // Old 4-line format should NOT be present
+    expect(screen.queryByText(/Session:/)).toBeNull();
+    expect(screen.queryByText(/Window:/)).toBeNull();
+    expect(screen.queryByText(/Pane:/)).toBeNull();
+    expect(screen.queryByText(/^PID:/)).toBeNull();
+  });
+
+  it("renders only statusRight in agent cards (statusLeft and statusCenter are redundant with compact detail line)", () => {
+    agentsOverride = mockAgents;
+    render(<TmuxDashboardScreen />);
+
+    // statusRight pane title and time/date should be rendered
+    expect(screen.getAllByText('"Analyze tmux session"').length).toBe(2);
+    expect(screen.getAllByText("22:45 06-Jun-26").length).toBe(2);
+
+    // statusLeft and statusCenter should NOT be rendered (redundant with S:/W:/P:/PID:)
+    expect(screen.queryByText("[#S]")).toBeNull();
+    expect(screen.queryByText("0:claude*")).toBeNull();
   });
 });

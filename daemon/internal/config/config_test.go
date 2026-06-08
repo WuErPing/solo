@@ -205,6 +205,92 @@ func TestResolveListenTarget_IPv6(t *testing.T) {
 	}
 }
 
+func TestGetTmuxAgentNames_Defaults(t *testing.T) {
+	cfg := DefaultConfig()
+	names := cfg.GetTmuxAgentNames()
+	expected := []string{"claude", "opencode", "qodercli", "pi", "cursor", "kimi", "kimi-cli", "codex"}
+	for _, want := range expected {
+		if !names[want] {
+			t.Errorf("expected built-in agent %q in result", want)
+		}
+	}
+	if len(names) != len(expected) {
+		t.Errorf("expected %d names, got %d: %v", len(expected), len(names), names)
+	}
+}
+
+func TestGetTmuxAgentNames_WithCustom(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.TmuxAgentNames = []string{"aider", "cody"}
+	names := cfg.GetTmuxAgentNames()
+	if !names["aider"] {
+		t.Error("expected custom agent 'aider'")
+	}
+	if !names["cody"] {
+		t.Error("expected custom agent 'cody'")
+	}
+	if !names["claude"] {
+		t.Error("expected built-in agent 'claude' still present")
+	}
+	if len(names) != 10 {
+		t.Errorf("expected 10 names (8 built-in + 2 custom), got %d: %v", len(names), names)
+	}
+}
+
+func TestGetTmuxAgentNames_Dedup(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.TmuxAgentNames = []string{"claude", "aider"}
+	names := cfg.GetTmuxAgentNames()
+	if !names["claude"] {
+		t.Error("expected 'claude' present")
+	}
+	if !names["aider"] {
+		t.Error("expected 'aider' present")
+	}
+	if len(names) != 9 {
+		t.Errorf("expected 9 names (8 built-in + 1 custom, 'claude' deduped), got %d: %v", len(names), names)
+	}
+}
+
+func TestGetTmuxAgentNames_CaseInsensitive(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.TmuxAgentNames = []string{"Aider", "CODY"}
+	names := cfg.GetTmuxAgentNames()
+	if !names["aider"] {
+		t.Error("expected 'aider' (lowercased from 'Aider')")
+	}
+	if !names["cody"] {
+		t.Error("expected 'cody' (lowercased from 'CODY')")
+	}
+}
+
+func TestLoad_PersistedConfig_TmuxAgentNames(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLO_HOME", home)
+
+	configData := []byte(`{"daemon":{"tmuxAgentNames":["aider","cody"]}}`)
+	_ = os.WriteFile(filepath.Join(home, "config.json"), configData, 0644)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(cfg.TmuxAgentNames) != 2 {
+		t.Fatalf("expected 2 persisted tmux agent names, got %d: %v", len(cfg.TmuxAgentNames), cfg.TmuxAgentNames)
+	}
+	if cfg.TmuxAgentNames[0] != "aider" || cfg.TmuxAgentNames[1] != "cody" {
+		t.Errorf("persisted TmuxAgentNames: got %v", cfg.TmuxAgentNames)
+	}
+
+	names := cfg.GetTmuxAgentNames()
+	if !names["aider"] || !names["cody"] {
+		t.Error("custom names should be in merged result")
+	}
+	if !names["claude"] {
+		t.Error("built-in names should still be present")
+	}
+}
+
 func TestResolveListenTarget_Invalid(t *testing.T) {
 	cases := []string{
 		"no-port",

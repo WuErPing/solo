@@ -111,6 +111,7 @@ export const MutableDaemonConfigSchema = z
       })
       .passthrough(),
     providers: z.record(z.string(), MutableDaemonProviderConfigSchema).default({}),
+    tmuxAgentNames: z.array(z.string()).default([]),
   })
   .passthrough();
 
@@ -120,6 +121,7 @@ export const MutableDaemonConfigPatchSchema = z
     providers: z
       .record(z.string(), MutableDaemonProviderConfigSchema.partial().passthrough())
       .optional(),
+    tmuxAgentNames: z.array(z.string()).optional(),
   })
   .partial()
   .passthrough();

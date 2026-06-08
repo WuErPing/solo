@@ -26,7 +26,25 @@ type Config struct {
 	Supervised                   bool
 	Version                      string
 	CustomModels                 map[string][]CustomModelConfig // key = provider ID
+	TmuxAgentNames               []string                       // additional tmux agent names (merged with built-in defaults)
 	Memory                       MemoryConfig
+}
+
+// builtInTmuxAgentNames are always included in agent scanning.
+var builtInTmuxAgentNames = []string{
+	"claude", "opencode", "qodercli", "pi", "cursor", "kimi", "kimi-cli", "codex",
+}
+
+// GetTmuxAgentNames returns the merged set of built-in and user-configured tmux agent names.
+func (c *Config) GetTmuxAgentNames() map[string]bool {
+	names := make(map[string]bool, len(builtInTmuxAgentNames)+len(c.TmuxAgentNames))
+	for _, n := range builtInTmuxAgentNames {
+		names[n] = true
+	}
+	for _, n := range c.TmuxAgentNames {
+		names[strings.ToLower(n)] = true
+	}
+	return names
 }
 
 // PersistedConfig mirrors the on-disk config.json structure.
@@ -36,12 +54,13 @@ type PersistedConfig struct {
 }
 
 type DaemonConfig struct {
-	Listen    *string          `json:"listen,omitempty"`
-	Hostnames []string         `json:"hostnames,omitempty"`
-	MCP       *MCPConfig       `json:"mcp,omitempty"`
-	CORS      *CORSConfig      `json:"cors,omitempty"`
-	Relay     *RelayConfig     `json:"relay,omitempty"`
-	Providers *ProvidersConfig `json:"providers,omitempty"`
+	Listen         *string          `json:"listen,omitempty"`
+	Hostnames      []string         `json:"hostnames,omitempty"`
+	MCP            *MCPConfig       `json:"mcp,omitempty"`
+	CORS           *CORSConfig      `json:"cors,omitempty"`
+	Relay          *RelayConfig     `json:"relay,omitempty"`
+	Providers      *ProvidersConfig `json:"providers,omitempty"`
+	TmuxAgentNames []string         `json:"tmuxAgentNames,omitempty"`
 }
 
 type MCPConfig struct {
@@ -200,6 +219,9 @@ func applyPersistedConfig(cfg *Config, pc *PersistedConfig) {
 		if pc.Daemon.Providers != nil && len(pc.Daemon.Providers.CustomModels) > 0 {
 			cfg.CustomModels = pc.Daemon.Providers.CustomModels
 		}
+		if len(pc.Daemon.TmuxAgentNames) > 0 {
+			cfg.TmuxAgentNames = pc.Daemon.TmuxAgentNames
+		}
 	}
 	if pc.App != nil {
 		if pc.App.BaseURL != nil {
@@ -223,6 +245,31 @@ func ensureServerID(cfg *Config) error {
 	id := generateID()
 	cfg.ServerID = id
 	return os.WriteFile(idPath, []byte(id), 0600)
+}
+
+// Save persists the current config to $SOLO_HOME/config.json.
+// It reads the existing file first to preserve fields not managed by this method.
+func (c *Config) Save() error {
+	configPath := filepath.Join(c.SoloHome, "config.json")
+
+	var pc PersistedConfig
+	if data, err := os.ReadFile(configPath); err == nil {
+		_ = json.Unmarshal(data, &pc)
+	}
+
+	if pc.Daemon == nil {
+		pc.Daemon = &DaemonConfig{}
+	}
+	pc.Daemon.TmuxAgentNames = c.TmuxAgentNames
+
+	data, err := json.MarshalIndent(pc, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal config: %w", err)
+	}
+	if err := os.MkdirAll(c.SoloHome, 0755); err != nil {
+		return fmt.Errorf("create solo home: %w", err)
+	}
+	return os.WriteFile(configPath, data, 0644)
 }
 
 func generateID() string {

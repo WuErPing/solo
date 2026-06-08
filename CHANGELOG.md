@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-06-08
+
+### Added
+
+- **Configurable tmux agent names**: Users can add custom agent names (e.g. aider, codex) via Settings > Host > Tmux agents; built-in defaults always active
+- **Codex agent support**: Added "codex" to built-in tmux agent detection list
+
+### Changed
+
+- **Compact agent detail format in tmux dashboard**: Agent cards now show `S:session W:window P:pane PID:pid` on a single line instead of 4 separate lines
+- **Removed redundant status line segments**: statusLeft and statusCenter no longer rendered in agent cards (already captured in compact detail line)
+- **Split pane title and timestamp**: statusRight now displays pane title and time/date on separate lines
+
 ## [0.4.0] - 2026-06-06
 
 ### Added

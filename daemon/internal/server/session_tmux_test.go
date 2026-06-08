@@ -8,6 +8,11 @@ import (
 	"github.com/WuErPing/solo/protocol"
 )
 
+var testAgentNames = map[string]bool{
+	"claude": true, "opencode": true, "qodercli": true,
+	"pi": true, "cursor": true, "kimi": true, "kimi-cli": true, "codex": true,
+}
+
 func TestIsTmuxAIAgentName(t *testing.T) {
 	tests := []struct {
 		name string
@@ -32,11 +37,21 @@ func TestIsTmuxAIAgentName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isTmuxAIAgentName(tt.cmd)
+			got := isTmuxAIAgentName(tt.cmd, testAgentNames)
 			if got != tt.want {
 				t.Errorf("isTmuxAIAgentName(%q) = %v, want %v", tt.cmd, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestIsTmuxAIAgentName_CustomAgent(t *testing.T) {
+	custom := map[string]bool{"aider": true, "cody": true}
+	if !isTmuxAIAgentName("aider", custom) {
+		t.Error("expected 'aider' to match custom agent names")
+	}
+	if isTmuxAIAgentName("claude", custom) {
+		t.Error("expected 'claude' NOT to match custom-only agent names")
 	}
 }
 
@@ -90,21 +105,22 @@ func TestParseTmuxPaneLines(t *testing.T) {
 			wantNames: []string{"claude"},
 		},
 		{
-			name: "all seven agents",
+			name: "all eight agents",
 			input: "%0|0|1000|claude|s1|w1|/a\n" +
 				"%1|1|2000|opencode|s1|w1|/b\n" +
 				"%2|2|3000|qodercli|s1|w1|/c\n" +
 				"%3|0|4000|pi|s2|w1|/d\n" +
 				"%4|1|5000|cursor|s2|w1|/e\n" +
 				"%5|2|6000|kimi|s2|w1|/f\n" +
-				"%6|0|7000|kimi-cli|s3|w1|/g\n",
-			wantCount: 7,
-			wantNames: []string{"claude", "opencode", "qodercli", "pi", "cursor", "kimi", "kimi-cli"},
+				"%6|0|7000|kimi-cli|s3|w1|/g\n" +
+				"%7|1|8000|codex|s3|w1|/h\n",
+			wantCount: 8,
+			wantNames: []string{"claude", "opencode", "qodercli", "pi", "cursor", "kimi", "kimi-cli", "codex"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			agents := parseTmuxPaneLines(tt.input)
+			agents := parseTmuxPaneLines(tt.input, testAgentNames)
 			if len(agents) != tt.wantCount {
 				t.Fatalf("got %d agents, want %d", len(agents), tt.wantCount)
 			}
@@ -137,7 +153,7 @@ func TestAgentNameFromTitle(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := agentNameFromTitle(tt.title)
+			got := agentNameFromTitle(tt.title, testAgentNames)
 			if got != tt.want {
 				t.Errorf("agentNameFromTitle(%q) = %q, want %q", tt.title, got, tt.want)
 			}
@@ -148,7 +164,7 @@ func TestAgentNameFromTitle(t *testing.T) {
 func TestParseTmuxPaneLinesTitleDetection(t *testing.T) {
 	// pi detected via pane_title (pane_current_command is "node")
 	input := "%0|0|86415|node|0|node|/home/user|π - solo\n"
-	agents := parseTmuxPaneLines(input)
+	agents := parseTmuxPaneLines(input, testAgentNames)
 	if len(agents) != 1 {
 		t.Fatalf("got %d agents, want 1", len(agents))
 	}
@@ -167,7 +183,7 @@ func TestParseTmuxPaneLinesTitleDetectionMultiple(t *testing.T) {
 		"%1|1|2000|node|s1|w1|/b|π - solo\n" +
 		"%2|0|3000|bash|s2|w1|/c|bash\n" +
 		"%3|1|4000|opencode|s2|w1|/d|OpenCode\n"
-	agents := parseTmuxPaneLines(input)
+	agents := parseTmuxPaneLines(input, testAgentNames)
 	if len(agents) != 3 {
 		t.Fatalf("got %d agents, want 3", len(agents))
 	}
@@ -182,9 +198,27 @@ func TestParseTmuxPaneLinesTitleDetectionMultiple(t *testing.T) {
 	}
 }
 
+func TestParseTmuxPaneLines_CustomAgent(t *testing.T) {
+	custom := map[string]bool{"aider": true, "cody": true}
+	input := "%0|0|1000|aider|s1|w1|/a\n" +
+		"%1|1|2000|cody|s1|w1|/b\n" +
+		"%2|2|3000|claude|s1|w1|/c\n" +
+		"%3|3|4000|bash|s1|w1|/d\n"
+	agents := parseTmuxPaneLines(input, custom)
+	if len(agents) != 2 {
+		t.Fatalf("got %d agents, want 2", len(agents))
+	}
+	if agents[0].AgentName != "aider" {
+		t.Errorf("agent[0] = %q, want %q", agents[0].AgentName, "aider")
+	}
+	if agents[1].AgentName != "cody" {
+		t.Errorf("agent[1] = %q, want %q", agents[1].AgentName, "cody")
+	}
+}
+
 func TestParseTmuxPaneLinesMetadata(t *testing.T) {
 	input := "%5|2|9876|pi|my-session|my-window|/Users/me/code\n"
-	agents := parseTmuxPaneLines(input)
+	agents := parseTmuxPaneLines(input, testAgentNames)
 	if len(agents) != 1 {
 		t.Fatalf("got %d agents, want 1", len(agents))
 	}

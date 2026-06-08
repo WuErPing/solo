@@ -16,6 +16,7 @@ var AI_AGENT_NAMES = map[string]bool{
 	"cursor":    true,
 	"kimi":      true,
 	"kimi-cli":  true,
+	"codex":     true,
 }
 
 // AgentInfo holds detected agent information from a tmux pane.
@@ -178,11 +179,11 @@ func demoFallbackDetection() {
 	fmt.Println()
 	fmt.Println("  # List all panes and filter by current command:")
 	fmt.Println(`  tmux list-panes -a -F "#{pane_id} #{pane_current_command} #{pane_pid} #{window_name}" | \`)
-	fmt.Println(`    awk '$2 ~ /^(claude|opencode|qoder|pi|cursor|kimi|kimi-cli)$/ {print $0}'`)
+	fmt.Println(`    awk '$2 ~ /^(claude|opencode|qoder|pi|cursor|kimi|kimi-cli|codex)$/ {print $0}'`)
 	fmt.Println()
 	fmt.Println("  # Recursively inspect process tree:")
 	fmt.Println(`  tmux list-panes -a -F "#{pane_pid} #{pane_current_command}" | \`)
-	fmt.Println(`    awk '$2 ~ /^(claude|opencode|qoder|pi|cursor|kimi|kimi-cli)$/ {print $1}' | \`)
+	fmt.Println(`    awk '$2 ~ /^(claude|opencode|qoder|pi|cursor|kimi|kimi-cli|codex)$/ {print $1}' | \`)
 	fmt.Println(`    while IFS= read -r pid; do`)
 	fmt.Println(`      echo "=== Agent process tree (PID: $pid) ==="`)
 	fmt.Println(`      ps -o pid=,comm= -p "$pid"`)
