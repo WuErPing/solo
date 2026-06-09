@@ -155,6 +155,7 @@ func TestClaudeSession_Run_SetsAndClearsActiveTurnID(t *testing.T) {
 		permissions:      base.NewPermissionManager(),
 		process:          newFakeProcessManager(pr, io.NopCloser(nil), fakeCmd),
 		binaryPath:       "fake-claude",
+		turnGuard:        base.NewTurnGuard(),
 		accumulatedUsage: &protocol.AgentUsage{},
 	}
 
@@ -253,12 +254,9 @@ func TestClaudeSession_Interrupt_ClearsActiveTurnID(t *testing.T) {
 
 	sess.Interrupt(context.Background())
 
-	// After interrupt, activeTurnID should be cleared so a new Run can start.
-	sess.mu.Lock()
-	cleared := sess.activeTurnID == ""
-	sess.mu.Unlock()
-	if !cleared {
-		t.Fatalf("expected activeTurnID cleared after Interrupt, got: %s", sess.activeTurnID)
+	// After interrupt, turn guard should be cleared so a new Run can start.
+	if sess.turnGuard.IsActive() {
+		t.Fatal("expected turn guard cleared after Interrupt")
 	}
 }
 

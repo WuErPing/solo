@@ -417,12 +417,17 @@ func (s *claudeSession) Close() error {
 	s.turnGuard.Release()
 
 	s.base.Close()
-	if err := s.process.Kill(s.cmd); err != nil {
-		s.base.Logger().Warn("failed to kill claude process", "error", err)
-	}
-	// Ensure process is reaped to prevent zombies
-	if s.cmd != nil {
-		if _, err := s.process.WaitForExit(s.cmd); err != nil {
+
+	s.mu.Lock()
+	cmd := s.cmd
+	s.mu.Unlock()
+
+	if cmd != nil {
+		if err := s.process.Kill(cmd); err != nil {
+			s.base.Logger().Warn("failed to kill claude process", "error", err)
+		}
+		// Ensure process is reaped to prevent zombies
+		if _, err := s.process.WaitForExit(cmd); err != nil {
 			s.base.Logger().Debug("claude process wait result", "error", err)
 		}
 	}
