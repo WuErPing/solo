@@ -4,6 +4,28 @@ This directory contains analysis documents for the Solo project.
 
 ## Recent Analyses
 
+### 2026-06-09: Android Tmux Pane Rendering Optimization
+
+**Status:** Analysis Complete
+**Priority:** High (UX)
+
+**Summary:**
+- Deep analysis of why Android tmux pane output diverges from host tmux experience
+- Comparison of snapshot polling vs cell-based VT stream rendering models
+- Evaluation of 4 optimization strategies (ANSI Text Enhancement, xterm.js Migration, PTY Stream, Daemon Cell Grid Diff)
+- Recommended phased approach: xterm.js migration first (Phase 1), tmux Control Mode second (Phase 2)
+
+**Key Findings:**
+1. Current architecture uses `tmux capture-pane` (snapshot) vs host tmux's incremental cell-grid rendering
+2. Box Drawing / Braille characters stripped due to width mismatch between host terminal and mobile display
+3. No cursor rendering, no `wcwidth` Unicode width calculation
+4. Workspace terminal already has mature xterm.js + WebGL infrastructure ready for reuse
+5. xterm.js migration is highest ROI: medium effort, near-native quality, low maintenance
+
+**Document:** [tmux-pane-rendering-optimization.md](tmux-pane-rendering-optimization.md)
+
+---
+
 ### 2026-06-07: Tmux Pane Refresh Jitter Analysis
 
 **Status:** Analysis Complete

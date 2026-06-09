@@ -61,6 +61,7 @@ System design, component contracts, and runtime behaviour.
 | [Components](architecture/components.md) | Reference | Dev | App · App-Bridge · Daemon · Relay · CLI · Protocol |
 | [Data Flow](architecture/data-flow.md) | Reference | Dev | WS message flow, E2EE handshake, session lifecycle, heartbeat |
 | [Network Architecture](architecture/network-architecture.md) | Deep-dive | Dev / Infra | Nginx → Relay → Daemon paths, port ACL, Pairing Link protocol |
+| [Network · Data · State Architecture](architecture/network-data-state-architecture.md) | Synthesis | Dev / Architect | End-to-end tie-up of network paths, data stores (Timeline + Memory), and state sync (Seq Gate / Head-Tail / cursor) |
 | [Session Memory Persistence](architecture/session-memory-persistence.md) | Design | Dev | Hook points, TurnRecorder interface, file layout, migration path to DB / memory middleware |
 | [Agent Stall Detection](architecture/agent-stall-detection.md) | Design | Dev | Inactivity & repetition detection, grace-period tightening, operational tuning |
 | [Deployment](architecture/deployment.md) | Runbook | Infra / CI | Systemd, Docker, Nginx config, env vars, monitoring, troubleshooting |

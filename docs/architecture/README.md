@@ -5,6 +5,7 @@
 ## In This Directory
 
 - [Network Architecture](network-architecture.md) — Nginx → Relay → Daemon paths, E2EE, Pairing Link
+- [Network · Data · State Architecture](network-data-state-architecture.md) — Synthesis of the three layers end-to-end: paths, stores, sync
 - [Components](components.md) — App, App-Bridge, Daemon, Relay, CLI, Protocol specs
 - [Data Flow](data-flow.md) — WS message flows, session lifecycle, heartbeat
 - [Timeline Design](timeline-design.md) — Head/Tail stream model, seq gate, bootstrap policy, catch-up
