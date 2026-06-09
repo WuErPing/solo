@@ -295,23 +295,6 @@ func (s *claudeSession) startProcessLocked(ctx context.Context, prompt string) e
 
 	go s.process.DrainStderr(stderr)
 
-	// Health check: wait briefly to detect immediate process crash.
-	// If the process exits within 100ms with non-zero code, it's likely
-	// a startup failure (bad args, missing config, etc.).
-	time.Sleep(100 * time.Millisecond)
-	if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
-		exitCode := cmd.ProcessState.ExitCode()
-		if exitCode != 0 {
-			// Process crashed on startup — read stderr for details
-			stderrBytes, _ := io.ReadAll(stderr)
-			s.base.Logger().Error("claude CLI exited immediately",
-				"exitCode", exitCode,
-				"args", args,
-				"stderr", string(stderrBytes))
-			return fmt.Errorf("claude CLI exited immediately with code %d: %s", exitCode, string(stderrBytes))
-		}
-	}
-
 	return nil
 }
 
