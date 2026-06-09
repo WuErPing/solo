@@ -120,6 +120,7 @@ function TmuxPaneScreenInner() {
   const [sendError, setSendError] = useState(false);
   const [loadTimedOut, setLoadTimedOut] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
+  const [navButtonsVertical, setNavButtonsVertical] = useState(false);
   const preSelectAutoRefreshRef = useRef<boolean | null>(null);
   const flatListRef = useRef<FlatList<AnsiSegment[]>>(null);
 
@@ -418,12 +419,19 @@ function TmuxPaneScreenInner() {
       <View style={styles.keyButtonsRow}>
         <View style={styles.keyGroup}>
           <Text style={[styles.keyGroupLabel, { color: theme.colors.foregroundMuted }]}>View</Text>
-          <View style={styles.keyGroupRow}>
+          <View
+            style={[
+              styles.keyGroupRow,
+              navButtonsVertical && styles.keyGroupRowVertical,
+            ]}
+            onLayout={(e) => setNavButtonsVertical(e.nativeEvent.layout.width < 120)}
+          >
             <Pressable
               onPress={scrollToTop}
               style={({ pressed }) => [
                 styles.keyButtonSolid,
                 styles.navKeyButton,
+                navButtonsVertical && styles.navKeyButtonFull,
                 {
                   backgroundColor: pressed ? theme.colors.surface2 : theme.colors.surface1,
                   borderColor: theme.colors.border,
@@ -439,6 +447,7 @@ function TmuxPaneScreenInner() {
               style={({ pressed }) => [
                 styles.keyButtonSolid,
                 styles.navKeyButton,
+                navButtonsVertical && styles.navKeyButtonFull,
                 {
                   backgroundColor: pressed ? theme.colors.surface2 : theme.colors.surface1,
                   borderColor: theme.colors.border,
@@ -611,8 +620,14 @@ const styles = StyleSheet.create((theme) => ({
     flexWrap: "wrap",
     gap: 6,
   },
+  keyGroupRowVertical: {
+    flexDirection: "column",
+  },
   navKeyButton: {
-    minWidth: 72,
+    minWidth: 36,
+  },
+  navKeyButtonFull: {
+    minWidth: 0,
   },
   keyGroupDivider: {
     width: 1,
