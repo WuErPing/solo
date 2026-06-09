@@ -2,6 +2,8 @@ package server
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"os/exec"
 	"sort"
 	"strconv"
@@ -242,21 +244,36 @@ func (s *Session) handleTmuxCapturePane(m *protocol.TmuxCapturePaneRequest) {
 	content, err := captureTmuxPane(m.PaneID, startLine)
 	if err != nil {
 		errMsg := err.Error()
-		s.sendTmuxCapturePaneResponse(m.RequestID, "", &errMsg)
+		s.sendTmuxCapturePaneResponse(m.RequestID, "", nil, nil, &errMsg)
 		return
 	}
-	s.sendTmuxCapturePaneResponse(m.RequestID, content, nil)
+	hash := computeContentHash(content)
+	if m.LastContentHash != nil && *m.LastContentHash == hash {
+		changed := false
+		s.sendTmuxCapturePaneResponse(m.RequestID, "", &changed, &hash, nil)
+		return
+	}
+	changed := true
+	s.sendTmuxCapturePaneResponse(m.RequestID, content, &changed, &hash, nil)
 }
 
-func (s *Session) sendTmuxCapturePaneResponse(requestID string, content string, errMsg *string) {
+func (s *Session) sendTmuxCapturePaneResponse(requestID string, content string, changed *bool, contentHash *string, errMsg *string) {
 	s.sendMessage(protocol.NewSessionMessage(&protocol.TmuxCapturePaneResponse{
 		Type: "tmux/capture_pane/response",
 		Payload: protocol.TmuxCapturePaneResponsePayload{
-			RequestID: requestID,
-			Content:   content,
-			Error:     errMsg,
+			RequestID:   requestID,
+			Content:     content,
+			Changed:     changed,
+			ContentHash: contentHash,
+			Error:       errMsg,
 		},
 	}))
+}
+
+// computeContentHash returns a 16-char hex SHA-256 prefix for content dedup.
+func computeContentHash(content string) string {
+	h := sha256.Sum256([]byte(content))
+	return hex.EncodeToString(h[:8])
 }
 
 func captureTmuxPane(paneID string, startLine int) (string, error) {

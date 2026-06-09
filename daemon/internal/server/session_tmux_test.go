@@ -508,3 +508,39 @@ func TestParseTmuxStatusStyle(t *testing.T) {
 		})
 	}
 }
+
+func TestComputeContentHash(t *testing.T) {
+	t.Run("deterministic for same input", func(t *testing.T) {
+		h1 := computeContentHash("hello world")
+		h2 := computeContentHash("hello world")
+		if h1 != h2 {
+			t.Errorf("same input produced different hashes: %q vs %q", h1, h2)
+		}
+	})
+
+	t.Run("different for different input", func(t *testing.T) {
+		h1 := computeContentHash("hello")
+		h2 := computeContentHash("world")
+		if h1 == h2 {
+			t.Errorf("different inputs produced same hash: %q", h1)
+		}
+	})
+
+	t.Run("empty string produces deterministic hash", func(t *testing.T) {
+		h1 := computeContentHash("")
+		h2 := computeContentHash("")
+		if h1 != h2 {
+			t.Errorf("empty string produced different hashes: %q vs %q", h1, h2)
+		}
+		if len(h1) != 16 {
+			t.Errorf("expected 16-char hash, got %d chars: %q", len(h1), h1)
+		}
+	})
+
+	t.Run("hash is 16 hex chars", func(t *testing.T) {
+		h := computeContentHash("some terminal content with ANSI \x1b[31mcolors\x1b[0m")
+		if len(h) != 16 {
+			t.Errorf("expected 16-char hash, got %d chars: %q", len(h), h)
+		}
+	})
+}

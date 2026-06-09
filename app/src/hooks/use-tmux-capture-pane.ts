@@ -10,10 +10,10 @@ const MAX_SCROLLBACK_LINES = 5000;
 
 // Adaptive polling phases — the next-refetch delay depends on how long
 // ago content actually changed (tracked via React Query's dataUpdatedAt):
-//   active:  changed within last 2s   → 200ms (5 fps for ASCII animations)
+//   active:  changed within last 2s   → 500ms (2 fps)
 //   warm:    changed 2-10s ago        → 1000ms (ramp-down)
 //   idle:    stable >10s              → 5000ms (battery saver)
-const ACTIVE_POLL_INTERVAL = 200;
+const ACTIVE_POLL_INTERVAL = 500;
 const WARM_POLL_INTERVAL = 1000;
 const IDLE_POLL_INTERVAL = 5000;
 const ACTIVE_PHASE_MS = 2_000;
@@ -62,12 +62,19 @@ export function useTmuxCapturePane(
   const isAppVisible = useAppVisible();
 
   const prevResultRef = useRef<{ content: string; error: string | null } | null>(null);
+  const lastContentHashRef = useRef<string | null>(null);
 
-  // Reset scrollback and dedup cache when pane changes
+  // Reset scrollback, dedup cache, and hash when pane changes
   useEffect(() => {
     setScrollbackLines(DEFAULT_SCROLLBACK_LINES);
     prevResultRef.current = null;
+    lastContentHashRef.current = null;
   }, [paneId]);
+
+  // Reset hash when scrollback depth changes (different range = different content)
+  useEffect(() => {
+    lastContentHashRef.current = null;
+  }, [scrollbackLines]);
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: tmuxCapturePaneQueryKey(serverId, paneId, scrollbackLines),
@@ -81,8 +88,23 @@ export function useTmuxCapturePane(
     retry: 1,
     queryFn: async () => {
       const payload = await withLiveTmuxClient(serverId, (c) =>
-        c.tmuxCapturePane(paneId, -scrollbackLines),
+        c.tmuxCapturePane(paneId, -scrollbackLines, lastContentHashRef.current ?? undefined),
       );
+
+      // Daemon says content unchanged — return cached result (same object ref)
+      if (payload.changed === false) {
+        if (payload.contentHash) {
+          lastContentHashRef.current = payload.contentHash;
+        }
+        if (prevResultRef.current) return prevResultRef.current;
+        return { content: "", error: null };
+      }
+
+      // Update hash from daemon response
+      if (payload.contentHash) {
+        lastContentHashRef.current = payload.contentHash;
+      }
+
       const newContent = payload.content ?? "";
       if (prevResultRef.current && prevResultRef.current.content === newContent) {
         return prevResultRef.current;

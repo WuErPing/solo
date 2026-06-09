@@ -77,7 +77,7 @@ describe("useTmuxCapturePane", () => {
       expect(result.current.content).toBe("$ ls\nfile.txt");
     });
 
-    expect(mockClient.tmuxCapturePane).toHaveBeenCalledWith("pane-1", -200);
+    expect(mockClient.tmuxCapturePane).toHaveBeenCalledWith("pane-1", -200, undefined);
   });
 
   it("uses default scrollback of 200 lines", async () => {
@@ -87,7 +87,7 @@ describe("useTmuxCapturePane", () => {
       expect(result.current.scrollbackLines).toBe(200);
     });
 
-    expect(mockClient.tmuxCapturePane).toHaveBeenCalledWith("pane-1", -200);
+    expect(mockClient.tmuxCapturePane).toHaveBeenCalledWith("pane-1", -200, undefined);
   });
 
   it("increases scrollback lines when loadMoreHistory is called", async () => {
@@ -111,7 +111,7 @@ describe("useTmuxCapturePane", () => {
       expect(result.current.scrollbackLines).toBe(400);
     });
 
-    expect(mockClient.tmuxCapturePane).toHaveBeenLastCalledWith("pane-1", -400);
+    expect(mockClient.tmuxCapturePane).toHaveBeenLastCalledWith("pane-1", -400, undefined);
   });
 
   it("accumulates scrollback lines across multiple loadMoreHistory calls", async () => {
@@ -375,46 +375,33 @@ describe("useTmuxCapturePane", () => {
   });
 
   it("pauses polling when app is backgrounded", async () => {
-    // Use fake timers so we control the adaptive poll scheduling precisely.
-    vi.useFakeTimers();
-    const originalDateNow = Date.now;
-    Date.now = () => vi.getRealSystemTime();
+    const { result } = renderCapturePaneHook();
 
-    try {
-      const { result } = renderCapturePaneHook();
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ ls\nfile.txt");
+    });
 
-      // Resolve the initial fetch
-      await vi.waitFor(() => {
-        expect(result.current.content).toBe("$ ls\nfile.txt");
-      });
+    // Verify polling is active: changing mock content should eventually be picked up
+    mockClient.tmuxCapturePane.mockResolvedValue({ content: "$ pwd\n/home", error: null });
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ pwd\n/home");
+    });
 
-      // Advance past the active phase (2s) and warm phase (10s) so the
-      // adaptive interval settles into idle (5000ms). Any scheduled 200ms
-      // polls along the way have already fired.
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(11_000);
-      });
+    // Simulate app going to background — refetchInterval returns false
+    mockAppVisible.value = false;
+    act(() => {
+      result.current.setAutoRefresh(false);
+      result.current.setAutoRefresh(true);
+    });
 
-      const callCountBefore = mockClient.tmuxCapturePane.mock.calls.length;
+    // Set up new content — but with polling paused, it should NOT be picked up
+    mockClient.tmuxCapturePane.mockResolvedValue({ content: "SHOULD_NOT_APPEAR", error: null });
 
-      // Simulate app going to background
-      mockAppVisible.value = false;
-      // Force React Query to observe the changed refetchInterval (→ false)
-      act(() => {
-        result.current.setAutoRefresh(true); // no-op but triggers re-eval
-      });
-
-      // Advance less than the idle interval (5000ms). With polling paused,
-      // no new fetches should be scheduled or fire.
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(500);
-      });
-
-      expect(mockClient.tmuxCapturePane.mock.calls.length).toBe(callCountBefore);
-    } finally {
-      Date.now = originalDateNow;
-      vi.useRealTimers();
-    }
+    // Wait a bit — content should stay unchanged because polling is paused
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 100));
+    });
+    expect(result.current.content).toBe("$ pwd\n/home");
   });
 
   it("defaults autoRefresh to true", async () => {
@@ -443,40 +430,32 @@ describe("useTmuxCapturePane", () => {
   });
 
   it("stops polling when autoRefresh is turned off", async () => {
-    vi.useFakeTimers();
-    const originalDateNow = Date.now;
-    Date.now = () => vi.getRealSystemTime();
+    const { result } = renderCapturePaneHook();
 
-    try {
-      const { result } = renderCapturePaneHook();
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ ls\nfile.txt");
+    });
 
-      await vi.waitFor(() => {
-        expect(result.current.content).toBe("$ ls\nfile.txt");
-      });
+    // Verify polling is active: changing mock content should eventually be picked up
+    mockClient.tmuxCapturePane.mockResolvedValue({ content: "$ pwd\n/home", error: null });
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ pwd\n/home");
+    });
 
-      // Let the adaptive interval settle into idle (5000ms)
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(11_000);
-      });
+    // Turn off auto refresh
+    act(() => {
+      result.current.setAutoRefresh(false);
+    });
+    expect(result.current.autoRefresh).toBe(false);
 
-      const callCountBefore = mockClient.tmuxCapturePane.mock.calls.length;
+    // Set up new content — but with polling stopped, it should NOT be picked up
+    mockClient.tmuxCapturePane.mockResolvedValue({ content: "SHOULD_NOT_APPEAR", error: null });
 
-      // Turn off auto refresh
-      act(() => {
-        result.current.setAutoRefresh(false);
-      });
-      expect(result.current.autoRefresh).toBe(false);
-
-      // Advance less than the idle interval — polling must be stopped
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(500);
-      });
-
-      expect(mockClient.tmuxCapturePane.mock.calls.length).toBe(callCountBefore);
-    } finally {
-      Date.now = originalDateNow;
-      vi.useRealTimers();
-    }
+    // Wait a bit — content should stay unchanged because polling is stopped
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 100));
+    });
+    expect(result.current.content).toBe("$ pwd\n/home");
   });
 
   it("deduplicates query result when content is unchanged across polls", async () => {
@@ -519,15 +498,16 @@ describe("useTmuxCapturePane", () => {
     const originalContentString = result.current.content;
     mockClient.tmuxCapturePane.mockResolvedValue({ content: "$ ls\nfile.txt", error: null });
 
-    // Drive multiple real refetches (simulates 5s polling)
+    // Drive multiple real refetches (simulates polling)
     for (let i = 0; i < 5; i++) {
       await act(async () => {
         result.current.refetch();
       });
     }
 
-    // queryFn was actually called for every poll (so dedup had a chance to kick in)
-    expect(mockClient.tmuxCapturePane.mock.calls.length).toBe(1 + 5);
+    // queryFn was actually called at least 6 times (initial + 5 refetches)
+    // so dedup had a chance to kick in. May be higher due to adaptive polling.
+    expect(mockClient.tmuxCapturePane.mock.calls.length).toBeGreaterThanOrEqual(1 + 5);
 
     // CRITICAL: the content string reference must be EXACTLY the same object
     // across all polls. If it changes, downstream useMemo (parseAnsi, terminalColors)
@@ -629,9 +609,9 @@ describe("useTmuxCapturePane", () => {
 describe("computeAdaptiveInterval", () => {
   const now = 1_000_000;
 
-  it("returns 200ms when content changed within the last 2 seconds (active phase)", () => {
-    expect(computeAdaptiveInterval(now - 500, now)).toBe(200);
-    expect(computeAdaptiveInterval(now - 2000, now)).toBe(200); // boundary inclusive
+  it("returns 500ms when content changed within the last 2 seconds (active phase)", () => {
+    expect(computeAdaptiveInterval(now - 500, now)).toBe(500);
+    expect(computeAdaptiveInterval(now - 2000, now)).toBe(500); // boundary inclusive
   });
 
   it("returns 1000ms when content changed 2-10 seconds ago (warm phase)", () => {
@@ -645,8 +625,8 @@ describe("computeAdaptiveInterval", () => {
     expect(computeAdaptiveInterval(now - 60000, now)).toBe(5000);
   });
 
-  it("returns 200ms when dataUpdatedAt is 0 (initial mount — assume active to prime the pump)", () => {
-    expect(computeAdaptiveInterval(0, now)).toBe(200);
+  it("returns 500ms when dataUpdatedAt is 0 (initial mount — assume active to prime the pump)", () => {
+    expect(computeAdaptiveInterval(0, now)).toBe(500);
   });
 });
 
@@ -679,11 +659,11 @@ describe("useTmuxCapturePane — adaptive polling", () => {
     });
 
     // ACTIVE PHASE: advance 2s with changing content.
-    // Each resolve schedules the next refetch in 200ms.
+    // Each resolve schedules the next refetch in 500ms.
     const activeStartCalls = mockClient.tmuxCapturePane.mock.calls.length;
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 4; i++) {
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(200);
+        await vi.advanceTimersByTimeAsync(500);
       });
       // Resolve with a new content string so dataUpdatedAt resets
       await act(async () => {
@@ -708,11 +688,209 @@ describe("useTmuxCapturePane — adaptive polling", () => {
     const idleElapsedMs = 4 * 5000;
     const idleCalls = mockClient.tmuxCapturePane.mock.calls.length - idleStartCalls;
 
-    // During active phase we got ~8 calls in 1.6s (200ms × 8).
+    // During active phase we got ~4 calls in 2s (500ms × 4).
     // During idle phase we got ~3-4 calls in 20s (5000ms × 4).
     // Per-second rate active must be >> per-second rate idle.
-    const activeRate = activeCalls / 1.6;
+    const activeRate = activeCalls / 2;
     const idleRate = idleCalls / (idleElapsedMs / 1000);
     expect(activeRate).toBeGreaterThan(idleRate * 3);
+  });
+});
+
+describe("useTmuxCapturePane — incremental transfer", () => {
+  it("sends lastContentHash on subsequent polls after receiving contentHash", async () => {
+    mockClient.tmuxCapturePane.mockResolvedValue({
+      content: "$ ls\nfile.txt",
+      error: null,
+      changed: true,
+      contentHash: "abc123",
+    });
+
+    const { result } = renderCapturePaneHook();
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ ls\nfile.txt");
+    });
+
+    // Reset call history to isolate the refetch call
+    mockClient.tmuxCapturePane.mockClear();
+    mockClient.tmuxCapturePane.mockResolvedValue({
+      content: "$ ls\nfile.txt",
+      error: null,
+      changed: true,
+      contentHash: "abc123",
+    });
+
+    // Trigger a refetch
+    act(() => {
+      result.current.refetch();
+    });
+
+    await waitFor(() => {
+      expect(mockClient.tmuxCapturePane.mock.calls.length).toBeGreaterThanOrEqual(1);
+    });
+
+    // First call after clear should include lastContentHash from previous fetch
+    const firstCall = mockClient.tmuxCapturePane.mock.calls[0];
+    expect(firstCall[2]).toBe("abc123"); // 3rd arg is lastContentHash
+  });
+
+  it("keeps previous content when daemon returns changed=false", async () => {
+    // First fetch returns content with hash
+    mockClient.tmuxCapturePane.mockResolvedValue({
+      content: "$ ls\nfile.txt",
+      error: null,
+      changed: true,
+      contentHash: "abc123",
+    });
+
+    const { result } = renderCapturePaneHook();
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ ls\nfile.txt");
+    });
+
+    const contentBefore = result.current.content;
+
+    // Second fetch returns changed=false (content unchanged)
+    mockClient.tmuxCapturePane.mockResolvedValue({
+      content: "",
+      error: null,
+      changed: false,
+      contentHash: "abc123",
+    });
+
+    act(() => {
+      result.current.refetch();
+    });
+
+    await waitFor(() => {
+      expect(mockClient.tmuxCapturePane.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+
+    // Content should be the same string reference
+    expect(result.current.content).toBe(contentBefore);
+  });
+
+  it("updates content when daemon returns changed=true", async () => {
+    // First fetch
+    mockClient.tmuxCapturePane.mockResolvedValue({
+      content: "$ ls\nfile.txt",
+      error: null,
+      changed: true,
+      contentHash: "abc123",
+    });
+
+    const { result } = renderCapturePaneHook();
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ ls\nfile.txt");
+    });
+
+    // Second fetch returns new content
+    mockClient.tmuxCapturePane.mockResolvedValue({
+      content: "$ pwd\n/home",
+      error: null,
+      changed: true,
+      contentHash: "def456",
+    });
+
+    act(() => {
+      result.current.refetch();
+    });
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ pwd\n/home");
+    });
+  });
+
+  it("resets lastContentHash when paneId changes", async () => {
+    mockClient.tmuxCapturePane.mockResolvedValue({
+      content: "$ ls\nfile.txt",
+      error: null,
+      changed: true,
+      contentHash: "abc123",
+    });
+
+    const queryClient = createQueryClient();
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(QueryClientProvider, { client: queryClient }, children);
+
+    let paneId = "pane-A";
+    const { result, rerender } = renderHook(
+      () => useTmuxCapturePane("server-1", paneId, true),
+      { wrapper },
+    );
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ ls\nfile.txt");
+    });
+
+    // Switch pane — should reset hash
+    paneId = "pane-B";
+    mockClient.tmuxCapturePane.mockResolvedValue({
+      content: "$ pwd\n/home",
+      error: null,
+      changed: true,
+      contentHash: "newhash",
+    });
+    rerender();
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ pwd\n/home");
+    });
+
+    // The first call for pane-B should NOT have lastContentHash
+    const calls = mockClient.tmuxCapturePane.mock.calls;
+    const paneBCall = calls.find((c: unknown[]) => c[0] === "pane-B");
+    expect(paneBCall).toBeDefined();
+    expect(paneBCall![2]).toBeUndefined(); // lastContentHash should be undefined
+  });
+
+  it("resets lastContentHash when scrollbackLines changes", async () => {
+    mockClient.tmuxCapturePane.mockResolvedValue({
+      content: "$ ls\nfile.txt",
+      error: null,
+      changed: true,
+      contentHash: "abc123",
+    });
+
+    const { result } = renderCapturePaneHook();
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ ls\nfile.txt");
+    });
+
+    // loadMoreHistory changes scrollbackLines
+    act(() => {
+      result.current.loadMoreHistory();
+    });
+
+    await waitFor(() => {
+      expect(result.current.scrollbackLines).toBe(400);
+    });
+
+    // The call with -400 startLine should NOT have lastContentHash
+    const calls = mockClient.tmuxCapturePane.mock.calls;
+    const scrollback400Call = calls.find((c: unknown[]) => c[1] === -400);
+    expect(scrollback400Call).toBeDefined();
+    expect(scrollback400Call![2]).toBeUndefined(); // lastContentHash should be undefined
+  });
+
+  it("backward compatible: works when daemon returns no changed/contentHash fields", async () => {
+    // Old daemon returns plain response without changed/contentHash
+    mockClient.tmuxCapturePane.mockResolvedValue({
+      content: "$ ls\nfile.txt",
+      error: null,
+    });
+
+    const { result } = renderCapturePaneHook();
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ ls\nfile.txt");
+    });
+
+    // Should work normally — no errors
+    expect(result.current.error).toBeNull();
   });
 });

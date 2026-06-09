@@ -1,23 +1,24 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  FlatList,
   KeyboardAvoidingView,
   Platform,
   View,
   Text,
   Pressable,
-  ScrollView,
   TextInput,
   type NativeSyntheticEvent,
   type NativeScrollEvent,
+  type ListRenderItemInfo,
   type PressableStateCallbackType,
 } from "react-native";
-import type { ScrollView as ScrollViewType } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { Send, Palette } from "lucide-react-native";
+import { Send, Palette, TextSelect } from "lucide-react-native";
 import { router } from "expo-router";
 import { BackHeader } from "@/components/headers/back-header";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { AnsiTextContent } from "@/components/ansi-text-renderer";
+import { AnsiTextLine } from "@/components/ansi-text-line";
+import { splitSegmentsByLine } from "@/utils/ansi-line-splitter";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,7 +30,7 @@ import { useTmuxCapturePane } from "@/hooks/use-tmux-capture-pane";
 import { useAppSettings } from "@/hooks/use-settings";
 import { withLiveTmuxClient } from "@/utils/tmux-rpc";
 import { useTmuxAgentStore } from "@/stores/tmux-agent-store";
-import { parseAnsi } from "@/utils/ansi-parser";
+import { parseAnsi, type AnsiSegment } from "@/utils/ansi-parser";
 import { detectColorsFromAnsi } from "@/utils/detect-ansi-colors";
 import {
   TERMINAL_THEME_IDS,
@@ -110,10 +111,26 @@ function TmuxPaneScreenInner() {
     () => (content ? parseAnsi(content) : null),
     [content],
   );
+  const lines = useMemo(
+    () => (segments ? splitSegmentsByLine(segments) : []),
+    [segments],
+  );
+
   const [inputText, setInputText] = useState("");
   const [sendError, setSendError] = useState(false);
   const [loadTimedOut, setLoadTimedOut] = useState(false);
-  const scrollRef = useRef<ScrollViewType>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const preSelectAutoRefreshRef = useRef<boolean | null>(null);
+  const flatListRef = useRef<FlatList<AnsiSegment[]>>(null);
+
+  const keyExtractor = useCallback((_item: AnsiSegment[], index: number) => String(index), []);
+
+  const renderLine = useCallback(
+    ({ item }: ListRenderItemInfo<AnsiSegment[]>) => (
+      <AnsiTextLine segments={item} style={styles.contentText} terminalColors={terminalColors} selectable={selectMode} />
+    ),
+    [terminalColors, selectMode],
+  );
 
   useEffect(() => {
     if (isLoading && !content) {
@@ -124,14 +141,13 @@ function TmuxPaneScreenInner() {
   }, [isLoading, content]);
 
   const scrollToTop = useCallback(() => {
-    scrollRef.current?.scrollTo({ y: 0, animated: true });
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
   }, []);
 
   const scrollToBottom = useCallback(() => {
-    scrollRef.current?.scrollToEnd({ animated: false });
+    flatListRef.current?.scrollToEnd({ animated: false });
   }, []);
 
-  const contentHeightRef = useRef(0);
   const isAtBottomRef = useRef(false);
   const hasInitialScrolledRef = useRef(false);
 
@@ -140,22 +156,20 @@ function TmuxPaneScreenInner() {
     if (content && !hasInitialScrolledRef.current && autoRefresh) {
       hasInitialScrolledRef.current = true;
       const id = setTimeout(() => {
-        scrollRef.current?.scrollToEnd({ animated: false });
+        flatListRef.current?.scrollToEnd({ animated: false });
         isAtBottomRef.current = true;
       }, 50);
       return () => clearTimeout(id);
     }
   }, [content, autoRefresh]);
 
-  const handleContentSizeChange = useCallback(
-    (_w: number, h: number) => {
-      if (h !== contentHeightRef.current && isAtBottomRef.current && autoRefresh && !isLoadingMore) {
-        contentHeightRef.current = h;
-        scrollRef.current?.scrollToEnd({ animated: false });
-      }
-    },
-    [autoRefresh, isLoadingMore],
-  );
+  // Auto-scroll to bottom when new content arrives and user is already at bottom
+  useEffect(() => {
+    if (isAtBottomRef.current && autoRefresh && !isLoadingMore && lines.length > 0) {
+      const id = setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 50);
+      return () => clearTimeout(id);
+    }
+  }, [lines, autoRefresh, isLoadingMore]);
 
   // Auto-clear send error after 2 seconds
   useEffect(() => {
@@ -186,6 +200,7 @@ function TmuxPaneScreenInner() {
 
   const handleScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (selectMode) return;
       const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
       isAtBottomRef.current =
         contentOffset.y + layoutMeasurement.height >= contentSize.height - SCROLL_TOP_THRESHOLD;
@@ -197,8 +212,21 @@ function TmuxPaneScreenInner() {
         loadMoreHistory();
       }
     },
-    [isLoadingMore, hasMoreHistory, loadMoreHistory],
+    [selectMode, isLoadingMore, hasMoreHistory, loadMoreHistory],
   );
+
+  const toggleSelectMode = useCallback(() => {
+    setSelectMode((prev) => {
+      if (!prev) {
+        preSelectAutoRefreshRef.current = autoRefresh;
+        setAutoRefresh(false);
+      } else if (preSelectAutoRefreshRef.current !== null) {
+        setAutoRefresh(preSelectAutoRefreshRef.current);
+        preSelectAutoRefreshRef.current = null;
+      }
+      return !prev;
+    });
+  }, [autoRefresh, setAutoRefresh]);
 
   if (!agent) {
     return (
@@ -332,33 +360,61 @@ function TmuxPaneScreenInner() {
           <View style={styles.headerRightRow}>
             {autoRefreshToggle}
             {themePicker}
+            <Pressable
+              onPress={toggleSelectMode}
+              style={({ pressed }) => [
+                styles.selectToggleButton,
+                selectMode ? { backgroundColor: theme.colors.primary } : null,
+                pressed ? { opacity: 0.7 } : null,
+              ]}
+            >
+              <TextSelect
+                size={16}
+                color={selectMode ? theme.colors.background : theme.colors.foregroundMuted}
+              />
+              <Text
+                style={[
+                  styles.selectToggleText,
+                  { color: selectMode ? theme.colors.primary : theme.colors.foregroundMuted },
+                ]}
+              >
+                Select
+              </Text>
+            </Pressable>
           </View>
         }
       />
-      <ScrollView
-        ref={scrollRef}
+      <FlatList<AnsiSegment[]>
+        ref={flatListRef}
         testID="tmux-pane-scroll"
         style={[styles.contentScroll, { backgroundColor: terminalColors.background }]}
+        contentContainerStyle={styles.flatListContent}
+        data={lines}
+        renderItem={renderLine}
+        keyExtractor={keyExtractor}
         keyboardShouldPersistTaps="handled"
+        scrollEnabled={!selectMode}
         onScroll={handleScroll}
-        onContentSizeChange={handleContentSizeChange}
         scrollEventThrottle={400}
-      >
-        {isLoadingMore && (
-          <Text style={styles.loadingMoreText}>Loading more history...</Text>
-        )}
-        {isLoading && !segments && !loadTimedOut ? (
-          <Text style={styles.loadingText}>Capturing pane content...</Text>
-        ) : isLoading && !segments && loadTimedOut ? (
-          <Text style={styles.errorText}>Pane content too large or unavailable</Text>
-        ) : error ? (
-          <Text style={styles.errorText}>{error}</Text>
-        ) : segments && segments.length > 0 ? (
-          <AnsiTextContent segments={segments} style={styles.contentText} terminalColors={terminalColors} />
-        ) : (
-          <Text style={styles.contentText}>(empty pane)</Text>
-        )}
-      </ScrollView>
+        initialNumToRender={40}
+        maxToRenderPerBatch={40}
+        windowSize={21}
+        maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+        ListFooterComponent={
+          isLoadingMore ? <Text style={styles.loadingMoreText}>Loading more history...</Text> : null
+        }
+        ListEmptyComponent={
+          isLoading && !loadTimedOut ? (
+            <Text style={styles.loadingText}>Capturing pane content...</Text>
+          ) : isLoading && loadTimedOut ? (
+            <Text style={styles.errorText}>Pane content too large or unavailable</Text>
+          ) : error ? (
+            <Text style={styles.errorText}>{error}</Text>
+          ) : (
+            <Text style={styles.contentText}>(empty pane)</Text>
+          )
+        }
+      />
       <View style={styles.keyButtonsRow}>
         <View style={styles.keyGroup}>
           <Text style={[styles.keyGroupLabel, { color: theme.colors.foregroundMuted }]}>View</Text>
@@ -500,6 +556,9 @@ const styles = StyleSheet.create((theme) => ({
   contentScroll: {
     flex: 1,
     padding: 16,
+  },
+  flatListContent: {
+    flexGrow: 1,
   },
   loadingText: {
     color: theme.colors.foregroundMuted,
@@ -647,5 +706,17 @@ const styles = StyleSheet.create((theme) => ({
     width: 12,
     height: 12,
     borderRadius: 6,
+  },
+  selectToggleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  selectToggleText: {
+    fontSize: 12,
+    fontWeight: "500",
   },
 }));

@@ -1,35 +1,32 @@
 import React, { useMemo } from "react";
 import { Text, type TextStyle } from "react-native";
-import { useUnistyles } from "react-native-unistyles";
-import type { AnsiSegment, AnsiStyle } from "@/utils/ansi-parser";
+import type { AnsiSegment } from "@/utils/ansi-parser";
 import { resolveColor } from "@/utils/ansi-color-palette";
+import type { AnsiStyle } from "@/utils/ansi-parser";
 
-interface AnsiTextContentProps {
+interface AnsiTextLineProps {
   segments: AnsiSegment[];
   style?: TextStyle;
-  terminalColors?: { foreground: string; background: string; [key: string]: string };
+  terminalColors: { foreground: string; background: string; [key: string]: string };
   selectable?: boolean;
 }
 
-export const AnsiTextContent = React.memo(function AnsiTextContent({
+export const AnsiTextLine = React.memo(function AnsiTextLine({
   segments,
   style,
   terminalColors,
   selectable,
-}: AnsiTextContentProps) {
-  const { theme } = useUnistyles();
-  const terminal = terminalColors ?? theme.colors.terminal;
-
+}: AnsiTextLineProps) {
   const children = useMemo(() => {
     return segments.map((seg, index) => {
-      const segStyle = ansiStyleToRN(seg.style, terminal);
+      const segStyle = ansiStyleToRN(seg.style, terminalColors);
       return (
         <Text key={index} style={segStyle}>
           {seg.text}
         </Text>
       );
     });
-  }, [segments, terminal]);
+  }, [segments, terminalColors]);
 
   return <Text style={style} selectable={selectable}>{children}</Text>;
 });

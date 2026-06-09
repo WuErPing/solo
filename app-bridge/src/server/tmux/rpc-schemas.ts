@@ -29,6 +29,7 @@ export const TmuxCapturePaneRequestSchema = z.object({
   type: z.literal("tmux/capture_pane"),
   paneId: z.string(),
   startLine: z.number().int().optional(),
+  lastContentHash: z.string().optional(),
   requestId: z.string(),
 });
 
@@ -37,6 +38,8 @@ export const TmuxCapturePaneResponseSchema = z.object({
   payload: z.object({
     requestId: z.string(),
     content: z.string(),
+    changed: z.boolean().optional(),
+    contentHash: z.string().optional(),
     error: z.string().nullable(),
   }),
 });

@@ -1,7 +1,7 @@
 # Solo — Documentation Index
 
 > **Purpose**: Persistent context base for Solo development, CI/CD, and architecture decisions.
-> **Last updated**: 2026-06-07
+> **Last updated**: 2026-06-09
 
 ---
 
@@ -46,6 +46,9 @@ docs/
     ├── README.md                            # Analysis directory index
     ├── session-timeline-e2e-gaps.md         # Session timeline E2E test gaps
     ├── test-suite-analysis.md               # Full test suite inventory, CI gaps, coverage report
+    ├── tmux-pane-performance-analysis.md    # Tmux pane perf & stability root cause: 4-layer architectural bottleneck
+    ├── tmux-pane-jitter-analysis.md         # Tmux pane refresh jitter fix (adaptive polling, dedup, React.memo)
+    ├── tmux-pane-rendering-optimization.md  # Tmux pane rendering optimization: TerminalEmulator migration plan
     └── tmux-transport-disposed-race.md      # Tmux `Transport not connected (status: disposed)` race analysis
 ```
 
@@ -125,6 +128,9 @@ Deep dives into specific subsystems.
 | [Lint Capability Plan](analysis/lint-capability-plan.md) | Plan | Lint tooling roadmap and capability gap plan |
 | [Session Timeline E2E Gaps](analysis/session-timeline-e2e-gaps.md) | Analysis | Session timeline E2E test coverage gaps and remediation |
 | [Test Suite Analysis](analysis/test-suite-analysis.md) | Analysis | Test inventory (app unit, Go, E2E), CI coverage, Codecov integration |
+| [Tmux Pane Performance Analysis](analysis/tmux-pane-performance-analysis.md) | Analysis | 性能与稳定性根因：4 层架构瓶颈（全量捕获→全量解析→无虚拟化渲染→string dedup），非近期变更引起 |
+| [Tmux Pane Jitter Analysis](analysis/tmux-pane-jitter-analysis.md) | Analysis | Refresh jitter root cause & fix: adaptive polling, content dedup, React.memo, pagination-only loading |
+| [Tmux Pane Rendering Optimization](analysis/tmux-pane-rendering-optimization.md) | Analysis | 渲染优化方案：迁移至 TerminalEmulator (xterm.js + Expo DOM)，tmux Control Mode |
 | [Tmux Transport Disposed Race](analysis/tmux-transport-disposed-race.md) | Analysis | `Transport not connected (status: disposed)` root cause: probe-cycle switch vs. in-flight tmux RPC |
 
 ---

@@ -68,6 +68,7 @@ vi.mock("lucide-react-native", () => {
     ArrowLeft: icon("ArrowLeft"),
     Send: icon("Send"),
     Palette: icon("Palette"),
+    TextSelect: icon("TextSelect"),
   };
 });
 
@@ -87,9 +88,14 @@ vi.mock("@/components/headers/back-header", () => ({
     ),
 }));
 
-vi.mock("@/components/ansi-text-renderer", () => ({
-  AnsiTextContent: ({ segments, style }: { segments: { text: string }[]; style?: unknown }) =>
-    React.createElement("span", { style }, segments.map((s: { text: string }) => s.text).join("")),
+vi.mock("@/components/ansi-text-line", () => ({
+  AnsiTextLine: ({ segments, style, selectable }: { segments: { text: string }[]; style?: unknown; selectable?: boolean }) =>
+    React.createElement("span", { style, "data-selectable": String(selectable ?? false) }, segments.map((s: { text: string }) => s.text).join("")),
+}));
+
+vi.mock("@/utils/ansi-line-splitter", () => ({
+  splitSegmentsByLine: (segments: { text: string }[]) =>
+    segments.map((s) => [s]),
 }));
 
 vi.mock("@/components/ui/dropdown-menu", () => ({
@@ -365,5 +371,75 @@ describe("TmuxPaneScreen", () => {
     rerender(<TmuxPaneScreen />);
 
     expect(mockParseAnsi).toHaveBeenCalledTimes(2);
+  });
+
+  describe("select mode", () => {
+    function getSelectableAttr(): string | null {
+      const el = screen.getByTestId("tmux-pane-scroll").querySelector("[data-selectable]");
+      return el?.getAttribute("data-selectable") ?? null;
+    }
+
+    it("renders a Select toggle button in the header", () => {
+      render(<TmuxPaneScreen />);
+      const headerRight = screen.getByTestId("header-right");
+      expect(headerRight.querySelector('[data-icon="TextSelect"]')).not.toBeNull();
+    });
+
+    it("select mode is off by default — AnsiTextContent is not selectable", () => {
+      render(<TmuxPaneScreen />);
+      expect(getSelectableAttr()).toBe("false");
+    });
+
+    it("toggling select ON makes AnsiTextContent selectable and pauses autoRefresh", () => {
+      render(<TmuxPaneScreen />);
+      fireEvent.click(screen.getByText("Select"));
+      expect(getSelectableAttr()).toBe("true");
+      expect(mockSetAutoRefresh).toHaveBeenCalledWith(false);
+    });
+
+    it("toggling select OFF makes AnsiTextContent not selectable and restores autoRefresh", () => {
+      render(<TmuxPaneScreen />);
+      fireEvent.click(screen.getByText("Select"));
+      mockSetAutoRefresh.mockClear();
+      fireEvent.click(screen.getByText("Select"));
+      expect(getSelectableAttr()).toBe("false");
+      expect(mockSetAutoRefresh).toHaveBeenCalledWith(true);
+    });
+
+    it("exiting select mode restores autoRefresh=false when it was off before", () => {
+      autoRefreshRef.current = false;
+      render(<TmuxPaneScreen />);
+      fireEvent.click(screen.getByText("Select"));
+      mockSetAutoRefresh.mockClear();
+      fireEvent.click(screen.getByText("Select"));
+      expect(mockSetAutoRefresh).toHaveBeenCalledWith(false);
+    });
+
+    it("scroll events do not trigger loadMoreHistory in select mode", () => {
+      render(<TmuxPaneScreen />);
+      fireEvent.click(screen.getByText("Select"));
+      const scrollView = screen.getByTestId("tmux-pane-scroll");
+      fireEvent.scroll(scrollView, {
+        nativeEvent: {
+          contentOffset: { y: 5, x: 0 },
+          contentSize: { height: 2000, width: 300 },
+          layoutMeasurement: { height: 500, width: 300 },
+        },
+      });
+      expect(mockLoadMoreHistory).not.toHaveBeenCalled();
+    });
+
+    it("scroll events trigger loadMoreHistory when not in select mode", () => {
+      render(<TmuxPaneScreen />);
+      const scrollView = screen.getByTestId("tmux-pane-scroll");
+      fireEvent.scroll(scrollView, {
+        nativeEvent: {
+          contentOffset: { y: 5, x: 0 },
+          contentSize: { height: 2000, width: 300 },
+          layoutMeasurement: { height: 500, width: 300 },
+        },
+      });
+      expect(mockLoadMoreHistory).toHaveBeenCalledTimes(1);
+    });
   });
 });
