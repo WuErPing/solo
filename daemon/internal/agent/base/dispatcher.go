@@ -265,6 +265,7 @@ func (d *CallbackDispatcher) Close() {
 // PermissionManager tracks pending permission requests.
 type PermissionManager struct {
 	pending map[string]chan protocol.AgentPermissionResponse
+	timers  map[string]*time.Timer
 	mu      sync.Mutex
 }
 
@@ -272,6 +273,7 @@ type PermissionManager struct {
 func NewPermissionManager() *PermissionManager {
 	return &PermissionManager{
 		pending: make(map[string]chan protocol.AgentPermissionResponse),
+		timers:  make(map[string]*time.Timer),
 	}
 }
 
@@ -285,6 +287,37 @@ func (pm *PermissionManager) Register(requestID string) <-chan protocol.AgentPer
 	return ch
 }
 
+// RegisterWithTimeout registers a pending permission request with an automatic
+// timeout. If no response is received within the timeout, the request is
+// auto-rejected with "deny" and the optional onTimeout callback is invoked.
+func (pm *PermissionManager) RegisterWithTimeout(requestID string, timeout time.Duration, onTimeout func()) <-chan protocol.AgentPermissionResponse {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	ch := make(chan protocol.AgentPermissionResponse, 1)
+	pm.pending[requestID] = ch
+
+	pm.timers[requestID] = time.AfterFunc(timeout, func() {
+		pm.mu.Lock()
+		defer pm.mu.Unlock()
+
+		// Only auto-reject if the request is still pending.
+		if _, ok := pm.pending[requestID]; !ok {
+			return
+		}
+
+		ch <- protocol.AgentPermissionResponse{Behavior: "deny"}
+		delete(pm.pending, requestID)
+		delete(pm.timers, requestID)
+
+		if onTimeout != nil {
+			onTimeout()
+		}
+	})
+
+	return ch
+}
+
 // Respond responds to a pending permission request.
 func (pm *PermissionManager) Respond(requestID string, response protocol.AgentPermissionResponse) error {
 	pm.mu.Lock()
@@ -293,6 +326,12 @@ func (pm *PermissionManager) Respond(requestID string, response protocol.AgentPe
 	ch, ok := pm.pending[requestID]
 	if !ok {
 		return fmt.Errorf("no pending permission for request %s", requestID)
+	}
+
+	// Stop the timeout timer if one exists.
+	if t, ok := pm.timers[requestID]; ok {
+		t.Stop()
+		delete(pm.timers, requestID)
 	}
 
 	ch <- response
@@ -323,6 +362,10 @@ func (pm *PermissionManager) RejectAll() {
 		ch <- protocol.AgentPermissionResponse{Behavior: "deny"}
 		delete(pm.pending, reqID)
 	}
+	for _, t := range pm.timers {
+		t.Stop()
+	}
+	pm.timers = make(map[string]*time.Timer)
 }
 
 // Close closes all pending permission channels.
@@ -333,5 +376,9 @@ func (pm *PermissionManager) Close() {
 	for _, ch := range pm.pending {
 		close(ch)
 	}
+	for _, t := range pm.timers {
+		t.Stop()
+	}
 	pm.pending = make(map[string]chan protocol.AgentPermissionResponse)
+	pm.timers = make(map[string]*time.Timer)
 }

@@ -527,6 +527,7 @@ func newTestKimiSessionWithPipes(logger *slog.Logger) (*kimiSession, *io.PipeWri
 		binaryPath:       "fake-kimi",
 		stdinPipe:        fakeStdin,
 		process:          newFakeKimiProcessManager(stdoutR, io.NopCloser(nil), fakeStdin, fakeCmd),
+		turnGuard:        base.NewTurnGuard(),
 	}
 	return s, stdoutW, fakeStdin
 }

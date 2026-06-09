@@ -19,11 +19,12 @@ import (
 func TestConsumeSSE_IdleTimeoutTriggersTurnFailed(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-	// Mock SSE server: sends 2 events, then hangs until client disconnects
+	// Mock SSE server: sends 2 events, then hangs until client disconnects.
+	// /command returns 503 so the heartbeat ping fails, letting the hard
+	// timeout trigger.
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/command" {
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprintf(w, `[]`)
+			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
 		if r.URL.Path == "/global/event" {
@@ -160,23 +161,19 @@ func TestConsumeSSE_ActiveStreamDoesNotTimeout(t *testing.T) {
 }
 
 // TestConsumeSSE_KeepAliveDoesNotResetIdleWatchdog verifies that SSE comment
-// lines (": keep-alive") do NOT reset lastEventTime. During a long thinking
+// lines (": keep-alive") do NOT reset lastEventTime, and that when the
+// heartbeat ping fails the hard timeout still triggers. During a long thinking
 // phase OpenCode streams keep-alive lines but no data events. The idle watchdog
-// must still fire when no real data arrives, otherwise long tasks freeze forever.
-//
-// RED: with the current code (lastEventTime reset on every line) the watchdog
-// is continuously refreshed by keep-alives and never fires — the test times out.
-// GREEN: after the fix (only reset on "data:" lines) the watchdog fires within
-// the idle timeout window.
+// must still fire when no real data arrives and the server is unresponsive.
 func TestConsumeSSE_KeepAliveDoesNotResetIdleWatchdog(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	// Mock SSE server: sends one data event, then floods with keep-alive comments
 	// every 200ms (well within the 3s idle timeout), then hangs.
+	// The /command endpoint returns 503 so the heartbeat ping fails.
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/command" {
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprintf(w, `[]`)
+			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
 		if r.URL.Path == "/global/event" {
@@ -226,8 +223,8 @@ func TestConsumeSSE_KeepAliveDoesNotResetIdleWatchdog(t *testing.T) {
 	}
 
 	// Use a short idle timeout: 3s. Keep-alives arrive every 200ms.
-	// Buggy code: keep-alives reset the timer → watchdog never fires → test hangs.
-	// Fixed code: only data lines reset the timer → watchdog fires after 3s of no data.
+	// Because /command returns 503, the heartbeat ping fails; the hard
+	// timeout (3s) should still trigger despite keep-alive traffic.
 	session.sseReadIdleTimeout = 3 * time.Second
 
 	start := time.Now()
@@ -239,10 +236,9 @@ func TestConsumeSSE_KeepAliveDoesNotResetIdleWatchdog(t *testing.T) {
 		t.Fatal("expected error from consumeSSE when only keep-alives arrive, got nil")
 	}
 
-	// Must trigger the idle watchdog (3s) not run forever; allow 5s margin for
-	// the watchdog's 5s ticker interval on top of the 3s idle threshold.
+	// Must trigger the idle watchdog (3s) not run forever; allow 5s margin.
 	if elapsed > 12*time.Second {
-		t.Fatalf("consumeSSE took %v — keep-alive lines are incorrectly resetting the idle timer", elapsed)
+		t.Fatalf("consumeSSE took %v — watchdog never fired", elapsed)
 	}
 
 	// Must not return immediately (the keep-alive server is still running)
@@ -319,5 +315,146 @@ func TestConsumeSSE_ContextCancelStopsWatchdog(t *testing.T) {
 	// Should return an error (stream ended prematurely since we cancelled)
 	if err == nil {
 		t.Fatal("expected error from consumeSSE when context is cancelled")
+	}
+}
+
+// TestConsumeSSE_HeartbeatResetExtendsTimeout verifies that a successful
+// server ping resets the idle timer, preventing false-positive timeout on
+// long-running tool calls.
+func TestConsumeSSE_HeartbeatResetExtendsTimeout(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	// Track whether the ping endpoint was hit
+	pingCount := 0
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/command" {
+			pingCount++
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(w, `[]`)
+			return
+		}
+		if r.URL.Path == "/global/event" {
+			flusher, ok := w.(http.Flusher)
+			if !ok {
+				t.Fatal("response writer does not support flushing")
+			}
+
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Connection", "keep-alive")
+			flusher.Flush()
+
+			// Send one event immediately
+			fmt.Fprintf(w, "data: {\"payload\":{\"type\":\"message.part.updated\",\"properties\":{\"sessionID\":\"test-session\"}}}\n\n")
+			flusher.Flush()
+
+			// Wait longer than the hard timeout but the heartbeat should reset
+			time.Sleep(4 * time.Second)
+
+			// Terminal event
+			fmt.Fprintf(w, "data: {\"payload\":{\"type\":\"session.status\",\"properties\":{\"sessionID\":\"test-session\",\"status\":{\"type\":\"idle\"}}}}\n\n")
+			flusher.Flush()
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer ts.Close()
+
+	config := &protocol.AgentSessionConfig{
+		Provider: "opencode",
+		Cwd:      "/tmp/test",
+	}
+
+	session := newOpenCodeSession(ts.URL, "test-session", config, logger, func() {}, nil)
+
+	select {
+	case <-session.commandsReadyCh:
+	case <-time.After(5 * time.Second):
+		t.Fatal("warmup did not complete")
+	}
+
+	// Hard timeout 3s, soft timeout ~2s. The 4s gap would normally trigger
+	// timeout, but heartbeat ping should reset the timer.
+	session.sseReadIdleTimeout = 3 * time.Second
+
+	start := time.Now()
+	result, err := session.consumeSSE(context.Background(), "test-turn-hb")
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("expected success with heartbeat reset, got: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if pingCount == 0 {
+		t.Fatal("expected at least one heartbeat ping")
+	}
+	if elapsed < 3*time.Second {
+		t.Fatalf("completed too quickly (%v), heartbeat may not have extended timeout", elapsed)
+	}
+}
+
+// TestConsumeSSE_HeartbeatFailRespectsHardTimeout verifies that when the
+// heartbeat ping fails, the hard timeout still triggers and fails the turn.
+func TestConsumeSSE_HeartbeatFailRespectsHardTimeout(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/command" {
+			// Ping fails
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		if r.URL.Path == "/global/event" {
+			flusher, ok := w.(http.Flusher)
+			if !ok {
+				t.Fatal("response writer does not support flushing")
+			}
+
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Connection", "keep-alive")
+			flusher.Flush()
+
+			// Send one event, then hang
+			fmt.Fprintf(w, "data: {\"payload\":{\"type\":\"message.part.updated\",\"properties\":{\"sessionID\":\"test-session\"}}}\n\n")
+			flusher.Flush()
+
+			<-r.Context().Done()
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer ts.Close()
+
+	config := &protocol.AgentSessionConfig{
+		Provider: "opencode",
+		Cwd:      "/tmp/test",
+	}
+
+	session := newOpenCodeSession(ts.URL, "test-session", config, logger, func() {}, nil)
+
+	select {
+	case <-session.commandsReadyCh:
+	case <-time.After(5 * time.Second):
+		t.Fatal("warmup did not complete")
+	}
+
+	session.sseReadIdleTimeout = 3 * time.Second
+
+	start := time.Now()
+	_, err := session.consumeSSE(context.Background(), "test-turn-hb-fail")
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("expected error when heartbeat fails and hard timeout triggers")
+	}
+	if elapsed < 2*time.Second {
+		t.Fatalf("returned too quickly (%v), hard timeout may not have triggered", elapsed)
+	}
+	if elapsed > 8*time.Second {
+		t.Fatalf("took too long (%v), hard timeout should have triggered earlier", elapsed)
 	}
 }

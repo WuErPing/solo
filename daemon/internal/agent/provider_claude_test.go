@@ -46,6 +46,7 @@ func newTestClaudeSession(logger *slog.Logger) *claudeSession {
 		permissions:      base.NewPermissionManager(),
 		process:          newFakeProcessManager(pr, io.NopCloser(nil), fakeCmd),
 		binaryPath:       "fake-claude",
+		turnGuard:        base.NewTurnGuard(),
 		accumulatedUsage: &protocol.AgentUsage{},
 	}
 	return s
@@ -154,15 +155,13 @@ func TestClaudeSession_Run_SetsAndClearsActiveTurnID(t *testing.T) {
 		permissions:      base.NewPermissionManager(),
 		process:          newFakeProcessManager(pr, io.NopCloser(nil), fakeCmd),
 		binaryPath:       "fake-claude",
+		turnGuard:        base.NewTurnGuard(),
 		accumulatedUsage: &protocol.AgentUsage{},
 	}
 
-	// Initially empty.
-	sess.mu.Lock()
-	empty := sess.activeTurnID == ""
-	sess.mu.Unlock()
-	if !empty {
-		t.Fatal("expected empty activeTurnID initially")
+	// Initially inactive.
+	if sess.turnGuard.IsActive() {
+		t.Fatal("expected turn guard to be inactive initially")
 	}
 
 	// Start Run; it blocks on the fake pipe.
@@ -173,14 +172,8 @@ func TestClaudeSession_Run_SetsAndClearsActiveTurnID(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 
-	sess.mu.Lock()
-	turnID := sess.activeTurnID
-	sess.mu.Unlock()
-	if turnID == "" {
-		t.Fatal("expected activeTurnID to be set during Run")
-	}
-	if !strings.HasPrefix(turnID, "claude-turn-") {
-		t.Fatalf("expected turnID to start with 'claude-turn-', got: %s", turnID)
+	if !sess.turnGuard.IsActive() {
+		t.Fatal("expected turn guard to be active during Run")
 	}
 
 	// Cancel and close the pipe so Run exits.
@@ -188,11 +181,8 @@ func TestClaudeSession_Run_SetsAndClearsActiveTurnID(t *testing.T) {
 	pw.Close()
 	time.Sleep(100 * time.Millisecond)
 
-	sess.mu.Lock()
-	cleared := sess.activeTurnID == ""
-	sess.mu.Unlock()
-	if !cleared {
-		t.Fatalf("expected activeTurnID to be cleared after Run, got: %s", sess.activeTurnID)
+	if sess.turnGuard.IsActive() {
+		t.Fatal("expected turn guard to be cleared after Run")
 	}
 }
 
@@ -235,21 +225,15 @@ func TestClaudeSession_Close_ClearsActiveTurnID(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 
-	sess.mu.Lock()
-	active := sess.activeTurnID != ""
-	sess.mu.Unlock()
-	if !active {
-		t.Fatal("expected activeTurnID to be set")
+	if !sess.turnGuard.IsActive() {
+		t.Fatal("expected turn guard to be active")
 	}
 
 	// Close should kill the process and clear state.
 	sess.Close()
 
-	sess.mu.Lock()
-	cleared := sess.activeTurnID == ""
-	sess.mu.Unlock()
-	if !cleared {
-		t.Fatalf("expected activeTurnID cleared after Close, got: %s", sess.activeTurnID)
+	if sess.turnGuard.IsActive() {
+		t.Fatal("expected turn guard cleared after Close")
 	}
 }
 
@@ -270,12 +254,9 @@ func TestClaudeSession_Interrupt_ClearsActiveTurnID(t *testing.T) {
 
 	sess.Interrupt(context.Background())
 
-	// After interrupt, activeTurnID should be cleared so a new Run can start.
-	sess.mu.Lock()
-	cleared := sess.activeTurnID == ""
-	sess.mu.Unlock()
-	if !cleared {
-		t.Fatalf("expected activeTurnID cleared after Interrupt, got: %s", sess.activeTurnID)
+	// After interrupt, turn guard should be cleared so a new Run can start.
+	if sess.turnGuard.IsActive() {
+		t.Fatal("expected turn guard cleared after Interrupt")
 	}
 }
 

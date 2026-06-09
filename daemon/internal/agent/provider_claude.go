@@ -124,9 +124,8 @@ type claudeSession struct {
 	stderrPipe io.ReadCloser
 	stdinPipe  io.WriteCloser
 
-	// Turn tracking (matches OpenCode provider pattern)
-	activeTurnID    string
-	nextTurnOrdinal int
+	// Turn tracking
+	turnGuard *base.TurnGuard
 
 	// Accumulated usage tracking across turns (matches OpenCode's accumulatedUsage)
 	accumulatedUsage *protocol.AgentUsage
@@ -139,6 +138,7 @@ func newClaudeSession(binaryPath string, config *protocol.AgentSessionConfig, lo
 		dispatcher:       base.NewChannelDispatcher(logger),
 		permissions:      base.NewPermissionManager(),
 		process:          base.NewProcessManager(binaryPath, logger),
+		turnGuard:        base.NewTurnGuard(),
 		accumulatedUsage: &protocol.AgentUsage{},
 	}
 	return s
@@ -179,19 +179,15 @@ func (s *claudeSession) accumulateUsage(turn *protocol.AgentUsage) {
 func (s *claudeSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 
-	s.mu.Lock()
-	if s.activeTurnID != "" {
-		s.mu.Unlock()
+	if _, err := s.turnGuard.Acquire(); err != nil {
 		cancel()
-		return nil, fmt.Errorf("a turn is already active (turnID: %s)", s.activeTurnID)
+		return nil, fmt.Errorf("a turn is already active")
 	}
-	s.nextTurnOrdinal++
-	turnID := fmt.Sprintf("claude-turn-%d", s.nextTurnOrdinal)
-	s.activeTurnID = turnID
 	s.base.SetCancelFn(cancel)
 
+	s.mu.Lock()
 	if err := s.startProcessLocked(runCtx, text); err != nil {
-		s.activeTurnID = ""
+		s.turnGuard.Release()
 		s.mu.Unlock()
 		cancel()
 		return nil, err
@@ -201,9 +197,7 @@ func (s *claudeSession) Run(ctx context.Context, text string, images []protocol.
 
 	// Clear turn when done.
 	defer func() {
-		s.mu.Lock()
-		s.activeTurnID = ""
-		s.mu.Unlock()
+		s.turnGuard.Release()
 		cancel()
 	}()
 
@@ -235,19 +229,15 @@ func (s *claudeSession) Run(ctx context.Context, text string, images []protocol.
 func (s *claudeSession) StartTurn(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) (<-chan AgentStreamEvent, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 
-	s.mu.Lock()
-	if s.activeTurnID != "" {
-		s.mu.Unlock()
+	if _, err := s.turnGuard.Acquire(); err != nil {
 		cancel()
-		return nil, fmt.Errorf("a turn is already active (turnID: %s)", s.activeTurnID)
+		return nil, fmt.Errorf("a turn is already active")
 	}
-	s.nextTurnOrdinal++
-	turnID := fmt.Sprintf("claude-turn-%d", s.nextTurnOrdinal)
-	s.activeTurnID = turnID
 	s.base.SetCancelFn(cancel)
 
+	s.mu.Lock()
 	if err := s.startProcessLocked(runCtx, text); err != nil {
-		s.activeTurnID = ""
+		s.turnGuard.Release()
 		s.mu.Unlock()
 		cancel()
 		return nil, err
@@ -304,23 +294,6 @@ func (s *claudeSession) startProcessLocked(ctx context.Context, prompt string) e
 	s.cmd = cmd
 
 	go s.process.DrainStderr(stderr)
-
-	// Health check: wait briefly to detect immediate process crash.
-	// If the process exits within 100ms with non-zero code, it's likely
-	// a startup failure (bad args, missing config, etc.).
-	time.Sleep(100 * time.Millisecond)
-	if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
-		exitCode := cmd.ProcessState.ExitCode()
-		if exitCode != 0 {
-			// Process crashed on startup — read stderr for details
-			stderrBytes, _ := io.ReadAll(stderr)
-			s.base.Logger().Error("claude CLI exited immediately",
-				"exitCode", exitCode,
-				"args", args,
-				"stderr", string(stderrBytes))
-			return fmt.Errorf("claude CLI exited immediately with code %d: %s", exitCode, string(stderrBytes))
-		}
-	}
 
 	return nil
 }
@@ -405,8 +378,8 @@ func (s *claudeSession) Interrupt(ctx context.Context) error {
 	s.mu.Lock()
 	s.base.Cancel()
 	s.process.Interrupt(s.cmd)
-	s.activeTurnID = ""
 	s.mu.Unlock()
+	s.turnGuard.Release()
 
 	s.dispatcher.Emit(AgentStreamEvent{
 		Event: protocol.TurnCanceledStreamEvent{
@@ -424,17 +397,20 @@ func (s *claudeSession) Close() error {
 		return nil
 	}
 
-	s.mu.Lock()
-	s.activeTurnID = ""
-	s.mu.Unlock()
+	s.turnGuard.Release()
 
 	s.base.Close()
-	if err := s.process.Kill(s.cmd); err != nil {
-		s.base.Logger().Warn("failed to kill claude process", "error", err)
-	}
-	// Ensure process is reaped to prevent zombies
-	if s.cmd != nil {
-		if _, err := s.process.WaitForExit(s.cmd); err != nil {
+
+	s.mu.Lock()
+	cmd := s.cmd
+	s.mu.Unlock()
+
+	if cmd != nil {
+		if err := s.process.Kill(cmd); err != nil {
+			s.base.Logger().Warn("failed to kill claude process", "error", err)
+		}
+		// Ensure process is reaped to prevent zombies
+		if _, err := s.process.WaitForExit(cmd); err != nil {
 			s.base.Logger().Debug("claude process wait result", "error", err)
 		}
 	}
