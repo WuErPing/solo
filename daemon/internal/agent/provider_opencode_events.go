@@ -30,21 +30,43 @@ func (s *openCodeSession) consumeSSE(ctx context.Context, turnID string) (*Agent
 
 	// Per-connection idle watchdog
 	connCtx, connCancel := context.WithCancel(ctx)
+	defer connCancel() // stop the watchdog when consumeSSE returns
 	var lastEventTime atomic.Int64
 	lastEventTime.Store(time.Now().UnixNano())
 
 	go func() {
-		ticker := time.NewTicker(5 * time.Second)
+		// Tick frequently enough to catch soft-timeout reliably even with
+		// small test timeouts, but cap at 5s in production.
+		tickInterval := timeout / 6
+		if tickInterval < 500*time.Millisecond {
+			tickInterval = 500 * time.Millisecond
+		}
+		if tickInterval > 5*time.Second {
+			tickInterval = 5 * time.Second
+		}
+		ticker := time.NewTicker(tickInterval)
 		defer ticker.Stop()
+		softTimeout := timeout / 2
+		if softTimeout <= 0 {
+			softTimeout = timeout
+		}
 		for {
 			select {
 			case <-ticker.C:
 				last := time.Unix(0, lastEventTime.Load())
-				if time.Since(last) > timeout {
+				idle := time.Since(last)
+				if idle > timeout {
 					s.base.Logger().Warn("SSE idle timeout — no events received, closing connection",
 						"timeout", timeout, "turnID", turnID)
 					connCancel()
 					return
+				}
+				if idle >= softTimeout {
+					if s.pingServer(ctx) {
+						s.base.Logger().Debug("SSE heartbeat succeeded, resetting idle timer",
+							"turnID", turnID)
+						lastEventTime.Store(time.Now().UnixNano())
+					}
 				}
 			case <-connCtx.Done():
 				return
@@ -191,6 +213,27 @@ func (s *openCodeSession) consumeSSE(ctx context.Context, turnID string) (*Agent
 	}
 
 	return result, resultErr
+}
+
+// pingServer sends a lightweight HTTP request to the OpenCode server to verify
+// it is still alive. Used by the SSE idle watchdog to avoid false-positive
+// timeouts when the server is processing a long-running tool call.
+func (s *openCodeSession) pingServer(ctx context.Context) bool {
+	pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(pingCtx, "GET", s.baseURL+"/command", nil)
+	if err != nil {
+		return false
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode < 500
 }
 
 // finishForegroundTurn guards against duplicate turn completion and synthesizes
