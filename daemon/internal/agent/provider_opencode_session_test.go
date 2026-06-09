@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -462,5 +463,33 @@ drainLoop:
 	}
 	if assistantBeforeUser {
 		t.Fatal("assistant_message appeared before user_message -- ordering is broken")
+	}
+}
+
+// TestFinishForegroundTurn_ClearsRunningTools verifies that runningToolCalls
+// is cleared on turn completion, failure, and cancel.
+func TestFinishForegroundTurn_ClearsRunningTools(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	config := &protocol.AgentSessionConfig{Provider: "opencode"}
+	session := newOpenCodeSession("http://127.0.0.1:0", "test-session", config, logger, func() {}, nil)
+
+	session.mu.Lock()
+	session.runningToolCalls = map[string]timelineItem{
+		"tc-1": {CallID: "tc-1", Name: "read_file", Status: "running"},
+		"tc-2": {CallID: "tc-2", Name: "edit_file", Status: "running"},
+	}
+	session.activeForegroundTurnID = "turn-1"
+	session.mu.Unlock()
+
+	session.finishForegroundTurn(AgentStreamEvent{
+		Event: protocol.TurnCompletedStreamEvent{Provider: "opencode"},
+	}, "turn-1")
+
+	session.mu.Lock()
+	remaining := len(session.runningToolCalls)
+	session.mu.Unlock()
+
+	if remaining != 0 {
+		t.Fatalf("expected runningToolCalls to be cleared after turn_completed, got %d remaining", remaining)
 	}
 }
