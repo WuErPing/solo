@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-06-10
+
+### Added
+
+- **TurnGuard**: Turn-level serialization guard for agent base, migrated claude/kimi/pi providers
+- **PermissionManager.RegisterWithTimeout**: Timeout-aware permission registration for agents
+- **Typed provider sentinel errors**: Define typed errors across agent providers
+- **SSE heartbeat**: Heartbeat for opencode agent to prevent false-positive idle timeout
+
+### Fixed
+
+- **Timeline**: Reset cursor on newer epoch instead of dropping events
+- **Opencode**: Fix cross-device sync and `session_closed` typing in daemon/protocol/app-bridge
+
+### Changed
+
+- **Tmux pane**: Optimize rendering with FlatList virtualization and incremental content transfer
+- **Tmux pane**: Reorganize key buttons into grouped View and Send sections
+- **Tmux pane**: Make Home/End buttons stack vertically on narrow screens
+- Migrate claude, kimi, and pi agents to TurnGuard for turn serialization
+- Remove dead startup health check in claude agent
+- Add tmux pane rendering optimization analysis doc
+- Add network-data-state architecture synthesis doc
+
 ## [0.5.0] - 2026-06-08
 
 ### Added
