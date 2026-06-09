@@ -205,8 +205,7 @@ type kimiSession struct {
 	stdinPipe  io.WriteCloser
 	stderrPipe io.ReadCloser
 
-	activeTurnID    string
-	nextTurnOrdinal int
+	turnGuard *base.TurnGuard
 }
 
 func newKimiSession(binaryPath string, config *protocol.AgentSessionConfig, logger *slog.Logger) *kimiSession {
@@ -216,25 +215,22 @@ func newKimiSession(binaryPath string, config *protocol.AgentSessionConfig, logg
 		permissions: base.NewPermissionManager(),
 		process:     base.NewProcessManager(binaryPath, logger),
 		binaryPath:  binaryPath,
+		turnGuard:   base.NewTurnGuard(),
 	}
 }
 
 func (s *kimiSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 
-	s.mu.Lock()
-	if s.activeTurnID != "" {
-		s.mu.Unlock()
+	if _, err := s.turnGuard.Acquire(); err != nil {
 		cancel()
-		return nil, fmt.Errorf("a turn is already active (turnID: %s)", s.activeTurnID)
+		return nil, fmt.Errorf("a turn is already active")
 	}
-	s.nextTurnOrdinal++
-	turnID := fmt.Sprintf("kimi-turn-%d", s.nextTurnOrdinal)
-	s.activeTurnID = turnID
 	s.base.SetCancelFn(cancel)
 
+	s.mu.Lock()
 	if err := s.startProcessLocked(runCtx, text); err != nil {
-		s.activeTurnID = ""
+		s.turnGuard.Release()
 		s.mu.Unlock()
 		cancel()
 		return nil, err
@@ -243,9 +239,7 @@ func (s *kimiSession) Run(ctx context.Context, text string, images []protocol.Im
 	s.mu.Unlock()
 
 	defer func() {
-		s.mu.Lock()
-		s.activeTurnID = ""
-		s.mu.Unlock()
+		s.turnGuard.Release()
 		cancel()
 	}()
 
@@ -268,19 +262,15 @@ func (s *kimiSession) Run(ctx context.Context, text string, images []protocol.Im
 func (s *kimiSession) StartTurn(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) (<-chan AgentStreamEvent, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 
-	s.mu.Lock()
-	if s.activeTurnID != "" {
-		s.mu.Unlock()
+	if _, err := s.turnGuard.Acquire(); err != nil {
 		cancel()
-		return nil, fmt.Errorf("a turn is already active (turnID: %s)", s.activeTurnID)
+		return nil, fmt.Errorf("a turn is already active")
 	}
-	s.nextTurnOrdinal++
-	turnID := fmt.Sprintf("kimi-turn-%d", s.nextTurnOrdinal)
-	s.activeTurnID = turnID
 	s.base.SetCancelFn(cancel)
 
+	s.mu.Lock()
 	if err := s.startProcessLocked(runCtx, text); err != nil {
-		s.activeTurnID = ""
+		s.turnGuard.Release()
 		s.mu.Unlock()
 		cancel()
 		return nil, err
@@ -331,8 +321,8 @@ func (s *kimiSession) Interrupt(ctx context.Context) error {
 	if s.stdinPipe != nil {
 		s.writeJSONRPCRequest("cancel", nil)
 	}
-	s.activeTurnID = ""
 	s.mu.Unlock()
+	s.turnGuard.Release()
 
 	s.dispatcher.Emit(AgentStreamEvent{
 		Event: protocol.TurnCanceledStreamEvent{
@@ -349,16 +339,17 @@ func (s *kimiSession) Close() error {
 		return nil
 	}
 
-	s.mu.Lock()
-	s.activeTurnID = ""
-	s.mu.Unlock()
+	s.turnGuard.Release()
 
 	s.base.Close()
-	if s.process != nil {
-		_ = s.process.Kill(s.cmd)
-		if s.cmd != nil {
-			_, _ = s.process.WaitForExit(s.cmd)
-		}
+
+	s.mu.Lock()
+	cmd := s.cmd
+	s.mu.Unlock()
+
+	if s.process != nil && cmd != nil {
+		_ = s.process.Kill(cmd)
+		_, _ = s.process.WaitForExit(cmd)
 	}
 	s.dispatcher.Close()
 	return nil

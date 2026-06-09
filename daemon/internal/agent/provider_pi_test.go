@@ -43,6 +43,7 @@ func newTestPiSession(logger *slog.Logger) *piSession {
 		dispatcher: base.NewChannelDispatcher(logger),
 		process:    newFakePiProcessManager(pr, io.NopCloser(nil), fakeCmd),
 		binaryPath: "fake-pi",
+		turnGuard:  base.NewTurnGuard(),
 	}
 	return s
 }

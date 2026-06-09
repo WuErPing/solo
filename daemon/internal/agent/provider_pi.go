@@ -125,8 +125,7 @@ type piSession struct {
 	stdinPipe  io.WriteCloser
 	stderrPipe io.ReadCloser
 
-	activeTurnID    string
-	nextTurnOrdinal int
+	turnGuard *base.TurnGuard
 }
 
 // extractAssistantText extracts text content from a Pi assistant message.
@@ -149,25 +148,22 @@ func newPiSession(binaryPath string, config *protocol.AgentSessionConfig, logger
 		dispatcher: base.NewChannelDispatcher(logger),
 		process:    base.NewProcessManager(binaryPath, logger),
 		binaryPath: binaryPath,
+		turnGuard:  base.NewTurnGuard(),
 	}
 }
 
 func (s *piSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 
-	s.mu.Lock()
-	if s.activeTurnID != "" {
-		s.mu.Unlock()
+	if _, err := s.turnGuard.Acquire(); err != nil {
 		cancel()
-		return nil, fmt.Errorf("a turn is already active (turnID: %s)", s.activeTurnID)
+		return nil, fmt.Errorf("a turn is already active")
 	}
-	s.nextTurnOrdinal++
-	turnID := fmt.Sprintf("pi-turn-%d", s.nextTurnOrdinal)
-	s.activeTurnID = turnID
 	s.base.SetCancelFn(cancel)
 
+	s.mu.Lock()
 	if err := s.startProcessLocked(runCtx, text); err != nil {
-		s.activeTurnID = ""
+		s.turnGuard.Release()
 		s.mu.Unlock()
 		cancel()
 		return nil, err
@@ -176,9 +172,7 @@ func (s *piSession) Run(ctx context.Context, text string, images []protocol.Imag
 	s.mu.Unlock()
 
 	defer func() {
-		s.mu.Lock()
-		s.activeTurnID = ""
-		s.mu.Unlock()
+		s.turnGuard.Release()
 		cancel()
 	}()
 
@@ -210,19 +204,15 @@ func (s *piSession) Run(ctx context.Context, text string, images []protocol.Imag
 func (s *piSession) StartTurn(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) (<-chan AgentStreamEvent, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 
-	s.mu.Lock()
-	if s.activeTurnID != "" {
-		s.mu.Unlock()
+	if _, err := s.turnGuard.Acquire(); err != nil {
 		cancel()
-		return nil, fmt.Errorf("a turn is already active (turnID: %s)", s.activeTurnID)
+		return nil, fmt.Errorf("a turn is already active")
 	}
-	s.nextTurnOrdinal++
-	turnID := fmt.Sprintf("pi-turn-%d", s.nextTurnOrdinal)
-	s.activeTurnID = turnID
 	s.base.SetCancelFn(cancel)
 
+	s.mu.Lock()
 	if err := s.startProcessLocked(runCtx, text); err != nil {
-		s.activeTurnID = ""
+		s.turnGuard.Release()
 		s.mu.Unlock()
 		cancel()
 		return nil, err
@@ -369,8 +359,8 @@ func (s *piSession) Interrupt(ctx context.Context) error {
 	s.mu.Lock()
 	s.base.Cancel()
 	s.process.Interrupt(s.cmd)
-	s.activeTurnID = ""
 	s.mu.Unlock()
+	s.turnGuard.Release()
 
 	s.dispatcher.Emit(AgentStreamEvent{
 		Event: protocol.TurnCanceledStreamEvent{
@@ -387,16 +377,17 @@ func (s *piSession) Close() error {
 		return nil
 	}
 
-	s.mu.Lock()
-	s.activeTurnID = ""
-	s.mu.Unlock()
+	s.turnGuard.Release()
 
 	s.base.Close()
-	if s.process != nil {
-		_ = s.process.Kill(s.cmd)
-		if s.cmd != nil {
-			_, _ = s.process.WaitForExit(s.cmd)
-		}
+
+	s.mu.Lock()
+	cmd := s.cmd
+	s.mu.Unlock()
+
+	if s.process != nil && cmd != nil {
+		_ = s.process.Kill(cmd)
+		_, _ = s.process.WaitForExit(cmd)
 	}
 	s.dispatcher.Close()
 	return nil
