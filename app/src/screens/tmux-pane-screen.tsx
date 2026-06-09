@@ -360,64 +360,90 @@ function TmuxPaneScreenInner() {
         )}
       </ScrollView>
       <View style={styles.keyButtonsRow}>
-        <Pressable
-          onPress={scrollToTop}
-          style={({ pressed }) => [
-            styles.keyButton,
-            { borderColor: theme.colors.border },
-            pressed ? { backgroundColor: theme.colors.surface1 } : null,
-          ]}
-        >
-          <Text style={[styles.keyButtonLabel, { color: theme.colors.foreground }]}>Home</Text>
-        </Pressable>
-        <Pressable
-          onPress={scrollToBottom}
-          style={({ pressed }) => [
-            styles.keyButton,
-            { borderColor: theme.colors.border },
-            pressed ? { backgroundColor: theme.colors.surface1 } : null,
-          ]}
-        >
-          <Text style={[styles.keyButtonLabel, { color: theme.colors.foreground }]}>End</Text>
-        </Pressable>
-        {!autoRefresh && (
-          <Pressable
-            onPress={() => refetch()}
-            style={({ pressed }) => [
-              styles.keyButton,
-              { borderColor: theme.colors.border },
-              pressed ? { backgroundColor: theme.colors.surface1 } : null,
-            ]}
-          >
-            <Text style={[styles.keyButtonLabel, { color: theme.colors.primary }]}>Refresh</Text>
-          </Pressable>
-        )}
-        {[
-          { label: "↑", key: "Up" },
-          { label: "↓", key: "Down" },
-          { label: "Enter", key: "Enter" },
-          { label: "Esc", key: "Escape" },
-          { label: "Tab", key: "Tab" },
-          { label: "S-Tab", key: "BTab" },
-          { label: "1", key: "1" },
-          { label: "2", key: "2" },
-          { label: "3", key: "3" },
-          { label: "4", key: "4" },
-        ].map(({ label, key }) => (
-          <Pressable
-            key={key}
-            onPress={() => sendKey(key)}
-            style={({ pressed }) => [
-              styles.keyButton,
-              { borderColor: theme.colors.border },
-              pressed ? { backgroundColor: theme.colors.surface1 } : null,
-            ]}
-          >
-            <Text style={[styles.keyButtonLabel, { color: theme.colors.foreground }]}>
-              {label}
-            </Text>
-          </Pressable>
-        ))}
+        <View style={styles.keyGroup}>
+          <Text style={[styles.keyGroupLabel, { color: theme.colors.foregroundMuted }]}>View</Text>
+          <View style={styles.keyGroupRow}>
+            <Pressable
+              onPress={scrollToTop}
+              style={({ pressed }) => [
+                styles.keyButtonSolid,
+                styles.navKeyButton,
+                {
+                  backgroundColor: pressed ? theme.colors.surface2 : theme.colors.surface1,
+                  borderColor: theme.colors.border,
+                },
+              ]}
+            >
+              <Text style={[styles.keyButtonLabel, { color: theme.colors.foregroundMuted }]}>
+                Home
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={scrollToBottom}
+              style={({ pressed }) => [
+                styles.keyButtonSolid,
+                styles.navKeyButton,
+                {
+                  backgroundColor: pressed ? theme.colors.surface2 : theme.colors.surface1,
+                  borderColor: theme.colors.border,
+                },
+              ]}
+            >
+              <Text style={[styles.keyButtonLabel, { color: theme.colors.foregroundMuted }]}>
+                End
+              </Text>
+            </Pressable>
+          </View>
+          {!autoRefresh && (
+            <View style={styles.keyGroupRow}>
+              <Pressable
+                onPress={() => refetch()}
+                style={({ pressed }) => [
+                  styles.keyButtonGhost,
+                  pressed ? { backgroundColor: theme.colors.surface1 } : null,
+                ]}
+              >
+                <Text style={[styles.keyButtonLabel, styles.keyButtonLabelGhost, { color: theme.colors.primary }]}>
+                  Refresh
+                </Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+        <View style={styles.keyGroupDivider} />
+        <View style={[styles.keyGroup, styles.keyGroupMain]}>
+          <Text style={[styles.keyGroupLabel, { color: theme.colors.foregroundMuted }]}>Send</Text>
+          <View style={styles.keyGroupRow}>
+            {[
+              { label: "↑", key: "Up" },
+              { label: "↓", key: "Down" },
+              { label: "Enter", key: "Enter" },
+              { label: "Esc", key: "Escape" },
+              { label: "Tab", key: "Tab" },
+              { label: "S-Tab", key: "BTab" },
+              { label: "1", key: "1" },
+              { label: "2", key: "2" },
+              { label: "3", key: "3" },
+              { label: "4", key: "4" },
+            ].map(({ label, key }) => (
+              <Pressable
+                key={key}
+                onPress={() => sendKey(key)}
+                style={({ pressed }) => [
+                  styles.keyButtonSolid,
+                  {
+                    backgroundColor: pressed ? theme.colors.primary : theme.colors.surface1,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.keyButtonLabel, { color: theme.colors.foreground }]}>
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
       </View>
       {sendError ? (
         <Text style={[styles.sendErrorText, { color: theme.colors.destructive }]}>
@@ -501,14 +527,49 @@ const styles = StyleSheet.create((theme) => ({
   },
   keyButtonsRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    alignItems: "flex-start",
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    gap: 6,
+    paddingVertical: 8,
+    gap: 10,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
   },
-  keyButton: {
+  keyGroup: {
+    gap: 4,
+  },
+  keyGroupMain: {
+    flex: 1,
+  },
+  keyGroupLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    paddingHorizontal: 2,
+  },
+  keyGroupRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  navKeyButton: {
+    minWidth: 72,
+  },
+  keyGroupDivider: {
+    width: 1,
+    alignSelf: "stretch",
+    marginVertical: 4,
+    backgroundColor: theme.colors.border,
+  },
+  keyButtonGhost: {
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  keyButtonSolid: {
     borderWidth: 1,
     borderRadius: 6,
     paddingHorizontal: 10,
@@ -519,6 +580,10 @@ const styles = StyleSheet.create((theme) => ({
   },
   keyButtonLabel: {
     fontSize: 12,
+    fontWeight: "500",
+  },
+  keyButtonLabelGhost: {
+    fontSize: 11,
     fontWeight: "500",
   },
   sendErrorText: {
