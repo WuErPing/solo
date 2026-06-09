@@ -167,6 +167,74 @@ func TestPermissionManager_CloseClosesChannels(t *testing.T) {
 	}
 }
 
+func TestPermissionManager_RegisterWithTimeout_AutoRejects(t *testing.T) {
+	pm := NewPermissionManager()
+
+	ch := pm.RegisterWithTimeout("req-1", 50*time.Millisecond, nil)
+
+	select {
+	case resp := <-ch:
+		if resp.Behavior != "deny" {
+			t.Errorf("expected auto-deny, got %q", resp.Behavior)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for auto-reject")
+	}
+
+	if len(pm.GetPending()) != 0 {
+		t.Error("expected no pending after auto-reject")
+	}
+}
+
+func TestPermissionManager_RegisterWithTimeout_RespondBeforeTimeout(t *testing.T) {
+	pm := NewPermissionManager()
+
+	ch := pm.RegisterWithTimeout("req-1", 500*time.Millisecond, nil)
+
+	go func() {
+		_ = pm.Respond("req-1", protocol.AgentPermissionResponse{Behavior: "allow"})
+	}()
+
+	select {
+	case resp := <-ch:
+		if resp.Behavior != "allow" {
+			t.Errorf("expected allow, got %q", resp.Behavior)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Give timer time to fire (it shouldn't because Respond stopped it).
+	time.Sleep(100 * time.Millisecond)
+
+	if len(pm.GetPending()) != 0 {
+		t.Error("expected no pending after respond")
+	}
+}
+
+func TestPermissionManager_RegisterWithTimeout_OnTimeoutCallback(t *testing.T) {
+	pm := NewPermissionManager()
+
+	callbackFired := make(chan struct{}, 1)
+	ch := pm.RegisterWithTimeout("req-1", 50*time.Millisecond, func() {
+		close(callbackFired)
+	})
+
+	select {
+	case <-ch:
+		// expected
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for auto-reject")
+	}
+
+	select {
+	case <-callbackFired:
+		// expected
+	case <-time.After(time.Second):
+		t.Fatal("timeout callback was not fired")
+	}
+}
+
 // ---- JSONEventTranslator tests ----
 
 func TestJSONEventTranslator_ParseJSONLine_Valid(t *testing.T) {
