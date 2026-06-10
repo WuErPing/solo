@@ -2,12 +2,14 @@ package server
 
 import (
 	"bufio"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/WuErPing/solo/protocol"
@@ -19,6 +21,14 @@ var unicodeToASCII = map[rune]string{
 	'α': "a",
 	'β': "b",
 }
+
+// Subprocess timeout constants to prevent goroutine blocking on hung processes.
+const (
+	tmuxCommandTimeout = 5 * time.Second
+	pgrepTimeout       = 2 * time.Second
+	psTimeout          = 2 * time.Second
+	gitTimeout         = 3 * time.Second
+)
 
 func isTmuxAIAgentName(cmd string, agentNames map[string]bool) bool {
 	if idx := strings.LastIndex(cmd, "/"); idx >= 0 {
@@ -112,7 +122,9 @@ func (s *Session) sendTmuxListAgentsResponse(requestID string, agents []protocol
 }
 
 func scanTmuxAgents(agentNames map[string]bool) ([]protocol.TmuxAgentInfo, error) {
-	cmd := exec.Command("tmux", "list-panes", "-a", "-F",
+	ctx, cancel := context.WithTimeout(context.Background(), tmuxCommandTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "tmux", "list-panes", "-a", "-F",
 		"#{pane_id}|#{pane_index}|#{pane_pid}|#{pane_current_command}|#{session_name}|#{window_name}|#{pane_current_path}|#{pane_title}")
 	output, err := cmd.Output()
 	if err != nil {
@@ -155,7 +167,9 @@ func getGitCommitHash(workingDir string) string {
 	if workingDir == "" {
 		return ""
 	}
-	out, err := exec.Command("git", "-C", workingDir, "rev-parse", "--short", "HEAD").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "git", "-C", workingDir, "rev-parse", "--short", "HEAD").Output()
 	if err != nil {
 		return ""
 	}
@@ -239,17 +253,29 @@ func parseTmuxPaneLines(output string, agentNames map[string]bool) []protocol.Tm
 // agentNameFromChildProcesses checks if any child process of the given PID
 // matches a known AI agent name. This catches cases where pane_current_command
 // shows "node" or "python" but the actual agent is a child process.
+// Uses batched ps call to avoid N+1 subprocess invocations.
 func agentNameFromChildProcesses(ppid int, agentNames map[string]bool) string {
-	out, err := exec.Command("pgrep", "-P", strconv.Itoa(ppid)).Output()
+	ctx, cancel := context.WithTimeout(context.Background(), pgrepTimeout)
+	defer cancel()
+
+	out, err := exec.CommandContext(ctx, "pgrep", "-P", strconv.Itoa(ppid)).Output()
 	if err != nil {
 		return ""
 	}
-	for _, pidStr := range strings.Fields(strings.TrimSpace(string(out))) {
-		comm, err := exec.Command("ps", "-o", "comm=", "-p", pidStr).Output()
-		if err != nil {
-			continue
-		}
-		name := strings.TrimSpace(string(comm))
+	pids := strings.Fields(strings.TrimSpace(string(out)))
+	if len(pids) == 0 {
+		return ""
+	}
+
+	// Query all child PIDs in a single ps call instead of one per PID.
+	psCtx, psCancel := context.WithTimeout(context.Background(), psTimeout)
+	defer psCancel()
+	commOut, err := exec.CommandContext(psCtx, "ps", "-o", "comm=", "-p", strings.Join(pids, ",")).Output()
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(commOut)), "\n") {
+		name := strings.TrimSpace(line)
 		if idx := strings.LastIndex(name, "/"); idx >= 0 {
 			name = name[idx+1:]
 		}
@@ -301,7 +327,9 @@ func computeContentHash(content string) string {
 }
 
 func captureTmuxPane(paneID string, startLine int) (string, error) {
-	out, err := exec.Command("tmux", "capture-pane", "-t", paneID, "-p", "-e", "-S", strconv.Itoa(startLine)).Output()
+	ctx, cancel := context.WithTimeout(context.Background(), tmuxCommandTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "tmux", "capture-pane", "-t", paneID, "-p", "-e", "-S", strconv.Itoa(startLine)).Output()
 	if err != nil {
 		return "", err
 	}
@@ -330,10 +358,12 @@ func (s *Session) sendTmuxSendKeysResponse(requestID string, errMsg *string) {
 }
 
 func sendKeysToTmuxPane(paneID, keys string, sendEnter bool) error {
+	ctx, cancel := context.WithTimeout(context.Background(), tmuxCommandTimeout)
+	defer cancel()
 	if sendEnter {
-		return exec.Command("tmux", "send-keys", "-t", paneID, keys, "Enter").Run()
+		return exec.CommandContext(ctx, "tmux", "send-keys", "-t", paneID, keys, "Enter").Run()
 	}
-	return exec.Command("tmux", "send-keys", "-t", paneID, keys).Run()
+	return exec.CommandContext(ctx, "tmux", "send-keys", "-t", paneID, keys).Run()
 }
 
 func parseTmuxThemeOutput(options map[string]string) protocol.TmuxThemeColors {
@@ -447,12 +477,15 @@ func (s *Session) sendTmuxStatusLineResponse(requestID, statusLeft, statusCenter
 }
 
 func extractTmuxStatusLine(sessionID string) (string, string, string, string, string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), tmuxCommandTimeout)
+	defer cancel()
+
 	// Get raw format strings from tmux options
-	leftFmt, err := exec.Command("tmux", "show-options", "-gv", "-t", sessionID, "status-left").Output()
+	leftFmt, err := exec.CommandContext(ctx, "tmux", "show-options", "-gv", "-t", sessionID, "status-left").Output()
 	if err != nil {
 		leftFmt = []byte{}
 	}
-	rightFmt, err := exec.Command("tmux", "show-options", "-gv", "-t", sessionID, "status-right").Output()
+	rightFmt, err := exec.CommandContext(ctx, "tmux", "show-options", "-gv", "-t", sessionID, "status-right").Output()
 	if err != nil {
 		rightFmt = []byte{}
 	}
@@ -460,14 +493,14 @@ func extractTmuxStatusLine(sessionID string) (string, string, string, string, st
 	// Expand format strings via display-message
 	left := ""
 	if len(strings.TrimSpace(string(leftFmt))) > 0 {
-		out, err := exec.Command("tmux", "display-message", "-p", "-t", sessionID, strings.TrimSpace(string(leftFmt))).Output()
+		out, err := exec.CommandContext(ctx, "tmux", "display-message", "-p", "-t", sessionID, strings.TrimSpace(string(leftFmt))).Output()
 		if err == nil {
 			left = strings.TrimSpace(string(out))
 		}
 	}
 	right := ""
 	if len(strings.TrimSpace(string(rightFmt))) > 0 {
-		out, err := exec.Command("tmux", "display-message", "-p", "-t", sessionID, strings.TrimSpace(string(rightFmt))).Output()
+		out, err := exec.CommandContext(ctx, "tmux", "display-message", "-p", "-t", sessionID, strings.TrimSpace(string(rightFmt))).Output()
 		if err == nil {
 			right = strings.TrimSpace(string(out))
 		}
@@ -483,7 +516,9 @@ func extractTmuxStatusLine(sessionID string) (string, string, string, string, st
 }
 
 func extractWindowList(sessionID string) string {
-	out, err := exec.Command("tmux", "list-windows", "-t", sessionID, "-F", "#{window_index}:#{window_name}#{window_flags}").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), tmuxCommandTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "tmux", "list-windows", "-t", sessionID, "-F", "#{window_index}:#{window_name}#{window_flags}").Output()
 	if err != nil {
 		return ""
 	}
@@ -492,7 +527,9 @@ func extractWindowList(sessionID string) string {
 }
 
 func extractPaneColors(sessionID string) (string, string) {
-	out, err := exec.Command("tmux", "show-options", "-gv", "-t", sessionID, "window-active-style").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), tmuxCommandTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "tmux", "show-options", "-gv", "-t", sessionID, "window-active-style").Output()
 	if err != nil {
 		return "", ""
 	}
@@ -518,7 +555,9 @@ func extractTmuxTheme(sessionID string) (protocol.TmuxThemeColors, error) {
 
 	result := make(map[string]string)
 	for _, opt := range options {
-		out, err := exec.Command("tmux", "show-options", "-gv", "-t", sessionID, opt).Output()
+		ctx, cancel := context.WithTimeout(context.Background(), tmuxCommandTimeout)
+		out, err := exec.CommandContext(ctx, "tmux", "show-options", "-gv", "-t", sessionID, opt).Output()
+		cancel()
 		if err != nil {
 			continue
 		}
