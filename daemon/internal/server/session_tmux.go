@@ -9,8 +9,11 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
+
+	"golang.org/x/sync/singleflight"
 
 	"github.com/WuErPing/solo/protocol"
 )
@@ -29,6 +32,9 @@ const (
 	psTimeout          = 2 * time.Second
 	gitTimeout         = 3 * time.Second
 )
+
+// capturePaneFlight coalesces concurrent capture-pane requests for the same pane+startLine.
+var capturePaneFlight singleflight.Group
 
 func isTmuxAIAgentName(cmd string, agentNames map[string]bool) bool {
 	if idx := strings.LastIndex(cmd, "/"); idx >= 0 {
@@ -291,12 +297,22 @@ func (s *Session) handleTmuxCapturePane(m *protocol.TmuxCapturePaneRequest) {
 	if m.StartLine != nil {
 		startLine = *m.StartLine
 	}
-	content, err := captureTmuxPane(m.PaneID, startLine)
+
+	// Coalesce concurrent requests for the same pane+startLine into a single tmux call.
+	key := m.PaneID + ":" + strconv.Itoa(startLine)
+	result, err, _ := capturePaneFlight.Do(key, func() (any, error) {
+		content, err := captureTmuxPane(m.PaneID, startLine)
+		if err != nil {
+			return nil, err
+		}
+		return content, nil
+	})
 	if err != nil {
 		errMsg := err.Error()
 		s.sendTmuxCapturePaneResponse(m.RequestID, "", nil, nil, &errMsg)
 		return
 	}
+	content := result.(string)
 	hash := computeContentHash(content)
 	if m.LastContentHash != nil && *m.LastContentHash == hash {
 		changed := false
@@ -480,38 +496,52 @@ func extractTmuxStatusLine(sessionID string) (string, string, string, string, st
 	ctx, cancel := context.WithTimeout(context.Background(), tmuxCommandTimeout)
 	defer cancel()
 
-	// Get raw format strings from tmux options
-	leftFmt, err := exec.CommandContext(ctx, "tmux", "show-options", "-gv", "-t", sessionID, "status-left").Output()
-	if err != nil {
-		leftFmt = []byte{}
-	}
-	rightFmt, err := exec.CommandContext(ctx, "tmux", "show-options", "-gv", "-t", sessionID, "status-right").Output()
-	if err != nil {
-		rightFmt = []byte{}
-	}
+	var left, right, center, paneBg, paneFg string
+	var wg sync.WaitGroup
 
-	// Expand format strings via display-message
-	left := ""
-	if len(strings.TrimSpace(string(leftFmt))) > 0 {
-		out, err := exec.CommandContext(ctx, "tmux", "display-message", "-p", "-t", sessionID, strings.TrimSpace(string(leftFmt))).Output()
+	// Fetch and expand status-left in its own goroutine (2 sequential tmux calls)
+	wg.Go(func() {
+		leftFmt, err := exec.CommandContext(ctx, "tmux", "show-options", "-gv", "-t", sessionID, "status-left").Output()
+		if err != nil {
+			return
+		}
+		fmt := strings.TrimSpace(string(leftFmt))
+		if fmt == "" {
+			return
+		}
+		out, err := exec.CommandContext(ctx, "tmux", "display-message", "-p", "-t", sessionID, fmt).Output()
 		if err == nil {
 			left = strings.TrimSpace(string(out))
 		}
-	}
-	right := ""
-	if len(strings.TrimSpace(string(rightFmt))) > 0 {
-		out, err := exec.CommandContext(ctx, "tmux", "display-message", "-p", "-t", sessionID, strings.TrimSpace(string(rightFmt))).Output()
+	})
+
+	// Fetch and expand status-right in its own goroutine (2 sequential tmux calls)
+	wg.Go(func() {
+		rightFmt, err := exec.CommandContext(ctx, "tmux", "show-options", "-gv", "-t", sessionID, "status-right").Output()
+		if err != nil {
+			return
+		}
+		fmt := strings.TrimSpace(string(rightFmt))
+		if fmt == "" {
+			return
+		}
+		out, err := exec.CommandContext(ctx, "tmux", "display-message", "-p", "-t", sessionID, fmt).Output()
 		if err == nil {
 			right = strings.TrimSpace(string(out))
 		}
-	}
+	})
 
-	// Get window list (center of status bar)
-	center := extractWindowList(sessionID)
+	// Window list is independent — run in parallel
+	wg.Go(func() {
+		center = extractWindowList(sessionID)
+	})
 
-	// Get pane background/foreground from window-active-style
-	paneBg, paneFg := extractPaneColors(sessionID)
+	// Pane colors are independent — run in parallel
+	wg.Go(func() {
+		paneBg, paneFg = extractPaneColors(sessionID)
+	})
 
+	wg.Wait()
 	return left, center, right, paneBg, paneFg, nil
 }
 
