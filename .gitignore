@@ -67,3 +67,4 @@ coverage/
 graphify-out/
 .sisyphus/
 daemon/output/
+complexity-report/

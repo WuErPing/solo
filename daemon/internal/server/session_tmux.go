@@ -78,6 +78,17 @@ func isAlnum(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
+var shellCommands = map[string]bool{
+	"bash": true, "zsh": true, "sh": true, "fish": true, "dash": true,
+}
+
+func isShellCommand(cmd string) bool {
+	if idx := strings.LastIndex(cmd, "/"); idx >= 0 {
+		cmd = cmd[idx+1:]
+	}
+	return shellCommands[cmd]
+}
+
 func (s *Session) handleTmuxListAgents(m *protocol.TmuxListAgentsRequest) {
 	agentNames := s.cfg.GetTmuxAgentNames()
 	agents, err := scanTmuxAgents(agentNames)
@@ -172,6 +183,7 @@ func parseTmuxPaneLines(output string, agentNames map[string]bool) []protocol.Tm
 		}
 
 		agentName := ""
+		status := ""
 
 		// Layer 1: Direct command match (works for claude, opencode, etc.)
 		if isTmuxAIAgentName(currentCmd, agentNames) {
@@ -181,8 +193,8 @@ func parseTmuxPaneLines(output string, agentNames map[string]bool) []protocol.Tm
 			}
 		}
 
-		// Layer 2: Title match (works for pi, which sets title to "π - solo")
-		if agentName == "" && paneTitle != "" {
+		// Layer 2: Title match for non-shell commands (works for pi with node, etc.)
+		if agentName == "" && !isShellCommand(currentCmd) && paneTitle != "" {
 			agentName = agentNameFromTitle(paneTitle, agentNames)
 		}
 
@@ -191,11 +203,22 @@ func parseTmuxPaneLines(output string, agentNames map[string]bool) []protocol.Tm
 			agentName = agentNameFromChildProcesses(panePID, agentNames)
 		}
 
+		// Layer 4: Title-only match when command is a shell — agent exited, shell returned
+		if agentName == "" && isShellCommand(currentCmd) && paneTitle != "" {
+			agentName = agentNameFromTitle(paneTitle, agentNames)
+			if agentName != "" {
+				status = "exited"
+			}
+		}
+
 		if agentName == "" {
 			continue
 		}
 
-		title := extractFirstPrompt(paneID, paneTitle, agentNames)
+		title := ""
+		if status != "exited" {
+			title = extractFirstPrompt(paneID, paneTitle, agentNames)
+		}
 
 		agents = append(agents, protocol.TmuxAgentInfo{
 			SessionName: sessionName,
@@ -207,6 +230,7 @@ func parseTmuxPaneLines(output string, agentNames map[string]bool) []protocol.Tm
 			CurrentCmd:  currentCmd,
 			WorkingDir:  workingDir,
 			Title:       title,
+			Status:      status,
 		})
 	}
 	return agents

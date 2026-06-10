@@ -246,6 +246,110 @@ func TestParseTmuxPaneLinesMetadata(t *testing.T) {
 	}
 }
 
+func TestParseTmuxPaneLinesExitedAgent(t *testing.T) {
+	// Agent exited: command is bash, but title still contains agent name
+	input := "%0|0|5000|bash|s1|w1|/home/user|π - solo\n"
+	agents := parseTmuxPaneLines(input, testAgentNames)
+	if len(agents) != 1 {
+		t.Fatalf("got %d agents, want 1", len(agents))
+	}
+	a := agents[0]
+	if a.AgentName != "pi" {
+		t.Errorf("AgentName = %q, want %q", a.AgentName, "pi")
+	}
+	if a.Status != "exited" {
+		t.Errorf("Status = %q, want %q", a.Status, "exited")
+	}
+	if a.CurrentCmd != "bash" {
+		t.Errorf("CurrentCmd = %q, want %q", a.CurrentCmd, "bash")
+	}
+}
+
+func TestParseTmuxPaneLinesExitedAgentClaude(t *testing.T) {
+	// Claude exited: command is zsh, title contains "Claude Code"
+	input := "%1|1|6000|zsh|s1|w1|/tmp|Claude Code - my-project\n"
+	agents := parseTmuxPaneLines(input, testAgentNames)
+	if len(agents) != 1 {
+		t.Fatalf("got %d agents, want 1", len(agents))
+	}
+	a := agents[0]
+	if a.AgentName != "claude" {
+		t.Errorf("AgentName = %q, want %q", a.AgentName, "claude")
+	}
+	if a.Status != "exited" {
+		t.Errorf("Status = %q, want %q", a.Status, "exited")
+	}
+}
+
+func TestParseTmuxPaneLinesExitedAgentMixed(t *testing.T) {
+	// Mix: active claude via command, exited pi via title, active kimi-cli via command
+	input := "%0|0|1000|claude|s1|w1|/a\n" +
+		"%1|1|5000|bash|s1|w1|/b|π - solo\n" +
+		"%2|0|7000|kimi-cli|s2|w1|/c\n"
+	agents := parseTmuxPaneLines(input, testAgentNames)
+	if len(agents) != 3 {
+		t.Fatalf("got %d agents, want 3", len(agents))
+	}
+	// Active agents have empty status
+	if agents[0].AgentName != "claude" {
+		t.Errorf("agent[0].AgentName = %q, want %q", agents[0].AgentName, "claude")
+	}
+	if agents[0].Status != "" {
+		t.Errorf("agent[0].Status = %q, want empty", agents[0].Status)
+	}
+	// Exited agent
+	if agents[1].AgentName != "pi" {
+		t.Errorf("agent[1].AgentName = %q, want %q", agents[1].AgentName, "pi")
+	}
+	if agents[1].Status != "exited" {
+		t.Errorf("agent[1].Status = %q, want %q", agents[1].Status, "exited")
+	}
+	// Active agent
+	if agents[2].AgentName != "kimi-cli" {
+		t.Errorf("agent[2].AgentName = %q, want %q", agents[2].AgentName, "kimi-cli")
+	}
+	if agents[2].Status != "" {
+		t.Errorf("agent[2].Status = %q, want empty", agents[2].Status)
+	}
+}
+
+func TestParseTmuxPaneLinesNoAgentStillSkipped(t *testing.T) {
+	// No agent name in title either — should still be skipped
+	input := "%0|0|1000|bash|s1|w1|/tmp|bash\n" +
+		"%1|1|2000|zsh|s1|w1|/tmp|zsh - terminal\n"
+	agents := parseTmuxPaneLines(input, testAgentNames)
+	if len(agents) != 0 {
+		t.Fatalf("got %d agents, want 0", len(agents))
+	}
+}
+
+func TestIsShellCommand(t *testing.T) {
+	tests := []struct {
+		cmd  string
+		want bool
+	}{
+		{"bash", true},
+		{"zsh", true},
+		{"sh", true},
+		{"fish", true},
+		{"dash", true},
+		{"/bin/bash", true},
+		{"/usr/bin/zsh", true},
+		{"claude", false},
+		{"node", false},
+		{"python", false},
+		{"pi", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.cmd, func(t *testing.T) {
+			if got := isShellCommand(tt.cmd); got != tt.want {
+				t.Errorf("isShellCommand(%q) = %v, want %v", tt.cmd, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestCaptureTmuxPaneInvalidID(t *testing.T) {
 	_, err := captureTmuxPane("%99999", -200)
 	if err == nil {

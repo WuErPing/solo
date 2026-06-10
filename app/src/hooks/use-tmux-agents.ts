@@ -13,6 +13,7 @@ export interface TmuxAgent {
   currentCmd: string;
   workingDir: string;
   title?: string;
+  status?: string;
   serverId: string;
   serverLabel: string;
 }

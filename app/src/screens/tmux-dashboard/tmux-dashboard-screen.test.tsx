@@ -100,6 +100,12 @@ const mockAgents = [
   },
 ];
 
+const mockExitedAgent = {
+  serverId: "s1", paneId: "%2", agentName: "claude", sessionName: "dev",
+  windowName: "main", paneIndex: 2, panePid: 300, currentCmd: "bash",
+  workingDir: "/c", serverLabel: "local", status: "exited",
+};
+
 let agentsOverride: typeof mockAgents = [];
 let isInitialLoadOverride = false;
 let isLoadingOverride = false;
@@ -195,5 +201,21 @@ describe("TmuxDashboardScreen", () => {
     // statusLeft and statusCenter should NOT be rendered (redundant with S:/W:/P:/PID:)
     expect(screen.queryByText("[#S]")).toBeNull();
     expect(screen.queryByText("0:claude*")).toBeNull();
+  });
+
+  it("renders exited agent with exited badge", () => {
+    agentsOverride = [mockExitedAgent];
+    render(<TmuxDashboardScreen />);
+    expect(screen.getByText("exited")).toBeDefined();
+    expect(screen.getAllByText("claude").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("renders mix of active and exited agents with correct count", () => {
+    agentsOverride = [...mockAgents, mockExitedAgent];
+    render(<TmuxDashboardScreen />);
+    // Badge should show "3 agent(s), 1 exited"
+    expect(screen.getByText("3 agent(s), 1 exited")).toBeDefined();
+    // Only one "exited" badge (the exited agent card)
+    expect(screen.getAllByText("exited").length).toBe(1);
   });
 });

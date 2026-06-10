@@ -68,6 +68,9 @@ import { formatVersionWithPrefix } from "@/desktop/updates/desktop-updates";
 import { resolveAppVersion } from "@/utils/app-version";
 import { settingsStyles } from "@/styles/settings";
 import { HostPage, HostRenameButton } from "@/screens/settings/host-page";
+import { ProvidersSection } from "@/screens/settings/providers-section";
+import { TmuxAgentsSection } from "@/screens/settings/tmux-agents-section";
+import { OperationsSection } from "@/screens/settings/operations-section";
 import ProjectsScreen from "@/screens/projects-screen";
 import ProjectSettingsScreen from "@/screens/project-settings-screen";
 import { useIsCompactFormFactor } from "@/constants/layout";
@@ -192,6 +195,8 @@ const RELEASE_CHANNEL_OPTIONS = [
 
 interface GeneralSectionProps {
   settings: AppSettings;
+  serverId: string | null;
+  hostLabel: string | null;
   handleThemeChange: (theme: AppSettings["theme"]) => void;
   handleSendBehaviorChange: (behavior: SendBehavior) => void;
 }
@@ -227,6 +232,8 @@ function ThemeMenuItem({
 
 function GeneralSection({
   settings,
+  serverId,
+  hostLabel,
   handleThemeChange,
   handleSendBehaviorChange,
 }: GeneralSectionProps) {
@@ -235,59 +242,64 @@ function GeneralSection({
   const iconColor = theme.colors.foregroundMuted;
 
   return (
-    <SettingsSection title="General">
-      <View style={settingsStyles.card}>
-        <View style={settingsStyles.row}>
-          <View style={settingsStyles.rowContent}>
-            <Text style={settingsStyles.rowTitle}>Theme</Text>
+    <>
+      <SettingsSection title="General">
+        <View style={settingsStyles.card}>
+          <View style={settingsStyles.row}>
+            <View style={settingsStyles.rowContent}>
+              <Text style={settingsStyles.rowTitle}>Theme</Text>
+            </View>
+            <DropdownMenu>
+              <DropdownMenuTrigger style={themeTriggerStyle}>
+                <ThemeIcon theme={settings.theme} size={iconSize} color={iconColor} />
+                <Text style={styles.themeTriggerText}>{THEME_LABELS[settings.theme]}</Text>
+                <ChevronDown size={theme.iconSize.sm} color={iconColor} />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="bottom" align="end" width={200}>
+                {(["light", "dark", "auto"] as const).map((t) => (
+                  <ThemeMenuItem
+                    key={t}
+                    themeValue={t}
+                    selected={settings.theme === t}
+                    iconSize={iconSize}
+                    iconColor={iconColor}
+                    onChange={handleThemeChange}
+                  />
+                ))}
+                <DropdownMenuSeparator />
+                {(["zinc", "midnight", "claude", "ghostty"] as const).map((t) => (
+                  <ThemeMenuItem
+                    key={t}
+                    themeValue={t}
+                    selected={settings.theme === t}
+                    iconSize={iconSize}
+                    iconColor={iconColor}
+                    onChange={handleThemeChange}
+                  />
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </View>
-          <DropdownMenu>
-            <DropdownMenuTrigger style={themeTriggerStyle}>
-              <ThemeIcon theme={settings.theme} size={iconSize} color={iconColor} />
-              <Text style={styles.themeTriggerText}>{THEME_LABELS[settings.theme]}</Text>
-              <ChevronDown size={theme.iconSize.sm} color={iconColor} />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent side="bottom" align="end" width={200}>
-              {(["light", "dark", "auto"] as const).map((t) => (
-                <ThemeMenuItem
-                  key={t}
-                  themeValue={t}
-                  selected={settings.theme === t}
-                  iconSize={iconSize}
-                  iconColor={iconColor}
-                  onChange={handleThemeChange}
-                />
-              ))}
-              <DropdownMenuSeparator />
-              {(["zinc", "midnight", "claude", "ghostty"] as const).map((t) => (
-                <ThemeMenuItem
-                  key={t}
-                  themeValue={t}
-                  selected={settings.theme === t}
-                  iconSize={iconSize}
-                  iconColor={iconColor}
-                  onChange={handleThemeChange}
-                />
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </View>
-        <View style={ROW_WITH_BORDER_STYLE}>
-          <View style={settingsStyles.rowContent}>
-            <Text style={settingsStyles.rowTitle}>Default send</Text>
-            <Text style={settingsStyles.rowHint}>
-              What happens when you press Enter while the agent is running
-            </Text>
+          <View style={ROW_WITH_BORDER_STYLE}>
+            <View style={settingsStyles.rowContent}>
+              <Text style={settingsStyles.rowTitle}>Default send</Text>
+              <Text style={settingsStyles.rowHint}>
+                What happens when you press Enter while the agent is running
+              </Text>
+            </View>
+            <SegmentedControl
+              size="sm"
+              value={settings.sendBehavior}
+              onValueChange={handleSendBehaviorChange}
+              options={SEND_BEHAVIOR_OPTIONS}
+            />
           </View>
-          <SegmentedControl
-            size="sm"
-            value={settings.sendBehavior}
-            onValueChange={handleSendBehaviorChange}
-            options={SEND_BEHAVIOR_OPTIONS}
-          />
         </View>
-      </View>
-    </SettingsSection>
+      </SettingsSection>
+      {serverId ? <ProvidersSection serverId={serverId} /> : null}
+      {serverId && hostLabel ? <OperationsSection serverId={serverId} hostLabel={hostLabel} /> : null}
+      {serverId ? <TmuxAgentsSection serverId={serverId} /> : null}
+    </>
   );
 }
 
@@ -713,6 +725,12 @@ export default function SettingsScreen({ view }: SettingsScreenProps) {
   const hosts = useHosts();
   const hostServerIds = useMemo(() => hosts.map((host) => host.serverId), [hosts]);
   const anyOnlineServerId = useAnyOnlineHostServerId(hostServerIds);
+  const localServerId = useLocalDaemonServerId();
+  const generalServerId = localServerId ?? anyOnlineServerId;
+  const generalHostLabel = useMemo(
+    () => (generalServerId ? hosts.find((h) => h.serverId === generalServerId)?.label ?? null : null),
+    [generalServerId, hosts],
+  );
 
   const handleThemeChange = useCallback(
     (nextTheme: AppSettings["theme"]) => {
@@ -880,6 +898,8 @@ export default function SettingsScreen({ view }: SettingsScreenProps) {
           return (
             <GeneralSection
               settings={settings}
+              serverId={generalServerId}
+              hostLabel={generalHostLabel}
               handleThemeChange={handleThemeChange}
               handleSendBehaviorChange={handleSendBehaviorChange}
             />

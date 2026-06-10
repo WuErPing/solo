@@ -12,6 +12,7 @@ type TmuxAgentInfo struct {
 	WorkingDir  string `json:"workingDir"`
 	Title       string `json:"title,omitempty"`
 	GitCommit   string `json:"gitCommit,omitempty"`
+	Status      string `json:"status,omitempty"` // "active" (default/omitted) or "exited"
 }
 
 // TmuxListAgentsRequest asks the daemon to scan tmux for AI agent panes.

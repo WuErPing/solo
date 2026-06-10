@@ -46,6 +46,7 @@ function AgentCard({
   onPress: () => void;
 }) {
   const { theme } = useUnistyles();
+  const isExited = agent.status === "exited";
 
   return (
     <Pressable
@@ -53,12 +54,20 @@ function AgentCard({
       style={({ pressed }) => [
         styles.agentCard,
         pressed ? { opacity: 0.8 } : null,
+        isExited ? { opacity: 0.6 } : null,
       ]}
     >
       <View style={styles.agentCardHeader}>
         <View style={styles.agentNameRow}>
-          <Terminal size={16} color={theme.colors.primary} />
-          <Text style={styles.agentName}>{agent.agentName}</Text>
+          <Terminal size={16} color={isExited ? theme.colors.foregroundMuted : theme.colors.primary} />
+          <Text style={[styles.agentName, isExited && { color: theme.colors.foregroundMuted }]}>
+            {agent.agentName}
+          </Text>
+          {isExited ? (
+            <View style={styles.exitedBadge}>
+              <Text style={styles.exitedBadgeText}>exited</Text>
+            </View>
+          ) : null}
         </View>
         <Text style={styles.serverLabel}>{agent.serverLabel}</Text>
       </View>
@@ -189,7 +198,11 @@ function TmuxDashboardScreenInner() {
         rightContent={
           agents.length > 0 ? (
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>{agents.length} agent(s)</Text>
+              <Text style={styles.badgeText}>
+                {agents.length} agent(s){agents.filter((a) => a.status === "exited").length > 0
+                  ? `, ${agents.filter((a) => a.status === "exited").length} exited`
+                  : ""}
+              </Text>
             </View>
           ) : undefined
         }
@@ -414,5 +427,17 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foreground,
     fontSize: 11,
     fontFamily: "monospace",
+  },
+  exitedBadge: {
+    backgroundColor: theme.colors.surface1,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 6,
+  },
+  exitedBadgeText: {
+    color: theme.colors.foregroundMuted,
+    fontSize: 10,
+    fontWeight: "500",
   },
 }));

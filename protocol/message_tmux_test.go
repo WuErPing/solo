@@ -142,6 +142,49 @@ func TestTmuxListAgentsResponseMultipleAgents(t *testing.T) {
 	}
 }
 
+func TestTmuxListAgentsResponseWithExitedStatus(t *testing.T) {
+	resp := TmuxListAgentsResponse{
+		Type: "tmux/list_agents/response",
+		Payload: TmuxListAgentsResponsePayload{
+			RequestID: "r3a",
+			Agents: []TmuxAgentInfo{
+				{SessionName: "s1", WindowName: "w1", PaneID: "%0", AgentName: "claude", CurrentCmd: "claude"},
+				{SessionName: "s1", WindowName: "w2", PaneID: "%1", AgentName: "pi", CurrentCmd: "bash", Status: "exited"},
+			},
+		},
+	}
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	// "active" should be omitted (zero value) but "exited" should be present
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("unmarshal raw: %v", err)
+	}
+	payload := raw["payload"].(map[string]interface{})
+	agents := payload["agents"].([]interface{})
+	a0 := agents[0].(map[string]interface{})
+	a1 := agents[1].(map[string]interface{})
+	if _, ok := a0["status"]; ok {
+		t.Error("active status should be omitted from JSON")
+	}
+	if a1["status"] != "exited" {
+		t.Errorf("exited status: got %v, want %q", a1["status"], "exited")
+	}
+
+	var decoded TmuxListAgentsResponse
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if decoded.Payload.Agents[0].Status != "" {
+		t.Errorf("active agent Status: got %q, want empty", decoded.Payload.Agents[0].Status)
+	}
+	if decoded.Payload.Agents[1].Status != "exited" {
+		t.Errorf("exited agent Status: got %q, want %q", decoded.Payload.Agents[1].Status, "exited")
+	}
+}
+
 func TestTmuxCapturePaneRequestRoundTrip(t *testing.T) {
 	req := TmuxCapturePaneRequest{Type: "tmux/capture_pane", PaneID: "%0", RequestID: "r4"}
 	data, err := json.Marshal(req)

@@ -9,6 +9,7 @@ export const TmuxAgentInfoSchema = z.object({
   agentName: z.string(),
   currentCmd: z.string(),
   workingDir: z.string(),
+  status: z.string().optional(),
 });
 
 export const TmuxListAgentsRequestSchema = z.object({

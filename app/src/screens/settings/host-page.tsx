@@ -1,33 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Pressable, Text, TextInput, View } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { ChevronRight, Globe, Monitor, Pencil, Plus, RotateCw, Trash2, X } from "lucide-react-native";
+import { ChevronRight, Globe, Monitor, Pencil, Trash2 } from "lucide-react-native";
 import type { HostConnection, HostProfile } from "@/types/host-connection";
 import {
-  getHostRuntimeStore,
-  isHostRuntimeConnected,
-  useHostRuntimeClient,
-  useHostRuntimeIsConnected,
   useHostRuntimeSnapshot,
   useHostMutations,
   useHosts,
 } from "@/runtime/host-runtime";
 import { useSessionStore } from "@/stores/session-store";
 import { formatConnectionStatus, getConnectionStatusTone } from "@/utils/daemons";
-import { confirmDialog } from "@/utils/confirm-dialog";
 import { settingsStyles } from "@/styles/settings";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { AdaptiveModalSheet } from "@/components/adaptive-modal-sheet";
-import { useDaemonConfig } from "@/hooks/use-daemon-config";
 import { useIsLocalDaemon } from "@/hooks/use-is-local-daemon";
 import { SettingsSection } from "@/screens/settings/settings-section";
-import { ProvidersSection } from "@/screens/settings/providers-section";
 import { PairDeviceModal } from "@/desktop/components/pair-device-modal";
 import { LocalDaemonSection } from "@/desktop/components/desktop-updates-section";
-
-const RESTART_CONFIRMATION_MESSAGE =
-  "This will restart the daemon. Agents running on it will keep going; the app will reconnect automatically.";
 
 function formatHostConnectionLabel(connection: HostConnection): string {
   if (connection.type === "relay") {
@@ -161,11 +150,12 @@ export function HostPage({ serverId, onHostRemoved }: HostPageProps) {
 
       <ConnectionsSection host={host} />
 
-      <DaemonSection host={host} isLocalDaemon={isLocalDaemon} />
-
-      <ProvidersSection serverId={serverId} />
-
-      <TmuxAgentsSection serverId={serverId} />
+      {isLocalDaemon ? (
+        <SettingsSection title="Pair devices">
+          <PairDeviceRow />
+        </SettingsSection>
+      ) : null}
+      {isLocalDaemon ? <LocalDaemonSection /> : null}
 
       <RemoveHostSection host={host} onRemoved={onHostRemoved} />
     </View>
@@ -447,189 +437,6 @@ function ConnectionRow({
   );
 }
 
-function DaemonSection({ host, isLocalDaemon }: { host: HostProfile; isLocalDaemon: boolean }) {
-  return (
-    <>
-      <SettingsSection title="Operations">
-        <RestartDaemonCard host={host} />
-        <InjectSoloToolsCard serverId={host.serverId} />
-      </SettingsSection>
-      {isLocalDaemon ? (
-        <SettingsSection title="Pair devices">
-          <PairDeviceRow />
-        </SettingsSection>
-      ) : null}
-      {isLocalDaemon ? <LocalDaemonSection /> : null}
-    </>
-  );
-}
-
-const delay = (ms: number) =>
-  new Promise<void>((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-function RestartDaemonCard({ host }: { host: HostProfile }) {
-  const { theme } = useUnistyles();
-  const daemonClient = useHostRuntimeClient(host.serverId);
-  const isConnected = useHostRuntimeIsConnected(host.serverId);
-  const runtime = getHostRuntimeStore();
-  const [isRestarting, setIsRestarting] = useState(false);
-  const isMountedRef = useRef(true);
-
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  const isHostConnected = useCallback(
-    () => isHostRuntimeConnected(runtime.getSnapshot(host.serverId)),
-    [host.serverId, runtime],
-  );
-
-  const waitForCondition = useCallback(
-    async (predicate: () => boolean, timeoutMs: number, intervalMs = 250) => {
-      const deadline = Date.now() + timeoutMs;
-      while (Date.now() < deadline) {
-        if (!isMountedRef.current) return false;
-        if (predicate()) return true;
-        await delay(intervalMs);
-      }
-      return predicate();
-    },
-    [],
-  );
-
-  const waitForDaemonRestart = useCallback(async () => {
-    const disconnectTimeoutMs = 7000;
-    const reconnectTimeoutMs = 30000;
-    if (isHostConnected()) {
-      await waitForCondition(() => !isHostConnected(), disconnectTimeoutMs);
-    }
-    const reconnected = await waitForCondition(() => isHostConnected(), reconnectTimeoutMs);
-    if (isMountedRef.current) {
-      setIsRestarting(false);
-      if (!reconnected) {
-        Alert.alert(
-          "Unable to reconnect",
-          `${host.label} did not come back online. Please verify it restarted.`,
-        );
-      }
-    }
-  }, [host.label, isHostConnected, waitForCondition]);
-
-  const handleRestart = useCallback(() => {
-    if (!daemonClient) {
-      Alert.alert(
-        "Host unavailable",
-        "This host is not connected. Wait for it to come online before restarting.",
-      );
-      return;
-    }
-    if (!isHostConnected()) {
-      Alert.alert(
-        "Host offline",
-        "This host is offline. Solo reconnects automatically—wait until it's back online before restarting.",
-      );
-      return;
-    }
-
-    void confirmDialog({
-      title: `Restart ${host.label}`,
-      message: RESTART_CONFIRMATION_MESSAGE,
-      confirmLabel: "Restart",
-      cancelLabel: "Cancel",
-      destructive: true,
-    })
-      .then((confirmed) => {
-        if (!confirmed) return;
-        setIsRestarting(true);
-        void daemonClient
-          .restartServer(`settings_daemon_restart_${host.serverId}`)
-          .catch((error) => {
-            console.error(`[HostPage] Failed to restart daemon ${host.label}`, error);
-            if (!isMountedRef.current) return;
-            setIsRestarting(false);
-            Alert.alert(
-              "Error",
-              "Failed to send the restart request. Solo reconnects automatically—try again once the host shows as online.",
-            );
-          });
-        void waitForDaemonRestart();
-        return;
-      })
-      .catch((error) => {
-        console.error(`[HostPage] Failed to open restart confirmation for ${host.label}`, error);
-        Alert.alert("Error", "Unable to open the restart confirmation dialog.");
-      });
-  }, [daemonClient, host.label, host.serverId, isHostConnected, waitForDaemonRestart]);
-
-  const restartIcon = useMemo(
-    () => <RotateCw size={theme.iconSize.sm} color={theme.colors.foreground} />,
-    [theme.iconSize.sm, theme.colors.foreground],
-  );
-
-  return (
-    <View style={settingsStyles.card} testID="host-page-restart-card">
-      <View style={settingsStyles.row}>
-        <View style={settingsStyles.rowContent}>
-          <Text style={settingsStyles.rowTitle}>Restart daemon</Text>
-          <Text style={settingsStyles.rowHint}>
-            Restarts the daemon process. The app will reconnect automatically
-          </Text>
-        </View>
-        <Button
-          variant="outline"
-          size="sm"
-          leftIcon={restartIcon}
-          onPress={handleRestart}
-          disabled={isRestarting || !daemonClient || !isConnected}
-          testID="host-page-restart-button"
-        >
-          {isRestarting ? "Restarting..." : "Restart"}
-        </Button>
-      </View>
-    </View>
-  );
-}
-
-function InjectSoloToolsCard({ serverId }: { serverId: string }) {
-  const isConnected = useHostRuntimeIsConnected(serverId);
-  const { config, patchConfig } = useDaemonConfig(serverId);
-
-  const handleValueChange = useCallback(
-    (next: boolean) => {
-      void patchConfig({
-        mcp: {
-          injectIntoAgents: next,
-        },
-      });
-    },
-    [patchConfig],
-  );
-
-  if (!isConnected) return null;
-
-  return (
-    <View style={settingsStyles.card} testID="host-page-inject-mcp-card">
-      <View style={settingsStyles.row}>
-        <View style={settingsStyles.rowContent}>
-          <Text style={settingsStyles.rowTitle}>Inject Solo tools</Text>
-          <Text style={settingsStyles.rowHint}>
-            Automatically inject Solo MCP tools into new agents
-          </Text>
-        </View>
-        <Switch
-          value={config?.mcp?.injectIntoAgents !== false}
-          onValueChange={handleValueChange}
-          accessibilityLabel="Inject Solo tools"
-        />
-      </View>
-    </View>
-  );
-}
-
 function PairDeviceRow() {
   const { theme } = useUnistyles();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -660,135 +467,6 @@ function PairDeviceRow() {
         testID="host-page-pair-device-card"
       />
     </View>
-  );
-}
-
-const BUILT_IN_AGENT_NAMES = ["claude", "opencode", "qodercli", "pi", "cursor", "kimi", "kimi-cli", "codex"];
-
-function TmuxAgentsSection({ serverId }: { serverId: string }) {
-  const { theme } = useUnistyles();
-  const { config, patchConfig } = useDaemonConfig(serverId);
-  const isConnected = useHostRuntimeIsConnected(serverId);
-  const [newAgentName, setNewAgentName] = useState("");
-  const [isAdding, setIsAdding] = useState(false);
-  const inputRef = useRef<TextInput>(null);
-
-  const customNames = useMemo(() => {
-    if (!config?.tmuxAgentNames) return [];
-    const builtInSet = new Set(BUILT_IN_AGENT_NAMES);
-    return config.tmuxAgentNames.filter((n) => !builtInSet.has(n));
-  }, [config?.tmuxAgentNames]);
-
-  const handleAdd = useCallback(() => {
-    const name = newAgentName.trim().toLowerCase();
-    if (!name) return;
-    if (BUILT_IN_AGENT_NAMES.includes(name)) {
-      Alert.alert("Built-in agent", `"${name}" is already a built-in agent name.`);
-      return;
-    }
-    if (customNames.includes(name)) {
-      Alert.alert("Duplicate", `"${name}" is already in the list.`);
-      return;
-    }
-    const next = [...customNames, name];
-    void patchConfig({ tmuxAgentNames: next });
-    setNewAgentName("");
-    setIsAdding(false);
-  }, [newAgentName, customNames, patchConfig]);
-
-  const handleRemove = useCallback(
-    (name: string) => {
-      const next = customNames.filter((n) => n !== name);
-      void patchConfig({ tmuxAgentNames: next });
-    },
-    [customNames, patchConfig],
-  );
-
-  const handleStartAdd = useCallback(() => {
-    setIsAdding(true);
-    setTimeout(() => inputRef.current?.focus(), 50);
-  }, []);
-
-  const handleCancelAdd = useCallback(() => {
-    setIsAdding(false);
-    setNewAgentName("");
-  }, []);
-
-  if (!isConnected) return null;
-
-  return (
-    <SettingsSection title="Tmux agents">
-      <View style={settingsStyles.card} testID="host-page-tmux-agents-card">
-        <View style={settingsStyles.row}>
-          <View style={settingsStyles.rowContent}>
-            <Text style={settingsStyles.rowTitle}>Detected agents</Text>
-            <Text style={settingsStyles.rowHint}>
-              Agent names used to identify tmux panes. Built-in names are always active.
-            </Text>
-          </View>
-        </View>
-
-        {BUILT_IN_AGENT_NAMES.map((name) => (
-          <View key={name} style={[settingsStyles.row, settingsStyles.rowBorder]}>
-            <View style={styles.agentRowContent}>
-              <Text style={styles.agentBuiltInName}>{name}</Text>
-              <Text style={styles.agentBuiltInBadge}>built-in</Text>
-            </View>
-          </View>
-        ))}
-
-        {customNames.map((name) => (
-          <View key={name} style={[settingsStyles.row, settingsStyles.rowBorder]}>
-            <View style={styles.agentRowContent}>
-              <Text style={styles.agentCustomName}>{name}</Text>
-            </View>
-            <Pressable
-              onPress={() => handleRemove(name)}
-              hitSlop={8}
-              accessibilityLabel={`Remove ${name}`}
-              testID={`tmux-agent-remove-${name}`}
-            >
-              <X size={theme.iconSize.sm} color={theme.colors.foregroundMuted} />
-            </Pressable>
-          </View>
-        ))}
-
-        {isAdding ? (
-          <View style={[settingsStyles.row, settingsStyles.rowBorder, styles.agentAddRow]}>
-            <TextInput
-              ref={inputRef}
-              value={newAgentName}
-              onChangeText={setNewAgentName}
-              placeholder="agent-name"
-              placeholderTextColor={theme.colors.foregroundMuted}
-              autoCapitalize="none"
-              autoCorrect={false}
-              onSubmitEditing={handleAdd}
-              style={styles.agentInput}
-              testID="tmux-agent-input"
-            />
-            <Button size="sm" onPress={handleAdd} disabled={!newAgentName.trim()} testID="tmux-agent-add-confirm">
-              Add
-            </Button>
-            <Pressable onPress={handleCancelAdd} hitSlop={8} testID="tmux-agent-add-cancel">
-              <X size={theme.iconSize.sm} color={theme.colors.foregroundMuted} />
-            </Pressable>
-          </View>
-        ) : (
-          <Pressable
-            style={[settingsStyles.row, settingsStyles.rowBorder]}
-            onPress={handleStartAdd}
-            accessibilityRole="button"
-            testID="tmux-agent-add-button"
-          >
-            <View style={styles.agentRowContent}>
-              <Plus size={theme.iconSize.sm} color={theme.colors.foregroundMuted} />
-              <Text style={styles.agentAddText}>Add custom agent</Text>
-            </View>
-          </Pressable>
-        )}
-      </View>
-    </SettingsSection>
   );
 }
 
@@ -981,43 +659,6 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[2],
-  },
-  agentRowContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[2],
-    flex: 1,
-  },
-  agentBuiltInName: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.foregroundMuted,
-  },
-  agentBuiltInBadge: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.foregroundMuted,
-    opacity: 0.5,
-  },
-  agentCustomName: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.foreground,
-  },
-  agentAddRow: {
-    gap: theme.spacing[2],
-  },
-  agentInput: {
-    flex: 1,
-    backgroundColor: theme.colors.surface0,
-    color: theme.colors.foreground,
-    paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[3],
-    borderRadius: theme.borderRadius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    fontSize: theme.fontSize.sm,
-  },
-  agentAddText: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.foregroundMuted,
   },
 }));
 
