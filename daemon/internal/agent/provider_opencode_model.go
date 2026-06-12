@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/json"
+	"sort"
 
 	"github.com/WuErPing/solo/protocol"
 )
@@ -43,6 +44,7 @@ func buildOpenCodeModelDefinition(providerID, providerName, modelID string, mode
 	for k := range model.Variants {
 		rawVariants = append(rawVariants, k)
 	}
+	sort.Strings(rawVariants)
 
 	var thinkingOptions []protocol.AgentSelectOption
 	for i, vID := range rawVariants {

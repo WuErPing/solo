@@ -153,6 +153,18 @@ vi.mock("@/hooks/use-settings", () => ({
   }),
 }));
 
+const { tmuxThemeRef } = vi.hoisted(() => ({
+  tmuxThemeRef: { current: null as { background?: string; foreground?: string } | null },
+}));
+
+vi.mock("@/hooks/use-tmux-theme", () => ({
+  useTmuxTheme: () => ({
+    theme: tmuxThemeRef.current,
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 vi.mock("@/runtime/host-runtime", () => ({
   useHostRuntimeClient: () => ({
     tmuxSendKeys: mockSendKeys,
@@ -440,6 +452,95 @@ describe("TmuxPaneScreen", () => {
         },
       });
       expect(mockLoadMoreHistory).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("slash commands", () => {
+    it("shows dropdown when typing / in input for a known agent", () => {
+      render(<TmuxPaneScreen />);
+      const input = screen.getByPlaceholderText(/type a command/i);
+      fireEvent.change(input, { target: { value: "/" } });
+      expect(screen.getByText("/compact")).toBeDefined();
+      expect(screen.getByText("/help")).toBeDefined();
+      expect(screen.getByText("/clear")).toBeDefined();
+    });
+
+    it("filters commands when typing more characters", () => {
+      render(<TmuxPaneScreen />);
+      const input = screen.getByPlaceholderText(/type a command/i);
+      fireEvent.change(input, { target: { value: "/co" } });
+      expect(screen.getByText("/compact")).toBeDefined();
+      expect(screen.getByText("/config")).toBeDefined();
+      expect(screen.getByText("/cost")).toBeDefined();
+      expect(screen.queryByText("/help")).toBeNull();
+    });
+
+    it("selecting a command fills the input with command and space", () => {
+      render(<TmuxPaneScreen />);
+      const input = screen.getByPlaceholderText(/type a command/i);
+      fireEvent.change(input, { target: { value: "/" } });
+      fireEvent.click(screen.getByTestId("slash-command-help"));
+      expect((input as HTMLInputElement).value).toBe("/help ");
+    });
+
+    it("dropdown disappears when input is cleared", () => {
+      render(<TmuxPaneScreen />);
+      const input = screen.getByPlaceholderText(/type a command/i);
+      fireEvent.change(input, { target: { value: "/" } });
+      expect(screen.getByText("/compact")).toBeDefined();
+      fireEvent.change(input, { target: { value: "" } });
+      expect(screen.queryByText("/compact")).toBeNull();
+    });
+
+    it("no dropdown for unknown agent", () => {
+      agentRef.current = { ...mockAgent, agentName: "unknown" };
+      render(<TmuxPaneScreen />);
+      const input = screen.getByPlaceholderText(/type a command/i);
+      fireEvent.change(input, { target: { value: "/" } });
+      expect(screen.queryByText("/compact")).toBeNull();
+      agentRef.current = mockAgent;
+    });
+
+    it("/ key button sends / keystroke to tmux pane", () => {
+      render(<TmuxPaneScreen />);
+      fireEvent.click(screen.getByTestId("slash-key-button"));
+      expect(mockSendKeys).toHaveBeenCalledWith("%0", "/", false);
+    });
+  });
+
+  describe("tmux theme", () => {
+    it("shows Tmux option in theme picker", () => {
+      render(<TmuxPaneScreen />);
+      expect(screen.getByText("Tmux")).toBeDefined();
+    });
+
+    it("uses tmux theme background for swatch when tmux theme is loaded", () => {
+      tmuxThemeRef.current = { background: "#1e1e2e", foreground: "#cdd6f4" };
+      render(<TmuxPaneScreen />);
+      expect(screen.getByText("Tmux")).toBeDefined();
+      tmuxThemeRef.current = null;
+    });
+
+    it("system mode falls back to tmux theme colors when ANSI detection returns null", () => {
+      mockDetectColors.mockReturnValue({ background: "#1a1a2e", foreground: "#e0e0e0" });
+      const { rerender } = render(<TmuxPaneScreen />);
+
+      const scrollView = screen.getByTestId("tmux-pane-scroll");
+      const initialBg = (scrollView as HTMLElement).style.backgroundColor;
+
+      // Simulate pane navigation: content goes empty then new content arrives
+      contentRef.current = "";
+      rerender(<TmuxPaneScreen />);
+
+      // ANSI detection returns null, tmux theme provides colors
+      mockDetectColors.mockReturnValue({ background: null, foreground: null });
+      tmuxThemeRef.current = { background: "#1e1e2e", foreground: "#cdd6f4" };
+      contentRef.current = "$ pwd\n/home/user\n$ _";
+      rerender(<TmuxPaneScreen />);
+
+      // Background should change to tmux theme color
+      expect((scrollView as HTMLElement).style.backgroundColor).not.toBe(initialBg);
+      tmuxThemeRef.current = null;
     });
   });
 });

@@ -1,12 +1,4 @@
-export type TerminalThemeId =
-  | "system"
-  | "dark"
-  | "light"
-  | "midnight"
-  | "ghostty"
-  | "solarized-dark"
-  | "monokai"
-  | "dracula";
+export type TerminalThemeId = "system" | "dark" | "light" | "tmux";
 
 export interface TerminalThemePreset {
   label: string;
@@ -32,19 +24,10 @@ export interface TerminalThemePreset {
   brightWhite: string;
 }
 
-export const TERMINAL_THEME_IDS: TerminalThemeId[] = [
-  "system",
-  "dark",
-  "light",
-  "midnight",
-  "ghostty",
-  "solarized-dark",
-  "monokai",
-  "dracula",
-];
+export const TERMINAL_THEME_IDS: TerminalThemeId[] = ["system", "dark", "light", "tmux"];
 
 export const TERMINAL_THEME_PRESETS: Record<
-  Exclude<TerminalThemeId, "system">,
+  Exclude<TerminalThemeId, "system" | "tmux">,
   TerminalThemePreset
 > = {
   dark: {
@@ -90,115 +73,5 @@ export const TERMINAL_THEME_PRESETS: Record<
     brightMagenta: "#a855f7",
     brightCyan: "#06b6d4",
     brightWhite: "#fafafa",
-  },
-  midnight: {
-    label: "Midnight",
-    swatch: "#161820",
-    background: "#161820",
-    foreground: "#c0c8d8",
-    black: "#121420",
-    red: "#e07070",
-    green: "#5dba80",
-    yellow: "#d4a44a",
-    blue: "#6a9de0",
-    magenta: "#b07ad0",
-    cyan: "#4aabb8",
-    white: "#c0c8d8",
-    brightBlack: "#3c3e4c",
-    brightRed: "#e89090",
-    brightGreen: "#7ecf9a",
-    brightYellow: "#e0be6e",
-    brightBlue: "#8ab4e8",
-    brightMagenta: "#c49ae0",
-    brightCyan: "#6ec2cc",
-    brightWhite: "#f0f0f2",
-  },
-  ghostty: {
-    label: "Ghostty",
-    swatch: "#282c34",
-    background: "#282c34",
-    foreground: "#c8ccd8",
-    black: "#21252d",
-    red: "#e07070",
-    green: "#5dba80",
-    yellow: "#d4a44a",
-    blue: "#6a9de0",
-    magenta: "#b07ad0",
-    cyan: "#4aabb8",
-    white: "#c8ccd8",
-    brightBlack: "#4a4f5e",
-    brightRed: "#e89090",
-    brightGreen: "#7ecf9a",
-    brightYellow: "#e0be6e",
-    brightBlue: "#8ab4e8",
-    brightMagenta: "#c49ae0",
-    brightCyan: "#6ec2cc",
-    brightWhite: "#f0f0f2",
-  },
-  "solarized-dark": {
-    label: "Solarized Dark",
-    swatch: "#002b36",
-    background: "#002b36",
-    foreground: "#839496",
-    black: "#073642",
-    red: "#dc322f",
-    green: "#859900",
-    yellow: "#b58900",
-    blue: "#268bd2",
-    magenta: "#d33682",
-    cyan: "#2aa198",
-    white: "#eee8d5",
-    brightBlack: "#586e75",
-    brightRed: "#cb4b16",
-    brightGreen: "#586e75",
-    brightYellow: "#657b83",
-    brightBlue: "#839496",
-    brightMagenta: "#6c71c4",
-    brightCyan: "#93a1a1",
-    brightWhite: "#fdf6e3",
-  },
-  monokai: {
-    label: "Monokai",
-    swatch: "#272822",
-    background: "#272822",
-    foreground: "#f8f8f2",
-    black: "#272822",
-    red: "#f92672",
-    green: "#a6e22e",
-    yellow: "#f4bf75",
-    blue: "#66d9ef",
-    magenta: "#ae81ff",
-    cyan: "#a1efe4",
-    white: "#f8f8f2",
-    brightBlack: "#75715e",
-    brightRed: "#f92672",
-    brightGreen: "#a6e22e",
-    brightYellow: "#f4bf75",
-    brightBlue: "#66d9ef",
-    brightMagenta: "#ae81ff",
-    brightCyan: "#a1efe4",
-    brightWhite: "#f9f8f5",
-  },
-  dracula: {
-    label: "Dracula",
-    swatch: "#282a36",
-    background: "#282a36",
-    foreground: "#f8f8f2",
-    black: "#21222c",
-    red: "#ff5555",
-    green: "#50fa7b",
-    yellow: "#f1fa8c",
-    blue: "#bd93f9",
-    magenta: "#ff79c6",
-    cyan: "#8be9fd",
-    white: "#f8f8f2",
-    brightBlack: "#6272a4",
-    brightRed: "#ff6e6e",
-    brightGreen: "#69ff94",
-    brightYellow: "#ffffa5",
-    brightBlue: "#d6acff",
-    brightMagenta: "#ff92df",
-    brightCyan: "#a4ffff",
-    brightWhite: "#ffffff",
   },
 };

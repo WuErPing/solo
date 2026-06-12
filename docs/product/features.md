@@ -217,6 +217,8 @@ Missing providers (Paseo has 9): Generic ACP, ACP Agent, Cursor-Agent (planned)
 
 ### 9. 测试覆盖
 
+> 详细覆盖率数据、模块级分析、根因和路线图见: [`docs/analysis/test-coverage.md`](../analysis/test-coverage.md)
+
 #### 9.1 测试规模
 - **App 单元测试**：**250+** 个测试文件（Vitest），已接入 CI（含 tmux dashboard、pane screen、status line、ANSI renderer、SVG preview 等新增测试）
 - **App browser 测试**：1 个文件（Chromium via Playwright），未接入 CI
@@ -225,7 +227,7 @@ Missing providers (Paseo has 9): Generic ACP, ACP Agent, Cursor-Agent (planned)
 - **Relay-go 测试文件**：**8** 个（Go），已接入 CI
 - **Protocol 测试文件**：**4** 个（Go），已接入 CI
 - **CLI 测试文件**：**13** 个（Go），已接入 CI
-- **E2E 测试**：**30+** 个 `.spec.ts`（Playwright），**nightly 运行**（含 SVG preview E2E）
+- **E2E 测试**：**31** 个 `.spec.ts`（Playwright），**nightly 运行**（含 SVG preview E2E）
 - **Maestro 移动端**：~20 个 YAML flow，ad-hoc / 未接入 CI
 
 #### 9.2 关键测试域
@@ -254,6 +256,91 @@ Missing providers (Paseo has 9): Generic ACP, ACP Agent, Cursor-Agent (planned)
 #### 10.3 监控
 - **Prometheus 指标**：sessions、connections、messages
 - **日志系统**：slog（Go）、结构化日志
+
+### 11. App 导航结构
+
+App 使用 **Expo Router** 文件系统路由：
+
+```
+app/
+├── _layout.tsx              # Root layout (Provider, sidebar, command center)
+├── index.tsx                # Entry point (startup bootstrapping)
+├── dashboard.tsx            # Dashboard
+├── tmux-dashboard.tsx       # Tmux Dashboard
+├── tmux-pane.tsx            # Tmux Pane (全屏)
+├── pair-scan.tsx            # QR 码配对
+├── settings/
+│   ├── index.tsx            # 设置首页
+│   ├── [section].tsx        # 设置分类页
+│   ├── hosts/[serverId].tsx # Host 详情
+│   └── projects/            # 项目管理
+└── h/[serverId]/
+    ├── workspace/[workspaceId]/  # Workspace 主页
+    ├── agent/[agentId].tsx       # Agent 详情
+    └── sessions.tsx              # 会话列表
+```
+
+### 12. App 核心组件目录
+
+#### Agent 组件
+| 组件 | 文件 | 功能 |
+|------|------|------|
+| Agent List | `agent-list.tsx` | Agent 列表 |
+| Agent Status Bar | `agent-status-bar.tsx` | 底部状态栏 |
+| Agent Stream View | `agent-stream-view.tsx` | 实时流式输出 |
+| Model Selector | `combined-model-selector.tsx` | AI 模型选择 |
+
+#### 输入组件
+| 组件 | 文件 | 功能 |
+|------|------|------|
+| Composer | `composer.tsx` | 多模态输入框 |
+| Attachment Pill | `attachment-pill.tsx` | 附件标签 |
+| Attachment Lightbox | `attachment-lightbox.tsx` | 附件预览 |
+
+#### 导航与布局
+| 组件 | 文件 | 功能 |
+|------|------|------|
+| Left Sidebar | `left-sidebar.tsx` | 主导航侧边栏 |
+| Command Center | `command-center.tsx` | 命令面板 (Cmd+K) |
+
+#### 预览与终端
+| 组件 | 文件 | 功能 |
+|------|------|------|
+| Mermaid Preview | `mermaid-preview.tsx` | Mermaid 图表渲染 |
+| SVG Preview | `svg-preview.tsx` | SVG 文件预览 |
+| ANSI Text Renderer | `ansi-text-renderer.tsx` | ANSI 转义序列渲染 |
+| Terminal Themes | `styles/terminal-themes.ts` | 8 个终端主题预设 |
+| Error Boundary | `error-boundary.tsx` | React 错误边界 |
+
+#### UI 基础组件
+Button, Dropdown Menu, Combobox, Tooltip, Shortcut, Segmented Control, Context Menu, Isolated Bottom Sheet
+
+### 13. App Hooks / Context / Stores
+
+#### Contexts
+| Context | 功能 |
+|---------|------|
+| SessionContext | 会话状态管理 |
+| ToastContext | Toast 通知 |
+| VoiceContext | 语音输入状态 |
+
+#### Hooks
+| Hook | 功能 |
+|------|------|
+| useAggregatedAgents | 聚合所有 Agent 状态 |
+| useAggregatedTmuxAgents | 聚合 tmux agent 发现 |
+| useTmuxCapturePane | tmux pane 内容轮询 |
+| useTmuxTheme | 终端主题颜色 |
+| useTmuxStatusLine | tmux 状态栏解析 |
+| useSettings | App 设置 |
+
+#### Stores (Zustand)
+| Store | 功能 |
+|-------|------|
+| SessionStore | 会话状态 |
+| PanelStore | 面板状态 |
+| WorkspaceTabsStore | Workspace 标签状态 |
+| TmuxAgentStore | 选中的 tmux agent |
 
 ## 缺失功能（与 Paseo 对比）
 

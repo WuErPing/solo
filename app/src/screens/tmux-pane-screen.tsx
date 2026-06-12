@@ -23,15 +23,17 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useTmuxCapturePane } from "@/hooks/use-tmux-capture-pane";
 import { useAppSettings } from "@/hooks/use-settings";
+import { filterSlashCommands } from "@/constants/agent-commands";
 import { withLiveTmuxClient } from "@/utils/tmux-rpc";
 import { useTmuxAgentStore } from "@/stores/tmux-agent-store";
 import { parseAnsi, type AnsiSegment } from "@/utils/ansi-parser";
 import { detectColorsFromAnsi } from "@/utils/detect-ansi-colors";
+import { resolveTerminalColors } from "@/utils/resolve-terminal-colors";
+import { useTmuxTheme } from "@/hooks/use-tmux-theme";
 import {
   TERMINAL_THEME_IDS,
   TERMINAL_THEME_PRESETS,
@@ -44,18 +46,6 @@ export function TmuxPaneScreen() {
       <TmuxPaneScreenInner />
     </ErrorBoundary>
   );
-}
-
-function mergeTerminalColors(
-  base: { foreground: string; background: string; [key: string]: string },
-  contentColors: { background: string | null; foreground: string | null },
-): { foreground: string; background: string; [key: string]: string } {
-  if (!contentColors.background && !contentColors.foreground) return base;
-  return {
-    ...base,
-    foreground: contentColors.foreground || base.foreground,
-    background: contentColors.background || base.background,
-  };
 }
 
 const SCROLL_TOP_THRESHOLD = 20;
@@ -89,6 +79,12 @@ function TmuxPaneScreenInner() {
   const prevColorContentRef = useRef<string | null>(null);
   const [colorResetKey, setColorResetKey] = useState(0);
 
+  const { theme: tmuxTheme } = useTmuxTheme(
+    agent?.serverId ?? "",
+    agent?.sessionName ?? "",
+    Boolean(agent),
+  );
+
   // Reset cached colors when content transitions from empty to non-empty (pane navigation)
   if (!prevColorContentRef.current && content) {
     cachedColorsRef.current = null;
@@ -98,15 +94,18 @@ function TmuxPaneScreenInner() {
   colorContentRef.current = content;
 
   const terminalColors = useMemo(() => {
-    if (terminalThemeId !== "system") {
-      return TERMINAL_THEME_PRESETS[terminalThemeId] ?? theme.colors.terminal;
-    }
     if (!cachedColorsRef.current && colorContentRef.current) {
       cachedColorsRef.current = detectColorsFromAnsi(colorContentRef.current);
     }
-    return mergeTerminalColors(theme.colors.terminal, cachedColorsRef.current ?? { background: null, foreground: null });
+    return resolveTerminalColors(
+      terminalThemeId,
+      theme.colors.terminal,
+      TERMINAL_THEME_PRESETS[terminalThemeId as Exclude<typeof terminalThemeId, "system" | "tmux">],
+      cachedColorsRef.current,
+      tmuxTheme,
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps -- content read via ref; re-detect only on pane change
-  }, [terminalThemeId, theme.colors.terminal, colorResetKey]);
+  }, [terminalThemeId, theme.colors.terminal, tmuxTheme, colorResetKey]);
   const segments = useMemo(
     () => (content ? parseAnsi(content) : null),
     [content],
@@ -118,6 +117,11 @@ function TmuxPaneScreenInner() {
 
   const [inputText, setInputText] = useState("");
   const [sendError, setSendError] = useState(false);
+
+  const slashCommands = useMemo(
+    () => filterSlashCommands(agent?.agentName ?? "", inputText),
+    [agent?.agentName, inputText],
+  );
   const [loadTimedOut, setLoadTimedOut] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [navButtonsVertical, setNavButtonsVertical] = useState(false);
@@ -291,11 +295,13 @@ function TmuxPaneScreenInner() {
         <Palette size={16} color={theme.colors.foregroundMuted} />
       </DropdownMenuTrigger>
       <DropdownMenuContent side="bottom" align="end" width={180}>
-        {(["system", "dark", "light"] as const).map((id) => {
-          const label = id === "system" ? "System" : TERMINAL_THEME_PRESETS[id].label;
+        {(["system", "dark", "light", "tmux"] as const).map((id) => {
+          const label = id === "system" ? "System" : id === "tmux" ? "Tmux" : TERMINAL_THEME_PRESETS[id].label;
           const swatchColor = id === "system"
             ? theme.colors.terminal.background
-            : TERMINAL_THEME_PRESETS[id].background;
+            : id === "tmux"
+              ? (tmuxTheme?.background ?? theme.colors.terminal.background)
+              : TERMINAL_THEME_PRESETS[id].background;
           return (
             <DropdownMenuItem
               key={id}
@@ -318,28 +324,6 @@ function TmuxPaneScreenInner() {
             </DropdownMenuItem>
           );
         })}
-        <DropdownMenuSeparator />
-        {(["midnight", "ghostty", "solarized-dark", "monokai", "dracula"] as const).map((id) => (
-          <DropdownMenuItem
-            key={id}
-            selected={terminalThemeId === id}
-            onSelect={() => handleTerminalThemeChange(id)}
-            leading={
-              <View
-                style={{
-                  width: 12,
-                  height: 12,
-                  borderRadius: 6,
-                  backgroundColor: TERMINAL_THEME_PRESETS[id].background,
-                  borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.15)",
-                }}
-              />
-            }
-          >
-            {TERMINAL_THEME_PRESETS[id].label}
-          </DropdownMenuItem>
-        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -507,6 +491,21 @@ function TmuxPaneScreenInner() {
                 </Text>
               </Pressable>
             ))}
+            <Pressable
+              testID="slash-key-button"
+              onPress={() => sendKey("/")}
+              style={({ pressed }) => [
+                styles.keyButtonSolid,
+                {
+                  backgroundColor: pressed ? theme.colors.primary : theme.colors.surface1,
+                  borderColor: theme.colors.border,
+                },
+              ]}
+            >
+              <Text style={[styles.keyButtonLabel, { color: theme.colors.foreground }]}>
+                /
+              </Text>
+            </Pressable>
           </View>
         </View>
       </View>
@@ -515,6 +514,25 @@ function TmuxPaneScreenInner() {
           Connection lost — command not sent
         </Text>
       ) : null}
+      {slashCommands.length > 0 && (
+        <View style={[styles.slashDropdown, { backgroundColor: theme.colors.surface0, borderColor: theme.colors.border }]}>
+          {slashCommands.map((cmd) => (
+            <Pressable
+              key={cmd.command}
+              testID={`slash-command-${cmd.label}`}
+              onPress={() => setInputText(cmd.command + " ")}
+              style={({ pressed }) => [
+                styles.slashItem,
+                pressed ? { backgroundColor: theme.colors.surface1 } : null,
+              ]}
+            >
+              <Text style={[styles.slashItemText, { color: theme.colors.foreground }]}>
+                {cmd.command}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
       <View style={styles.inputRow}>
         <TextInput
           style={[
@@ -688,6 +706,21 @@ const styles = StyleSheet.create((theme) => ({
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
+  },
+  slashDropdown: {
+    maxHeight: 200,
+    borderTopWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  slashItem: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 4,
+  },
+  slashItemText: {
+    fontFamily: "monospace",
+    fontSize: 13,
   },
   headerRightRow: {
     flexDirection: "row",

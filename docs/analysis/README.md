@@ -4,47 +4,18 @@ This directory contains analysis documents for the Solo project.
 
 ## Recent Analyses
 
-### 2026-06-09: Android Tmux Pane Rendering Optimization
+### 2026-06-09: Tmux Pane 子系统分析（合并）
 
 **Status:** Analysis Complete
 **Priority:** High (UX)
 
 **Summary:**
-- Deep analysis of why Android tmux pane output diverges from host tmux experience
-- Comparison of snapshot polling vs cell-based VT stream rendering models
-- Evaluation of 4 optimization strategies (ANSI Text Enhancement, xterm.js Migration, PTY Stream, Daemon Cell Grid Diff)
-- Recommended phased approach: xterm.js migration first (Phase 1), tmux Control Mode second (Phase 2)
+- 合并 jitter 修复、4 层架构瓶颈分析、渲染优化方案为统一文档
+- v0.4.1 三层防抖（content dedup, React.memo, pagination-only loading）消除静态 jitter
+- 核心架构问题：snapshot polling + React Native Text tree vs cell-based incremental rendering
+- 推荐方案：Phase 1 xterm.js 迁移（3-4 周），Phase 2 tmux Control Mode（视需求）
 
-**Key Findings:**
-1. Current architecture uses `tmux capture-pane` (snapshot) vs host tmux's incremental cell-grid rendering
-2. Box Drawing / Braille characters stripped due to width mismatch between host terminal and mobile display
-3. No cursor rendering, no `wcwidth` Unicode width calculation
-4. Workspace terminal already has mature xterm.js + WebGL infrastructure ready for reuse
-5. xterm.js migration is highest ROI: medium effort, near-native quality, low maintenance
-
-**Document:** [tmux-pane-rendering-optimization.md](tmux-pane-rendering-optimization.md)
-
----
-
-### 2026-06-07: Tmux Pane Refresh Jitter Analysis
-
-**Status:** Analysis Complete
-**Priority:** Medium (UX)
-
-**Summary:**
-- Root cause analysis of tmux pane viewer jitter on refresh
-- Comparison with host tmux cell-based rendering model
-- Box drawing character handling and width adaptation gap
-- 6 proposed solutions ranked by priority (P0–P4)
-
-**Key Findings:**
-1. Full content replacement on 5s poll causes complete React tree re-render
-2. `scrollToEnd({ animated: true })` fires on every content change, including unchanged content
-3. Background color dynamically derived from content causes visual flash
-4. Box drawing characters stripped because no width adaptation exists
-5. Host tmux uses cell-based incremental rendering; app uses full-string replacement
-
-**Document:** [tmux-pane-jitter-analysis.md](tmux-pane-jitter-analysis.md)
+**Document:** [tmux-pane-analysis.md](tmux-pane-analysis.md)
 
 ---
 
@@ -99,16 +70,44 @@ This directory contains analysis documents for the Solo project.
 
 ---
 
-### 2026-06-03: Session Timeline E2E Gaps
+### 2026-06-12: Test Coverage Consolidation
 
 **Status:** Complete
 **Priority:** High
 
 **Summary:**
-- Analysis of session timeline end-to-end gaps
-- Recommendations for improving timeline functionality
+- 合并 5 个覆盖率文档为统一报告
+- Go 后端 ~75% (加权), App 前端 35.5%, E2E 31 specs
+- CI/Codecov 完整集成, 识别 4 个覆盖率差距根因
 
-**Document:** [session-timeline-e2e-gaps.md](session-timeline-e2e-gaps.md)
+**Document:** [test-coverage.md](test-coverage.md)
+
+---
+
+### 2026-06-12: Architecture Review
+
+**Status:** Complete
+**Priority:** High
+
+**Summary:**
+- 4+1 views architecture review
+- Maturity scoring and ATAM evaluation
+- Improvement recommendations
+
+**Document:** [architecture-review-2026-06-12/](architecture-review-2026-06-12/)
+
+---
+
+### 2026-06-08: OpenCode Cross-Device Sync Fix
+
+**Status:** Complete
+**Priority:** High
+
+**Summary:**
+- Bug fix: cross-client sync issues for OpenCode provider
+- Root cause analysis and fix record
+
+**Document:** [opencode-cross-device-sync-fix.md](opencode-cross-device-sync-fix.md)
 
 ---
 
@@ -124,8 +123,6 @@ This directory contains analysis documents for the Solo project.
 
 ### Product
 - [Features](../product/features.md)
-- [UI Features](../product/ui-features.md)
-- [Product Analysis](../product/product-analysis.md)
 - [Session Memory Spec](../product/session-memory-spec.md)
 
 ### Providers

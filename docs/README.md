@@ -1,7 +1,7 @@
 # Solo — Documentation Index
 
 > **Purpose**: Persistent context base for Solo development, CI/CD, and architecture decisions.
-> **Last updated**: 2026-06-09
+> **Last updated**: 2026-06-12
 
 ---
 
@@ -17,6 +17,7 @@ docs/
 │   ├── data-flow.md                       # Message flows & session lifecycle
 │   ├── deployment.md                      # Deployment, Nginx, Systemd, Docker
 │   ├── network-architecture.md            # Network paths, E2EE, Pairing Link
+│   ├── network-data-state-architecture.md # Network + data + state synthesis
 │   ├── push-notifications.md              # Push notification architecture
 │   ├── session-memory-persistence.md      # Session turn recording & memory layer design
 │   ├── solo-system-architecture.png       # System architecture diagram (PNG)
@@ -24,32 +25,28 @@ docs/
 │   ├── timeline-design.md                 # Head/Tail model, seq gate, deduplication
 │   └── tmux-pane-content-loading.md       # Tmux agent detection, pane capture, polling, key injection
 ├── product/                               ← Product feature analysis
-│   ├── features.md                        # Full product feature analysis
-│   ├── product-analysis.md                # Optimization & feature suggestions
-│   ├── session-memory-spec.md             # Session memory Phase-1 implementation spec
-│   └── ui-features.md                     # App UI screens, components, hooks
+│   ├── agent-send-presets-design.md       # Agent send button presets design
+│   ├── features.md                        # Full product feature analysis + UI component catalogue
+│   └── session-memory-spec.md             # Session memory Phase-1 implementation spec
 ├── providers/                             ← AI provider integration research
 │   ├── kimi-wire-vs-acp.md               # Kimi Wire vs ACP protocol comparison
-│   └── kimi-cursor-integration.md         # Kimi & Cursor-Agent integration plan
+│   └── kimi-cursor-integration.md         # Cursor-Agent integration plan (Kimi: done)
 └── analysis/                              ← Deep-dive technical analysis
     ├── agent-provider-status-unification.md # Agent/provider status unification design
     ├── app-agent-status-analysis.md         # App agent status & Copy button logic
     ├── app-bridge-schedule-module.md        # Schedule module type contract & RPC schema
-    ├── app-coverage-analysis.md             # App test coverage analysis
-    ├── app-lint-analysis.md                 # App lint capability analysis
+    ├── architecture-review-2026-06-12/     # Architecture review (4+1 views, maturity, recommendations)
     ├── create-schedule-flow.md              # End-to-end schedule creation flow
     ├── demo/                              # Demo code (iterm2-agent-detection)
-    ├── go-coverage-report.md                # Go backend coverage report
+    ├── go-provider-type-erasure-analysis.md # interface{} growth diagnosis + remediation
     ├── host-status-check.md                 # Host probe cycle & status machine
     ├── iterm2-agent-observation.md          # iTerm2 agent detection observation
-    ├── lint-capability-plan.md              # Lint tooling capability plan
+    ├── lint-capability-plan.md              # Lint tooling roadmap (Phase 1 complete)
+    ├── opencode-cross-device-sync-fix.md   # Cross-client sync bug fix record
     ├── README.md                            # Analysis directory index
-    ├── session-timeline-e2e-gaps.md         # Session timeline E2E test gaps
-    ├── test-suite-analysis.md               # Full test suite inventory, CI gaps, coverage report
-    ├── tmux-pane-performance-analysis.md    # Tmux pane perf & stability root cause: 4-layer architectural bottleneck
-    ├── tmux-pane-jitter-analysis.md         # Tmux pane refresh jitter fix (adaptive polling, dedup, React.memo)
-    ├── tmux-pane-rendering-optimization.md  # Tmux pane rendering optimization: TerminalEmulator migration plan
-    └── tmux-transport-disposed-race.md      # Tmux `Transport not connected (status: disposed)` race analysis
+    ├── test-coverage.md                     # 统一测试覆盖率报告 (Go/App/E2E/CI)
+    ├── tmux-pane-analysis.md               # Tmux pane subsystem: jitter fix + performance + rendering optimization
+    └── tmux-transport-disposed-race.md      # Tmux Transport disposed race analysis
 ```
 
 ---
@@ -85,10 +82,9 @@ Feature inventory and UI/UX analysis.
 
 | Document | Type | Summary |
 |----------|------|---------|
-| [Product Features](product/features.md) | Analysis | Full feature tree: Agent system, session, workspace, push, relay, CLI, tests, CI/CD |
-| [Product Analysis](product/product-analysis.md) | Analysis | 10 major feature opportunities and 5 quick wins |
+| [Product Features](product/features.md) | Analysis | Full feature tree + UI component catalogue + hooks/stores reference |
+| [Agent Send Presets Design](product/agent-send-presets-design.md) | Design | Agent-specific tmux send button presets |
 | [Session Memory Spec](product/session-memory-spec.md) | Spec | Phase-1 implementation spec: TurnRecorder interface, FileTurnRecorder, hooks, redaction, tests |
-| [UI Features](product/ui-features.md) | Analysis | Screen map, component catalogue, contexts, hooks, stores, feature checklist |
 
 **Current completion**: ~85-90 %. Main gaps: Chat system (multi-agent), Cursor-Agent / ACP providers.
 
@@ -117,20 +113,16 @@ Deep dives into specific subsystems.
 
 | Document | Type | Summary |
 |----------|------|---------|
+| [Architecture Review (2026-06-12)](analysis/architecture-review-2026-06-12/) | Review | 4+1 views, maturity scoring, ATAM evaluation, improvement recommendations |
 | [Agent/Provider Status Unification](analysis/agent-provider-status-unification.md) | Design | OCP-based proposal to unify AgentLifecycleStatus, ProviderStatus across layers |
 | [App Agent Status Analysis](analysis/app-agent-status-analysis.md) | Analysis | App agent lifecycle states and Copy button display logic |
 | [App-Bridge Schedule Module](analysis/app-bridge-schedule-module.md) | Analysis | Schedule module type contract, RPC schema, and domain models |
-| [App Coverage Analysis](analysis/app-coverage-analysis.md) | Analysis | App test coverage breakdown by module, gaps, and recommendations |
-| [App Lint Analysis](analysis/app-lint-analysis.md) | Analysis | App lint tooling analysis, rules, and capability gaps |
 | [Create Schedule Flow](analysis/create-schedule-flow.md) | Analysis | End-to-end schedule creation flow with timezone-aware cron scheduling |
-| [Go Coverage Report](analysis/go-coverage-report.md) | Report | Go backend coverage by module (protocol, cli, daemon, relay-go) |
+| [Go Provider Type Erasure](analysis/go-provider-type-erasure-analysis.md) | Analysis | `interface{}` / `map[string]interface{}` growth diagnosis, remediation strategies |
 | [Host Status Check](analysis/host-status-check.md) | Analysis | Probe cycle (2-30 s), adaptive switching, state machine conflict, grace-period fix |
-| [Lint Capability Plan](analysis/lint-capability-plan.md) | Plan | Lint tooling roadmap and capability gap plan |
-| [Session Timeline E2E Gaps](analysis/session-timeline-e2e-gaps.md) | Analysis | Session timeline E2E test coverage gaps and remediation |
-| [Test Suite Analysis](analysis/test-suite-analysis.md) | Analysis | Test inventory (app unit, Go, E2E), CI coverage, Codecov integration |
-| [Tmux Pane Performance Analysis](analysis/tmux-pane-performance-analysis.md) | Analysis | 性能与稳定性根因：4 层架构瓶颈（全量捕获→全量解析→无虚拟化渲染→string dedup），非近期变更引起 |
-| [Tmux Pane Jitter Analysis](analysis/tmux-pane-jitter-analysis.md) | Analysis | Refresh jitter root cause & fix: adaptive polling, content dedup, React.memo, pagination-only loading |
-| [Tmux Pane Rendering Optimization](analysis/tmux-pane-rendering-optimization.md) | Analysis | 渲染优化方案：迁移至 TerminalEmulator (xterm.js + Expo DOM)，tmux Control Mode |
+| [OpenCode Cross-Device Sync Fix](analysis/opencode-cross-device-sync-fix.md) | Fix record | Root cause and fix for cross-client sync issues |
+| [Test Coverage](analysis/test-coverage.md) | Report | 统一测试覆盖率报告: Go 后端 + App 前端 + E2E + CI/Codecov 集成 |
+| [Tmux Pane Analysis](analysis/tmux-pane-analysis.md) | Analysis | Jitter 根因与修复 + 4 层架构瓶颈 + xterm.js 迁移方案 |
 | [Tmux Transport Disposed Race](analysis/tmux-transport-disposed-race.md) | Analysis | `Transport not connected (status: disposed)` root cause: probe-cycle switch vs. in-flight tmux RPC |
 
 ---
