@@ -1,8 +1,8 @@
 # Solo - Product Feature Detailed Analysis
 
-> Analysis Date: 2026-06-07
+> Analysis Date: 2026-06-13
 > Repository: /Users/wuerping/code/wuerping/solo
-> Version: v0.4.0
+> Version: v0.6.0
 
 ## Product Overview
 
@@ -26,17 +26,18 @@
 - **Session Recovery**: Restore agent state from persistence handle
 
 #### 1.2 Multi-Provider Support
-Currently built-in 5 providers (+ Mock for testing):
+Currently built-in 4 providers:
 - **Claude**: Integrated via CLI `--print --output-format stream-json`
-- **Kimi**: Wire mode (`kimi --wire`), JSON-RPC 2.0 stdio communication, EventPump, dynamically reads `~/.kimi/config.toml` model list (758 LOC, 23 unit tests)
+- **Kimi**: Wire mode (`kimi --wire`), JSON-RPC 2.0 stdio communication, EventPump, dynamically reads `~/.kimi/config.toml` model list (~737 LOC, 31 executed test cases)
 - **OpenCode**: SSE `/global/event` event stream, full reasoning/thinking support
 - **Pi**: Minimal terminal coding harness
-- **Mock**: Test provider
+
+**Development-only**: **Mock** provider (opt-in via `SOLO_ENABLE_MOCK_PROVIDER=1`)
 
 Defined but no backend implementation: **Codex**
 
 Removed providers: Copilot
-Missing providers (Paseo has 9): Generic ACP, ACP Agent, Cursor-Agent (planned)
+Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
 
 #### 1.3 Streaming Event Processing
 - **Stream Coalescer**: 200-500ms dynamic window, reduces WS message volume
@@ -156,14 +157,18 @@ Missing providers (Paseo has 9): Generic ACP, ACP Agent, Cursor-Agent (planned)
   - 代理卡片按名称分组，支持筛选
   - 窗格内容捕获（默认 200 行，5 秒自动刷新，可关闭自动刷新）
   - 懒加载历史（滚动驱动，每次 200 行，最大 5000 行）
-  - 自定义终端主题（System/Dark/Light/Midnight/Ghostty/Solarized Dark/Monokai/Dracula）
+  - 自定义终端主题（`system` / `dark` / `light` / `tmux`）
   - ANSI 文本渲染（状态栏支持 ANSI 颜色）
   - 窗口列表显示（状态栏显示 tmux 窗口信息，如 `0:claude*`）
   - 256 色调色板检测（`detect-ansi-colors.ts`）
   - 全屏窗格页面（替代底部弹窗）
+  - 斜杠命令过滤（`agent-commands.ts`）：输入 `/` 时显示代理专属快捷命令
   - ErrorBoundary 崩溃保护
   - 快捷操作按钮：方向键（↑↓←→）、Enter、Esc、Tab、Ctrl+C、数字键（1–4）
   - 支持代理：claude、pi、kimi、kimi-cli、opencode、qoder、cursor
+- **Schedule Dashboard**：Cron 调度任务管理（创建、编辑、列表、详情）
+  - 频率预设、时区感知输入、UTC 存储 / 本地显示
+  - 支持选择现有 Agent 或新建 Agent 执行
 - **Workspace Screen**：多标签工作区管理
   - 桌面标签行
   - Agent 可见性控制
@@ -176,7 +181,11 @@ Missing providers (Paseo has 9): Generic ACP, ACP Agent, Cursor-Agent (planned)
   - 代码插入
 - **Projects Screen**：项目管理
 - **Sessions Screen**：会话历史
-- **Settings Screen**：设置管理（含终端主题选择器）
+- **Settings Screen**：设置管理
+  - 终端主题选择器（`system` / `dark` / `light` / `tmux`）
+  - Operations 设置区（`operations-section.tsx`）
+  - Tmux Agents 设置区（`tmux-agents-section.tsx`）
+  - Providers / Keyboard Shortcuts 设置区
 - **Mermaid Preview**：Markdown 文件面板内嵌 Mermaid 图表实时渲染
 - **SVG Preview**：SVG 文件预览，支持 Web 和移动端（WebView 渲染）
 - **ANSI Text Renderer**：ANSI 转义序列渲染组件，用于终端内容和状态栏
@@ -220,7 +229,7 @@ Missing providers (Paseo has 9): Generic ACP, ACP Agent, Cursor-Agent (planned)
 > 详细覆盖率数据、模块级分析、根因和路线图见: [`docs/analysis/test-coverage.md`](../analysis/test-coverage.md)
 
 #### 9.1 测试规模
-- **App 单元测试**：**250+** 个测试文件（Vitest），已接入 CI（含 tmux dashboard、pane screen、status line、ANSI renderer、SVG preview 等新增测试）
+- **App 单元测试**：**234** 个测试文件，**1,617** 个测试用例（Vitest），已接入 CI（含 tmux dashboard、pane screen、status line、ANSI renderer、SVG preview 等新增测试）
 - **App browser 测试**：1 个文件（Chromium via Playwright），未接入 CI
 - **App-bridge 测试**：3 个文件，**32 个测试用例**（Vitest），已接入 CI
 - **Daemon 测试文件**：**129** 个（Go），已接入 CI
@@ -268,6 +277,7 @@ app/
 ├── dashboard.tsx            # Dashboard
 ├── tmux-dashboard.tsx       # Tmux Dashboard
 ├── tmux-pane.tsx            # Tmux Pane (全屏)
+├── schedules.tsx            # Schedule Dashboard 入口
 ├── pair-scan.tsx            # QR 码配对
 ├── settings/
 │   ├── index.tsx            # 设置首页
@@ -277,7 +287,8 @@ app/
 └── h/[serverId]/
     ├── workspace/[workspaceId]/  # Workspace 主页
     ├── agent/[agentId].tsx       # Agent 详情
-    └── sessions.tsx              # 会话列表
+    ├── sessions.tsx              # 会话列表
+    └── schedules.tsx             # 主机调度任务列表
 ```
 
 ### 12. App 核心组件目录
@@ -308,8 +319,9 @@ app/
 |------|------|------|
 | Mermaid Preview | `mermaid-preview.tsx` | Mermaid 图表渲染 |
 | SVG Preview | `svg-preview.tsx` | SVG 文件预览 |
-| ANSI Text Renderer | `ansi-text-renderer.tsx` | ANSI 转义序列渲染 |
-| Terminal Themes | `styles/terminal-themes.ts` | 8 个终端主题预设 |
+| ANSI Text Renderer | `ansi-text-renderer.tsx` / `ansi-text-line.tsx` | ANSI 转义序列渲染 |
+| Terminal Themes | `styles/terminal-themes.ts` | 4 个终端主题预设（`system` / `dark` / `light` / `tmux`） |
+| Schedule Create/Edit Modal | `schedule-create-modal.tsx` / `schedule-edit-modal.tsx` | 调度任务创建/编辑 |
 | Error Boundary | `error-boundary.tsx` | React 错误边界 |
 
 #### UI 基础组件
@@ -332,6 +344,7 @@ Button, Dropdown Menu, Combobox, Tooltip, Shortcut, Segmented Control, Context M
 | useTmuxCapturePane | tmux pane 内容轮询 |
 | useTmuxTheme | 终端主题颜色 |
 | useTmuxStatusLine | tmux 状态栏解析 |
+| useSchedule* | 调度任务查询/创建/编辑 hooks |
 | useSettings | App 设置 |
 
 #### Stores (Zustand)
@@ -341,6 +354,7 @@ Button, Dropdown Menu, Combobox, Tooltip, Shortcut, Segmented Control, Context M
 | PanelStore | 面板状态 |
 | WorkspaceTabsStore | Workspace 标签状态 |
 | TmuxAgentStore | 选中的 tmux agent |
+| ScheduleStore | 调度任务状态 |
 
 ## 缺失功能（与 Paseo 对比）
 

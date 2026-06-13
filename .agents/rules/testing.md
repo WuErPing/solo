@@ -92,7 +92,7 @@ Rules for writing and maintaining tests across Go and TypeScript.
 ## CI Requirements
 
 - Go: `go test -short -race -count=1 -timeout=10m` must pass with zero failures.
-- TypeScript: `npm run test` in `app/` (1282+ tests) and `app-bridge/` (32+ tests) must pass.
+- TypeScript: `npm run test` in `app/` (1617+ tests) and `app-bridge/` (32+ tests) must pass.
 - Coverage reports are uploaded to Codecov. Coverage drops on changed lines should be justified.
 - E2E tests (Playwright) run nightly. New user-facing features should add E2E specs in `app/e2e/`.
 

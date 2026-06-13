@@ -1,7 +1,7 @@
 # Solo — Documentation Index
 
 > **Purpose**: Persistent context base for Solo development, CI/CD, and architecture decisions.
-> **Last updated**: 2026-06-12
+> **Last updated**: 2026-06-13
 
 ---
 
@@ -99,7 +99,9 @@ AI provider integration research and implementation plans.
 | [Kimi Wire vs ACP](providers/kimi-wire-vs-acp.md) | Comparison | Wire mode recommended for Solo (full Kimi feature set, stdio-only) |
 | [Kimi & Cursor-Agent Integration](providers/kimi-cursor-integration.md) | Implementation plan | Wire mode for Kimi; Print mode for Cursor-Agent; backend Go registration |
 
-**Currently implemented providers**: Claude (print/stream-json), Kimi (Wire mode, JSON-RPC 2.0 stdio), OpenCode (SSE), Pi (minimal terminal harness), Mock (test).
+**Currently implemented providers**: Claude (print/stream-json), Kimi (Wire mode, JSON-RPC 2.0 stdio), OpenCode (SSE), Pi (minimal terminal harness).
+
+**Development-only**: Mock (opt-in via `SOLO_ENABLE_MOCK_PROVIDER=1`).
 
 **Definition only (no backend)**: Codex.
 
@@ -129,7 +131,7 @@ Deep dives into specific subsystems.
 
 ## 5 · Build & CI/CD Quick Reference
 
-> Full commands live in `Makefile` and `.github/workflows/ci.yml`.
+> Full commands live in `Makefile`, `.github/workflows/ci.yml`, and `.github/workflows/e2e-nightly.yml`.
 
 ### Build targets
 
@@ -140,12 +142,13 @@ Deep dives into specific subsystems.
 | Dev (daemon + web) | `make dev` | daemon :17612 + Expo :19000 |
 | Deploy relay | `make deploy-solo-relay` | scp + systemctl restart |
 
-### CI pipeline (`.github/workflows/ci.yml`)
+### CI pipeline
 
-| Job | Steps |
-|-----|-------|
-| `go` (matrix: protocol, cli, daemon, relay-go) | `go mod verify` → `go build` → `go test -short -race` → `golangci-lint v2.10` |
-| `js` | `npm ci` → lint (app, app-bridge, highlight) → typecheck (optional) → test highlight |
+| Workflow | Job | Steps |
+|----------|-----|-------|
+| `.github/workflows/ci.yml` | `go` (matrix: protocol, cli, daemon, relay-go) | `go mod verify` → `go build -v ./...` → `go test -short -race -coverprofile=coverage.out` → upload coverage (Codecov + artifact, 14 days) → `golangci-lint v2.10` (`--timeout=5m`) |
+| `.github/workflows/ci.yml` | `js` | `npm ci` → lint app / app-bridge / highlight → typecheck all three → test highlight → test app (unit, **1617 tests**) → test app-bridge (**32 tests**) → upload coverage (Codecov + artifacts) |
+| `.github/workflows/e2e-nightly.yml` | `e2e-nightly` | daily 02:00 UTC + manual; Playwright E2E (31 specs) with daemon/relay/Metro globalSetup; failure artifacts retained 7 days |
 
 ### Tech stack summary
 

@@ -217,7 +217,7 @@ AnsiTextContent component
 detectColorsFromAnsi() ──► extract content colors
         │
         ▼
-mergeTerminalColors(theme, contentColors, tmuxTheme)
+resolveTerminalColors(theme, contentColors, tmuxTheme)
         │
         ▼
 Final rendered terminal view
@@ -324,7 +324,7 @@ The status line includes tmux window information (e.g., `0:claude*`), showing th
 
 The tmux pane rendering uses user-selected terminal themes instead of extracting colors from the host tmux session. This decouples the app's appearance from the host's tmux configuration.
 
-### 7.1 Theme System Overview
+### 8.1 Theme System Overview
 
 ```
 User opens Settings
@@ -335,11 +335,7 @@ Terminal Theme Picker
         ├── System (default, follows OS theme)
         ├── Dark
         ├── Light
-        ├── Midnight
-        ├── Ghostty
-        ├── Solarized Dark
-        ├── Monokai
-        └── Dracula
+        └── Tmux (inherits host tmux colors)
         │
         ▼
 Selected theme stored in app settings
@@ -352,7 +348,7 @@ TmuxPaneScreen uses theme for rendering
         └── Status line colors
 ```
 
-### 7.2 Theme Integration with ANSI Rendering
+### 8.2 Theme Integration with ANSI Rendering
 
 The rendering pipeline merges the selected terminal theme with content-detected ANSI colors:
 
@@ -366,17 +362,17 @@ parseAnsi() ──► structured spans with color/style
 detectColorsFromAnsi() ──► extract content-specific colors
         │
         ▼
-mergeTerminalColors(theme, contentColors)
+resolveTerminalColors(theme, contentColors)
         │
         ▼
 Final rendered terminal view
 ```
 
-### 7.3 256-Color Palette Detection
+### 8.3 256-Color Palette Detection
 
 The `detect-ansi-colors.ts` utility detects 256-color ANSI sequences and maps them to the terminal theme's color palette. This enables faithful rendering of terminal applications that use extended color codes.
 
-### 7.4 Removed: Host Tmux Theme Extraction
+### 8.4 Removed: Host Tmux Theme Extraction
 
 Previously, theme colors were fetched from the host tmux session via `tmux show-options -gv`. This approach was removed in v0.4.0 because:
 
@@ -386,7 +382,42 @@ Previously, theme colors were fetched from the host tmux session via `tmux show-
 
 The `TmuxThemeColors` struct and `tmux/get_theme` RPC message remain defined in the protocol for backward compatibility but are no longer used by the frontend.
 
-## 7. Keystroke Interaction Flow
+## 9. Slash-Command Filtering
+
+When the user types `/` in the `TmuxPaneScreen` input field, the app offers context-aware slash commands for the selected agent. The command list is defined in `app/src/constants/agent-commands.ts` and filtered by `filterSlashCommands(agentName, input)`.
+
+```ts
+// app/src/constants/agent-commands.ts
+export interface AgentCommand {
+  label: string;
+  command: string;
+}
+
+export const AGENT_COMMANDS: Record<string, AgentCommand[]> = {
+  claude: [
+    { label: "compact", command: "/compact" },
+    { label: "clear",   command: "/clear" },
+    { label: "help",    command: "/help" },
+    // ...
+  ],
+};
+
+export function filterSlashCommands(
+  agentName: string,
+  input: string,
+): AgentCommand[] {
+  if (!input.startsWith("/")) return [];
+  const query = input.slice(1).toLowerCase();
+  const commands = AGENT_COMMANDS[agentName];
+  if (!commands) return [];
+  if (!query) return commands;
+  return commands.filter((c) => c.label.startsWith(query));
+}
+```
+
+Tapping a suggested command inserts its `command` string into the input field, ready to be sent via `tmuxSendKeys`.
+
+## 10. Keystroke Interaction Flow
 
 Users can type into an input field and send keystrokes to the remote tmux pane.
 
@@ -412,7 +443,7 @@ Return success / error
 On error: setSendError(msg) → auto-clear after 2s
 ```
 
-### 7.1 Send-Keys Command
+### 10.1 Send-Keys Command
 
 ```
 tmux send-keys -t {paneId} {keys} [Enter]
@@ -420,9 +451,9 @@ tmux send-keys -t {paneId} {keys} [Enter]
 
 The `sendEnter` boolean appends a literal `Enter` key to the sequence, useful for submitting commands.
 
-## 8. Protocol Message Definitions
+## 11. Protocol Message Definitions
 
-### 8.1 Go (protocol/message_tmux.go)
+### 11.1 Go (protocol/message_tmux.go)
 
 ```go
 // Agent metadata
@@ -486,7 +517,7 @@ type TmuxGetThemeResponsePayload struct {
 }
 ```
 
-### 8.2 TypeScript Zod (app-bridge/src/server/tmux/rpc-schemas.ts)
+### 11.2 TypeScript Zod (app-bridge/src/server/tmux/rpc-schemas.ts)
 
 ```typescript
 export const TmuxAgentInfoSchema = z.object({
@@ -575,7 +606,7 @@ export const TmuxGetThemeResponseSchema = z.object({
 });
 ```
 
-## 9. Error Handling and Edge Cases
+## 12. Error Handling and Edge Cases
 
 | Scenario | Behavior |
 |---|---|
@@ -589,7 +620,7 @@ export const TmuxGetThemeResponseSchema = z.object({
 | **Auto refresh off + user reading history** | Polling stops; no auto-scroll; manual "Refresh" button available in key row |
 | **Race: old response after pane switch** | React Query key includes `paneId` → stale responses are ignored automatically |
 
-## 10. Related Files
+## 13. Related Files
 
 | File | Role |
 |---|---|
@@ -601,11 +632,13 @@ export const TmuxGetThemeResponseSchema = z.object({
 | `app/src/hooks/use-tmux-theme.ts` | `useTmuxTheme` hook |
 | `app/src/hooks/use-tmux-status-line.ts` | `useTmuxStatusLine` hook — parse and render tmux status line |
 | `app/src/hooks/use-tmux-status-lines.ts` | `useTmuxStatusLines` hook — aggregate status lines from multiple hosts |
-| `app/src/styles/terminal-themes.ts` | 8 terminal theme presets (System/Dark/Light/Midnight/Ghostty/Solarized Dark/Monokai/Dracula) |
-| `app/src/components/ansi-text-renderer.tsx` | ANSI escape sequence rendering component |
+| `app/src/styles/terminal-themes.ts` | 4 terminal theme presets (`system`, `dark`, `light`, `tmux`) |
+| `app/src/components/ansi-text-renderer.tsx` / `ansi-text-line.tsx` | ANSI escape sequence rendering components |
 | `app/src/components/error-boundary.tsx` | React error boundary for crash protection |
+| `app/src/utils/resolve-terminal-colors.ts` | Resolve effective terminal colors from theme + content + tmux theme |
 | `app/src/utils/detect-ansi-colors.ts` | 256-color palette detection from ANSI content |
 | `app/src/utils/tmux-rpc.ts` | `withLiveTmuxClient` wrapper |
+| `app/src/constants/agent-commands.ts` | Slash-command definitions and `filterSlashCommands` |
 | `app-bridge/src/client/daemon-client.ts` | `DaemonClient` — `tmuxListAgents`, `tmuxCapturePane`, `tmuxSendKeys`, `tmuxGetTheme` |
 | `app-bridge/src/server/tmux/rpc-schemas.ts` | Zod schemas for all tmux RPC messages |
 | `daemon/internal/server/session_register_handlers.go` | WebSocket handler registration (`tmux/list_agents`, `tmux/capture_pane`, `tmux/send_keys`, `tmux/get_theme`) |

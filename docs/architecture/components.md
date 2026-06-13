@@ -13,17 +13,26 @@
 
 **Key Directories**:
 - `src/screens/` - Page components
+  - `src/screens/schedules/` - Schedule automation dashboard
+  - `src/screens/settings/*-section.tsx` - Settings sections (operations, tmux agents, providers, keyboard shortcuts)
+  - `src/screens/tmux-dashboard/` - Tmux agent discovery dashboard
 - `src/components/` - Reusable components
 - `src/app/` - Expo Router routes
+  - `src/app/h/[serverId]/schedules.tsx` - Per-host schedule list
+  - `src/app/schedules.tsx` - Schedule entry point
 - `src/hooks/` - Custom hooks
 - `src/stores/` - Zustand state stores
+  - `src/stores/tmux-agent-store.ts` - Selected tmux agent state
 - `src/styles/` - Theme and style definitions
 - `src/utils/` - Utility functions
+- `src/constants/` - App constants
+  - `src/constants/agent-commands.ts` - Slash-command definitions and filtering
 
 **Notable Components**:
+- `schedule-create-modal.tsx` / `schedule-edit-modal.tsx` — Schedule creation/editing modals
 - `svg-preview.tsx` / `svg-preview.web.tsx` — SVG file preview (WebView for mobile, native for web)
 - `mermaid-preview.tsx` / `mermaid-preview.web.tsx` — Mermaid diagram rendering
-- `ansi-text-renderer.tsx` — ANSI escape sequence rendering
+- `ansi-text-renderer.tsx` / `ansi-text-line.tsx` — ANSI escape sequence rendering
 - `error-boundary.tsx` — React error boundary
 
 ## 2. App-Bridge (Client Communication Library)
@@ -100,6 +109,7 @@ daemon/
     ├── pidlock/         # PID lock
     ├── push/            # Push notifications
     ├── relayclient/     # Relay client
+    ├── schedule/        # Cron-based schedule automation (executor, store, runner)
     ├── server/          # WebSocket server
     ├── terminal/        # Terminal management
     ├── workspace/       # Workspace management
@@ -116,7 +126,9 @@ Core files:
 - `session_agent.go` - Agent sessions
 - `session_terminal.go` - Terminal sessions
 - `session_tmux.go` - Tmux subprocess management, agent scanning, pane capture, key injection
-- `session_register_handlers.go` - WebSocket handler registration (routes tmux messages)
+- `session_schedule.go` - Schedule message handlers and session-bound schedule state
+- `schedule_runner.go` - Schedule execution wiring
+- `session_register_handlers.go` - WebSocket handler registration (routes tmux/schedule messages)
 - `handler_registry.go` - Handler registry
 
 ### 3.2 Relay Client
@@ -142,6 +154,9 @@ Features:
 - Agent lifecycle management
 - Provider registration and discovery
 - Model configuration
+- **`internal/agent/base/turn_guard.go`** — `TurnGuard` prevents duplicate/inconsistent provider turn transitions
+- **`internal/agent/errors.go`** — Typed sentinel errors for provider lifecycle failures
+- **`internal/agent/stall_monitor.go`** — Agent stuck-loop detection and grace-period tightening
 
 ### 3.4 Workspace
 
@@ -199,7 +214,7 @@ Features:
 
 | Component | File | Responsibility |
 |-----------|------|---------------|
-| `TmuxDashboardScreen` | `screens/tmux-dashboard-screen.tsx` | Dashboard showing aggregated tmux agents from all hosts |
+| `TmuxDashboardScreen` | `screens/tmux-dashboard/tmux-dashboard-screen.tsx` | Dashboard showing aggregated tmux agents from all hosts |
 | `TmuxPaneScreen` | `screens/tmux-pane-screen.tsx` | Full-screen pane content view with ANSI rendering and input |
 | `tmux-agent-store` | `stores/tmux-agent-store.ts` | Zustand store for selected agent (serverId + paneId) |
 | `useAggregatedTmuxAgents` | `hooks/use-tmux-agents.ts` | Parallel useQueries across all hosts for agent discovery |
@@ -209,7 +224,8 @@ Features:
 | `useTmuxStatusLines` | `hooks/use-tmux-status-lines.ts` | Aggregate status lines from multiple hosts |
 | `ansi-text-renderer` | `components/ansi-text-renderer.tsx` | ANSI escape sequence rendering component |
 | `error-boundary` | `components/error-boundary.tsx` | React error boundary wrapping tmux screens |
-| `terminal-themes` | `styles/terminal-themes.ts` | 8 terminal theme presets |
+| `terminal-themes` | `styles/terminal-themes.ts` | 4 terminal theme presets (`system`, `dark`, `light`, `tmux`) |
+| `resolve-terminal-colors` | `utils/resolve-terminal-colors.ts` | Resolve effective terminal colors from theme + content + tmux theme |
 | `detect-ansi-colors` | `utils/detect-ansi-colors.ts` | 256-color palette detection from ANSI content |
 
 ## 4. Relay (Relay Server)

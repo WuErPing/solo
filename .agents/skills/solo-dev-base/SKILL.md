@@ -1,7 +1,7 @@
 ---
 name: solo-dev-base
 description: Base development context for the Solo AI coding assistant platform. Provides architecture overview, tech stack, build commands, CI/CD reference, directory map, and development conventions. Use at the start of any Solo development task — feature work, bug fixes, provider integration, infrastructure changes, or code review.
-version: "2026-05-29"
+version: "2026-06-13"
 tags:
   - solo
   - architecture
@@ -14,7 +14,7 @@ tags:
 
 ## Overview
 
-Solo is a local-first AI coding assistant platform with a Go daemon, a cross-platform React Native/Expo app, a WebSocket relay, and a CLI. The system supports direct local connections and remote relay connections with end-to-end encryption (E2EE). It currently ships 4 built-in AI providers (Claude, Kimi, OpenCode, Codex) with Kimi integrated via JSON-RPC 2.0 Wire mode.
+Solo is a local-first AI coding assistant platform with a Go daemon, a cross-platform React Native/Expo app, a WebSocket relay, and a CLI. The system supports direct local connections and remote relay connections with end-to-end encryption (E2EE). It currently ships 4 built-in AI providers (Claude, Kimi, OpenCode, Pi) plus a development-only Mock provider, with Kimi integrated via JSON-RPC 2.0 Wire mode. Codex has a frontend definition but no backend implementation yet.
 
 ## When to Use
 
@@ -53,11 +53,13 @@ solo/
 │   ├── src/
 │   │   ├── app/         # Expo Router (file-system routing)
 │   │   ├── components/  # Reusable UI components (~121 files)
-│   │   ├── screens/     # Screen components
+│   │   ├── screens/     # Screen components (settings sections, tmux-dashboard, schedules)
 │   │   ├── hooks/       # Custom hooks (~95 files)
 │   │   ├── stores/      # Zustand stores (~33 files)
 │   │   ├── contexts/    # React contexts (~20 files)
 │   │   ├── utils/       # Utilities (~156 files)
+│   │   ├── constants/   # App constants (agent slash commands)
+│   │   ├── styles/      # Theme and terminal theme presets
 │   │   ├── desktop/     # Desktop-specific modules
 │   │   └── terminal/    # Terminal emulation (xterm)
 │   └── e2e/             # Playwright E2E tests
@@ -65,18 +67,19 @@ solo/
 │   └── src/
 │       ├── client/      # DaemonClient, transports (WS, Relay E2EE)
 │       ├── relay/       # E2EE crypto (X25519 + XSalsa20-Poly1305)
-│       ├── server/      # Agent, chat, loop, schedule modules
+│       ├── server/      # Agent, chat, loop, schedule, tmux modules
 │       └── shared/      # Connection offer types, protocol constants
 ├── daemon/              # Go core service
 │   └── internal/
 │       ├── server/      # WebSocket server, session management
-│       ├── agent/       # Agent lifecycle, provider registry
+│       ├── agent/       # Agent lifecycle, provider registry, TurnGuard, typed errors
 │       ├── workspace/   # Workspace & project management
 │       ├── terminal/    # PTY terminal management
 │       ├── relayclient/ # Relay client + E2EE
 │       ├── push/        # Expo push notifications
 │       ├── memory/      # Session memory: TurnRecorder, bridge, filebackend, redact
 │       ├── memorysetup/ # Wires MemoryConfig → recorder+redactor+bridge for the daemon
+│       ├── schedule/    # Cron-based schedule automation (executor, store, runner)
 │       └── config/      # JSON config (~/.solo/config.json), incl. MemoryConfig
 ├── relay-go/            # Go WebSocket relay server
 │   └── internal/relay/  # Server, session, control, buffer, metrics
@@ -131,13 +134,18 @@ make stop
 
 ## CI Pipeline
 
-File: `.github/workflows/ci.yml`
+**`.github/workflows/ci.yml`** (push/PR to `main`/`master`):
 
-| Job | Trigger | Steps |
-|-----|---------|-------|
-| `go` | push/PR to main | For each module (protocol, cli, daemon, relay-go): `go mod verify` → `go build` → `go test -short -race -coverprofile` → `golangci-lint v2.10` → Codecov upload |
-| `js` | push/PR to main | `npm ci` → lint (app, app-bridge, highlight) → typecheck (mandatory, 0 errors) → test highlight → **test app (unit, 1282 tests)** → **test app-bridge (32 tests)** → Codecov upload |
-| `e2e-nightly` | daily 02:00 UTC + manual | Playwright E2E (22 specs) with daemon/relay/Metro globalSetup; failure artifacts retained 7 days |
+| Job | Steps |
+|-----|-------|
+| `go` | For each module (protocol, cli, daemon, relay-go): `go mod verify` → `go build -v ./...` → `go test -short -race -coverprofile=coverage.out` → upload coverage (Codecov + artifact, 14 days) → `golangci-lint v2.10` (`--timeout=5m`) |
+| `js` | `npm ci` → lint app / app-bridge / highlight → typecheck all three → test highlight → **test app (unit, 1617 tests)** → **test app-bridge (32 tests)** → upload coverage (Codecov + artifacts, 14 days) |
+
+**`.github/workflows/e2e-nightly.yml`** (daily 02:00 UTC + manual):
+
+| Job | Steps |
+|-----|-------|
+| `e2e` | Install dependencies → Playwright browsers → build workspace deps → run E2E (31 specs); failure artifacts retained 7 days |
 
 **Coverage**: JS via Vitest v8 → lcov → Codecov (app ~36 % stmt, app-bridge ~89 % stmt). Go via `-coverprofile=coverage.out` → Codecov.
 
@@ -160,23 +168,31 @@ File: `.github/workflows/ci.yml`
 | Provider | Mode | Backend | Status |
 |----------|------|---------|--------|
 | Claude | Print (`--print --output-format stream-json`) | Go | ✅ Full |
-| Kimi | Wire (`kimi --wire`, JSON-RPC 2.0 stdio) | Go | ✅ Full (758 LOC, 23 tests) |
+| Kimi | Wire (`kimi --wire`, JSON-RPC 2.0 stdio) | Go | ✅ Full (~737 LOC, 31 executed tests) |
 | OpenCode | SSE (`/global/event`) | Go | ✅ Full |
+| Pi | Minimal terminal harness | Go | ✅ Full |
+| Mock | Test | Go | ✅ Dev-only (`SOLO_ENABLE_MOCK_PROVIDER=1`) |
 | Codex | Print (OpenAI) | — | ⚠️ Definition only, no backend |
-| Mock | Test | Go | ✅ Test only |
 
-**Removed**: Copilot, Pi (removed from builtin registry).
+**Removed**: Copilot.
 **Planned**: Cursor-Agent (Print mode). See `docs/providers/`.
 
 ## Recent Architecture Changes
 
-1. **Session memory Phase 1** (2026-05-29): Turns (user + assistant) are persisted as Markdown + YAML frontmatter under `~/.solo/memory/sessions/{YYYY-MM-DD}/{sessionID}/turns/{seq:04d}-{role}.md`, indexed by `~/.solo/memory/sessions.jsonl`. New `daemon/internal/memory` module (`TurnRecorder` interface, `FileTurnRecorder` async writer, `Redactor` stack, `Bridge` for seq/parent chain + streaming-chunk accumulation, `SafeBridge` panic/circuit-breaker wrapper); `memorysetup` wires it from `config.MemoryConfig`; server hooks on `handleSendAgentMessage`/`sendAgentStream`. On by default (opt-out via `"memory": {"enabled": false}`). 434 tests across memory/bridge/filebackend/redact/memorysetup/config/server. See `docs/architecture/session-memory-persistence.md` and `docs/product/session-memory-spec.md`.
+1. **Session memory Phase 1** (2026-05-29): Turns (user + assistant) are persisted as Markdown + YAML frontmatter under `~/.solo/memory/sessions/{YYYY-MM-DD}/{sessionID}/turns/{seq:04d}-{role}.md`, indexed by `~/.solo/memory/sessions.jsonl`. New `daemon/internal/memory` module (`TurnRecorder` interface, `FileTurnRecorder` async writer, `Redactor` stack, `Bridge` for seq/parent chain + streaming-chunk accumulation, `SafeBridge` panic/circuit-breaker wrapper); `memorysetup` wires it from `config.MemoryConfig`; server hooks on `handleSendAgentMessage`/`sendAgentStream`. On by default (opt-out via `"memory": {"enabled": false}`). ~465 tests across memory/bridge/filebackend/redact/memorysetup/config/server. See `docs/architecture/session-memory-persistence.md` and `docs/product/session-memory-spec.md`.
 2. **MessageID propagation** (2026-05-25): All providers now attach a unique `MessageID` to `user_message` events, enabling backend timeline deduplication across multiple concurrent sessions.
 3. **Timeline deduplication** (2026-05-25): `InMemoryTimelineStore.Append()` compares the last row by type-specific equality (`MessageID` → `Text` → `CallID+Status`) to prevent duplicate entries when N sessions emit the same event.
 4. **Multi-client sync test** (2026-05-25): Added `daemon/internal/server/multi_client_sync_test.go` (180 LOC) verifying concurrent session handling correctness.
 5. **Mermaid preview** (2026-05-24): Markdown file panes now render Mermaid diagrams inline.
 6. **App-bridge test suite** (2026-05-24): 3 test files covering base64, crypto, and path-utils (32 tests, ~300 ms).
-7. **CI overhaul** (2026-05-24): App unit tests (1282 tests) and app-bridge tests now run on every PR; nightly E2E workflow; Codecov integration.
+7. **CI overhaul** (2026-05-24): App unit tests (1617 tests) and app-bridge tests now run on every PR; nightly E2E workflow; Codecov integration.
+8. **Schedule automation** (2026-06-02): New `daemon/internal/schedule/` module with cron/interval cadences, timezone-aware input, UTC evaluation, and JSON persistence; App schedule dashboard and per-host schedule screens; app-bridge schedule RPC module. See `docs/analysis/create-schedule-flow.md` and `docs/analysis/app-bridge-schedule-module.md`.
+9. **Tmux subsystem** (2026-06-03 ~ 2026-06-12): Tmux Dashboard (`screens/tmux-dashboard/`) and full-screen Tmux Pane Screen with ANSI rendering, lazy history loading (200→5000 lines), agent detection (3-layer), slash-command filtering, terminal theme sync, and status-line aggregation. See `docs/architecture/tmux-pane-content-loading.md` and `docs/analysis/tmux-pane-analysis.md`.
+10. **Agent stall detection** (2026-05-30): `daemon/internal/agent/stall_monitor.go` detects stuck/repeating agents and tightens grace periods. See `docs/architecture/agent-stall-detection.md`.
+11. **TurnGuard & typed provider errors** (2026-06-09): `daemon/internal/agent/base/turn_guard.go` prevents inconsistent provider turn transitions; `daemon/internal/agent/errors.go` introduces typed sentinel errors.
+12. **Type-erasure convergence** (2026-06-07 ~ 2026-06-08): Typed stream events and tool-call structs (`protocol/stream_event.go`, `protocol/tool_call_detail.go`) replace broad `interface{}`/`map[string]interface{}` usage in provider pipelines. See `docs/analysis/go-provider-type-erasure-analysis.md`.
+13. **OpenCode cross-device sync fix** (2026-06-09): SSE heartbeat and corrected event ordering resolve cross-client timeline duplication for OpenCode sessions. See `docs/analysis/opencode-cross-device-sync-fix.md`.
+14. **Terminal theme simplification** (2026-06-12): Terminal theme presets reduced to `system` / `dark` / `light` / `tmux`.
 
 ## Documentation Index
 

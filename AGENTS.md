@@ -2,7 +2,7 @@
 
 Behavioral guidelines and project rules for AI coding agents and human contributors.
 
-**Pre-load context:** Before starting any analysis or implementation, load the skill at `.agents/skills/solo-dev-base` to get the full architecture overview, repo map, tech stack, and build commands.
+**Pre-load context:** Before starting any analysis or implementation, load the skill at `.agents/skills/solo-dev-base` to get the full architecture overview, repo map, tech stack, and build commands. For the documentation index, see `docs/README.md`.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 

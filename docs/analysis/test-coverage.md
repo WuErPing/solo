@@ -17,7 +17,8 @@
 
 **关键指标**:
 - Go 测试文件: 174 个 (158 源文件, 比例 1.10:1)
-- App 测试文件: 207 个 (unit) + 31 个 (E2E)
+- App 测试文件: 234 个 (unit) + 31 个 (E2E)
+- App 单元测试用例: 1,617 个
 - CI 每次 push 运行: Go 测试 + App unit 测试 + App-Bridge 测试 + Lint + Typecheck
 - E2E: 每日 02:00 UTC 自动运行 + 手动触发
 
@@ -243,7 +244,7 @@
 **JS 流水线**:
 - Lint: `expo lint --max-warnings 0` (app), `eslint src/` (app-bridge, highlight)
 - Typecheck: `tsc --noEmit` (app, app-bridge, highlight) — 强制执行
-- Test: `npm test -- --coverage` (app, app-bridge)
+- Test: `npm test` (packages/highlight); `npm test -- --coverage` (app, app-bridge)
 - Coverage 上传: `codecov/codecov-action@v5`
 
 **E2E 流水线** (nightly):

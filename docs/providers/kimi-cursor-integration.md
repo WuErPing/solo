@@ -1,7 +1,7 @@
 # Kimi & Cursor-Agent Provider Integration
 
 > Analysis date: 2026-05-21
-> Status update: 2026-06-01
+> Status update: 2026-06-13
 > Scope: daemon (Go) + app-bridge (TS) + app (React Native)
 
 ---
@@ -20,8 +20,8 @@
 Kimi Wire mode provider 已完整实现，无需进一步工作。
 
 **实现文件**:
-- `daemon/internal/agent/provider_kimi.go` — 758 LOC, Wire mode, JSON-RPC 2.0 stdio, EventPump
-- `daemon/internal/agent/provider_kimi_test.go` — 23 unit tests
+- `daemon/internal/agent/provider_kimi.go` — ~737 LOC, Wire mode, JSON-RPC 2.0 stdio, EventPump
+- `daemon/internal/agent/provider_kimi_test.go` — 17 top-level tests, 31 executed test cases
 - `daemon/internal/agent/provider_registry.go` — `kimi` ID/Label/Modes 注册
 - `app-bridge/src/server/agent/provider-manifest.ts` — `KIMI_MODES` 定义
 - `app/src/utils/provider-command-templates.ts` — `kimi --resume {sessionId}` 命令模板
@@ -154,7 +154,8 @@ Usage: cursor agent [options] [command] [prompt...]
 - Claude (`provider_claude.go`): stdio, `--print --output-format stream-json`, 逐行 SDK message 解析
 - OpenCode (`provider_opencode.go`): HTTP server, `/session` API + SSE `/global/event`
 - Kimi (`provider_kimi.go`): Wire mode, JSON-RPC 2.0 stdio, EventPump
-- Mock (`provider_mock.go`): 内存测试用
+- Pi (`provider_pi.go`): minimal terminal harness
+- Mock (`provider_mock.go`): 内存测试用（opt-in via `SOLO_ENABLE_MOCK_PROVIDER=1`）
 
 **关键基础设施**:
 - `base.BaseSession` — 公共会话状态管理
