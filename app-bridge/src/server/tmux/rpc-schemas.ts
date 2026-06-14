@@ -125,3 +125,20 @@ export const TmuxStatusLineResponseSchema = z.object({
     error: z.string().nullable(),
   }),
 });
+
+export const TmuxNewSessionRequestSchema = z.object({
+  type: z.literal("tmux/new_session"),
+  name: z.string(),
+  workingDir: z.string().optional(),
+  command: z.string().optional(),
+  requestId: z.string(),
+});
+
+export const TmuxNewSessionResponseSchema = z.object({
+  type: z.literal("tmux/new_session/response"),
+  payload: z.object({
+    requestId: z.string(),
+    sessionName: z.string(),
+    error: z.string().nullable(),
+  }),
+});

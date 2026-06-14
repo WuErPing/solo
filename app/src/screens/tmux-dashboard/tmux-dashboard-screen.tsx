@@ -1,21 +1,25 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import {
   View,
   Text,
   Pressable,
   ScrollView,
   RefreshControl,
+  TextInput,
+  Alert,
 } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { Terminal, Monitor, RefreshCw, SquareTerminal, Clock, ClipboardCopy } from "lucide-react-native";
+import { Terminal, Monitor, RefreshCw, SquareTerminal, Clock, ClipboardCopy, Plus } from "lucide-react-native";
 import { router } from "expo-router";
 import { BackHeader } from "@/components/headers/back-header";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useAggregatedTmuxAgents } from "@/hooks/use-tmux-agents";
 import { useTmuxStatusLines } from "@/hooks/use-tmux-status-lines";
+import { useTmuxNewSession } from "@/hooks/use-tmux-new-session";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useStoreReady } from "@/app/_layout";
 import { useTmuxAgentStore } from "@/stores/tmux-agent-store";
+import { useHosts } from "@/runtime/host-runtime";
 import { shortenPath } from "@/utils/shorten-path";
 import { parseAnsi } from "@/utils/ansi-parser";
 import { AnsiTextContent } from "@/components/ansi-text-renderer";
@@ -71,6 +75,14 @@ function AgentCard({
         </View>
         <Text style={styles.serverLabel}>{agent.serverLabel}</Text>
       </View>
+      <View style={styles.sessionBadgeRow}>
+        <View style={[styles.sessionBadge, { backgroundColor: theme.colors.surface1 }]}>
+          <Text style={styles.sessionBadgeText}>{agent.sessionName}</Text>
+        </View>
+        <Text style={styles.sessionBadgeSub}>
+          W:{agent.windowName} P:{agent.paneId}
+        </Text>
+      </View>
       {agent.workingDir ? (
         <Text style={styles.agentTitle} numberOfLines={1}>
           {shortenPath(agent.workingDir)}
@@ -110,7 +122,7 @@ function AgentCard({
       ) : null}
       <View style={styles.agentCardBody}>
         <Text style={styles.detailLabel}>
-          S:{agent.sessionName} W:{agent.windowName} P:{agent.paneId} PID:{agent.panePid}
+          PID:{agent.panePid}
         </Text>
       </View>
     </Pressable>
@@ -166,6 +178,14 @@ function PaneCard({
         </View>
         <Text style={styles.serverLabel}>{pane.serverLabel}</Text>
       </View>
+      <View style={styles.sessionBadgeRow}>
+        <View style={[styles.sessionBadge, { backgroundColor: theme.colors.surface1 }]}>
+          <Text style={styles.sessionBadgeText}>{pane.sessionName}</Text>
+        </View>
+        <Text style={styles.sessionBadgeSub}>
+          W:{pane.windowName} P:{pane.paneId}
+        </Text>
+      </View>
       {pane.workingDir ? (
         <Text style={styles.agentTitle} numberOfLines={1}>
           {shortenPath(pane.workingDir)}
@@ -173,7 +193,7 @@ function PaneCard({
       ) : null}
       <View style={styles.agentCardBody}>
         <Text style={styles.detailLabel}>
-          S:{pane.sessionName} W:{pane.windowName} P:{pane.paneId} PID:{pane.panePid}
+          PID:{pane.panePid}
         </Text>
       </View>
     </Pressable>
@@ -238,13 +258,32 @@ function TmuxDashboardScreenInner() {
   const { theme } = useUnistyles();
   const isCompact = useIsCompactFormFactor();
   const storeReady = useStoreReady();
+  const hosts = useHosts();
   const { agents, otherPanes, commandHistory, isLoading, isInitialLoad, error, refreshAll } =
     useAggregatedTmuxAgents();
   const statusLines = useTmuxStatusLines(agents);
+  const { createSession, isLoading: isCreating, error: createError } = useTmuxNewSession();
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [selectedCmd, setSelectedCmd] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<DashboardTab>("agents");
+  const [showNewSessionInput, setShowNewSessionInput] = useState(false);
+  const [newSessionName, setNewSessionName] = useState("");
   const setSelectedAgent = useTmuxAgentStore((s) => s.setSelectedAgent);
+
+  const firstConnectedServerId = useMemo(() => {
+    return hosts.length > 0 ? hosts[0].serverId : null;
+  }, [hosts]);
+
+  const handleCreateSession = useCallback(async () => {
+    if (!firstConnectedServerId || !newSessionName.trim()) return;
+    const name = newSessionName.trim();
+    const sessionName = await createSession(firstConnectedServerId, { name });
+    if (sessionName) {
+      setShowNewSessionInput(false);
+      setNewSessionName("");
+      refreshAll();
+    }
+  }, [firstConnectedServerId, newSessionName, createSession, refreshAll]);
 
   const nameGroups = useMemo(() => {
     const map = new Map<string, number>();
@@ -310,13 +349,56 @@ function TmuxDashboardScreenInner() {
         title="Tmux Dashboard"
         onBack={() => router.navigate("/")}
         rightContent={
-          hasData ? (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{badgeText}</Text>
-            </View>
-          ) : undefined
+          <View style={styles.headerRightRow}>
+            {firstConnectedServerId ? (
+              <Pressable
+                style={[styles.headerButton, { backgroundColor: theme.colors.primary }]}
+                onPress={() => setShowNewSessionInput((prev) => !prev)}
+              >
+                <Plus size={16} color={theme.colors.background} />
+                <Text style={[styles.headerButtonText, { color: theme.colors.background }]}>New</Text>
+              </Pressable>
+            ) : null}
+            {hasData ? (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{badgeText}</Text>
+              </View>
+            ) : undefined}
+          </View>
         }
       />
+
+      {showNewSessionInput ? (
+        <View style={[styles.newSessionRow, { backgroundColor: theme.colors.surface0 }]}>
+          <TextInput
+            style={[styles.newSessionInput, { color: theme.colors.foreground, borderColor: theme.colors.border }]}
+            placeholder="session name"
+            placeholderTextColor={theme.colors.foregroundMuted}
+            value={newSessionName}
+            onChangeText={setNewSessionName}
+            autoFocus
+            onSubmitEditing={handleCreateSession}
+          />
+          <Pressable
+            style={[styles.newSessionButton, { backgroundColor: theme.colors.primary }]}
+            onPress={handleCreateSession}
+            disabled={isCreating || !newSessionName.trim()}
+          >
+            <Text style={[styles.newSessionButtonText, { color: theme.colors.background }]}>
+              {isCreating ? "..." : "Create"}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.newSessionButton, { backgroundColor: theme.colors.surface1 }]}
+            onPress={() => { setShowNewSessionInput(false); setNewSessionName(""); }}
+          >
+            <Text style={[styles.newSessionButtonText, { color: theme.colors.foregroundMuted }]}>Cancel</Text>
+          </Pressable>
+          {createError ? (
+            <Text style={styles.errorText}>{createError}</Text>
+          ) : null}
+        </View>
+      ) : null}
 
       {!storeReady || isInitialLoad ? (
         <View style={styles.centerContent}>
@@ -333,13 +415,24 @@ function TmuxDashboardScreenInner() {
           <Text style={styles.emptySubtitle}>
             Open a tmux session to see panes here.
           </Text>
-          <Pressable
-            style={styles.refreshButton}
-            onPress={refreshAll}
-          >
-            <RefreshCw size={16} color={theme.colors.primary} />
-            <Text style={styles.refreshButtonText}>Refresh</Text>
-          </Pressable>
+          <View style={styles.emptyActionsRow}>
+            {firstConnectedServerId ? (
+              <Pressable
+                style={[styles.refreshButton, { backgroundColor: theme.colors.primary }]}
+                onPress={() => setShowNewSessionInput(true)}
+              >
+                <Plus size={16} color={theme.colors.background} />
+                <Text style={[styles.refreshButtonText, { color: theme.colors.background }]}>New tmux</Text>
+              </Pressable>
+            ) : null}
+            <Pressable
+              style={styles.refreshButton}
+              onPress={refreshAll}
+            >
+              <RefreshCw size={16} color={theme.colors.primary} />
+              <Text style={styles.refreshButtonText}>Refresh</Text>
+            </Pressable>
+          </View>
         </View>
       ) : (
         <ScrollView
@@ -625,6 +718,26 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foregroundMuted,
     fontSize: 12,
   },
+  sessionBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  sessionBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  sessionBadgeText: {
+    color: theme.colors.foreground,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  sessionBadgeSub: {
+    color: theme.colors.foregroundMuted,
+    fontSize: 11,
+  },
   statusLineContainer: {
     backgroundColor: theme.colors.background,
     borderRadius: 6,
@@ -714,5 +827,51 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: 13,
     fontFamily: "monospace",
     flex: 1,
+  },
+  headerRightRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  headerButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  newSessionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  newSessionInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+  },
+  newSessionButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  newSessionButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  emptyActionsRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 16,
   },
 }));

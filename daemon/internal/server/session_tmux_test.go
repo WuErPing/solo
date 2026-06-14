@@ -512,6 +512,106 @@ func TestExtractTmuxStatusLineInvalidSession(t *testing.T) {
 	t.Logf("invalid session returned: left=%q right=%q", left, right)
 }
 
+func TestCreateTmuxSession(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	sessionName := "solo-test-new-session-" + t.Name()
+	defer func() {
+		_ = exec.Command("tmux", "kill-session", "-t", sessionName).Run()
+	}()
+
+	err := createTmuxSession(sessionName, nil, nil)
+	if err != nil {
+		t.Fatalf("createTmuxSession(%q) error: %v", sessionName, err)
+	}
+
+	// Verify the session exists
+	out, err := exec.Command("tmux", "list-sessions", "-F", "#{session_name}").Output()
+	if err != nil {
+		t.Fatalf("list-sessions error: %v", err)
+	}
+	if !strings.Contains(string(out), sessionName) {
+		t.Errorf("session %q not found in tmux sessions:\n%s", sessionName, string(out))
+	}
+}
+
+func TestCreateTmuxSessionWithWorkingDir(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	sessionName := "solo-test-cwd-" + t.Name()
+	defer func() {
+		_ = exec.Command("tmux", "kill-session", "-t", sessionName).Run()
+	}()
+
+	cwd := "/tmp"
+	err := createTmuxSession(sessionName, &cwd, nil)
+	if err != nil {
+		t.Fatalf("createTmuxSession with cwd error: %v", err)
+	}
+
+	// Verify the session's current path
+	out, err := exec.Command("tmux", "list-panes", "-t", sessionName, "-F", "#{pane_current_path}").Output()
+	if err != nil {
+		t.Fatalf("list-panes error: %v", err)
+	}
+	gotPath := strings.TrimSpace(string(out))
+	if gotPath != "/private/tmp" && gotPath != "/tmp" {
+		t.Errorf("expected working dir /tmp or /private/tmp, got %q", gotPath)
+	}
+}
+
+func TestCreateTmuxSessionWithCommand(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	sessionName := "solo-test-cmd-" + t.Name()
+	defer func() {
+		_ = exec.Command("tmux", "kill-session", "-t", sessionName).Run()
+	}()
+
+	// Use a long-running command so the session stays alive
+	cmd := "sleep 60"
+	err := createTmuxSession(sessionName, nil, &cmd)
+	if err != nil {
+		t.Fatalf("createTmuxSession with command error: %v", err)
+	}
+
+	// Verify the session exists
+	out, err := exec.Command("tmux", "list-sessions", "-F", "#{session_name}").Output()
+	if err != nil {
+		t.Fatalf("list-sessions error: %v", err)
+	}
+	if !strings.Contains(string(out), sessionName) {
+		t.Errorf("session %q not found in tmux sessions:\n%s", sessionName, string(out))
+	}
+}
+
+func TestCreateTmuxSessionDuplicateName(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	sessionName := "solo-test-dup-" + t.Name()
+	defer func() {
+		_ = exec.Command("tmux", "kill-session", "-t", sessionName).Run()
+	}()
+
+	err := createTmuxSession(sessionName, nil, nil)
+	if err != nil {
+		t.Fatalf("first createTmuxSession error: %v", err)
+	}
+
+	err = createTmuxSession(sessionName, nil, nil)
+	if err == nil {
+		t.Fatal("expected error for duplicate session name, got nil")
+	}
+}
+
 func TestComputeContentHash(t *testing.T) {
 	t.Run("deterministic for same input", func(t *testing.T) {
 		h1 := computeContentHash("hello world")

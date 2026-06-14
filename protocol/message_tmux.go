@@ -162,6 +162,32 @@ type TmuxStatusLineResponsePayload struct {
 	Error        *string `json:"error"`
 }
 
+// TmuxNewSessionRequest asks the daemon to create a new tmux session.
+type TmuxNewSessionRequest struct {
+	Type      string  `json:"type"`
+	Name      string  `json:"name"`
+	WorkingDir *string `json:"workingDir,omitempty"`
+	Command   *string `json:"command,omitempty"`
+	RequestID string  `json:"requestId"`
+}
+
+func (m TmuxNewSessionRequest) MsgType() string { return "tmux/new_session" }
+
+// TmuxNewSessionResponse confirms the session was created.
+type TmuxNewSessionResponse struct {
+	Type    string                        `json:"type"`
+	Payload TmuxNewSessionResponsePayload `json:"payload"`
+}
+
+func (m TmuxNewSessionResponse) MsgType() string { return "tmux/new_session/response" }
+
+// TmuxNewSessionResponsePayload is the payload for TmuxNewSessionResponse.
+type TmuxNewSessionResponsePayload struct {
+	RequestID   string  `json:"requestId"`
+	SessionName string  `json:"sessionName"`
+	Error       *string `json:"error"`
+}
+
 // TmuxSendKeysRequest asks the daemon to send keystrokes to a tmux pane.
 type TmuxSendKeysRequest struct {
 	Type      string `json:"type"`

@@ -382,6 +382,10 @@ type TmuxSendKeysPayload = Extract<
   SessionOutboundMessage,
   { type: "tmux/send_keys/response" }
 >["payload"];
+type TmuxNewSessionPayload = Extract<
+  SessionOutboundMessage,
+  { type: "tmux/new_session/response" }
+>["payload"];
 type TmuxStatusLinePayload = Extract<
   SessionOutboundMessage,
   { type: "tmux/status_line/response" }
@@ -3685,6 +3689,20 @@ export class DaemonClient {
         sessionId,
       },
       responseType: "tmux/status_line/response",
+      timeout: 10000,
+    });
+  }
+
+  async tmuxNewSession(name: string, options?: { workingDir?: string; command?: string }, requestId?: string): Promise<TmuxNewSessionPayload> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "tmux/new_session",
+        name,
+        ...(options?.workingDir ? { workingDir: options.workingDir } : {}),
+        ...(options?.command ? { command: options.command } : {}),
+      },
+      responseType: "tmux/new_session/response",
       timeout: 10000,
     });
   }

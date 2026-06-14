@@ -195,19 +195,21 @@ describe("TmuxDashboardScreen", () => {
     expect(mockPush).toHaveBeenCalledWith("/tmux-pane");
   });
 
-  it("renders agent details in compact S:/W:/P:/PID: format", () => {
+  it("renders agent session name badge and detail line", () => {
     agentsOverride = mockAgents;
     render(<TmuxDashboardScreen />);
 
-    // Should show compact format on a single line per agent
-    const compactLines = screen.getAllByText("S:dev W:main P:%0 PID:100");
-    expect(compactLines.length).toBe(1);
+    // Session name badge
+    const sessionBadges = screen.getAllByText("dev");
+    expect(sessionBadges.length).toBeGreaterThanOrEqual(2);
 
-    // Old 4-line format should NOT be present
-    expect(screen.queryByText(/Session:/)).toBeNull();
-    expect(screen.queryByText(/Window:/)).toBeNull();
-    expect(screen.queryByText(/Pane:/)).toBeNull();
-    expect(screen.queryByText(/^PID:/)).toBeNull();
+    // Window/pane sub-label
+    expect(screen.getByText("W:main P:%0")).toBeDefined();
+    expect(screen.getByText("W:main P:%1")).toBeDefined();
+
+    // PID detail line
+    expect(screen.getByText("PID:100")).toBeDefined();
+    expect(screen.getByText("PID:200")).toBeDefined();
   });
 
   it("renders only statusRight in agent cards (statusLeft and statusCenter are redundant with compact detail line)", () => {
@@ -260,12 +262,14 @@ describe("TmuxDashboardScreen", () => {
     expect(screen.queryByText("claude")).toBeNull();
   });
 
-  it("shows non-agent panes with correct detail format", () => {
+  it("shows non-agent panes with session badge and detail", () => {
     agentsOverride = [];
     otherPanesOverride = [mockOtherPanes[0]];
     render(<TmuxDashboardScreen />);
     fireEvent.click(screen.getByText(/Other Panes/));
-    expect(screen.getByText("S:dev W:main P:%3 PID:400")).toBeDefined();
+    expect(screen.getByText("dev")).toBeDefined();
+    expect(screen.getByText("W:main P:%3")).toBeDefined();
+    expect(screen.getByText("PID:400")).toBeDefined();
   });
 
   it("groups panes by command name in Other Panes tab", () => {

@@ -167,6 +167,7 @@ func init() {
 	RegisterInbound("tmux/list_agents", func() SessionInboundMessage { return &TmuxListAgentsRequest{} })
 	RegisterInbound("tmux/capture_pane", func() SessionInboundMessage { return &TmuxCapturePaneRequest{} })
 	RegisterInbound("tmux/send_keys", func() SessionInboundMessage { return &TmuxSendKeysRequest{} })
+	RegisterInbound("tmux/new_session", func() SessionInboundMessage { return &TmuxNewSessionRequest{} })
 	RegisterInbound("tmux/get_theme", func() SessionInboundMessage { return &TmuxGetThemeRequest{} })
 	RegisterInbound("tmux/status_line", func() SessionInboundMessage { return &TmuxStatusLineRequest{} })
 	RegisterInbound("tmux/status_line", func() SessionInboundMessage { return &TmuxStatusLineRequest{} })

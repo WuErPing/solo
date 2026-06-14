@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"os/exec"
 	"sort"
 	"strconv"
@@ -434,6 +435,45 @@ func (s *Session) sendTmuxSendKeysResponse(requestID string, errMsg *string) {
 		Payload: protocol.TmuxSendKeysResponsePayload{
 			RequestID: requestID,
 			Error:     errMsg,
+		},
+	}))
+}
+
+// createTmuxSession creates a new detached tmux session.
+func createTmuxSession(name string, workingDir *string, command *string) error {
+	args := []string{"new-session", "-d", "-s", name}
+	if workingDir != nil {
+		args = append(args, "-c", *workingDir)
+	}
+	if command != nil {
+		args = append(args, *command)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), tmuxCommandTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "tmux", args...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("tmux new-session: %s: %w", strings.TrimSpace(string(out)), err)
+	}
+	return nil
+}
+
+func (s *Session) handleTmuxNewSession(m *protocol.TmuxNewSessionRequest) {
+	err := createTmuxSession(m.Name, m.WorkingDir, m.Command)
+	if err != nil {
+		errMsg := err.Error()
+		s.sendTmuxNewSessionResponse(m.RequestID, "", &errMsg)
+		return
+	}
+	s.sendTmuxNewSessionResponse(m.RequestID, m.Name, nil)
+}
+
+func (s *Session) sendTmuxNewSessionResponse(requestID, sessionName string, errMsg *string) {
+	s.sendMessage(protocol.NewSessionMessage(&protocol.TmuxNewSessionResponse{
+		Type: "tmux/new_session/response",
+		Payload: protocol.TmuxNewSessionResponsePayload{
+			RequestID:   requestID,
+			SessionName: sessionName,
+			Error:       errMsg,
 		},
 	}))
 }
