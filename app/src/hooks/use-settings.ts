@@ -35,7 +35,7 @@ export interface Settings extends AppSettings {
 export const DEFAULT_CLIENT_SETTINGS: AppSettings = {
   theme: "auto",
   sendBehavior: "interrupt",
-  terminalTheme: "system",
+  terminalTheme: "light",
 };
 
 export const DEFAULT_APP_SETTINGS: Settings = {

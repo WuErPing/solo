@@ -4,8 +4,6 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
-
-	"github.com/WuErPing/solo/protocol"
 )
 
 var testAgentNames = map[string]bool{
@@ -418,81 +416,6 @@ func TestSendKeysToTmuxPaneInvalidID(t *testing.T) {
 	}
 }
 
-func TestParseTmuxThemeOutput(t *testing.T) {
-	tests := []struct {
-		name   string
-		output map[string]string
-		want   protocol.TmuxThemeColors
-	}{
-		{
-			name: "full theme",
-			output: map[string]string{
-				"window-active-style":      "bg=#1e1e2e,fg=#cdd6f4",
-				"message-bg":              "#1e1e2e",
-				"message-fg":              "#cdd6f4",
-				"pane-active-border-style": "#89b4fa",
-				"pane-border-style":       "#45475a",
-				"status-style":            "bg=#181825,fg=#cdd6f4",
-				"message-command-bg":      "#1e1e2e",
-				"message-command-fg":      "#cdd6f4",
-				"window-status-current-bg": "#585b70",
-				"window-status-current-fg": "#cdd6f4",
-			},
-			want: protocol.TmuxThemeColors{
-				Background:            "#1e1e2e",
-				Foreground:            "#cdd6f4",
-				MessageBackground:     "#1e1e2e",
-				MessageForeground:     "#cdd6f4",
-				PaneActiveBorder:      "#89b4fa",
-				PaneInactiveBorder:    "#45475a",
-				StatusBackground:      "#181825",
-				StatusForeground:      "#cdd6f4",
-				WindowStatusCurrentBg: "#585b70",
-				WindowStatusCurrentFg: "#cdd6f4",
-			},
-		},
-		{
-			name: "minimal theme with hex colors",
-			output: map[string]string{
-				"window-active-style": "bg=#000000,fg=#ffffff",
-				"status-style":       "bg=#000000,fg=#ffffff",
-			},
-			want: protocol.TmuxThemeColors{
-				Background:       "#000000",
-				Foreground:       "#ffffff",
-				StatusBackground: "#000000",
-				StatusForeground: "#ffffff",
-			},
-		},
-		{
-			name: "theme with named colors",
-			output: map[string]string{
-				"window-active-style": "bg=black,fg=white",
-				"status-style":       "bg=black,fg=white",
-			},
-			want: protocol.TmuxThemeColors{
-				Background:       "black",
-				Foreground:       "white",
-				StatusBackground: "black",
-				StatusForeground: "white",
-			},
-		},
-		{
-			name:   "empty output",
-			output: map[string]string{},
-			want:   protocol.TmuxThemeColors{},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := parseTmuxThemeOutput(tt.output)
-			if got != tt.want {
-				t.Errorf("parseTmuxThemeOutput() = %+v, want %+v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestExtractTmuxStatusLine(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -506,7 +429,7 @@ func TestExtractTmuxStatusLine(t *testing.T) {
 		t.Skip("no tmux sessions available")
 	}
 
-	left, center, right, paneBg, paneFg, err := extractTmuxStatusLine(sessionID)
+	left, center, right, err := extractTmuxStatusLine(sessionID)
 	if err != nil {
 		t.Fatalf("extractTmuxStatusLine(%q) error: %v", sessionID, err)
 	}
@@ -514,7 +437,7 @@ func TestExtractTmuxStatusLine(t *testing.T) {
 	if left == "" && right == "" {
 		t.Error("expected at least one of statusLeft or statusRight to be non-empty")
 	}
-	t.Logf("statusLeft=%q statusCenter=%q statusRight=%q paneBg=%q paneFg=%q", left, center, right, paneBg, paneFg)
+	t.Logf("statusLeft=%q statusCenter=%q statusRight=%q", left, center, right)
 }
 
 func TestExtractTmuxStatusLineExpanded(t *testing.T) {
@@ -530,7 +453,7 @@ func TestExtractTmuxStatusLineExpanded(t *testing.T) {
 		t.Skip("no tmux sessions available")
 	}
 
-	left, _, right, _, _, err := extractTmuxStatusLine(sessionID)
+	left, _, right, err := extractTmuxStatusLine(sessionID)
 	if err != nil {
 		t.Fatalf("extractTmuxStatusLine(%q) error: %v", sessionID, err)
 	}
@@ -548,69 +471,12 @@ func TestExtractTmuxStatusLineExpanded(t *testing.T) {
 func TestExtractTmuxStatusLineInvalidSession(t *testing.T) {
 	// tmux display-message may succeed even for invalid sessions (falls back to current),
 	// so we just verify it doesn't panic and returns some result.
-	left, _, right, _, _, err := extractTmuxStatusLine("nonexistent-session-99999")
+	left, _, right, err := extractTmuxStatusLine("nonexistent-session-99999")
 	if err != nil {
 		// Some tmux versions do error - that's fine too.
 		return
 	}
 	t.Logf("invalid session returned: left=%q right=%q", left, right)
-}
-
-func TestParseTmuxStatusStyle(t *testing.T) {
-	tests := []struct {
-		name      string
-		style     string
-		wantBg    string
-		wantFg    string
-	}{
-		{
-			name:   "bg and fg",
-			style:  "bg=#181825,fg=#cdd6f4",
-			wantBg: "#181825",
-			wantFg: "#cdd6f4",
-		},
-		{
-			name:   "fg only",
-			style:  "fg=#ffffff",
-			wantBg: "",
-			wantFg: "#ffffff",
-		},
-		{
-			name:   "bg only",
-			style:  "bg=#000000",
-			wantBg: "#000000",
-			wantFg: "",
-		},
-		{
-			name:   "with spaces",
-			style:  "bg=#181825, fg=#cdd6f4",
-			wantBg: "#181825",
-			wantFg: "#cdd6f4",
-		},
-		{
-			name:   "empty",
-			style:  "",
-			wantBg: "",
-			wantFg: "",
-		},
-		{
-			name:   "plain color",
-			style:  "bg=black,fg=white",
-			wantBg: "black",
-			wantFg: "white",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gotBg, gotFg := parseTmuxStatusStyle(tt.style)
-			if gotBg != tt.wantBg {
-				t.Errorf("parseTmuxStatusStyle(%q) bg = %q, want %q", tt.style, gotBg, tt.wantBg)
-			}
-			if gotFg != tt.wantFg {
-				t.Errorf("parseTmuxStatusStyle(%q) fg = %q, want %q", tt.style, gotFg, tt.wantFg)
-			}
-		})
-	}
 }
 
 func TestComputeContentHash(t *testing.T) {

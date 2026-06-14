@@ -31,11 +31,8 @@ import { filterSlashCommands } from "@/constants/agent-commands";
 import { withLiveTmuxClient } from "@/utils/tmux-rpc";
 import { useTmuxAgentStore } from "@/stores/tmux-agent-store";
 import { parseAnsi, type AnsiSegment } from "@/utils/ansi-parser";
-import { detectColorsFromAnsi } from "@/utils/detect-ansi-colors";
 import { resolveTerminalColors } from "@/utils/resolve-terminal-colors";
-import { useTmuxTheme } from "@/hooks/use-tmux-theme";
 import {
-  TERMINAL_THEME_IDS,
   TERMINAL_THEME_PRESETS,
   type TerminalThemeId,
 } from "@/styles/terminal-themes";
@@ -74,38 +71,16 @@ function TmuxPaneScreenInner() {
     Boolean(agent),
   );
   const terminalThemeId = settings.terminalTheme;
-  const cachedColorsRef = useRef<{ background: string | null; foreground: string | null } | null>(null);
-  const colorContentRef = useRef<string | null>(null);
-  const prevColorContentRef = useRef<string | null>(null);
-  const [colorResetKey, setColorResetKey] = useState(0);
 
-  const { theme: tmuxTheme } = useTmuxTheme(
-    agent?.serverId ?? "",
-    agent?.sessionName ?? "",
-    Boolean(agent),
+  const terminalColors = useMemo(
+    () =>
+      resolveTerminalColors(
+        terminalThemeId,
+        theme.colors.terminal,
+        TERMINAL_THEME_PRESETS[terminalThemeId as Exclude<typeof terminalThemeId, "system">],
+      ),
+    [terminalThemeId, theme.colors.terminal],
   );
-
-  // Reset cached colors when content transitions from empty to non-empty (pane navigation)
-  if (!prevColorContentRef.current && content) {
-    cachedColorsRef.current = null;
-    setColorResetKey((k) => k + 1);
-  }
-  prevColorContentRef.current = content;
-  colorContentRef.current = content;
-
-  const terminalColors = useMemo(() => {
-    if (!cachedColorsRef.current && colorContentRef.current) {
-      cachedColorsRef.current = detectColorsFromAnsi(colorContentRef.current);
-    }
-    return resolveTerminalColors(
-      terminalThemeId,
-      theme.colors.terminal,
-      TERMINAL_THEME_PRESETS[terminalThemeId as Exclude<typeof terminalThemeId, "system" | "tmux">],
-      cachedColorsRef.current,
-      tmuxTheme,
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- content read via ref; re-detect only on pane change
-  }, [terminalThemeId, theme.colors.terminal, tmuxTheme, colorResetKey]);
   const segments = useMemo(
     () => (content ? parseAnsi(content) : null),
     [content],
@@ -132,7 +107,7 @@ function TmuxPaneScreenInner() {
 
   const renderLine = useCallback(
     ({ item }: ListRenderItemInfo<AnsiSegment[]>) => (
-      <AnsiTextLine segments={item} style={styles.contentText} terminalColors={terminalColors} selectable={selectMode} />
+      <AnsiTextLine segments={item} style={[styles.contentText, { color: terminalColors.foreground }]} terminalColors={terminalColors} selectable={selectMode} />
     ),
     [terminalColors, selectMode],
   );
@@ -295,30 +270,14 @@ function TmuxPaneScreenInner() {
         <Palette size={16} color={theme.colors.foregroundMuted} />
       </DropdownMenuTrigger>
       <DropdownMenuContent side="bottom" align="end" width={180}>
-        {(["system", "dark", "light", "tmux"] as const).map((id) => {
-          const label = id === "system" ? "System" : id === "tmux" ? "Tmux" : TERMINAL_THEME_PRESETS[id].label;
-          const swatchColor = id === "system"
-            ? theme.colors.terminal.background
-            : id === "tmux"
-              ? (tmuxTheme?.background ?? theme.colors.terminal.background)
-              : TERMINAL_THEME_PRESETS[id].background;
+        {(["system", "dark", "light", "bash"] as const).map((id) => {
+          const label = id === "system" ? "System" : TERMINAL_THEME_PRESETS[id].label;
           return (
             <DropdownMenuItem
               key={id}
               selected={terminalThemeId === id}
+              showSelectedCheck
               onSelect={() => handleTerminalThemeChange(id)}
-              leading={
-                <View
-                  style={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: 6,
-                    backgroundColor: swatchColor,
-                    borderWidth: 1,
-                    borderColor: "rgba(255,255,255,0.15)",
-                  }}
-                />
-              }
             >
               {label}
             </DropdownMenuItem>
@@ -396,7 +355,7 @@ function TmuxPaneScreenInner() {
           ) : error ? (
             <Text style={styles.errorText}>{error}</Text>
           ) : (
-            <Text style={styles.contentText}>(empty pane)</Text>
+            <Text style={[styles.contentText, { color: terminalColors.foreground }]}>(empty pane)</Text>
           )
         }
       />
@@ -608,7 +567,6 @@ const styles = StyleSheet.create((theme) => ({
   contentText: {
     fontFamily: "monospace",
     fontSize: 12,
-    color: theme.colors.foreground,
     lineHeight: 18,
   },
   keyButtonsRow: {

@@ -1,4 +1,4 @@
-export type TerminalThemeId = "system" | "dark" | "light" | "tmux";
+export type TerminalThemeId = "system" | "dark" | "light" | "bash" | "auto";
 
 export interface TerminalThemePreset {
   label: string;
@@ -24,10 +24,10 @@ export interface TerminalThemePreset {
   brightWhite: string;
 }
 
-export const TERMINAL_THEME_IDS: TerminalThemeId[] = ["system", "dark", "light", "tmux"];
+export const TERMINAL_THEME_IDS: TerminalThemeId[] = ["system", "dark", "light", "bash", "auto"];
 
 export const TERMINAL_THEME_PRESETS: Record<
-  Exclude<TerminalThemeId, "system" | "tmux">,
+  Exclude<TerminalThemeId, "system" | "auto">,
   TerminalThemePreset
 > = {
   dark: {
@@ -73,5 +73,27 @@ export const TERMINAL_THEME_PRESETS: Record<
     brightMagenta: "#a855f7",
     brightCyan: "#06b6d4",
     brightWhite: "#fafafa",
+  },
+  bash: {
+    label: "Bash",
+    swatch: "#000000",
+    background: "#000000",
+    foreground: "#c0c0c0",
+    black: "#000000",
+    red: "#aa0000",
+    green: "#00aa00",
+    yellow: "#aa5500",
+    blue: "#0000aa",
+    magenta: "#aa00aa",
+    cyan: "#00aaaa",
+    white: "#aaaaaa",
+    brightBlack: "#555555",
+    brightRed: "#ff5555",
+    brightGreen: "#55ff55",
+    brightYellow: "#ffff55",
+    brightBlue: "#5555ff",
+    brightMagenta: "#ff55ff",
+    brightCyan: "#55ffff",
+    brightWhite: "#ffffff",
   },
 };

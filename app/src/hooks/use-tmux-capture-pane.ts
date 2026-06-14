@@ -38,6 +38,8 @@ export interface TmuxCapturePaneResult {
   hasMoreHistory: boolean;
   autoRefresh: boolean;
   setAutoRefresh: (value: boolean) => void;
+  defaultFg: string | null;
+  defaultBg: string | null;
 }
 
 export function tmuxCapturePaneQueryKey(
@@ -61,7 +63,12 @@ export function useTmuxCapturePane(
   const isConnected = isHostRuntimeConnected(snapshot);
   const isAppVisible = useAppVisible();
 
-  const prevResultRef = useRef<{ content: string; error: string | null } | null>(null);
+  const prevResultRef = useRef<{
+    content: string;
+    error: string | null;
+    defaultFg: string | null;
+    defaultBg: string | null;
+  } | null>(null);
   const lastContentHashRef = useRef<string | null>(null);
 
   // Reset scrollback, dedup cache, and hash when pane changes
@@ -97,7 +104,7 @@ export function useTmuxCapturePane(
           lastContentHashRef.current = payload.contentHash;
         }
         if (prevResultRef.current) return prevResultRef.current;
-        return { content: "", error: null };
+        return { content: "", error: null, defaultFg: null, defaultBg: null };
       }
 
       // Update hash from daemon response
@@ -106,14 +113,38 @@ export function useTmuxCapturePane(
       }
 
       const newContent = payload.content ?? "";
-      if (prevResultRef.current && prevResultRef.current.content === newContent) {
+      const newDefaultFg = payload.defaultFg ?? null;
+      const newDefaultBg = payload.defaultBg ?? null;
+      if (
+        prevResultRef.current &&
+        prevResultRef.current.content === newContent &&
+        prevResultRef.current.defaultFg === newDefaultFg &&
+        prevResultRef.current.defaultBg === newDefaultBg
+      ) {
         return prevResultRef.current;
       }
-      const result = { content: newContent, error: payload.error ?? null };
+      const result = {
+        content: newContent,
+        error: payload.error ?? null,
+        defaultFg: newDefaultFg,
+        defaultBg: newDefaultBg,
+      };
       prevResultRef.current = result;
       return result;
     },
   });
+
+  // Foreground edge refetch: when the app transitions from hidden to visible
+  // while autoRefresh is on, refetch immediately instead of waiting for the
+  // next adaptive-poll tick (up to IDLE_POLL_INTERVAL = 5000ms).
+  const prevVisibleRef = useRef(isAppVisible);
+  useEffect(() => {
+    const wasVisible = prevVisibleRef.current;
+    prevVisibleRef.current = isAppVisible;
+    if (!wasVisible && isAppVisible && enabled && autoRefresh) {
+      void refetch();
+    }
+  }, [isAppVisible, enabled, autoRefresh, refetch]);
 
   const loadMoreHistory = useCallback(() => {
     if (scrollbackLines >= MAX_SCROLLBACK_LINES) return;
@@ -160,6 +191,8 @@ export function useTmuxCapturePane(
       hasMoreHistory,
       autoRefresh,
       setAutoRefresh,
+      defaultFg: data?.defaultFg ?? null,
+      defaultBg: data?.defaultBg ?? null,
     }),
     [data, isLoading, isLoadingMore, error, refetch, scrollbackLines, loadMoreHistory, hasMoreHistory, autoRefresh],
   );

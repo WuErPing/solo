@@ -69,3 +69,4 @@ graphify-out/
 daemon/output/
 complexity-report/
 .codegraph/
+.mimocode/

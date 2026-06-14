@@ -382,10 +382,6 @@ type TmuxSendKeysPayload = Extract<
   SessionOutboundMessage,
   { type: "tmux/send_keys/response" }
 >["payload"];
-type TmuxGetThemePayload = Extract<
-  SessionOutboundMessage,
-  { type: "tmux/get_theme/response" }
->["payload"];
 type TmuxStatusLinePayload = Extract<
   SessionOutboundMessage,
   { type: "tmux/status_line/response" }
@@ -3677,18 +3673,6 @@ export class DaemonClient {
         ...(sendEnter === undefined ? {} : { sendEnter }),
       },
       responseType: "tmux/send_keys/response",
-      timeout: 10000,
-    });
-  }
-
-  async tmuxGetTheme(sessionId: string, requestId?: string): Promise<TmuxGetThemePayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "tmux/get_theme",
-        sessionId,
-      },
-      responseType: "tmux/get_theme/response",
       timeout: 10000,
     });
   }

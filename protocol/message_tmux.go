@@ -133,13 +133,11 @@ func (m TmuxStatusLineResponse) MsgType() string { return "tmux/status_line/resp
 
 // TmuxStatusLineResponsePayload is the payload for TmuxStatusLineResponse.
 type TmuxStatusLineResponsePayload struct {
-	RequestID      string  `json:"requestId"`
-	StatusLeft     string  `json:"statusLeft"`
-	StatusCenter   string  `json:"statusCenter"`
-	StatusRight    string  `json:"statusRight"`
-	PaneBackground string  `json:"paneBackground,omitempty"`
-	PaneForeground string  `json:"paneForeground,omitempty"`
-	Error          *string `json:"error"`
+	RequestID    string  `json:"requestId"`
+	StatusLeft   string  `json:"statusLeft"`
+	StatusCenter string  `json:"statusCenter"`
+	StatusRight  string  `json:"statusRight"`
+	Error        *string `json:"error"`
 }
 
 // TmuxSendKeysRequest asks the daemon to send keystrokes to a tmux pane.

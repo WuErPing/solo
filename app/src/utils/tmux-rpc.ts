@@ -15,6 +15,7 @@ export async function withLiveTmuxClient<T>(
   }
 
   let lastError: unknown;
+  let hasEnsuredConnected = false;
 
   for (let attempt = 0; attempt <= MAX_DISPOSED_RETRIES; attempt++) {
     const current = attempt === 0 ? client : store.getClient(serverId);
@@ -24,11 +25,20 @@ export async function withLiveTmuxClient<T>(
       }
       throw lastError ?? new Error("Daemon client not available");
     }
+
+    // If the runtime has a disconnected client, nudge it to reconnect immediately
+    // instead of waiting for the next probe cycle. A user action (send key, send
+    // command, refresh) should recover from a transient disconnect on its own.
+    if (current.getConnectionState().status === "disconnected" && !hasEnsuredConnected) {
+      current.ensureConnected();
+      hasEnsuredConnected = true;
+    }
+
     try {
       return await op(current);
     } catch (error) {
       lastError = error;
-      if (!isDisposedError(error, current)) {
+      if (!isRetryableError(error, current)) {
         throw error;
       }
       if (attempt < MAX_DISPOSED_RETRIES) {
@@ -43,12 +53,21 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function isDisposedError(error: unknown, client: DaemonClient): boolean {
-  if (client.getConnectionState().status === "disposed") {
+function isRetryableError(error: unknown, client: DaemonClient): boolean {
+  const status = client.getConnectionState().status;
+  if (status === "disposed") {
     return true;
   }
   if (!(error instanceof Error)) {
     return false;
   }
-  return /disposed/i.test(error.message);
+  if (/disposed/i.test(error.message)) {
+    return true;
+  }
+  // Retry connection-lost errors so a user action can recover from a
+  // transient disconnect faster than the probe cycle.
+  if (status === "disconnected" && /not connected/i.test(error.message)) {
+    return true;
+  }
+  return false;
 }

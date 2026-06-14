@@ -382,121 +382,34 @@ func sendKeysToTmuxPane(paneID, keys string, sendEnter bool) error {
 	return exec.CommandContext(ctx, "tmux", "send-keys", "-t", paneID, keys).Run()
 }
 
-func parseTmuxThemeOutput(options map[string]string) protocol.TmuxThemeColors {
-	theme := protocol.TmuxThemeColors{}
-
-	// Window colors: prefer active window style, fall back to default window style
-	if style, ok := options["window-active-style"]; ok {
-		bg, fg := parseTmuxStatusStyle(style)
-		theme.Background = bg
-		theme.Foreground = fg
-	} else if style, ok := options["window-style"]; ok {
-		bg, fg := parseTmuxStatusStyle(style)
-		theme.Background = bg
-		theme.Foreground = fg
-	}
-
-	// Status bar colors
-	if style, ok := options["status-style"]; ok {
-		bg, fg := parseTmuxStatusStyle(style)
-		theme.StatusBackground = bg
-		theme.StatusForeground = fg
-	}
-
-	if v, ok := options["message-bg"]; ok && v != "" {
-		theme.MessageBackground = v
-	}
-	if v, ok := options["message-fg"]; ok && v != "" {
-		theme.MessageForeground = v
-	}
-	if v, ok := options["message-command-bg"]; ok && v != "" && theme.MessageBackground == "" {
-		theme.MessageBackground = v
-	}
-	if v, ok := options["message-command-fg"]; ok && v != "" && theme.MessageForeground == "" {
-		theme.MessageForeground = v
-	}
-
-	if v, ok := options["pane-active-border-style"]; ok && v != "" {
-		theme.PaneActiveBorder = v
-	}
-	if v, ok := options["pane-border-style"]; ok && v != "" {
-		theme.PaneInactiveBorder = v
-	}
-
-	if v, ok := options["window-status-current-bg"]; ok && v != "" {
-		theme.WindowStatusCurrentBg = v
-	}
-	if v, ok := options["window-status-current-fg"]; ok && v != "" {
-		theme.WindowStatusCurrentFg = v
-	}
-
-	return theme
-}
-
-func parseTmuxStatusStyle(style string) (bg, fg string) {
-	parts := strings.Split(style, ",")
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if strings.HasPrefix(part, "bg=") {
-			bg = strings.TrimPrefix(part, "bg=")
-		} else if strings.HasPrefix(part, "fg=") {
-			fg = strings.TrimPrefix(part, "fg=")
-		}
-	}
-	return bg, fg
-}
-
-func (s *Session) handleTmuxGetTheme(m *protocol.TmuxGetThemeRequest) {
-	theme, err := extractTmuxTheme(m.SessionID)
-	if err != nil {
-		errMsg := err.Error()
-		s.sendTmuxGetThemeResponse(m.RequestID, protocol.TmuxThemeColors{}, &errMsg)
-		return
-	}
-	s.sendTmuxGetThemeResponse(m.RequestID, theme, nil)
-}
-
-func (s *Session) sendTmuxGetThemeResponse(requestID string, theme protocol.TmuxThemeColors, errMsg *string) {
-	s.sendMessage(protocol.NewSessionMessage(&protocol.TmuxGetThemeResponse{
-		Type: "tmux/get_theme/response",
-		Payload: protocol.TmuxGetThemeResponsePayload{
-			RequestID: requestID,
-			Theme:     theme,
-			Error:     errMsg,
-		},
-	}))
-}
-
 func (s *Session) handleTmuxStatusLine(m *protocol.TmuxStatusLineRequest) {
-	left, center, right, paneBg, paneFg, err := extractTmuxStatusLine(m.SessionID)
+	left, center, right, err := extractTmuxStatusLine(m.SessionID)
 	if err != nil {
 		errMsg := err.Error()
-		s.sendTmuxStatusLineResponse(m.RequestID, "", "", "", "", "", &errMsg)
+		s.sendTmuxStatusLineResponse(m.RequestID, "", "", "", &errMsg)
 		return
 	}
-	s.sendTmuxStatusLineResponse(m.RequestID, left, center, right, paneBg, paneFg, nil)
+	s.sendTmuxStatusLineResponse(m.RequestID, left, center, right, nil)
 }
 
-func (s *Session) sendTmuxStatusLineResponse(requestID, statusLeft, statusCenter, statusRight, paneBg, paneFg string, errMsg *string) {
+func (s *Session) sendTmuxStatusLineResponse(requestID, statusLeft, statusCenter, statusRight string, errMsg *string) {
 	s.sendMessage(protocol.NewSessionMessage(&protocol.TmuxStatusLineResponse{
 		Type: "tmux/status_line/response",
 		Payload: protocol.TmuxStatusLineResponsePayload{
-			RequestID:      requestID,
-			StatusLeft:     statusLeft,
-			StatusCenter:   statusCenter,
-			StatusRight:    statusRight,
-			PaneBackground: paneBg,
-			PaneForeground: paneFg,
-			Error:          errMsg,
+			RequestID:    requestID,
+			StatusLeft:   statusLeft,
+			StatusCenter: statusCenter,
+			StatusRight:  statusRight,
+			Error:        errMsg,
 		},
 	}))
 }
 
-func extractTmuxStatusLine(sessionID string) (string, string, string, string, string, error) {
+func extractTmuxStatusLine(sessionID string) (string, string, string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), tmuxCommandTimeout)
 	defer cancel()
 
-	var left, right, center, paneBg, paneFg string
+	var left, right, center string
 	var wg sync.WaitGroup
 
 	// Fetch and expand status-left in its own goroutine (2 sequential tmux calls)
@@ -536,13 +449,8 @@ func extractTmuxStatusLine(sessionID string) (string, string, string, string, st
 		center = extractWindowList(sessionID)
 	})
 
-	// Pane colors are independent — run in parallel
-	wg.Go(func() {
-		paneBg, paneFg = extractPaneColors(sessionID)
-	})
-
 	wg.Wait()
-	return left, center, right, paneBg, paneFg, nil
+	return left, center, right, nil
 }
 
 func extractWindowList(sessionID string) string {
@@ -554,48 +462,4 @@ func extractWindowList(sessionID string) string {
 	}
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	return strings.Join(lines, " ")
-}
-
-func extractPaneColors(sessionID string) (string, string) {
-	ctx, cancel := context.WithTimeout(context.Background(), tmuxCommandTimeout)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "tmux", "show-options", "-gv", "-t", sessionID, "window-active-style").Output()
-	if err != nil {
-		return "", ""
-	}
-	style := strings.TrimSpace(string(out))
-	bg, fg := parseTmuxStatusStyle(style)
-	return bg, fg
-}
-
-func extractTmuxTheme(sessionID string) (protocol.TmuxThemeColors, error) {
-	options := []string{
-		"window-active-style",
-		"window-style",
-		"status-style",
-		"message-bg",
-		"message-fg",
-		"message-command-bg",
-		"message-command-fg",
-		"pane-active-border-style",
-		"pane-border-style",
-		"window-status-current-bg",
-		"window-status-current-fg",
-	}
-
-	result := make(map[string]string)
-	for _, opt := range options {
-		ctx, cancel := context.WithTimeout(context.Background(), tmuxCommandTimeout)
-		out, err := exec.CommandContext(ctx, "tmux", "show-options", "-gv", "-t", sessionID, opt).Output()
-		cancel()
-		if err != nil {
-			continue
-		}
-		val := strings.TrimSpace(string(out))
-		if val != "" {
-			result[opt] = val
-		}
-	}
-
-	return parseTmuxThemeOutput(result), nil
 }

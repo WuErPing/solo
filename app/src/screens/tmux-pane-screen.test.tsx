@@ -89,8 +89,10 @@ vi.mock("@/components/headers/back-header", () => ({
 }));
 
 vi.mock("@/components/ansi-text-line", () => ({
-  AnsiTextLine: ({ segments, style, selectable }: { segments: { text: string }[]; style?: unknown; selectable?: boolean }) =>
-    React.createElement("span", { style, "data-selectable": String(selectable ?? false) }, segments.map((s: { text: string }) => s.text).join("")),
+  AnsiTextLine: ({ segments, style, selectable }: { segments: { text: string }[]; style?: unknown; selectable?: boolean }) => {
+    const flattenedStyle = Array.isArray(style) ? Object.assign({}, ...style) : style;
+    return React.createElement("span", { style: flattenedStyle, "data-selectable": String(selectable ?? false) }, segments.map((s: { text: string }) => s.text).join(""));
+  },
 }));
 
 vi.mock("@/utils/ansi-line-splitter", () => ({
@@ -101,8 +103,31 @@ vi.mock("@/utils/ansi-line-splitter", () => ({
 vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => React.createElement("div", null, children),
   DropdownMenuContent: ({ children }: { children: React.ReactNode }) => React.createElement("div", null, children),
-  DropdownMenuItem: ({ children, onSelect, selected }: { children: React.ReactNode; onSelect?: () => void; selected?: boolean }) =>
-    React.createElement("button", { onClick: onSelect, "data-selected": selected }, children),
+  DropdownMenuItem: ({
+    children,
+    onSelect,
+    selected,
+    showSelectedCheck,
+    leading,
+  }: {
+    children: React.ReactNode;
+    onSelect?: () => void;
+    selected?: boolean;
+    showSelectedCheck?: boolean;
+    leading?: { props?: { style?: Record<string, unknown> } } | null;
+  }) => {
+    const leadingStyle = leading?.props?.style;
+    return React.createElement(
+      "button",
+      {
+        onClick: onSelect,
+        "data-selected": selected,
+        "data-show-selected-check": showSelectedCheck,
+        "data-leading-style": leadingStyle ? JSON.stringify(leadingStyle) : null,
+      },
+      children,
+    );
+  },
   DropdownMenuSeparator: () => React.createElement("hr", null),
   DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => React.createElement("div", null, children),
 }));
@@ -115,17 +140,10 @@ vi.mock("@/utils/ansi-parser", () => ({
   parseAnsi: (input: string) => mockParseAnsi(input),
 }));
 
-const { mockDetectColors } = vi.hoisted(() => ({
-  mockDetectColors: vi.fn(() => ({ background: "#1a1a2e", foreground: "#e0e0e0" })),
-}));
-
-vi.mock("@/utils/detect-ansi-colors", () => ({
-  detectColorsFromAnsi: mockDetectColors,
-}));
-
-const { autoRefreshRef, contentRef } = vi.hoisted(() => ({
+const { autoRefreshRef, contentRef, terminalThemeRef } = vi.hoisted(() => ({
   autoRefreshRef: { current: true },
   contentRef: { current: "$ ls\nfile1.txt\nfile2.txt\n$ _" },
+  terminalThemeRef: { current: "light" as const },
 }));
 
 vi.mock("@/hooks/use-tmux-capture-pane", () => ({
@@ -145,23 +163,11 @@ vi.mock("@/hooks/use-tmux-capture-pane", () => ({
 
 vi.mock("@/hooks/use-settings", () => ({
   useAppSettings: () => ({
-    settings: { theme: "dark", sendBehavior: "interrupt", terminalTheme: "system" },
+    settings: { theme: "dark", sendBehavior: "interrupt", terminalTheme: terminalThemeRef.current },
     isLoading: false,
     error: null,
     updateSettings: vi.fn(),
     resetSettings: vi.fn(),
-  }),
-}));
-
-const { tmuxThemeRef } = vi.hoisted(() => ({
-  tmuxThemeRef: { current: null as { background?: string; foreground?: string } | null },
-}));
-
-vi.mock("@/hooks/use-tmux-theme", () => ({
-  useTmuxTheme: () => ({
-    theme: tmuxThemeRef.current,
-    isLoading: false,
-    error: null,
   }),
 }));
 
@@ -210,6 +216,7 @@ describe("TmuxPaneScreen", () => {
     vi.clearAllMocks();
     autoRefreshRef.current = true;
     contentRef.current = "$ ls\nfile1.txt\nfile2.txt\n$ _";
+    terminalThemeRef.current = "light";
   });
 
   it("renders pane content text", () => {
@@ -316,41 +323,6 @@ describe("TmuxPaneScreen", () => {
     render(<TmuxPaneScreen />);
     fireEvent.click(screen.getByText("Refresh"));
     expect(mockRefetch).toHaveBeenCalled();
-  });
-
-  it("background color does not change when content changes with terminalTheme system", () => {
-    mockDetectColors.mockReturnValue({ background: "#1a1a2e", foreground: "#e0e0e0" });
-    const { rerender } = render(<TmuxPaneScreen />);
-
-    const scrollView = screen.getByTestId("tmux-pane-scroll");
-    const initialBg = (scrollView as HTMLElement).style.backgroundColor;
-
-    // Change content — detectColorsFromAnsi returns different colors now
-    mockDetectColors.mockReturnValue({ background: "#2a2a3e", foreground: "#f0f0f0" });
-    contentRef.current = "$ pwd\n/home/user\n$ _";
-    rerender(<TmuxPaneScreen />);
-
-    // Background should be stable (cached from first detection)
-    expect((scrollView as HTMLElement).style.backgroundColor).toBe(initialBg);
-  });
-
-  it("background color re-detects when content transitions from empty to non-empty", () => {
-    mockDetectColors.mockReturnValue({ background: "#1a1a2e", foreground: "#e0e0e0" });
-    const { rerender } = render(<TmuxPaneScreen />);
-
-    const scrollView = screen.getByTestId("tmux-pane-scroll");
-    const initialBg = (scrollView as HTMLElement).style.backgroundColor;
-
-    // Simulate pane navigation: content goes empty then new content arrives
-    contentRef.current = "";
-    rerender(<TmuxPaneScreen />);
-
-    mockDetectColors.mockReturnValue({ background: "#2a2a3e", foreground: "#f0f0f0" });
-    contentRef.current = "$ pwd\n/home/user\n$ _";
-    rerender(<TmuxPaneScreen />);
-
-    // Background should update because content went from empty to non-empty
-    expect((scrollView as HTMLElement).style.backgroundColor).not.toBe(initialBg);
   });
 
   it("does NOT re-parse ANSI content when content reference is stable across re-renders", () => {
@@ -508,39 +480,57 @@ describe("TmuxPaneScreen", () => {
     });
   });
 
-  describe("tmux theme", () => {
-    it("shows Tmux option in theme picker", () => {
+  describe("terminal theme", () => {
+    it("shows Bash option in theme picker", () => {
       render(<TmuxPaneScreen />);
-      expect(screen.getByText("Tmux")).toBeDefined();
+      expect(screen.getByText("Bash")).toBeDefined();
     });
 
-    it("uses tmux theme background for swatch when tmux theme is loaded", () => {
-      tmuxThemeRef.current = { background: "#1e1e2e", foreground: "#cdd6f4" };
+    it("shows System, Dark, and Light options in theme picker", () => {
       render(<TmuxPaneScreen />);
-      expect(screen.getByText("Tmux")).toBeDefined();
-      tmuxThemeRef.current = null;
+      expect(screen.getByText("System")).toBeDefined();
+      expect(screen.getByText("Dark")).toBeDefined();
+      expect(screen.getByText("Light")).toBeDefined();
     });
 
-    it("system mode falls back to tmux theme colors when ANSI detection returns null", () => {
-      mockDetectColors.mockReturnValue({ background: "#1a1a2e", foreground: "#e0e0e0" });
-      const { rerender } = render(<TmuxPaneScreen />);
+    it("marks exactly one theme item as selected (radio-button exclusivity)", () => {
+      render(<TmuxPaneScreen />);
+      const items = screen.getAllByRole("button").filter(
+        (el) => el.getAttribute("data-selected") !== null,
+      );
+      expect(items).toHaveLength(4);
+      const selectedItems = items.filter(
+        (el) => el.getAttribute("data-selected") === "true",
+      );
+      expect(selectedItems).toHaveLength(1);
+    });
 
-      const scrollView = screen.getByTestId("tmux-pane-scroll");
-      const initialBg = (scrollView as HTMLElement).style.backgroundColor;
+    it("selects the Light item by default (radio default matches default scheme)", () => {
+      render(<TmuxPaneScreen />);
+      const items = screen.getAllByRole("button").filter(
+        (el) => el.getAttribute("data-selected") === "true",
+      );
+      expect(items).toHaveLength(1);
+      expect(items[0]!.textContent).toBe("Light");
+    });
 
-      // Simulate pane navigation: content goes empty then new content arrives
-      contentRef.current = "";
-      rerender(<TmuxPaneScreen />);
+    it("uses showSelectedCheck on every theme item so only the trailing slot indicates selection", () => {
+      render(<TmuxPaneScreen />);
+      const items = screen.getAllByRole("button").filter(
+        (el) => el.getAttribute("data-show-selected-check") !== null,
+      );
+      expect(items).toHaveLength(4);
+      for (const item of items) {
+        expect(item.getAttribute("data-show-selected-check")).toBe("true");
+      }
+    });
 
-      // ANSI detection returns null, tmux theme provides colors
-      mockDetectColors.mockReturnValue({ background: null, foreground: null });
-      tmuxThemeRef.current = { background: "#1e1e2e", foreground: "#cdd6f4" };
-      contentRef.current = "$ pwd\n/home/user\n$ _";
-      rerender(<TmuxPaneScreen />);
-
-      // Background should change to tmux theme color
-      expect((scrollView as HTMLElement).style.backgroundColor).not.toBe(initialBg);
-      tmuxThemeRef.current = null;
+    it("uses the Bash palette foreground for content text instead of the app theme foreground", () => {
+      terminalThemeRef.current = "bash";
+      render(<TmuxPaneScreen />);
+      const content = screen.getByText((text) => text.includes("$ ls"));
+      expect(content).toBeDefined();
+      expect((content as HTMLElement).getAttribute("style")).toContain("color: rgb(192, 192, 192)");
     });
   });
 });

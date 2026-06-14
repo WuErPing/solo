@@ -70,8 +70,6 @@ beforeEach(() => {
     statusLeft: "[#S]",
     statusCenter: "0:claude*",
     statusRight: "%H:%M",
-    paneBackground: "#1e1e2e",
-    paneForeground: "#cdd6f4",
     error: null,
   });
   mockHosts.value = [{ serverId: "s1", label: "local" }];
@@ -109,9 +107,9 @@ describe("useTmuxStatusLines", () => {
 
     mockClient.tmuxStatusLine.mockImplementation((session: string) => {
       if (session === "dev") {
-        return Promise.resolve({ statusLeft: "[dev]", statusCenter: "0:claude*", statusRight: "10:00", paneBackground: "#1e1e2e", paneForeground: "#cdd6f4", error: null });
+        return Promise.resolve({ statusLeft: "[dev]", statusCenter: "0:claude*", statusRight: "10:00", error: null });
       }
-      return Promise.resolve({ statusLeft: "[prod]", statusCenter: "0:pi*", statusRight: "11:00", paneBackground: "#2e1e1e", paneForeground: "#f4cdd6", error: null });
+      return Promise.resolve({ statusLeft: "[prod]", statusCenter: "0:pi*", statusRight: "11:00", error: null });
     });
 
     const { result } = renderStatusLinesHook(agents);

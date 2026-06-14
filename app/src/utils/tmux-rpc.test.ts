@@ -13,6 +13,7 @@ interface FakeClient {
   state: ConnectionStateLike;
   tmuxCapturePane: ReturnType<typeof vi.fn>;
   getConnectionState: () => ConnectionStateLike;
+  ensureConnected: ReturnType<typeof vi.fn>;
 }
 
 function makeFakeClient(state: ConnectionStateLike = { status: "connected" }): FakeClient {
@@ -22,6 +23,7 @@ function makeFakeClient(state: ConnectionStateLike = { status: "connected" }): F
     getConnectionState() {
       return this.state;
     },
+    ensureConnected: vi.fn(),
   };
 }
 
@@ -202,6 +204,37 @@ describe("withLiveTmuxClient", () => {
 
     await expect(withLiveTmuxClient("server-1", op)).rejects.toThrow(/RPC timed out/);
     expect(op).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls ensureConnected and retries when the client starts disconnected", async () => {
+    const client = makeFakeClient({ status: "disconnected" });
+    mockStore.getClient.mockReturnValue(client as unknown as DaemonClient);
+
+    const op = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Transport not connected (status: disconnected)"))
+      .mockResolvedValueOnce("reconnected-result");
+
+    const result = await withLiveTmuxClient("server-1", op);
+
+    expect(result).toBe("reconnected-result");
+    expect(client.ensureConnected).toHaveBeenCalledTimes(1);
+    expect(op).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives up after retries when the client remains disconnected", async () => {
+    const client = makeFakeClient({ status: "disconnected" });
+    mockStore.getClient.mockReturnValue(client as unknown as DaemonClient);
+
+    const op = vi
+      .fn()
+      .mockRejectedValue(new Error("Transport not connected (status: disconnected)"));
+
+    await expect(withLiveTmuxClient("server-1", op)).rejects.toThrow(
+      /Transport not connected/,
+    );
+    expect(client.ensureConnected).toHaveBeenCalledTimes(1);
+    expect(op).toHaveBeenCalledTimes(4); // 1 initial + 3 retries
   });
 
   it("throws 'Daemon client not available' when the store has no client up-front", async () => {

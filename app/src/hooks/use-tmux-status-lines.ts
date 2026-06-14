@@ -10,8 +10,6 @@ export interface TmuxStatusLineInfo {
   statusLeft: string;
   statusCenter: string;
   statusRight: string;
-  paneBackground: string;
-  paneForeground: string;
 }
 
 export function tmuxStatusLineQueryKey(serverId: string, sessionName: string): readonly string[] {
@@ -56,8 +54,6 @@ export function useTmuxStatusLines(agents: TmuxAgent[]): TmuxStatusLineInfo[] {
             statusLeft: payload.statusLeft ?? "",
             statusCenter: payload.statusCenter ?? "",
             statusRight: payload.statusRight ?? "",
-            paneBackground: payload.paneBackground ?? "",
-            paneForeground: payload.paneForeground ?? "",
           };
         },
       };

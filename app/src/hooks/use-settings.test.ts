@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_CLIENT_SETTINGS } from "./use-settings";
 
 const asyncStorageMock = vi.hoisted(() => ({
   getItem: vi.fn<(_: string) => Promise<string | null>>(),
@@ -32,6 +33,10 @@ describe("use-settings", () => {
     electronRuntimeState.isElectron = false;
     desktopSettingsMock.loadDesktopSettings.mockReset();
     desktopSettingsMock.migrateLegacyDesktopSettings.mockReset();
+  });
+
+  it("defaults the terminal theme to Light (single-exclusive radio default)", () => {
+    expect(DEFAULT_CLIENT_SETTINGS.terminalTheme).toBe("light");
   });
 
   it("defaults built-in daemon management to enabled when storage is empty", async () => {
@@ -86,7 +91,7 @@ describe("use-settings", () => {
       theme: "light",
       manageBuiltInDaemon: true,
       sendBehavior: "interrupt",
-      terminalTheme: "system",
+      terminalTheme: "light",
       releaseChannel: "stable",
     });
   });
@@ -129,7 +134,7 @@ describe("use-settings", () => {
     expect(result).toEqual({
       theme: "dark",
       sendBehavior: "interrupt",
-      terminalTheme: "system",
+      terminalTheme: "light",
     });
     expect(asyncStorageMock.setItem).toHaveBeenCalledWith(
       mod.APP_SETTINGS_KEY,
@@ -168,7 +173,7 @@ describe("use-settings", () => {
     expect(result).toEqual({
       theme: "light",
       sendBehavior: "interrupt",
-      terminalTheme: "system",
+      terminalTheme: "light",
       manageBuiltInDaemon: false,
       releaseChannel: "beta",
     });
@@ -187,7 +192,7 @@ describe("use-settings", () => {
     expect(result).toEqual({
       theme: "light",
       sendBehavior: "interrupt",
-      terminalTheme: "system",
+      terminalTheme: "light",
       manageBuiltInDaemon: true,
       releaseChannel: "stable",
     });

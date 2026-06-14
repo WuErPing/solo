@@ -102,8 +102,6 @@ export const TmuxStatusLineResponseSchema = z.object({
     statusLeft: z.string(),
     statusCenter: z.string(),
     statusRight: z.string(),
-    paneBackground: z.string().optional(),
-    paneForeground: z.string().optional(),
     error: z.string().nullable(),
   }),
 });

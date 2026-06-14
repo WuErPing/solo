@@ -112,7 +112,7 @@ let isLoadingOverride = false;
 const mockRefreshAll = vi.fn();
 
 const mockStatusLines = [
-  { sessionName: "dev", serverId: "s1", statusLeft: "[#S]", statusCenter: "0:claude*", statusRight: "\"Analyze tmux session\" 22:45 06-Jun-26", paneBackground: "#1e1e2e", paneForeground: "#cdd6f4" },
+  { sessionName: "dev", serverId: "s1", statusLeft: "[#S]", statusCenter: "0:claude*", statusRight: "\"Analyze tmux session\" 22:45 06-Jun-26" },
 ];
 
 vi.mock("@/hooks/use-tmux-agents", () => ({

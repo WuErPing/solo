@@ -82,7 +82,12 @@ Feature inventory and UI/UX analysis.
 
 | Document | Type | Summary |
 |----------|------|---------|
+| [2026 Product/Technical Roadmap](product/roadmap-2026.md) | Roadmap | Unified roadmap: vision, three product pillars, quarterly plan, KPIs, risks |
 | [Product Features](product/features.md) | Analysis | Full feature tree + UI component catalogue + hooks/stores reference |
+| [Feature Directions 2026](product/feature-directions-2026.md) | Analysis | Original feature direction analysis with industry benchmark |
+| [Provider Hub / CC-Switch Migration Design](product/agent-profile-switch-export-design.md) | Design | Migrate farion1231/cc-switch into Solo: Provider Hub, Local API Proxy, MCP/Skills/Prompts management, and multi-agent config exporter |
+| [Loop Schedule Design](product/loop-schedule-design.md) | Design | LLM-driven Loop Schedule: evolve schedule into autonomous iteration loops using existing providers |
+| [Loop Schedule Deep Dive](product/loop-schedule-deep-dive.md) | Analysis | Deep-dive into Loop Controller, Step Executor, state machine, persistence, security, and observability |
 | [Agent Send Presets Design](product/agent-send-presets-design.md) | Design | Agent-specific tmux send button presets |
 | [Session Memory Spec](product/session-memory-spec.md) | Spec | Phase-1 implementation spec: TurnRecorder interface, FileTurnRecorder, hooks, redaction, tests |
 

@@ -80,9 +80,7 @@ function AgentCard({
         <View
           style={[
             styles.statusLineContainer,
-            statusLine.paneBackground
-              ? { backgroundColor: statusLine.paneBackground }
-              : null,
+            { backgroundColor: theme.colors.surface1 },
           ]}
         >
           {statusLine.statusRight ? (() => {
@@ -93,9 +91,7 @@ function AgentCard({
                   segments={parseAnsi(title)}
                   style={[
                     styles.statusLineText,
-                    statusLine.paneForeground
-                      ? { color: statusLine.paneForeground }
-                      : null,
+                    { color: theme.colors.foreground },
                   ]}
                 />
                 {timeDate ? (
@@ -103,9 +99,7 @@ function AgentCard({
                     segments={parseAnsi(timeDate)}
                     style={[
                       styles.statusLineText,
-                      statusLine.paneForeground
-                        ? { color: statusLine.paneForeground }
-                        : null,
+                      { color: theme.colors.foreground },
                     ]}
                   />
                 ) : null}

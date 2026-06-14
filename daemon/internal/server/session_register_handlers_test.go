@@ -103,7 +103,6 @@ func TestRegisterHandlers_RegistersAllTypes(t *testing.T) {
 		"tmux/list_agents",
 		"tmux/capture_pane",
 		"tmux/send_keys",
-		"tmux/get_theme",
 		"tmux/status_line",
 	}
 

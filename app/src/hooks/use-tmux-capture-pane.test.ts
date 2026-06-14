@@ -404,6 +404,100 @@ describe("useTmuxCapturePane", () => {
     expect(result.current.content).toBe("$ pwd\n/home");
   });
 
+  it("refetches immediately when app returns to foreground after being backgrounded", async () => {
+    // Bug contract: switching back to the window must trigger an immediate
+    // refetch, not wait for the next adaptive-poll tick (which could be up
+    // to 5000ms when the idle phase has kicked in).
+    mockClient.tmuxCapturePane.mockResolvedValue({ content: "initial", error: null });
+
+    const { result } = renderCapturePaneHook();
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("initial");
+    });
+
+    // Background the app — polling pauses
+    act(() => {
+      mockAppVisible.value = false;
+    });
+
+    // Force a rerender so the hook observes the new visibility value.
+    // (useAppVisible returns a new boolean from the external store.)
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    // Content changes while backgrounded — must NOT be picked up yet.
+    mockClient.tmuxCapturePane.mockResolvedValue({ content: "updated-while-hidden", error: null });
+    mockClient.tmuxCapturePane.mockClear();
+
+    // Foreground the app — hook should immediately refetch.
+    act(() => {
+      mockAppVisible.value = true;
+    });
+
+    await waitFor(() => {
+      expect(mockClient.tmuxCapturePane.mock.calls.length).toBeGreaterThanOrEqual(1);
+      expect(result.current.content).toBe("updated-while-hidden");
+    });
+  });
+
+  it("does not refetch on foreground when autoRefresh is off", async () => {
+    // Use fake timers to isolate from stray React Query poll timers left
+    // over from the previous test (the 500ms adaptive poll can fire inside
+    // the real-timer waitFor windows of adjacent tests).
+    vi.useFakeTimers();
+    try {
+      mockClient.tmuxCapturePane.mockResolvedValue({ content: "initial", error: null });
+
+      const { result } = renderCapturePaneHook();
+
+      await vi.waitFor(() => {
+        expect(result.current.content).toBe("initial");
+      });
+
+      act(() => {
+        result.current.setAutoRefresh(false);
+      });
+
+      act(() => {
+        mockAppVisible.value = false;
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(50);
+      });
+
+      mockClient.tmuxCapturePane.mockResolvedValue({ content: "should-not-appear", error: null });
+      mockClient.tmuxCapturePane.mockClear();
+      let invocationCount = 0;
+      mockClient.tmuxCapturePane.mockImplementation(async () => {
+        invocationCount += 1;
+        return { content: "should-not-appear", error: null };
+      });
+
+      // Drain any already-scheduled poll tick before we toggle foreground,
+      // so only the foreground transition is measured.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      invocationCount = 0;
+      mockClient.tmuxCapturePane.mockClear();
+
+      act(() => {
+        mockAppVisible.value = true;
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+
+      expect(invocationCount).toBe(0);
+      expect(result.current.content).toBe("initial");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("defaults autoRefresh to true", async () => {
     const { result } = renderCapturePaneHook();
     expect(result.current.autoRefresh).toBe(true);
@@ -892,5 +986,39 @@ describe("useTmuxCapturePane — incremental transfer", () => {
 
     // Should work normally — no errors
     expect(result.current.error).toBeNull();
+  });
+
+  it("exposes defaultFg and defaultBg from the daemon payload (OSC 10/11 host-reported terminal colors)", async () => {
+    mockClient.tmuxCapturePane.mockResolvedValue({
+      content: "$ ls\nfile.txt",
+      error: null,
+      defaultFg: "#cdd6f4",
+      defaultBg: "#1e1e2e",
+    });
+
+    const { result } = renderCapturePaneHook();
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ ls\nfile.txt");
+    });
+
+    expect(result.current.defaultFg).toBe("#cdd6f4");
+    expect(result.current.defaultBg).toBe("#1e1e2e");
+  });
+
+  it("defaults defaultFg and defaultBg to null when the daemon does not report them", async () => {
+    mockClient.tmuxCapturePane.mockResolvedValue({
+      content: "$ ls\nfile.txt",
+      error: null,
+    });
+
+    const { result } = renderCapturePaneHook();
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ ls\nfile.txt");
+    });
+
+    expect(result.current.defaultFg).toBeNull();
+    expect(result.current.defaultBg).toBeNull();
   });
 });
