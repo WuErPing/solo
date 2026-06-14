@@ -1,5 +1,16 @@
 import { z } from "zod";
 
+export const TmuxPaneInfoSchema = z.object({
+  sessionName: z.string(),
+  windowName: z.string(),
+  paneId: z.string(),
+  paneIndex: z.number().int(),
+  panePid: z.number().int(),
+  currentCmd: z.string(),
+  workingDir: z.string(),
+  title: z.string().optional(),
+});
+
 export const TmuxAgentInfoSchema = z.object({
   sessionName: z.string(),
   windowName: z.string(),
@@ -21,7 +32,8 @@ export const TmuxListAgentsResponseSchema = z.object({
   type: z.literal("tmux/list_agents/response"),
   payload: z.object({
     requestId: z.string(),
-    agents: z.array(TmuxAgentInfoSchema),
+    agents: z.array(TmuxAgentInfoSchema).nullish().default([]),
+    otherPanes: z.array(TmuxPaneInfoSchema).nullish().default([]),
     error: z.string().nullable(),
   }),
 });

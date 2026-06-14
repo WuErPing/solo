@@ -118,7 +118,7 @@ func TestParseTmuxPaneLines(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			agents := parseTmuxPaneLines(tt.input, testAgentNames)
+			agents, _ := parseTmuxPaneLines(tt.input, testAgentNames)
 			if len(agents) != tt.wantCount {
 				t.Fatalf("got %d agents, want %d", len(agents), tt.wantCount)
 			}
@@ -162,7 +162,7 @@ func TestAgentNameFromTitle(t *testing.T) {
 func TestParseTmuxPaneLinesTitleDetection(t *testing.T) {
 	// pi detected via pane_title (pane_current_command is "node")
 	input := "%0|0|86415|node|0|node|/home/user|π - solo\n"
-	agents := parseTmuxPaneLines(input, testAgentNames)
+	agents, _ := parseTmuxPaneLines(input, testAgentNames)
 	if len(agents) != 1 {
 		t.Fatalf("got %d agents, want 1", len(agents))
 	}
@@ -181,7 +181,7 @@ func TestParseTmuxPaneLinesTitleDetectionMultiple(t *testing.T) {
 		"%1|1|2000|node|s1|w1|/b|π - solo\n" +
 		"%2|0|3000|bash|s2|w1|/c|bash\n" +
 		"%3|1|4000|opencode|s2|w1|/d|OpenCode\n"
-	agents := parseTmuxPaneLines(input, testAgentNames)
+	agents, _ := parseTmuxPaneLines(input, testAgentNames)
 	if len(agents) != 3 {
 		t.Fatalf("got %d agents, want 3", len(agents))
 	}
@@ -202,7 +202,7 @@ func TestParseTmuxPaneLines_CustomAgent(t *testing.T) {
 		"%1|1|2000|cody|s1|w1|/b\n" +
 		"%2|2|3000|claude|s1|w1|/c\n" +
 		"%3|3|4000|bash|s1|w1|/d\n"
-	agents := parseTmuxPaneLines(input, custom)
+	agents, _ := parseTmuxPaneLines(input, custom)
 	if len(agents) != 2 {
 		t.Fatalf("got %d agents, want 2", len(agents))
 	}
@@ -216,7 +216,7 @@ func TestParseTmuxPaneLines_CustomAgent(t *testing.T) {
 
 func TestParseTmuxPaneLinesMetadata(t *testing.T) {
 	input := "%5|2|9876|pi|my-session|my-window|/Users/me/code\n"
-	agents := parseTmuxPaneLines(input, testAgentNames)
+	agents, _ := parseTmuxPaneLines(input, testAgentNames)
 	if len(agents) != 1 {
 		t.Fatalf("got %d agents, want 1", len(agents))
 	}
@@ -247,7 +247,7 @@ func TestParseTmuxPaneLinesMetadata(t *testing.T) {
 func TestParseTmuxPaneLinesExitedAgent(t *testing.T) {
 	// Agent exited: command is bash, but title still contains agent name
 	input := "%0|0|5000|bash|s1|w1|/home/user|π - solo\n"
-	agents := parseTmuxPaneLines(input, testAgentNames)
+	agents, _ := parseTmuxPaneLines(input, testAgentNames)
 	if len(agents) != 1 {
 		t.Fatalf("got %d agents, want 1", len(agents))
 	}
@@ -266,7 +266,7 @@ func TestParseTmuxPaneLinesExitedAgent(t *testing.T) {
 func TestParseTmuxPaneLinesExitedAgentClaude(t *testing.T) {
 	// Claude exited: command is zsh, title contains "Claude Code"
 	input := "%1|1|6000|zsh|s1|w1|/tmp|Claude Code - my-project\n"
-	agents := parseTmuxPaneLines(input, testAgentNames)
+	agents, _ := parseTmuxPaneLines(input, testAgentNames)
 	if len(agents) != 1 {
 		t.Fatalf("got %d agents, want 1", len(agents))
 	}
@@ -284,7 +284,7 @@ func TestParseTmuxPaneLinesExitedAgentMixed(t *testing.T) {
 	input := "%0|0|1000|claude|s1|w1|/a\n" +
 		"%1|1|5000|bash|s1|w1|/b|π - solo\n" +
 		"%2|0|7000|kimi-cli|s2|w1|/c\n"
-	agents := parseTmuxPaneLines(input, testAgentNames)
+	agents, _ := parseTmuxPaneLines(input, testAgentNames)
 	if len(agents) != 3 {
 		t.Fatalf("got %d agents, want 3", len(agents))
 	}
@@ -312,12 +312,45 @@ func TestParseTmuxPaneLinesExitedAgentMixed(t *testing.T) {
 }
 
 func TestParseTmuxPaneLinesNoAgentStillSkipped(t *testing.T) {
-	// No agent name in title either — should still be skipped
+	// No agent name in title either — agents list empty, otherPanes populated
 	input := "%0|0|1000|bash|s1|w1|/tmp|bash\n" +
 		"%1|1|2000|zsh|s1|w1|/tmp|zsh - terminal\n"
-	agents := parseTmuxPaneLines(input, testAgentNames)
+	agents, otherPanes := parseTmuxPaneLines(input, testAgentNames)
 	if len(agents) != 0 {
 		t.Fatalf("got %d agents, want 0", len(agents))
+	}
+	if len(otherPanes) != 2 {
+		t.Fatalf("got %d otherPanes, want 2", len(otherPanes))
+	}
+	if otherPanes[0].CurrentCmd != "bash" {
+		t.Errorf("otherPanes[0].CurrentCmd = %q, want %q", otherPanes[0].CurrentCmd, "bash")
+	}
+	if otherPanes[1].CurrentCmd != "zsh" {
+		t.Errorf("otherPanes[1].CurrentCmd = %q, want %q", otherPanes[1].CurrentCmd, "zsh")
+	}
+}
+
+func TestParseTmuxPaneLinesOtherPanes(t *testing.T) {
+	// Mix of agent and non-agent panes
+	input := "%0|0|1000|claude|s1|w1|/a\n" +
+		"%1|1|2000|bash|s1|w1|/tmp\n" +
+		"%2|2|3000|node|s1|w1|/app\n" +
+		"%3|0|4000|pi|s2|w1|/b\n"
+	agents, otherPanes := parseTmuxPaneLines(input, testAgentNames)
+	if len(agents) != 2 {
+		t.Fatalf("got %d agents, want 2", len(agents))
+	}
+	if len(otherPanes) != 2 {
+		t.Fatalf("got %d otherPanes, want 2", len(otherPanes))
+	}
+	if otherPanes[0].CurrentCmd != "bash" {
+		t.Errorf("otherPanes[0].CurrentCmd = %q, want %q", otherPanes[0].CurrentCmd, "bash")
+	}
+	if otherPanes[0].SessionName != "s1" {
+		t.Errorf("otherPanes[0].SessionName = %q, want %q", otherPanes[0].SessionName, "s1")
+	}
+	if otherPanes[1].CurrentCmd != "node" {
+		t.Errorf("otherPanes[1].CurrentCmd = %q, want %q", otherPanes[1].CurrentCmd, "node")
 	}
 }
 

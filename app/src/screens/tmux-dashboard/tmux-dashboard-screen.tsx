@@ -7,7 +7,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { Terminal, Monitor, RefreshCw } from "lucide-react-native";
+import { Terminal, Monitor, RefreshCw, SquareTerminal } from "lucide-react-native";
 import { router } from "expo-router";
 import { BackHeader } from "@/components/headers/back-header";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -19,7 +19,7 @@ import { useTmuxAgentStore } from "@/stores/tmux-agent-store";
 import { shortenPath } from "@/utils/shorten-path";
 import { parseAnsi } from "@/utils/ansi-parser";
 import { AnsiTextContent } from "@/components/ansi-text-renderer";
-import type { TmuxAgent } from "@/hooks/use-tmux-agents";
+import type { TmuxAgent, TmuxPane } from "@/hooks/use-tmux-agents";
 import type { TmuxStatusLineInfo } from "@/hooks/use-tmux-status-lines";
 
 interface AgentNameGroup {
@@ -142,6 +142,44 @@ function NameCard({
   );
 }
 
+function PaneCard({
+  pane,
+  onPress,
+}: {
+  pane: TmuxPane;
+  onPress: () => void;
+}) {
+  const { theme } = useUnistyles();
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.agentCard,
+        pressed ? { opacity: 0.8 } : null,
+      ]}
+    >
+      <View style={styles.agentCardHeader}>
+        <View style={styles.agentNameRow}>
+          <SquareTerminal size={16} color={theme.colors.foregroundMuted} />
+          <Text style={styles.agentName}>{pane.currentCmd}</Text>
+        </View>
+        <Text style={styles.serverLabel}>{pane.serverLabel}</Text>
+      </View>
+      {pane.workingDir ? (
+        <Text style={styles.agentTitle} numberOfLines={1}>
+          {shortenPath(pane.workingDir)}
+        </Text>
+      ) : null}
+      <View style={styles.agentCardBody}>
+        <Text style={styles.detailLabel}>
+          S:{pane.sessionName} W:{pane.windowName} P:{pane.paneId} PID:{pane.panePid}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
 export function TmuxDashboardScreen() {
   return (
     <ErrorBoundary fallbackLabel="Tmux dashboard encountered an error">
@@ -150,14 +188,18 @@ export function TmuxDashboardScreen() {
   );
 }
 
+type DashboardTab = "agents" | "other-panes";
+
 function TmuxDashboardScreenInner() {
   const { theme } = useUnistyles();
   const isCompact = useIsCompactFormFactor();
   const storeReady = useStoreReady();
-  const { agents, isLoading, isInitialLoad, error, refreshAll } =
+  const { agents, otherPanes, isLoading, isInitialLoad, error, refreshAll } =
     useAggregatedTmuxAgents();
   const statusLines = useTmuxStatusLines(agents);
   const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [selectedCmd, setSelectedCmd] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<DashboardTab>("agents");
   const setSelectedAgent = useTmuxAgentStore((s) => s.setSelectedAgent);
 
   const nameGroups = useMemo(() => {
@@ -184,19 +226,43 @@ function TmuxDashboardScreenInner() {
     router.push("/tmux-pane");
   };
 
+  const handlePanePress = (pane: TmuxPane) => {
+    setSelectedAgent(pane);
+    router.push("/tmux-pane");
+  };
+
+  const cmdGroups = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const pane of otherPanes) {
+      map.set(pane.currentCmd, (map.get(pane.currentCmd) ?? 0) + 1);
+    }
+    return Array.from(map.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [otherPanes]);
+
+  const filteredOtherPanes = useMemo(() => {
+    if (!selectedCmd) return otherPanes;
+    return otherPanes.filter((p) => p.currentCmd === selectedCmd);
+  }, [otherPanes, selectedCmd]);
+
+  const badgeText = activeTab === "agents"
+    ? `${agents.length} agent(s)${agents.filter((a) => a.status === "exited").length > 0
+        ? `, ${agents.filter((a) => a.status === "exited").length} exited`
+        : ""}`
+    : `${otherPanes.length} pane(s)`;
+
+  const hasData = agents.length > 0 || otherPanes.length > 0;
+
   return (
     <View style={styles.container}>
       <BackHeader
         title="Tmux Dashboard"
         onBack={() => router.navigate("/")}
         rightContent={
-          agents.length > 0 ? (
+          hasData ? (
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>
-                {agents.length} agent(s){agents.filter((a) => a.status === "exited").length > 0
-                  ? `, ${agents.filter((a) => a.status === "exited").length} exited`
-                  : ""}
-              </Text>
+              <Text style={styles.badgeText}>{badgeText}</Text>
             </View>
           ) : undefined
         }
@@ -210,13 +276,12 @@ function TmuxDashboardScreenInner() {
         <View style={styles.centerContent}>
           <Text style={styles.errorText}>{error}</Text>
         </View>
-      ) : agents.length === 0 ? (
+      ) : !hasData ? (
         <View style={styles.centerContent}>
           <Monitor size={48} color={theme.colors.foregroundMuted} />
-          <Text style={styles.emptyTitle}>No AI agents detected</Text>
+          <Text style={styles.emptyTitle}>No tmux panes detected</Text>
           <Text style={styles.emptySubtitle}>
-            Start an AI agent (claude, pi, kimi, etc.) in a tmux session to see
-            it here.
+            Open a tmux session to see panes here.
           </Text>
           <Pressable
             style={styles.refreshButton}
@@ -233,38 +298,110 @@ function TmuxDashboardScreenInner() {
             <RefreshControl refreshing={isLoading} onRefresh={refreshAll} />
           }
         >
-          {nameGroups.length > 0 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.nameCardsScroll}
-              contentContainerStyle={styles.nameCardsContainer}
+          {/* Segmented toggle */}
+          <View style={styles.segmentedRow}>
+            <Pressable
+              onPress={() => setActiveTab("agents")}
+              style={[
+                styles.segmentButton,
+                activeTab === "agents" && { backgroundColor: theme.colors.primary },
+              ]}
             >
-              {nameGroups.map((group) => (
-                <NameCard
-                  key={group.name}
-                  group={group}
-                  isActive={selectedName === group.name}
-                  onPress={() => handleNamePress(group.name)}
-                />
-              ))}
-            </ScrollView>
-          ) : null}
-
-          <View
-            style={isCompact ? styles.agentGridCompact : styles.agentGrid}
-          >
-            {filteredAgents.map((agent, index) => (
-              <AgentCard
-                key={`${agent.serverId}-${agent.paneId}-${index}`}
-                agent={agent}
-                statusLine={statusLines.find(
-                  (s) => s.serverId === agent.serverId && s.sessionName === agent.sessionName,
-                )}
-                onPress={() => handleAgentPress(agent)}
-              />
-            ))}
+              <Text
+                style={[
+                  styles.segmentText,
+                  { color: activeTab === "agents" ? theme.colors.background : theme.colors.foregroundMuted },
+                ]}
+              >
+                Agents ({agents.length})
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setActiveTab("other-panes")}
+              style={[
+                styles.segmentButton,
+                activeTab === "other-panes" && { backgroundColor: theme.colors.primary },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.segmentText,
+                  { color: activeTab === "other-panes" ? theme.colors.background : theme.colors.foregroundMuted },
+                ]}
+              >
+                Other Panes ({otherPanes.length})
+              </Text>
+            </Pressable>
           </View>
+
+          {activeTab === "agents" ? (
+            <>
+              {nameGroups.length > 0 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.nameCardsScroll}
+                  contentContainerStyle={styles.nameCardsContainer}
+                >
+                  {nameGroups.map((group) => (
+                    <NameCard
+                      key={group.name}
+                      group={group}
+                      isActive={selectedName === group.name}
+                      onPress={() => handleNamePress(group.name)}
+                    />
+                  ))}
+                </ScrollView>
+              ) : null}
+
+              <View
+                style={isCompact ? styles.agentGridCompact : styles.agentGrid}
+              >
+                {filteredAgents.map((agent, index) => (
+                  <AgentCard
+                    key={`${agent.serverId}-${agent.paneId}-${index}`}
+                    agent={agent}
+                    statusLine={statusLines.find(
+                      (s) => s.serverId === agent.serverId && s.sessionName === agent.sessionName,
+                    )}
+                    onPress={() => handleAgentPress(agent)}
+                  />
+                ))}
+              </View>
+            </>
+          ) : (
+            <>
+              {cmdGroups.length > 0 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.nameCardsScroll}
+                  contentContainerStyle={styles.nameCardsContainer}
+                >
+                  {cmdGroups.map((group) => (
+                    <NameCard
+                      key={group.name}
+                      group={group}
+                      isActive={selectedCmd === group.name}
+                      onPress={() => setSelectedCmd((prev) => (prev === group.name ? null : group.name))}
+                    />
+                  ))}
+                </ScrollView>
+              ) : null}
+
+              <View
+                style={isCompact ? styles.agentGridCompact : styles.agentGrid}
+              >
+                {filteredOtherPanes.map((pane, index) => (
+                  <PaneCard
+                    key={`${pane.serverId}-${pane.paneId}-${index}`}
+                    pane={pane}
+                    onPress={() => handlePanePress(pane)}
+                  />
+                ))}
+              </View>
+            </>
+          )}
         </ScrollView>
       )}
     </View>
@@ -433,5 +570,34 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foregroundMuted,
     fontSize: 10,
     fontWeight: "500",
+  },
+  segmentedRow: {
+    flexDirection: "row",
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    borderRadius: 8,
+    backgroundColor: theme.colors.surface0,
+    overflow: "hidden",
+  },
+  segmentButton: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: "center",
+    borderRadius: 8,
+  },
+  segmentText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  sessionGroup: {
+    marginBottom: 8,
+  },
+  sessionGroupLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
   },
 }));

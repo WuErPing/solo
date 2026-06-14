@@ -18,8 +18,24 @@ export interface TmuxAgent {
   serverLabel: string;
 }
 
+export interface TmuxPane {
+  sessionName: string;
+  windowName: string;
+  paneId: string;
+  paneIndex: number;
+  panePid: number;
+  currentCmd: string;
+  workingDir: string;
+  title?: string;
+  serverId: string;
+  serverLabel: string;
+}
+
+export type TmuxAgentOrPane = TmuxAgent | TmuxPane;
+
 export interface AggregatedTmuxAgentsResult {
   agents: TmuxAgent[];
+  otherPanes: TmuxPane[];
   isLoading: boolean;
   isInitialLoad: boolean;
   isRevalidating: boolean;
@@ -52,6 +68,7 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
           const payload = await withLiveTmuxClient(host.serverId, (c) => c.tmuxListAgents());
           return {
             agents: payload.agents ?? [],
+            otherPanes: payload.otherPanes ?? [],
             error: payload.error ?? null,
             serverId: host.serverId,
             serverLabel: host.label,
@@ -63,6 +80,7 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
 
   const result = useMemo(() => {
     const allAgents: TmuxAgent[] = [];
+    const allOtherPanes: TmuxPane[] = [];
     let anyError: string | null = null;
     let isLoading = false;
     let isFetching = false;
@@ -99,6 +117,15 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
           });
         }
       }
+      if (query.data?.otherPanes) {
+        for (const pane of query.data.otherPanes) {
+          allOtherPanes.push({
+            ...pane,
+            serverId: host.serverId,
+            serverLabel: host.label,
+          });
+        }
+      }
     }
 
     // Sort by agentName, then by sessionName
@@ -108,7 +135,14 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
       return left.sessionName.localeCompare(right.sessionName);
     });
 
-    const hasAnyData = allAgents.length > 0;
+    // Sort other panes by sessionName, then windowName
+    allOtherPanes.sort((left, right) => {
+      const sessionCmp = left.sessionName.localeCompare(right.sessionName);
+      if (sessionCmp !== 0) return sessionCmp;
+      return left.windowName.localeCompare(right.windowName);
+    });
+
+    const hasAnyData = allAgents.length > 0 || allOtherPanes.length > 0;
 
     // Track whether any query has completed (success or error).
     // Once true, stays true — we only need to know the first fetch happened.
@@ -126,6 +160,7 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
 
     return {
       agents: allAgents,
+      otherPanes: allOtherPanes,
       isLoading,
       isInitialLoad,
       isRevalidating,

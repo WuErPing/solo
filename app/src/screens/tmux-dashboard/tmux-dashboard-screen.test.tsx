@@ -66,7 +66,7 @@ vi.mock("lucide-react-native", () => {
     Component.displayName = `Icon(${name})`;
     return Component;
   };
-  return { Terminal: icon("Terminal"), Monitor: icon("Monitor"), RefreshCw: icon("RefreshCw") };
+  return { Terminal: icon("Terminal"), Monitor: icon("Monitor"), RefreshCw: icon("RefreshCw"), SquareTerminal: icon("SquareTerminal") };
 });
 
 vi.mock("@/components/headers/back-header", () => ({
@@ -100,6 +100,19 @@ const mockAgents = [
   },
 ];
 
+const mockOtherPanes = [
+  {
+    serverId: "s1", paneId: "%3", sessionName: "dev", windowName: "main",
+    paneIndex: 3, panePid: 400, currentCmd: "bash", workingDir: "/tmp",
+    serverLabel: "local",
+  },
+  {
+    serverId: "s1", paneId: "%4", sessionName: "dev", windowName: "tools",
+    paneIndex: 0, panePid: 500, currentCmd: "vim", workingDir: "/code",
+    serverLabel: "local",
+  },
+];
+
 const mockExitedAgent = {
   serverId: "s1", paneId: "%2", agentName: "claude", sessionName: "dev",
   windowName: "main", paneIndex: 2, panePid: 300, currentCmd: "bash",
@@ -107,6 +120,7 @@ const mockExitedAgent = {
 };
 
 let agentsOverride: typeof mockAgents = [];
+let otherPanesOverride: typeof mockOtherPanes = [];
 let isInitialLoadOverride = false;
 let isLoadingOverride = false;
 const mockRefreshAll = vi.fn();
@@ -118,6 +132,7 @@ const mockStatusLines = [
 vi.mock("@/hooks/use-tmux-agents", () => ({
   useAggregatedTmuxAgents: () => ({
     agents: agentsOverride,
+    otherPanes: otherPanesOverride,
     isLoading: isLoadingOverride,
     isInitialLoad: isInitialLoadOverride,
     error: null,
@@ -136,14 +151,16 @@ describe("TmuxDashboardScreen", () => {
     cleanup();
     vi.clearAllMocks();
     agentsOverride = [];
+    otherPanesOverride = [];
     isInitialLoadOverride = false;
     isLoadingOverride = false;
   });
 
-  it("shows empty state when no agents are detected", () => {
+  it("shows empty state when no panes are detected", () => {
     agentsOverride = [];
+    otherPanesOverride = [];
     render(<TmuxDashboardScreen />);
-    expect(screen.getByText(/no ai agents detected/i)).toBeDefined();
+    expect(screen.getByText(/no tmux panes detected/i)).toBeDefined();
   });
 
   it("shows loading state when queries are disabled after browser refresh", () => {
@@ -152,7 +169,7 @@ describe("TmuxDashboardScreen", () => {
     isLoadingOverride = true;
     render(<TmuxDashboardScreen />);
     expect(screen.getByText(/scanning tmux panes/i)).toBeDefined();
-    expect(screen.queryByText(/no ai agents detected/i)).toBeNull();
+    expect(screen.queryByText(/no tmux panes detected/i)).toBeNull();
   });
 
   it("calls refreshAll when Refresh button is pressed", () => {
@@ -217,5 +234,54 @@ describe("TmuxDashboardScreen", () => {
     expect(screen.getByText("3 agent(s), 1 exited")).toBeDefined();
     // Only one "exited" badge (the exited agent card)
     expect(screen.getAllByText("exited").length).toBe(1);
+  });
+
+  it("renders segmented toggle with Agents and Other Panes tabs", () => {
+    agentsOverride = mockAgents;
+    otherPanesOverride = mockOtherPanes;
+    render(<TmuxDashboardScreen />);
+    expect(screen.getByText(/Agents \(2\)/)).toBeDefined();
+    expect(screen.getByText(/Other Panes \(2\)/)).toBeDefined();
+  });
+
+  it("switches to Other Panes tab and shows only non-agent panes", () => {
+    agentsOverride = mockAgents;
+    otherPanesOverride = mockOtherPanes;
+    render(<TmuxDashboardScreen />);
+    // Click "Other Panes" tab
+    fireEvent.click(screen.getByText(/Other Panes/));
+    // Should show non-agent pane commands (each appears as NameCard filter + PaneCard label)
+    expect(screen.getAllByText("bash").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("vim").length).toBeGreaterThanOrEqual(1);
+    // Should NOT show agent cards
+    expect(screen.queryByText("claude")).toBeNull();
+  });
+
+  it("shows non-agent panes with correct detail format", () => {
+    agentsOverride = [];
+    otherPanesOverride = [mockOtherPanes[0]];
+    render(<TmuxDashboardScreen />);
+    fireEvent.click(screen.getByText(/Other Panes/));
+    expect(screen.getByText("S:dev W:main P:%3 PID:400")).toBeDefined();
+  });
+
+  it("groups panes by command name in Other Panes tab", () => {
+    agentsOverride = [];
+    otherPanesOverride = mockOtherPanes;
+    render(<TmuxDashboardScreen />);
+    fireEvent.click(screen.getByText(/Other Panes/));
+    // Should show command name filter cards (NameCard) and pane cards (PaneCard)
+    expect(screen.getAllByText("bash").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("vim").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("shows empty state when only other panes exist (no agents) but panes are present", () => {
+    agentsOverride = [];
+    otherPanesOverride = mockOtherPanes;
+    render(<TmuxDashboardScreen />);
+    // Should NOT show empty state since there are panes
+    expect(screen.queryByText(/no tmux panes detected/i)).toBeNull();
+    // Should show the segmented toggle
+    expect(screen.getByText(/Other Panes/)).toBeDefined();
   });
 });

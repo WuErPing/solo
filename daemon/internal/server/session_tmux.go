@@ -107,36 +107,38 @@ func isShellCommand(cmd string) bool {
 
 func (s *Session) handleTmuxListAgents(m *protocol.TmuxListAgentsRequest) {
 	agentNames := s.cfg.GetTmuxAgentNames()
-	agents, err := scanTmuxAgents(agentNames)
+	agents, otherPanes, err := scanTmuxAgents(agentNames)
 	if err != nil {
 		errMsg := err.Error()
-		s.sendTmuxListAgentsResponse(m.RequestID, nil, &errMsg)
+		s.sendTmuxListAgentsResponse(m.RequestID, nil, nil, &errMsg)
 		return
 	}
-	s.sendTmuxListAgentsResponse(m.RequestID, agents, nil)
+	s.sendTmuxListAgentsResponse(m.RequestID, agents, otherPanes, nil)
 }
 
-func (s *Session) sendTmuxListAgentsResponse(requestID string, agents []protocol.TmuxAgentInfo, errMsg *string) {
+func (s *Session) sendTmuxListAgentsResponse(requestID string, agents []protocol.TmuxAgentInfo, otherPanes []protocol.TmuxPaneInfo, errMsg *string) {
 	s.sendMessage(protocol.NewSessionMessage(&protocol.TmuxListAgentsResponse{
 		Type: "tmux/list_agents/response",
 		Payload: protocol.TmuxListAgentsResponsePayload{
-			RequestID: requestID,
-			Agents:    agents,
-			Error:     errMsg,
+			RequestID:  requestID,
+			Agents:     agents,
+			OtherPanes: otherPanes,
+			Error:      errMsg,
 		},
 	}))
 }
 
-func scanTmuxAgents(agentNames map[string]bool) ([]protocol.TmuxAgentInfo, error) {
+func scanTmuxAgents(agentNames map[string]bool) ([]protocol.TmuxAgentInfo, []protocol.TmuxPaneInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), tmuxCommandTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "tmux", "list-panes", "-a", "-F",
 		"#{pane_id}|#{pane_index}|#{pane_pid}|#{pane_current_command}|#{session_name}|#{window_name}|#{pane_current_path}|#{pane_title}")
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return parseTmuxPaneLines(string(output), agentNames), nil
+	agents, otherPanes := parseTmuxPaneLines(string(output), agentNames)
+	return agents, otherPanes, nil
 }
 
 func extractFirstPrompt(paneID string, paneTitle string, agentNames map[string]bool) string {
@@ -182,8 +184,9 @@ func getGitCommitHash(workingDir string) string {
 	return strings.TrimSpace(string(out))
 }
 
-func parseTmuxPaneLines(output string, agentNames map[string]bool) []protocol.TmuxAgentInfo {
-	var agents []protocol.TmuxAgentInfo
+func parseTmuxPaneLines(output string, agentNames map[string]bool) ([]protocol.TmuxAgentInfo, []protocol.TmuxPaneInfo) {
+	agents := make([]protocol.TmuxAgentInfo, 0)
+	otherPanes := make([]protocol.TmuxPaneInfo, 0)
 	scanner := bufio.NewScanner(strings.NewReader(output))
 	for scanner.Scan() {
 		parts := strings.Split(scanner.Text(), "|")
@@ -232,6 +235,16 @@ func parseTmuxPaneLines(output string, agentNames map[string]bool) []protocol.Tm
 		}
 
 		if agentName == "" {
+			otherPanes = append(otherPanes, protocol.TmuxPaneInfo{
+				SessionName: sessionName,
+				WindowName:  windowName,
+				PaneID:      paneID,
+				PaneIndex:   paneIndex,
+				PanePID:     panePID,
+				CurrentCmd:  currentCmd,
+				WorkingDir:  workingDir,
+				Title:       paneTitle,
+			})
 			continue
 		}
 
@@ -253,7 +266,7 @@ func parseTmuxPaneLines(output string, agentNames map[string]bool) []protocol.Tm
 			Status:      status,
 		})
 	}
-	return agents
+	return agents, otherPanes
 }
 
 // agentNameFromChildProcesses checks if any child process of the given PID

@@ -93,9 +93,12 @@ function TmuxPaneScreenInner() {
   const [inputText, setInputText] = useState("");
   const [sendError, setSendError] = useState(false);
 
+  const agentName = agent && "agentName" in agent ? agent.agentName : undefined;
+  const paneTitle = agentName ?? (agent && "currentCmd" in agent ? agent.currentCmd : "Tmux Pane");
+
   const slashCommands = useMemo(
-    () => filterSlashCommands(agent?.agentName ?? "", inputText),
-    [agent?.agentName, inputText],
+    () => filterSlashCommands(agentName ?? "", inputText),
+    [agentName, inputText],
   );
   const [loadTimedOut, setLoadTimedOut] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
@@ -293,7 +296,7 @@ function TmuxPaneScreenInner() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <BackHeader
-        title={agent.agentName}
+        title={paneTitle}
         onBack={() => router.back()}
         titleAccessory={
           <Text style={styles.subtitleText}>

@@ -1,5 +1,17 @@
 package protocol
 
+// TmuxPaneInfo represents any tmux pane (not necessarily running an agent).
+type TmuxPaneInfo struct {
+	SessionName string `json:"sessionName"`
+	WindowName  string `json:"windowName"`
+	PaneID      string `json:"paneId"`
+	PaneIndex   int    `json:"paneIndex"`
+	PanePID     int    `json:"panePid"`
+	CurrentCmd  string `json:"currentCmd"`
+	WorkingDir  string `json:"workingDir"`
+	Title       string `json:"title,omitempty"`
+}
+
 // TmuxAgentInfo represents a single AI agent detected in a tmux pane.
 type TmuxAgentInfo struct {
 	SessionName string `json:"sessionName"`
@@ -33,9 +45,10 @@ func (m TmuxListAgentsResponse) MsgType() string { return "tmux/list_agents/resp
 
 // TmuxListAgentsResponsePayload is the payload for TmuxListAgentsResponse.
 type TmuxListAgentsResponsePayload struct {
-	RequestID string          `json:"requestId"`
-	Agents    []TmuxAgentInfo `json:"agents"`
-	Error     *string         `json:"error"`
+	RequestID  string          `json:"requestId"`
+	Agents     []TmuxAgentInfo `json:"agents"`
+	OtherPanes []TmuxPaneInfo  `json:"otherPanes"`
+	Error      *string         `json:"error"`
 }
 
 // TmuxCapturePaneRequest asks the daemon to capture the content of a tmux pane.
