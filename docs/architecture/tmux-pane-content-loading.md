@@ -14,7 +14,10 @@ This document describes the end-to-end flow for loading tmux pane content into t
 - **Pane capture**: Streaming tmux pane content with ANSI escape sequences preserved
 - **Live polling**: Automatic refresh while the pane screen is visible and the app is in the foreground
 - **Key injection**: Sending keystrokes to a remote tmux pane
-- **Terminal themes**: User-selected theme presets for consistent terminal appearance
+- **New session creation**: Create new tmux sessions directly from the dashboard
+- **Non-agent pane display**: Browse and interact with non-agent tmux panes (shells, editors, etc.)
+- **Command history**: Track and display recent commands sent to coding agents
+- **Terminal themes**: User-selected theme presets (system, dark, light, bash, auto) for consistent terminal appearance
 - **ANSI rendering**: Full ANSI color support in pane content and dashboard status lines
 - **Window list**: Tmux window information displayed in dashboard status line
 
@@ -72,7 +75,7 @@ All tmux operations are proxied through the existing WebSocket session infrastru
 │           │                    │                       │              │
 │  ┌────────▼────────────────────▼───────────────────────▼──────────┐  │
 │  │                     tmux subprocess                             │  │
-│  │  list-panes  │  capture-pane  │  send-keys  │  display-message │  │
+│  │  list-panes  │  capture-pane  │  send-keys  │  new-session  │  display-message │  │
 │  └─────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -81,11 +84,12 @@ All tmux operations are proxied through the existing WebSocket session infrastru
 
 | Layer | Component | Responsibility |
 |---|---|---|
-| App | `TmuxDashboardScreen` | Displays aggregated agent list from all connected hosts |
+| App | `TmuxDashboardScreen` | Displays aggregated agent list, non-agent panes, command history, and new session creation from all connected hosts |
 | App | `TmuxPaneScreen` | Renders captured pane content with ANSI colors, handles input |
 | App | `tmux-agent-store` | Zustand store holding selected `serverId` + `paneId` |
 | App-Bridge | `useAggregatedTmuxAgents` | Parallel `useQueries` across all hosts for agent discovery |
 | App-Bridge | `useTmuxCapturePane` | Polling `useQuery` for pane content with foreground awareness |
+| App-Bridge | `useTmuxNewSession` | Hook for creating new tmux sessions with optional working directory and command |
 | App-Bridge | `useTmuxTheme` | One-shot query for tmux session theme colors |
 | App-Bridge | `DaemonClient` | WebSocket RPC client exposing typed tmux methods |
 | Daemon | `session_register_handlers.go` | Routes tmux messages to handler functions |
@@ -335,7 +339,8 @@ Terminal Theme Picker
         ├── System (default, follows OS theme)
         ├── Dark
         ├── Light
-        └── Tmux (inherits host tmux colors)
+        ├── Bash (terminal-native colors)
+        └── Auto (auto-detect from content)
         │
         ▼
 Selected theme stored in app settings
@@ -374,7 +379,7 @@ The `detect-ansi-colors.ts` utility detects 256-color ANSI sequences and maps th
 
 ### 8.4 Removed: Host Tmux Theme Extraction
 
-Previously, theme colors were fetched from the host tmux session via `tmux show-options -gv`. This approach was removed in v0.4.0 because:
+Previously, theme colors were fetched from the host tmux session via `tmux show-options -gv`. This approach was removed because:
 
 - Host tmux configuration varies widely and may not match the app's design
 - Theme extraction added latency to the pane loading flow
@@ -382,7 +387,87 @@ Previously, theme colors were fetched from the host tmux session via `tmux show-
 
 The `TmuxThemeColors` struct and `tmux/get_theme` RPC message remain defined in the protocol for backward compatibility but are no longer used by the frontend.
 
-## 9. Slash-Command Filtering
+## 9. New Session Creation
+
+Users can create new tmux sessions directly from the dashboard without switching to a terminal.
+
+### 9.1 Flow
+
+```
+User taps "New" button in dashboard header
+        │
+        ▼
+TextInput appears (session name, optional working dir / command)
+        │
+        ▼
+User enters name + taps "Create"
+        │
+        ▼
+useTmuxNewSession.createSession(serverId, { name, workingDir?, command? })
+        │
+        ▼
+DaemonClient.tmuxNewSession(name, { workingDir?, command? })
+        │
+        ▼
+tmux new-session -d -s {name} [-c {workingDir}] [{command}]
+        │
+        ▼
+Success → close input, refresh agent list
+Error → display error message inline
+```
+
+### 9.2 Daemon Implementation
+
+```go
+// daemon/internal/server/session_tmux.go
+func createTmuxSession(name string, workingDir *string, command *string) error {
+    args := []string{"new-session", "-d", "-s", name}
+    if workingDir != nil {
+        args = append(args, "-c", *workingDir)
+    }
+    if command != nil {
+        args = append(args, *command)
+    }
+    // exec with 10s timeout
+}
+```
+
+### 9.3 Error Handling
+
+| Scenario | Behavior |
+|---|---|
+| Duplicate session name | tmux returns error, displayed inline in the input row |
+| Invalid working directory | tmux returns error, displayed inline |
+| Network timeout | 10-second client-side timeout via `sendCorrelatedSessionRequest` |
+
+## 10. Non-Agent Pane Display
+
+The dashboard shows non-agent tmux panes (shells, editors, etc.) in a separate "Other Panes" tab, grouped by command name.
+
+### 10.1 Pane Grouping
+
+Non-agent panes are grouped by `currentCmd` (e.g., `bash`, `vim`, `htop`). Users can filter by command name using a dropdown selector.
+
+### 10.2 Interaction
+
+Non-agent panes support the same interaction as agent panes:
+- Tap to view pane content (navigates to TmuxPaneScreen)
+- Session badge showing session name, window, and pane ID
+- Working directory display
+
+## 11. Command History
+
+The dashboard tracks commands sent to coding agents and displays them in a "History" tab.
+
+### 11.1 Data Source
+
+Command history is derived from the pane content capture — the daemon parses recent terminal output to extract command entries.
+
+### 11.2 Display
+
+Each history entry shows the command text and timestamp. Tapping an entry navigates to the corresponding agent pane.
+
+## 12. Slash-Command Filtering
 
 When the user types `/` in the `TmuxPaneScreen` input field, the app offers context-aware slash commands for the selected agent. The command list is defined in `app/src/constants/agent-commands.ts` and filtered by `filterSlashCommands(agentName, input)`.
 
@@ -417,7 +502,7 @@ export function filterSlashCommands(
 
 Tapping a suggested command inserts its `command` string into the input field, ready to be sent via `tmuxSendKeys`.
 
-## 10. Keystroke Interaction Flow
+## 13. Keystroke Interaction Flow
 
 Users can type into an input field and send keystrokes to the remote tmux pane.
 
@@ -451,7 +536,7 @@ tmux send-keys -t {paneId} {keys} [Enter]
 
 The `sendEnter` boolean appends a literal `Enter` key to the sequence, useful for submitting commands.
 
-## 11. Protocol Message Definitions
+## 14. Protocol Message Definitions
 
 ### 11.1 Go (protocol/message_tmux.go)
 
@@ -492,6 +577,21 @@ type TmuxSendKeysResponse struct { Type string; Payload TmuxSendKeysResponsePayl
 type TmuxSendKeysResponsePayload struct {
     RequestID string  `json:"requestId"`
     Error     *string `json:"error"`
+}
+
+// New session
+type TmuxNewSessionRequest struct {
+    Type       string  `json:"type"`
+    Name       string  `json:"name"`
+    WorkingDir *string `json:"workingDir,omitempty"`
+    Command    *string `json:"command,omitempty"`
+    RequestID  string  `json:"requestId"`
+}
+type TmuxNewSessionResponse struct { Type string; Payload TmuxNewSessionResponsePayload }
+type TmuxNewSessionResponsePayload struct {
+    RequestID   string  `json:"requestId"`
+    SessionName string  `json:"sessionName"`
+    Error       *string `json:"error"`
 }
 
 // Theme colors
@@ -577,6 +677,23 @@ export const TmuxSendKeysResponseSchema = z.object({
   }),
 });
 
+export const TmuxNewSessionRequestSchema = z.object({
+  type: z.literal("tmux/new_session"),
+  name: z.string(),
+  workingDir: z.string().optional(),
+  command: z.string().optional(),
+  requestId: z.string(),
+});
+
+export const TmuxNewSessionResponseSchema = z.object({
+  type: z.literal("tmux/new_session/response"),
+  payload: z.object({
+    requestId: z.string(),
+    sessionName: z.string(),
+    error: z.string().nullable(),
+  }),
+});
+
 export const TmuxThemeColorsSchema = z.object({
   background: z.string(),
   foreground: z.string(),
@@ -606,7 +723,7 @@ export const TmuxGetThemeResponseSchema = z.object({
 });
 ```
 
-## 12. Error Handling and Edge Cases
+## 15. Error Handling and Edge Cases
 
 | Scenario | Behavior |
 |---|---|
@@ -620,7 +737,7 @@ export const TmuxGetThemeResponseSchema = z.object({
 | **Auto refresh off + user reading history** | Polling stops; no auto-scroll; manual "Refresh" button available in key row |
 | **Race: old response after pane switch** | React Query key includes `paneId` → stale responses are ignored automatically |
 
-## 13. Related Files
+## 16. Related Files
 
 | File | Role |
 |---|---|
@@ -632,17 +749,18 @@ export const TmuxGetThemeResponseSchema = z.object({
 | `app/src/hooks/use-tmux-theme.ts` | `useTmuxTheme` hook |
 | `app/src/hooks/use-tmux-status-line.ts` | `useTmuxStatusLine` hook — parse and render tmux status line |
 | `app/src/hooks/use-tmux-status-lines.ts` | `useTmuxStatusLines` hook — aggregate status lines from multiple hosts |
-| `app/src/styles/terminal-themes.ts` | 4 terminal theme presets (`system`, `dark`, `light`, `tmux`) |
+| `app/src/hooks/use-tmux-new-session.ts` | `useTmuxNewSession` hook — create new tmux sessions from the dashboard |
+| `app/src/styles/terminal-themes.ts` | 5 terminal theme presets (`system`, `dark`, `light`, `bash`, `auto`) |
 | `app/src/components/ansi-text-renderer.tsx` / `ansi-text-line.tsx` | ANSI escape sequence rendering components |
 | `app/src/components/error-boundary.tsx` | React error boundary for crash protection |
 | `app/src/utils/resolve-terminal-colors.ts` | Resolve effective terminal colors from theme + content + tmux theme |
 | `app/src/utils/detect-ansi-colors.ts` | 256-color palette detection from ANSI content |
 | `app/src/utils/tmux-rpc.ts` | `withLiveTmuxClient` wrapper |
 | `app/src/constants/agent-commands.ts` | Slash-command definitions and `filterSlashCommands` |
-| `app-bridge/src/client/daemon-client.ts` | `DaemonClient` — `tmuxListAgents`, `tmuxCapturePane`, `tmuxSendKeys`, `tmuxGetTheme` |
-| `app-bridge/src/server/tmux/rpc-schemas.ts` | Zod schemas for all tmux RPC messages |
-| `daemon/internal/server/session_register_handlers.go` | WebSocket handler registration (`tmux/list_agents`, `tmux/capture_pane`, `tmux/send_keys`, `tmux/get_theme`) |
-| `daemon/internal/server/session_tmux.go` | Core tmux logic: `scanTmuxAgents`, `parseTmuxPaneLines`, `captureTmuxPane`, `sendKeysToTmuxPane`, `extractTmuxTheme` |
+| `app-bridge/src/client/daemon-client.ts` | `DaemonClient` — `tmuxListAgents`, `tmuxCapturePane`, `tmuxSendKeys`, `tmuxNewSession`, `tmuxGetTheme` |
+| `app-bridge/src/server/tmux/rpc-schemas.ts` | Zod schemas for all tmux RPC messages (including `TmuxNewSessionRequestSchema`, `TmuxNewSessionResponseSchema`) |
+| `daemon/internal/server/session_register_handlers.go` | WebSocket handler registration (`tmux/list_agents`, `tmux/capture_pane`, `tmux/send_keys`, `tmux/new_session`, `tmux/get_theme`) |
+| `daemon/internal/server/session_tmux.go` | Core tmux logic: `scanTmuxAgents`, `parseTmuxPaneLines`, `captureTmuxPane`, `sendKeysToTmuxPane`, `createTmuxSession`, `extractTmuxTheme` |
 | `protocol/message_tmux.go` | Go struct definitions for tmux protocol messages |
 | `docs/analysis/tmux-transport-disposed-race.md` | Transport disposed race condition analysis |
 | `docs/architecture/data-flow.md` | General WebSocket data flow documentation |

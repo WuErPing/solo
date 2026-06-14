@@ -202,12 +202,13 @@ Features:
 
 | File | Responsibility |
 |------|---------------|
-| `rpc-schemas.ts` | Zod schemas for all tmux RPC messages (list_agents, capture_pane, send_keys, get_theme) |
+| `rpc-schemas.ts` | Zod schemas for all tmux RPC messages (list_agents, capture_pane, send_keys, new_session, get_theme) |
 
 **DaemonClient methods** (in `app-bridge/src/client/daemon-client.ts`):
 - `tmuxListAgents(hostId)` — Discover AI agent panes across tmux sessions
 - `tmuxCapturePane(hostId, paneId, startLine?)` — Capture pane content with ANSI codes
 - `tmuxSendKeys(hostId, paneId, keys, sendEnter?)` — Send keystrokes to a tmux pane
+- `tmuxNewSession(name, options?)` — Create a new tmux session with optional working directory and command
 - `tmuxGetTheme(hostId, sessionId)` — Get tmux session theme colors (legacy, now uses terminal themes)
 
 ### 3.8 App Tmux Components
@@ -219,12 +220,13 @@ Features:
 | `tmux-agent-store` | `stores/tmux-agent-store.ts` | Zustand store for selected agent (serverId + paneId) |
 | `useAggregatedTmuxAgents` | `hooks/use-tmux-agents.ts` | Parallel useQueries across all hosts for agent discovery |
 | `useTmuxCapturePane` | `hooks/use-tmux-capture-pane.ts` | Polling useQuery for pane content with foreground awareness |
+| `useTmuxNewSession` | `hooks/use-tmux-new-session.ts` | Create new tmux sessions from the dashboard |
 | `useTmuxTheme` | `hooks/use-tmux-theme.ts` | Query for terminal theme colors |
 | `useTmuxStatusLine` | `hooks/use-tmux-status-line.ts` | Parse and render tmux status line with ANSI colors |
 | `useTmuxStatusLines` | `hooks/use-tmux-status-lines.ts` | Aggregate status lines from multiple hosts |
 | `ansi-text-renderer` | `components/ansi-text-renderer.tsx` | ANSI escape sequence rendering component |
 | `error-boundary` | `components/error-boundary.tsx` | React error boundary wrapping tmux screens |
-| `terminal-themes` | `styles/terminal-themes.ts` | 4 terminal theme presets (`system`, `dark`, `light`, `tmux`) |
+| `terminal-themes` | `styles/terminal-themes.ts` | 5 terminal theme presets (`system`, `dark`, `light`, `bash`, `auto`) |
 | `resolve-terminal-colors` | `utils/resolve-terminal-colors.ts` | Resolve effective terminal colors from theme + content + tmux theme |
 | `detect-ansi-colors` | `utils/detect-ansi-colors.ts` | 256-color palette detection from ANSI content |
 

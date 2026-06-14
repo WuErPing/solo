@@ -1,8 +1,8 @@
 # Solo - Product Feature Detailed Analysis
 
-> Analysis Date: 2026-06-13
+> Analysis Date: 2026-06-15
 > Repository: /Users/wuerping/code/wuerping/solo
-> Version: v0.6.0
+> Version: v0.6.2
 
 ## Product Overview
 
@@ -154,10 +154,13 @@ Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
 - **Dashboard**：Agent 列表和状态概览
 - **Tmux Dashboard**：自动检测 tmux 会话中的 AI 代理，提供交互式控制
   - 三层代理检测（命令名 / 窗格标题 Unicode 归一化 / 子进程检查）
-  - 代理卡片按名称分组，支持筛选
+  - 代理卡片按名称分组，显示会话徽章（会话名、窗口、窗格），支持筛选
+  - 新建会话 — 直接从仪表板创建新的 tmux 会话，支持可选的工作目录和命令
+  - 非代理窗格显示 — 浏览和交互非代理 tmux 窗格（shell、编辑器等），按命令分组
+  - 命令历史 — 跟踪和显示发送给编程代理的最近命令
   - 窗格内容捕获（默认 200 行，5 秒自动刷新，可关闭自动刷新）
   - 懒加载历史（滚动驱动，每次 200 行，最大 5000 行）
-  - 自定义终端主题（`system` / `dark` / `light` / `tmux`）
+  - 自定义终端主题（`system` / `dark` / `light` / `bash` / `auto`）
   - ANSI 文本渲染（状态栏支持 ANSI 颜色）
   - 窗口列表显示（状态栏显示 tmux 窗口信息，如 `0:claude*`）
   - 256 色调色板检测（`detect-ansi-colors.ts`）
@@ -229,7 +232,7 @@ Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
 > 详细覆盖率数据、模块级分析、根因和路线图见: [`docs/analysis/test-coverage.md`](../analysis/test-coverage.md)
 
 #### 9.1 测试规模
-- **App 单元测试**：**234** 个测试文件，**1,617** 个测试用例（Vitest），已接入 CI（含 tmux dashboard、pane screen、status line、ANSI renderer、SVG preview 等新增测试）
+- **App 单元测试**：**235** 个测试文件，**1,657** 个测试用例（Vitest），已接入 CI（含 tmux dashboard、pane screen、status line、ANSI renderer、SVG preview 等新增测试）
 - **App browser 测试**：1 个文件（Chromium via Playwright），未接入 CI
 - **App-bridge 测试**：3 个文件，**32 个测试用例**（Vitest），已接入 CI
 - **Daemon 测试文件**：**129** 个（Go），已接入 CI
@@ -320,7 +323,7 @@ app/
 | Mermaid Preview | `mermaid-preview.tsx` | Mermaid 图表渲染 |
 | SVG Preview | `svg-preview.tsx` | SVG 文件预览 |
 | ANSI Text Renderer | `ansi-text-renderer.tsx` / `ansi-text-line.tsx` | ANSI 转义序列渲染 |
-| Terminal Themes | `styles/terminal-themes.ts` | 4 个终端主题预设（`system` / `dark` / `light` / `tmux`） |
+| Terminal Themes | `styles/terminal-themes.ts` | 5 个终端主题预设（`system` / `dark` / `light` / `bash` / `auto`） |
 | Schedule Create/Edit Modal | `schedule-create-modal.tsx` / `schedule-edit-modal.tsx` | 调度任务创建/编辑 |
 | Error Boundary | `error-boundary.tsx` | React 错误边界 |
 
@@ -342,8 +345,10 @@ Button, Dropdown Menu, Combobox, Tooltip, Shortcut, Segmented Control, Context M
 | useAggregatedAgents | 聚合所有 Agent 状态 |
 | useAggregatedTmuxAgents | 聚合 tmux agent 发现 |
 | useTmuxCapturePane | tmux pane 内容轮询 |
+| useTmuxNewSession | 创建新 tmux 会话 |
 | useTmuxTheme | 终端主题颜色 |
 | useTmuxStatusLine | tmux 状态栏解析 |
+| useTmuxStatusLines | 聚合多主机状态栏 |
 | useSchedule* | 调度任务查询/创建/编辑 hooks |
 | useSettings | App 设置 |
 
@@ -361,7 +366,7 @@ Button, Dropdown Menu, Combobox, Tooltip, Shortcut, Segmented Control, Context M
 ### 已实现（此前标记为缺失）
 1. **GitHub 集成**：PR 状态查看、Git diff、分支切换、Workspace git actions
 2. **MCP 服务器**：Daemon 端完整实现，App 端设置页面有 "Automatically inject Solo MCP tools" 开关
-3. **Tmux Dashboard**：完整的 tmux 代理检测、窗格内容捕获、终端主题、ANSI 渲染
+3. **Tmux Dashboard**：完整的 tmux 代理检测、窗格内容捕获、终端主题、ANSI 渲染、新建会话、命令历史、非代理窗格显示
 4. **SVG Preview**：Web 和移动端 SVG 文件预览
 
 ### 高优先级缺失

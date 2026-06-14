@@ -17,8 +17,8 @@
 
 **关键指标**:
 - Go 测试文件: 174 个 (158 源文件, 比例 1.10:1)
-- App 测试文件: 234 个 (unit) + 31 个 (E2E)
-- App 单元测试用例: 1,617 个
+- App 测试文件: 235 个 (unit) + 31 个 (E2E)
+- App 单元测试用例: 1,657 个
 - CI 每次 push 运行: Go 测试 + App unit 测试 + App-Bridge 测试 + Lint + Typecheck
 - E2E: 每日 02:00 UTC 自动运行 + 手动触发
 
