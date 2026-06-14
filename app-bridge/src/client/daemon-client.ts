@@ -386,6 +386,10 @@ type TmuxNewSessionPayload = Extract<
   SessionOutboundMessage,
   { type: "tmux/new_session/response" }
 >["payload"];
+type TmuxKillSessionPayload = Extract<
+  SessionOutboundMessage,
+  { type: "tmux/kill_session/response" }
+>["payload"];
 type TmuxStatusLinePayload = Extract<
   SessionOutboundMessage,
   { type: "tmux/status_line/response" }
@@ -3703,6 +3707,18 @@ export class DaemonClient {
         ...(options?.command ? { command: options.command } : {}),
       },
       responseType: "tmux/new_session/response",
+      timeout: 10000,
+    });
+  }
+
+  async tmuxKillSession(sessionName: string, requestId?: string): Promise<TmuxKillSessionPayload> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "tmux/kill_session",
+        sessionName,
+      },
+      responseType: "tmux/kill_session/response",
       timeout: 10000,
     });
   }

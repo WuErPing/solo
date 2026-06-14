@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,21 +6,22 @@ import {
   ScrollView,
   RefreshControl,
   TextInput,
-  Alert,
 } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { Terminal, Monitor, RefreshCw, SquareTerminal, Clock, ClipboardCopy, Plus } from "lucide-react-native";
+import { Terminal, Monitor, RefreshCw, SquareTerminal, Clock, Plus, Play, X } from "lucide-react-native";
 import { router } from "expo-router";
 import { BackHeader } from "@/components/headers/back-header";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useAggregatedTmuxAgents } from "@/hooks/use-tmux-agents";
 import { useTmuxStatusLines } from "@/hooks/use-tmux-status-lines";
 import { useTmuxNewSession } from "@/hooks/use-tmux-new-session";
+import { useTmuxKillSession } from "@/hooks/use-tmux-kill-session";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useStoreReady } from "@/app/_layout";
 import { useTmuxAgentStore } from "@/stores/tmux-agent-store";
 import { useHosts } from "@/runtime/host-runtime";
 import { shortenPath } from "@/utils/shorten-path";
+import { confirmDialog } from "@/utils/confirm-dialog";
 import { parseAnsi } from "@/utils/ansi-parser";
 import { AnsiTextContent } from "@/components/ansi-text-renderer";
 import type { TmuxAgent, TmuxPane, AgentCommandEntry } from "@/hooks/use-tmux-agents";
@@ -44,25 +45,25 @@ function AgentCard({
   agent,
   statusLine,
   onPress,
+  onClose,
 }: {
   agent: TmuxAgent;
   statusLine?: TmuxStatusLineInfo;
   onPress: () => void;
+  onClose: () => void;
 }) {
   const { theme } = useUnistyles();
   const isExited = agent.status === "exited";
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
+    <View
+      style={[
         styles.agentCard,
-        pressed ? { opacity: 0.8 } : null,
         isExited ? { opacity: 0.6 } : null,
       ]}
     >
       <View style={styles.agentCardHeader}>
-        <View style={styles.agentNameRow}>
+        <Pressable onPress={onPress} style={styles.agentNameRow}>
           <Terminal size={16} color={isExited ? theme.colors.foregroundMuted : theme.colors.primary} />
           <Text style={[styles.agentName, isExited && { color: theme.colors.foregroundMuted }]}>
             {agent.agentName}
@@ -72,60 +73,72 @@ function AgentCard({
               <Text style={styles.exitedBadgeText}>exited</Text>
             </View>
           ) : null}
+        </Pressable>
+        <View style={styles.headerRightRow}>
+          <Text style={styles.serverLabel}>{agent.serverLabel}</Text>
+          <Pressable
+            onPress={onClose}
+            hitSlop={8}
+            data-testid="close-session"
+            style={{ padding: 4 }}
+          >
+            <X size={16} color={theme.colors.destructive} />
+          </Pressable>
         </View>
-        <Text style={styles.serverLabel}>{agent.serverLabel}</Text>
       </View>
-      <View style={styles.sessionBadgeRow}>
-        <View style={[styles.sessionBadge, { backgroundColor: theme.colors.surface1 }]}>
-          <Text style={styles.sessionBadgeText}>{agent.sessionName}</Text>
+      <Pressable onPress={onPress}>
+        <View style={styles.sessionBadgeRow}>
+          <View style={[styles.sessionBadge, { backgroundColor: theme.colors.surface1 }]}>
+            <Text style={styles.sessionBadgeText}>{agent.sessionName}</Text>
+          </View>
+          <Text style={styles.sessionBadgeSub}>
+            W:{agent.windowName} P:{agent.paneId}
+          </Text>
         </View>
-        <Text style={styles.sessionBadgeSub}>
-          W:{agent.windowName} P:{agent.paneId}
-        </Text>
-      </View>
-      {agent.workingDir ? (
-        <Text style={styles.agentTitle} numberOfLines={1}>
-          {shortenPath(agent.workingDir)}
-        </Text>
-      ) : null}
-      {statusLine ? (
-        <View
-          style={[
-            styles.statusLineContainer,
-            { backgroundColor: theme.colors.surface1 },
-          ]}
-        >
-          {statusLine.statusRight ? (() => {
-            const { title, timeDate } = splitStatusRight(statusLine.statusRight);
-            return (
-              <>
-                <AnsiTextContent
-                  segments={parseAnsi(title)}
-                  style={[
-                    styles.statusLineText,
-                    { color: theme.colors.foreground },
-                  ]}
-                />
-                {timeDate ? (
+        {agent.workingDir ? (
+          <Text style={styles.agentTitle} numberOfLines={1}>
+            {shortenPath(agent.workingDir)}
+          </Text>
+        ) : null}
+        {statusLine ? (
+          <View
+            style={[
+              styles.statusLineContainer,
+              { backgroundColor: theme.colors.surface1 },
+            ]}
+          >
+            {statusLine.statusRight ? (() => {
+              const { title, timeDate } = splitStatusRight(statusLine.statusRight);
+              return (
+                <>
                   <AnsiTextContent
-                    segments={parseAnsi(timeDate)}
+                    segments={parseAnsi(title)}
                     style={[
                       styles.statusLineText,
                       { color: theme.colors.foreground },
                     ]}
                   />
-                ) : null}
-              </>
-            );
-          })() : null}
+                  {timeDate ? (
+                    <AnsiTextContent
+                      segments={parseAnsi(timeDate)}
+                      style={[
+                        styles.statusLineText,
+                        { color: theme.colors.foreground },
+                      ]}
+                    />
+                  ) : null}
+                </>
+              );
+            })() : null}
+          </View>
+        ) : null}
+        <View style={styles.agentCardBody}>
+          <Text style={styles.detailLabel}>
+            PID:{agent.panePid}
+          </Text>
         </View>
-      ) : null}
-      <View style={styles.agentCardBody}>
-        <Text style={styles.detailLabel}>
-          PID:{agent.panePid}
-        </Text>
-      </View>
-    </Pressable>
+      </Pressable>
+    </View>
   );
 }
 
@@ -157,55 +170,63 @@ function NameCard({
 function PaneCard({
   pane,
   onPress,
+  onClose,
 }: {
   pane: TmuxPane;
   onPress: () => void;
+  onClose: () => void;
 }) {
   const { theme } = useUnistyles();
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.agentCard,
-        pressed ? { opacity: 0.8 } : null,
-      ]}
-    >
+    <View style={styles.agentCard}>
       <View style={styles.agentCardHeader}>
-        <View style={styles.agentNameRow}>
+        <Pressable onPress={onPress} style={styles.agentNameRow}>
           <SquareTerminal size={16} color={theme.colors.foregroundMuted} />
           <Text style={styles.agentName}>{pane.currentCmd}</Text>
+        </Pressable>
+        <View style={styles.headerRightRow}>
+          <Text style={styles.serverLabel}>{pane.serverLabel}</Text>
+          <Pressable
+            onPress={onClose}
+            hitSlop={8}
+            data-testid="close-session"
+            style={{ padding: 4 }}
+          >
+            <X size={16} color={theme.colors.destructive} />
+          </Pressable>
         </View>
-        <Text style={styles.serverLabel}>{pane.serverLabel}</Text>
       </View>
-      <View style={styles.sessionBadgeRow}>
-        <View style={[styles.sessionBadge, { backgroundColor: theme.colors.surface1 }]}>
-          <Text style={styles.sessionBadgeText}>{pane.sessionName}</Text>
+      <Pressable onPress={onPress}>
+        <View style={styles.sessionBadgeRow}>
+          <View style={[styles.sessionBadge, { backgroundColor: theme.colors.surface1 }]}>
+            <Text style={styles.sessionBadgeText}>{pane.sessionName}</Text>
+          </View>
+          <Text style={styles.sessionBadgeSub}>
+            W:{pane.windowName} P:{pane.paneId}
+          </Text>
         </View>
-        <Text style={styles.sessionBadgeSub}>
-          W:{pane.windowName} P:{pane.paneId}
-        </Text>
-      </View>
-      {pane.workingDir ? (
-        <Text style={styles.agentTitle} numberOfLines={1}>
-          {shortenPath(pane.workingDir)}
-        </Text>
-      ) : null}
-      <View style={styles.agentCardBody}>
-        <Text style={styles.detailLabel}>
-          PID:{pane.panePid}
-        </Text>
-      </View>
-    </Pressable>
+        {pane.workingDir ? (
+          <Text style={styles.agentTitle} numberOfLines={1}>
+            {shortenPath(pane.workingDir)}
+          </Text>
+        ) : null}
+        <View style={styles.agentCardBody}>
+          <Text style={styles.detailLabel}>
+            PID:{pane.panePid}
+          </Text>
+        </View>
+      </Pressable>
+    </View>
   );
 }
 
 function CommandHistoryCard({
   entry,
-  onCopy,
+  onRun,
 }: {
   entry: AgentCommandEntry;
-  onCopy: () => void;
+  onRun: () => void;
 }) {
   const { theme } = useUnistyles();
   const relativeTime = useMemo(() => {
@@ -221,7 +242,7 @@ function CommandHistoryCard({
 
   return (
     <Pressable
-      onPress={onCopy}
+      onPress={onRun}
       style={({ pressed }) => [
         styles.historyCard,
         pressed ? { opacity: 0.8 } : null,
@@ -238,7 +259,7 @@ function CommandHistoryCard({
         <Text style={styles.historyCmd} numberOfLines={1}>
           {entry.launchCmd}
         </Text>
-        <ClipboardCopy size={14} color={theme.colors.foregroundMuted} />
+        <Play size={14} color={theme.colors.primary} />
       </View>
     </Pressable>
   );
@@ -263,12 +284,18 @@ function TmuxDashboardScreenInner() {
     useAggregatedTmuxAgents();
   const statusLines = useTmuxStatusLines(agents);
   const { createSession, isLoading: isCreating, error: createError } = useTmuxNewSession();
+  const { killSession } = useTmuxKillSession();
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [selectedCmd, setSelectedCmd] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<DashboardTab>("agents");
   const [showNewSessionInput, setShowNewSessionInput] = useState(false);
   const [newSessionName, setNewSessionName] = useState("");
   const setSelectedAgent = useTmuxAgentStore((s) => s.setSelectedAgent);
+
+  // Refresh tmux agents on launch so the daemon updates ~/.solo/agent-commands.json.
+  useEffect(() => {
+    refreshAll();
+  }, [refreshAll]);
 
   const firstConnectedServerId = useMemo(() => {
     return hosts.length > 0 ? hosts[0].serverId : null;
@@ -314,9 +341,39 @@ function TmuxDashboardScreenInner() {
     router.push("/tmux-pane");
   };
 
-  const handleCopyCommand = (cmd: string) => {
-    void navigator.clipboard.writeText(cmd);
-  };
+  const handleRunCommand = useCallback(async (entry: AgentCommandEntry) => {
+    if (!firstConnectedServerId) return;
+    const confirmed = await confirmDialog({
+      title: "Run Command",
+      message: `Launch "${entry.launchCmd}" in a new tmux session?`,
+      confirmLabel: "Run",
+      cancelLabel: "Cancel",
+    });
+    if (!confirmed) return;
+    const name = `${entry.agentName}-${Date.now()}`;
+    const sessionName = await createSession(firstConnectedServerId, {
+      name,
+      command: entry.launchCmd,
+    });
+    if (sessionName) {
+      await refreshAll();
+      setActiveTab("agents");
+    }
+  }, [firstConnectedServerId, createSession, refreshAll]);
+
+  const handleCloseSession = useCallback(async (sessionName: string) => {
+    if (!firstConnectedServerId) return;
+    const confirmed = await confirmDialog({
+      title: "Close Session",
+      message: `Kill tmux session "${sessionName}"?`,
+      confirmLabel: "Close",
+      cancelLabel: "Cancel",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    const ok = await killSession(firstConnectedServerId, sessionName);
+    if (ok) refreshAll();
+  }, [firstConnectedServerId, killSession, refreshAll]);
 
   const cmdGroups = useMemo(() => {
     const map = new Map<string, number>();
@@ -524,6 +581,7 @@ function TmuxDashboardScreenInner() {
                       (s) => s.serverId === agent.serverId && s.sessionName === agent.sessionName,
                     )}
                     onPress={() => handleAgentPress(agent)}
+                    onClose={() => handleCloseSession(agent.sessionName)}
                   />
                 ))}
               </View>
@@ -556,6 +614,7 @@ function TmuxDashboardScreenInner() {
                     key={`${pane.serverId}-${pane.paneId}-${index}`}
                     pane={pane}
                     onPress={() => handlePanePress(pane)}
+                    onClose={() => handleCloseSession(pane.sessionName)}
                   />
                 ))}
               </View>
@@ -569,7 +628,7 @@ function TmuxDashboardScreenInner() {
                 <CommandHistoryCard
                   key={`${entry.launchCmd}-${index}`}
                   entry={entry}
-                  onCopy={() => handleCopyCommand(entry.launchCmd)}
+                  onRun={() => void handleRunCommand(entry)}
                 />
               ))}
             </View>
@@ -684,6 +743,7 @@ const styles = StyleSheet.create((theme) => ({
     borderRadius: 10,
     padding: 14,
     width: 280,
+    position: "relative",
   },
   agentCardHeader: {
     flexDirection: "row",

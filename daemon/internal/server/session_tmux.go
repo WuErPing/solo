@@ -29,7 +29,6 @@ var unicodeToASCII = map[rune]string{
 // Subprocess timeout constants to prevent goroutine blocking on hung processes.
 const (
 	tmuxCommandTimeout = 5 * time.Second
-	pgrepTimeout       = 2 * time.Second
 	psTimeout          = 2 * time.Second
 	gitTimeout         = 3 * time.Second
 )
@@ -297,65 +296,117 @@ func parseTmuxPaneLines(output string, agentNames map[string]bool) ([]protocol.T
 	return agents, otherPanes
 }
 
-// agentNameFromChildProcesses checks if any child process of the given PID
-// matches a known AI agent name. This catches cases where pane_current_command
-// shows "node" or "python" but the actual agent is a child process.
-// Uses batched ps call to avoid N+1 subprocess invocations.
-func agentNameFromChildProcesses(ppid int, agentNames map[string]bool) string {
-	name, _ := findAgentChildProcess(ppid, agentNames)
-	return name
+// processNode holds a snapshot of a running process.
+type processNode struct {
+	pid  int
+	ppid int
+	comm string
+	args string
 }
 
-// findAgentChildProcess returns the agent name and PID of the first child process
-// matching a known agent name.
-func findAgentChildProcess(ppid int, agentNames map[string]bool) (string, int) {
-	ctx, cancel := context.WithTimeout(context.Background(), pgrepTimeout)
+// listProcessTree returns a snapshot of all processes with PID, PPID, command
+// name, and full argument list. A single ps call avoids N+1 subprocess overhead.
+func listProcessTree() ([]processNode, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), psTimeout)
 	defer cancel()
-
-	out, err := exec.CommandContext(ctx, "pgrep", "-P", strconv.Itoa(ppid)).Output()
+	out, err := exec.CommandContext(ctx, "ps", "-eo", "pid,ppid,comm,args=").Output()
 	if err != nil {
-		return "", 0
+		return nil, err
 	}
-	pids := strings.Fields(strings.TrimSpace(string(out)))
-	if len(pids) == 0 {
-		return "", 0
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	nodes := make([]processNode, 0, len(lines))
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) < 3 {
+			continue
+		}
+		pid, _ := strconv.Atoi(fields[0])
+		ppid, _ := strconv.Atoi(fields[1])
+		comm := fields[2]
+		args := ""
+		if len(fields) > 3 {
+			args = strings.Join(fields[3:], " ")
+		}
+		nodes = append(nodes, processNode{pid: pid, ppid: ppid, comm: comm, args: args})
 	}
+	return nodes, nil
+}
 
-	// Query all child PIDs in a single ps call instead of one per PID.
-	psCtx, psCancel := context.WithTimeout(context.Background(), psTimeout)
-	defer psCancel()
-	commOut, err := exec.CommandContext(psCtx, "ps", "-o", "comm=", "-p", strings.Join(pids, ",")).Output()
-	if err != nil {
-		return "", 0
+// descendantProcesses returns all descendant processes of rootPID, ordered by
+// depth-first traversal so closer descendants appear first.
+func descendantProcesses(rootPID int, nodes []processNode) []processNode {
+	children := make(map[int][]processNode, len(nodes))
+	for _, n := range nodes {
+		children[n.ppid] = append(children[n.ppid], n)
 	}
-	lines := strings.Split(strings.TrimSpace(string(commOut)), "\n")
-	for i, line := range lines {
-		name := strings.TrimSpace(line)
+	var out []processNode
+	var dfs func(int)
+	dfs = func(pid int) {
+		for _, child := range children[pid] {
+			out = append(out, child)
+			dfs(child.pid)
+		}
+	}
+	dfs(rootPID)
+	return out
+}
+
+// processListFunc is overridable in tests to avoid real ps invocations.
+var processListFunc = listProcessTree
+
+// argsContainsAgentName checks whether any whitespace-separated token in args
+// has a basename matching a known agent name. This catches wrappers like
+// "node /path/to/kimi" or "python -m kimi" where the process comm is not the
+// agent name.
+func argsContainsAgentName(args string, agentNames map[string]bool) (string, bool) {
+	for _, token := range strings.Fields(args) {
+		name := token
 		if idx := strings.LastIndex(name, "/"); idx >= 0 {
 			name = name[idx+1:]
 		}
-		if agentNames[name] && i < len(pids) {
-			pid, _ := strconv.Atoi(pids[i])
-			return name, pid
+		if agentNames[name] {
+			return name, true
 		}
 	}
-	return "", 0
+	return "", false
+}
+
+// findAgentDescendant returns the agent name, PID, and full command line of the
+// first descendant of ppid whose command name matches a known agent name.
+// It searches recursively so wrappers (sh -> node -> kimi) are still found.
+func findAgentDescendant(ppid int, agentNames map[string]bool) (string, int, string) {
+	nodes, err := processListFunc()
+	if err != nil {
+		return "", 0, ""
+	}
+	for _, n := range descendantProcesses(ppid, nodes) {
+		name := n.comm
+		if idx := strings.LastIndex(name, "/"); idx >= 0 {
+			name = name[idx+1:]
+		}
+		if agentNames[name] {
+			return name, n.pid, n.args
+		}
+		if agentName, ok := argsContainsAgentName(n.args, agentNames); ok {
+			return agentName, n.pid, n.args
+		}
+	}
+	return "", 0, ""
+}
+
+// agentNameFromChildProcesses checks if any descendant process of the given PID
+// matches a known AI agent name. This catches cases where pane_current_command
+// shows "node" or "python" but the actual agent is a grandchild process.
+func agentNameFromChildProcesses(ppid int, agentNames map[string]bool) string {
+	name, _, _ := findAgentDescendant(ppid, agentNames)
+	return name
 }
 
 // extractAgentLaunchCmd returns the full command line of the agent process.
-// It finds the agent's PID among the pane shell's children, then reads its args.
+// It finds the agent's PID among the pane shell's descendants, then reads its args.
 func extractAgentLaunchCmd(panePID int, agentName string) string {
-	_, childPID := findAgentChildProcess(panePID, map[string]bool{agentName: true})
-	if childPID == 0 {
-		return ""
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), psTimeout)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "ps", "-o", "args=", "-p", strconv.Itoa(childPID)).Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
+	_, _, args := findAgentDescendant(panePID, map[string]bool{agentName: true})
+	return args
 }
 
 func (s *Session) handleTmuxCapturePane(m *protocol.TmuxCapturePaneRequest) {
@@ -474,6 +525,37 @@ func (s *Session) sendTmuxNewSessionResponse(requestID, sessionName string, errM
 			RequestID:   requestID,
 			SessionName: sessionName,
 			Error:       errMsg,
+		},
+	}))
+}
+
+// killTmuxSession kills a tmux session by name.
+func killTmuxSession(name string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), tmuxCommandTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "tmux", "kill-session", "-t", name).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("tmux kill-session: %s: %w", strings.TrimSpace(string(out)), err)
+	}
+	return nil
+}
+
+func (s *Session) handleTmuxKillSession(m *protocol.TmuxKillSessionRequest) {
+	err := killTmuxSession(m.SessionName)
+	if err != nil {
+		errMsg := err.Error()
+		s.sendTmuxKillSessionResponse(m.RequestID, &errMsg)
+		return
+	}
+	s.sendTmuxKillSessionResponse(m.RequestID, nil)
+}
+
+func (s *Session) sendTmuxKillSessionResponse(requestID string, errMsg *string) {
+	s.sendMessage(protocol.NewSessionMessage(&protocol.TmuxKillSessionResponse{
+		Type: "tmux/kill_session/response",
+		Payload: protocol.TmuxKillSessionResponsePayload{
+			RequestID: requestID,
+			Error:     errMsg,
 		},
 	}))
 }

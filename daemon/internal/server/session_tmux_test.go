@@ -97,8 +97,8 @@ func TestParseTmuxPaneLines(t *testing.T) {
 			wantNames: []string{"pi"},
 		},
 		{
-			name: "path prefix stripped",
-			input: "%0|0|1000|/usr/local/bin/claude|s1|w1|/tmp\n",
+			name:      "path prefix stripped",
+			input:     "%0|0|1000|/usr/local/bin/claude|s1|w1|/tmp\n",
 			wantCount: 1,
 			wantNames: []string{"claude"},
 		},
@@ -609,6 +609,199 @@ func TestCreateTmuxSessionDuplicateName(t *testing.T) {
 	err = createTmuxSession(sessionName, nil, nil)
 	if err == nil {
 		t.Fatal("expected error for duplicate session name, got nil")
+	}
+}
+
+func TestKillTmuxSession(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	sessionName := "solo-test-kill-" + t.Name()
+
+	// Create a session first
+	err := createTmuxSession(sessionName, nil, nil)
+	if err != nil {
+		t.Fatalf("createTmuxSession(%q) error: %v", sessionName, err)
+	}
+
+	// Kill it
+	err = killTmuxSession(sessionName)
+	if err != nil {
+		t.Fatalf("killTmuxSession(%q) error: %v", sessionName, err)
+	}
+
+	// Verify the session no longer exists
+	out, err := exec.Command("tmux", "list-sessions", "-F", "#{session_name}").Output()
+	if err != nil {
+		// tmux list-sessions exits non-zero when no sessions exist
+		return
+	}
+	if strings.Contains(string(out), sessionName) {
+		t.Errorf("session %q still exists after kill:\n%s", sessionName, string(out))
+	}
+}
+
+func TestKillTmuxSessionNotFound(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	err := killTmuxSession("nonexistent-session-solo-test")
+	if err == nil {
+		t.Fatal("expected error for nonexistent session, got nil")
+	}
+}
+
+func TestDescendantProcesses(t *testing.T) {
+	nodes := []processNode{
+		{pid: 1000, ppid: 1, comm: "tmux"},
+		{pid: 2000, ppid: 1000, comm: "bash"},
+		{pid: 3000, ppid: 2000, comm: "node"},
+		{pid: 4000, ppid: 3000, comm: "kimi"},
+		{pid: 5000, ppid: 1000, comm: "zsh"},
+	}
+	desc := descendantProcesses(1000, nodes)
+	if len(desc) != 4 {
+		t.Fatalf("got %d descendants, want 4: %+v", len(desc), desc)
+	}
+	wantPIDs := []int{2000, 3000, 4000, 5000}
+	for i, want := range wantPIDs {
+		if desc[i].pid != want {
+			t.Errorf("desc[%d].pid = %d, want %d", i, desc[i].pid, want)
+		}
+	}
+}
+
+func TestFindAgentDescendantDirectChild(t *testing.T) {
+	orig := processListFunc
+	defer func() { processListFunc = orig }()
+	processListFunc = func() ([]processNode, error) {
+		return []processNode{
+			{pid: 1000, ppid: 1, comm: "tmux"},
+			{pid: 2000, ppid: 1000, comm: "kimi", args: "kimi /home/user/project"},
+		}, nil
+	}
+
+	name, pid, args := findAgentDescendant(1000, map[string]bool{"kimi": true})
+	if name != "kimi" {
+		t.Errorf("name = %q, want kimi", name)
+	}
+	if pid != 2000 {
+		t.Errorf("pid = %d, want 2000", pid)
+	}
+	if args != "kimi /home/user/project" {
+		t.Errorf("args = %q, want 'kimi /home/user/project'", args)
+	}
+}
+
+func TestFindAgentDescendantGrandchild(t *testing.T) {
+	orig := processListFunc
+	defer func() { processListFunc = orig }()
+	processListFunc = func() ([]processNode, error) {
+		return []processNode{
+			{pid: 1000, ppid: 1, comm: "tmux"},
+			{pid: 2000, ppid: 1000, comm: "bash"},
+			{pid: 3000, ppid: 2000, comm: "node"},
+			{pid: 4000, ppid: 3000, comm: "kimi", args: "node /usr/local/bin/kimi --cwd /home/user/project"},
+		}, nil
+	}
+
+	name, pid, args := findAgentDescendant(1000, map[string]bool{"kimi": true})
+	if name != "kimi" {
+		t.Errorf("name = %q, want kimi", name)
+	}
+	if pid != 4000 {
+		t.Errorf("pid = %d, want 4000", pid)
+	}
+	if args != "node /usr/local/bin/kimi --cwd /home/user/project" {
+		t.Errorf("args = %q, want matching launch cmd", args)
+	}
+}
+
+func TestFindAgentDescendantNoMatch(t *testing.T) {
+	orig := processListFunc
+	defer func() { processListFunc = orig }()
+	processListFunc = func() ([]processNode, error) {
+		return []processNode{
+			{pid: 1000, ppid: 1, comm: "tmux"},
+			{pid: 2000, ppid: 1000, comm: "bash"},
+			{pid: 3000, ppid: 2000, comm: "vim"},
+		}, nil
+	}
+
+	name, pid, args := findAgentDescendant(1000, map[string]bool{"kimi": true})
+	if name != "" || pid != 0 || args != "" {
+		t.Errorf("expected no match, got name=%q pid=%d args=%q", name, pid, args)
+	}
+}
+
+func TestExtractAgentLaunchCmdFromGrandchild(t *testing.T) {
+	orig := processListFunc
+	defer func() { processListFunc = orig }()
+	processListFunc = func() ([]processNode, error) {
+		return []processNode{
+			{pid: 1000, ppid: 1, comm: "tmux"},
+			{pid: 2000, ppid: 1000, comm: "bash"},
+			{pid: 3000, ppid: 2000, comm: "node"},
+			{pid: 4000, ppid: 3000, comm: "kimi", args: "kimi --permission-mode=bypass_permissions"},
+		}, nil
+	}
+
+	cmd := extractAgentLaunchCmd(1000, "kimi")
+	if cmd != "kimi --permission-mode=bypass_permissions" {
+		t.Errorf("cmd = %q, want 'kimi --permission-mode=bypass_permissions'", cmd)
+	}
+}
+
+func TestArgsContainsAgentName(t *testing.T) {
+	tests := []struct {
+		args string
+		want string
+	}{
+		{"node /usr/local/bin/kimi --cwd /home/user/project", "kimi"},
+		{"python /opt/kimi-cli", "kimi-cli"},
+		{"/bin/bash /home/user/scripts/claude", "claude"},
+		{"npx opencode", "opencode"},
+		{"node server.js", ""},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.args, func(t *testing.T) {
+			got, ok := argsContainsAgentName(tt.args, testAgentNames)
+			if tt.want == "" {
+				if ok {
+					t.Errorf("argsContainsAgentName(%q) = %q, want no match", tt.args, got)
+				}
+				return
+			}
+			if got != tt.want {
+				t.Errorf("argsContainsAgentName(%q) = %q, want %q", tt.args, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFindAgentDescendantByArgs(t *testing.T) {
+	orig := processListFunc
+	defer func() { processListFunc = orig }()
+	processListFunc = func() ([]processNode, error) {
+		return []processNode{
+			{pid: 1000, ppid: 1, comm: "tmux"},
+			{pid: 2000, ppid: 1000, comm: "bash"},
+			{pid: 3000, ppid: 2000, comm: "node", args: "node /usr/local/bin/kimi /home/user/project"},
+		}, nil
+	}
+
+	name, pid, args := findAgentDescendant(1000, map[string]bool{"kimi": true})
+	if name != "kimi" {
+		t.Errorf("name = %q, want kimi", name)
+	}
+	if pid != 3000 {
+		t.Errorf("pid = %d, want 3000", pid)
+	}
+	if args != "node /usr/local/bin/kimi /home/user/project" {
+		t.Errorf("args = %q, want matching launch cmd", args)
 	}
 }
 

@@ -108,6 +108,7 @@ func (s *Session) registerHandlers() {
 	r.Register("tmux/capture_pane", typeHandler(s.handleTmuxCapturePane))
 	r.Register("tmux/send_keys", typeHandler(s.handleTmuxSendKeys))
 	r.Register("tmux/new_session", typeHandler(s.handleTmuxNewSession))
+	r.Register("tmux/kill_session", typeHandler(s.handleTmuxKillSession))
 	r.Register("tmux/status_line", typeHandler(s.handleTmuxStatusLine))
 }
 

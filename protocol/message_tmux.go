@@ -188,6 +188,29 @@ type TmuxNewSessionResponsePayload struct {
 	Error       *string `json:"error"`
 }
 
+// TmuxKillSessionRequest asks the daemon to kill a tmux session.
+type TmuxKillSessionRequest struct {
+	Type        string `json:"type"`
+	SessionName string `json:"sessionName"`
+	RequestID   string `json:"requestId"`
+}
+
+func (m TmuxKillSessionRequest) MsgType() string { return "tmux/kill_session" }
+
+// TmuxKillSessionResponse confirms the session was killed.
+type TmuxKillSessionResponse struct {
+	Type    string                         `json:"type"`
+	Payload TmuxKillSessionResponsePayload `json:"payload"`
+}
+
+func (m TmuxKillSessionResponse) MsgType() string { return "tmux/kill_session/response" }
+
+// TmuxKillSessionResponsePayload is the payload for TmuxKillSessionResponse.
+type TmuxKillSessionResponsePayload struct {
+	RequestID string  `json:"requestId"`
+	Error     *string `json:"error"`
+}
+
 // TmuxSendKeysRequest asks the daemon to send keystrokes to a tmux pane.
 type TmuxSendKeysRequest struct {
 	Type      string `json:"type"`

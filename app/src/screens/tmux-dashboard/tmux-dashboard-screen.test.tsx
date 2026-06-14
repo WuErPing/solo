@@ -66,7 +66,7 @@ vi.mock("lucide-react-native", () => {
     Component.displayName = `Icon(${name})`;
     return Component;
   };
-  return { Terminal: icon("Terminal"), Monitor: icon("Monitor"), RefreshCw: icon("RefreshCw"), SquareTerminal: icon("SquareTerminal"), Clock: icon("Clock"), ClipboardCopy: icon("ClipboardCopy") };
+  return { Terminal: icon("Terminal"), Monitor: icon("Monitor"), RefreshCw: icon("RefreshCw"), SquareTerminal: icon("SquareTerminal"), Clock: icon("Clock"), ClipboardCopy: icon("ClipboardCopy"), Plus: icon("Plus"), Play: icon("Play"), X: icon("X") };
 });
 
 vi.mock("@/components/headers/back-header", () => ({
@@ -146,6 +146,30 @@ vi.mock("@/hooks/use-tmux-status-lines", () => ({
   useTmuxStatusLines: () => mockStatusLines,
 }));
 
+vi.mock("@/hooks/use-tmux-new-session", () => ({
+  useTmuxNewSession: () => ({
+    createSession: vi.fn().mockResolvedValue("test-session"),
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("@/hooks/use-tmux-kill-session", () => ({
+  useTmuxKillSession: () => ({
+    killSession: vi.fn().mockResolvedValue(true),
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("@/runtime/host-runtime", () => ({
+  useHosts: () => [{ serverId: "s1", label: "local" }],
+}));
+
+vi.mock("@/utils/confirm-dialog", () => ({
+  confirmDialog: vi.fn().mockResolvedValue(false),
+}));
+
 import { TmuxDashboardScreen } from "./tmux-dashboard-screen";
 
 describe("TmuxDashboardScreen", () => {
@@ -157,6 +181,13 @@ describe("TmuxDashboardScreen", () => {
     commandHistoryOverride = [];
     isInitialLoadOverride = false;
     isLoadingOverride = false;
+  });
+
+  it("refreshes tmux agents on launch to update command history storage", () => {
+    agentsOverride = [];
+    otherPanesOverride = [];
+    render(<TmuxDashboardScreen />);
+    expect(mockRefreshAll).toHaveBeenCalled();
   });
 
   it("shows empty state when no panes are detected", () => {
@@ -305,6 +336,17 @@ describe("TmuxDashboardScreen", () => {
     expect(screen.getAllByText("claude").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("qodercli").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("qodercli --permission-mode=bypass_permissions")).toBeDefined();
+  });
+
+  it("renders Play icon in history cards for running commands", () => {
+    agentsOverride = mockAgents;
+    commandHistoryOverride = [
+      { agentName: "claude", launchCmd: "claude", lastSeen: "2026-06-15T10:00:00Z" },
+    ];
+    render(<TmuxDashboardScreen />);
+    fireEvent.click(screen.getByText(/History/));
+    const playIcons = document.querySelectorAll('[data-icon="Play"]');
+    expect(playIcons.length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows empty message when no command history exists", () => {

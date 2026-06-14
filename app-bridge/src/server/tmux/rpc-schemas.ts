@@ -142,3 +142,17 @@ export const TmuxNewSessionResponseSchema = z.object({
     error: z.string().nullable(),
   }),
 });
+
+export const TmuxKillSessionRequestSchema = z.object({
+  type: z.literal("tmux/kill_session"),
+  sessionName: z.string(),
+  requestId: z.string(),
+});
+
+export const TmuxKillSessionResponseSchema = z.object({
+  type: z.literal("tmux/kill_session/response"),
+  payload: z.object({
+    requestId: z.string(),
+    error: z.string().nullable(),
+  }),
+});

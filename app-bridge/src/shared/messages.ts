@@ -50,6 +50,8 @@ import {
   TmuxStatusLineResponseSchema,
   TmuxNewSessionRequestSchema,
   TmuxNewSessionResponseSchema,
+  TmuxKillSessionRequestSchema,
+  TmuxKillSessionResponseSchema,
 } from "../server/tmux/rpc-schemas.js";
 import {
   LoopRunRequestSchema,
@@ -1757,6 +1759,7 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   TmuxCapturePaneRequestSchema,
   TmuxSendKeysRequestSchema,
   TmuxNewSessionRequestSchema,
+  TmuxKillSessionRequestSchema,
   TmuxGetThemeRequestSchema,
   TmuxStatusLineRequestSchema,
   LoopRunRequestSchema,
@@ -3384,6 +3387,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   TmuxCapturePaneResponseSchema,
   TmuxSendKeysResponseSchema,
   TmuxNewSessionResponseSchema,
+  TmuxKillSessionResponseSchema,
   TmuxGetThemeResponseSchema,
   TmuxStatusLineResponseSchema,
   LoopRunResponseSchema,
