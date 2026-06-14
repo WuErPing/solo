@@ -239,8 +239,12 @@ Three-layer detection identifies agents even when `pane_current_command` reports
 
 ### Features
 
-- **Agent cards** — grouped by agent name, tap to filter
+- **New session creation** — create new tmux sessions directly from the dashboard with optional working directory and command
+- **Agent cards** — grouped by agent name with session badge (session name, window, pane), tap to filter
+- **Non-agent pane display** — browse and interact with non-agent tmux panes (shells, editors, etc.) grouped by command
+- **Command history** — track and display recent commands sent to coding agents
 - **Pane content capture** — live terminal view (last 500 lines), auto-refreshes every 5 seconds
+- **Terminal themes** — configurable color themes (system, dark, light, tmux, Bash, auto) for pane rendering
 - **Interactive control** — send text commands with Enter, or use quick-action buttons:
   - Arrow keys (↑↓←→) for TUI menu navigation
   - Enter, Esc, Tab, Ctrl+C for control
@@ -287,7 +291,7 @@ The project uses GitHub Actions (`.github/workflows/ci.yml`) with the following 
 | Job | Trigger | Steps |
 |-----|---------|-------|
 | **Go** (matrix: protocol, cli, daemon, relay-go) | push/PR to main | `go mod verify` → `go build` → `go test -short -race -coverprofile` → `golangci-lint v2` → Codecov upload |
-| **JS** | push/PR to main | `npm ci` → lint (app, app-bridge, highlight) → typecheck → test (app 1282 tests, app-bridge 32 tests) → Codecov upload |
+| **JS** | push/PR to main | `npm ci` → lint (app, app-bridge, highlight) → typecheck → test (app 1657 tests, app-bridge 32 tests) → Codecov upload |
 | **E2E** (nightly) | daily 02:00 UTC + manual | Playwright E2E (22 specs) with daemon/relay/Metro globalSetup |
 
 ---
