@@ -7,7 +7,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { Terminal, Monitor, RefreshCw, SquareTerminal } from "lucide-react-native";
+import { Terminal, Monitor, RefreshCw, SquareTerminal, Clock, ClipboardCopy } from "lucide-react-native";
 import { router } from "expo-router";
 import { BackHeader } from "@/components/headers/back-header";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -19,7 +19,7 @@ import { useTmuxAgentStore } from "@/stores/tmux-agent-store";
 import { shortenPath } from "@/utils/shorten-path";
 import { parseAnsi } from "@/utils/ansi-parser";
 import { AnsiTextContent } from "@/components/ansi-text-renderer";
-import type { TmuxAgent, TmuxPane } from "@/hooks/use-tmux-agents";
+import type { TmuxAgent, TmuxPane, AgentCommandEntry } from "@/hooks/use-tmux-agents";
 import type { TmuxStatusLineInfo } from "@/hooks/use-tmux-status-lines";
 
 interface AgentNameGroup {
@@ -180,6 +180,50 @@ function PaneCard({
   );
 }
 
+function CommandHistoryCard({
+  entry,
+  onCopy,
+}: {
+  entry: AgentCommandEntry;
+  onCopy: () => void;
+}) {
+  const { theme } = useUnistyles();
+  const relativeTime = useMemo(() => {
+    const diff = Date.now() - new Date(entry.lastSeen).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  }, [entry.lastSeen]);
+
+  return (
+    <Pressable
+      onPress={onCopy}
+      style={({ pressed }) => [
+        styles.historyCard,
+        pressed ? { opacity: 0.8 } : null,
+      ]}
+    >
+      <View style={styles.historyCardHeader}>
+        <View style={styles.agentNameRow}>
+          <Clock size={14} color={theme.colors.foregroundMuted} />
+          <Text style={styles.historyAgentName}>{entry.agentName}</Text>
+        </View>
+        <Text style={styles.historyTime}>{relativeTime}</Text>
+      </View>
+      <View style={styles.historyCmdRow}>
+        <Text style={styles.historyCmd} numberOfLines={1}>
+          {entry.launchCmd}
+        </Text>
+        <ClipboardCopy size={14} color={theme.colors.foregroundMuted} />
+      </View>
+    </Pressable>
+  );
+}
+
 export function TmuxDashboardScreen() {
   return (
     <ErrorBoundary fallbackLabel="Tmux dashboard encountered an error">
@@ -188,13 +232,13 @@ export function TmuxDashboardScreen() {
   );
 }
 
-type DashboardTab = "agents" | "other-panes";
+type DashboardTab = "agents" | "other-panes" | "history";
 
 function TmuxDashboardScreenInner() {
   const { theme } = useUnistyles();
   const isCompact = useIsCompactFormFactor();
   const storeReady = useStoreReady();
-  const { agents, otherPanes, isLoading, isInitialLoad, error, refreshAll } =
+  const { agents, otherPanes, commandHistory, isLoading, isInitialLoad, error, refreshAll } =
     useAggregatedTmuxAgents();
   const statusLines = useTmuxStatusLines(agents);
   const [selectedName, setSelectedName] = useState<string | null>(null);
@@ -231,6 +275,10 @@ function TmuxDashboardScreenInner() {
     router.push("/tmux-pane");
   };
 
+  const handleCopyCommand = (cmd: string) => {
+    void navigator.clipboard.writeText(cmd);
+  };
+
   const cmdGroups = useMemo(() => {
     const map = new Map<string, number>();
     for (const pane of otherPanes) {
@@ -250,7 +298,9 @@ function TmuxDashboardScreenInner() {
     ? `${agents.length} agent(s)${agents.filter((a) => a.status === "exited").length > 0
         ? `, ${agents.filter((a) => a.status === "exited").length} exited`
         : ""}`
-    : `${otherPanes.length} pane(s)`;
+    : activeTab === "other-panes"
+      ? `${otherPanes.length} pane(s)`
+      : `${commandHistory.length} cmd(s)`;
 
   const hasData = agents.length > 0 || otherPanes.length > 0;
 
@@ -332,6 +382,22 @@ function TmuxDashboardScreenInner() {
                 Other Panes ({otherPanes.length})
               </Text>
             </Pressable>
+            <Pressable
+              onPress={() => setActiveTab("history")}
+              style={[
+                styles.segmentButton,
+                activeTab === "history" && { backgroundColor: theme.colors.primary },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.segmentText,
+                  { color: activeTab === "history" ? theme.colors.background : theme.colors.foregroundMuted },
+                ]}
+              >
+                History ({commandHistory.length})
+              </Text>
+            </Pressable>
           </View>
 
           {activeTab === "agents" ? (
@@ -369,7 +435,7 @@ function TmuxDashboardScreenInner() {
                 ))}
               </View>
             </>
-          ) : (
+          ) : activeTab === "other-panes" ? (
             <>
               {cmdGroups.length > 0 ? (
                 <ScrollView
@@ -401,6 +467,19 @@ function TmuxDashboardScreenInner() {
                 ))}
               </View>
             </>
+          ) : (
+            <View style={styles.historyList}>
+              {commandHistory.length === 0 ? (
+                <Text style={styles.loadingText}>No command history yet.</Text>
+              ) : null}
+              {commandHistory.map((entry, index) => (
+                <CommandHistoryCard
+                  key={`${entry.launchCmd}-${index}`}
+                  entry={entry}
+                  onCopy={() => handleCopyCommand(entry.launchCmd)}
+                />
+              ))}
+            </View>
           )}
         </ScrollView>
       )}
@@ -599,5 +678,41 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 4,
+  },
+  historyList: {
+    padding: 16,
+    gap: 8,
+  },
+  historyCard: {
+    backgroundColor: theme.colors.surface0,
+    borderRadius: 10,
+    padding: 14,
+  },
+  historyCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  historyAgentName: {
+    color: theme.colors.primary,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  historyTime: {
+    color: theme.colors.foregroundMuted,
+    fontSize: 11,
+  },
+  historyCmdRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+  },
+  historyCmd: {
+    color: theme.colors.foreground,
+    fontSize: 13,
+    fontFamily: "monospace",
+    flex: 1,
   },
 }));

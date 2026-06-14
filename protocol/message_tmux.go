@@ -25,6 +25,7 @@ type TmuxAgentInfo struct {
 	Title       string `json:"title,omitempty"`
 	GitCommit   string `json:"gitCommit,omitempty"`
 	Status      string `json:"status,omitempty"` // "active" (default/omitted) or "exited"
+	LaunchCmd   string `json:"launchCmd,omitempty"`
 }
 
 // TmuxListAgentsRequest asks the daemon to scan tmux for AI agent panes.
@@ -43,12 +44,20 @@ type TmuxListAgentsResponse struct {
 
 func (m TmuxListAgentsResponse) MsgType() string { return "tmux/list_agents/response" }
 
+// AgentCommandEntry represents a deduplicated coding agent launch command.
+type AgentCommandEntry struct {
+	AgentName string `json:"agentName"`
+	LaunchCmd string `json:"launchCmd"`
+	LastSeen  string `json:"lastSeen"`
+}
+
 // TmuxListAgentsResponsePayload is the payload for TmuxListAgentsResponse.
 type TmuxListAgentsResponsePayload struct {
-	RequestID  string          `json:"requestId"`
-	Agents     []TmuxAgentInfo `json:"agents"`
-	OtherPanes []TmuxPaneInfo  `json:"otherPanes"`
-	Error      *string         `json:"error"`
+	RequestID       string               `json:"requestId"`
+	Agents          []TmuxAgentInfo      `json:"agents"`
+	OtherPanes      []TmuxPaneInfo       `json:"otherPanes"`
+	CommandHistory  []AgentCommandEntry  `json:"commandHistory,omitempty"`
+	Error           *string              `json:"error"`
 }
 
 // TmuxCapturePaneRequest asks the daemon to capture the content of a tmux pane.

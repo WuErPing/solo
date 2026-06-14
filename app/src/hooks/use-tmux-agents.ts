@@ -33,9 +33,16 @@ export interface TmuxPane {
 
 export type TmuxAgentOrPane = TmuxAgent | TmuxPane;
 
+export interface AgentCommandEntry {
+  agentName: string;
+  launchCmd: string;
+  lastSeen: string;
+}
+
 export interface AggregatedTmuxAgentsResult {
   agents: TmuxAgent[];
   otherPanes: TmuxPane[];
+  commandHistory: AgentCommandEntry[];
   isLoading: boolean;
   isInitialLoad: boolean;
   isRevalidating: boolean;
@@ -69,6 +76,7 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
           return {
             agents: payload.agents ?? [],
             otherPanes: payload.otherPanes ?? [],
+            commandHistory: payload.commandHistory ?? [],
             error: payload.error ?? null,
             serverId: host.serverId,
             serverLabel: host.label,
@@ -81,6 +89,7 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
   const result = useMemo(() => {
     const allAgents: TmuxAgent[] = [];
     const allOtherPanes: TmuxPane[] = [];
+    const allCommandHistory: AgentCommandEntry[] = [];
     let anyError: string | null = null;
     let isLoading = false;
     let isFetching = false;
@@ -126,6 +135,11 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
           });
         }
       }
+      if (query.data?.commandHistory) {
+        for (const entry of query.data.commandHistory) {
+          allCommandHistory.push(entry);
+        }
+      }
     }
 
     // Sort by agentName, then by sessionName
@@ -141,6 +155,9 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
       if (sessionCmp !== 0) return sessionCmp;
       return left.windowName.localeCompare(right.windowName);
     });
+
+    // Sort command history by lastSeen descending.
+    allCommandHistory.sort((a, b) => b.lastSeen.localeCompare(a.lastSeen));
 
     const hasAnyData = allAgents.length > 0 || allOtherPanes.length > 0;
 
@@ -161,6 +178,7 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
     return {
       agents: allAgents,
       otherPanes: allOtherPanes,
+      commandHistory: allCommandHistory,
       isLoading,
       isInitialLoad,
       isRevalidating,

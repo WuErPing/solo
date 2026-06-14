@@ -13,7 +13,7 @@ import {
   type PressableStateCallbackType,
 } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { Send, Palette, TextSelect } from "lucide-react-native";
+import { Send, Palette, TextSelect, Clock } from "lucide-react-native";
 import { router } from "expo-router";
 import { BackHeader } from "@/components/headers/back-header";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useTmuxCapturePane } from "@/hooks/use-tmux-capture-pane";
+import { useAggregatedTmuxAgents } from "@/hooks/use-tmux-agents";
 import { useAppSettings } from "@/hooks/use-settings";
 import { filterSlashCommands } from "@/constants/agent-commands";
 import { withLiveTmuxClient } from "@/utils/tmux-rpc";
@@ -92,6 +93,8 @@ function TmuxPaneScreenInner() {
 
   const [inputText, setInputText] = useState("");
   const [sendError, setSendError] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const { commandHistory } = useAggregatedTmuxAgents();
 
   const agentName = agent && "agentName" in agent ? agent.agentName : undefined;
   const paneTitle = agentName ?? (agent && "currentCmd" in agent ? agent.currentCmd : "Tmux Pane");
@@ -468,6 +471,21 @@ function TmuxPaneScreenInner() {
                 /
               </Text>
             </Pressable>
+            {commandHistory.length > 0 ? (
+              <Pressable
+                testID="history-key-button"
+                onPress={() => setShowHistory((prev) => !prev)}
+                style={({ pressed }) => [
+                  styles.keyButtonSolid,
+                  {
+                    backgroundColor: showHistory ? theme.colors.primary : pressed ? theme.colors.primary : theme.colors.surface1,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+              >
+                <Clock size={14} color={showHistory ? theme.colors.background : theme.colors.foreground} />
+              </Pressable>
+            ) : null}
           </View>
         </View>
       </View>
@@ -495,6 +513,33 @@ function TmuxPaneScreenInner() {
           ))}
         </View>
       )}
+      {showHistory && commandHistory.length > 0 ? (
+        <View style={[styles.slashDropdown, { backgroundColor: theme.colors.surface0, borderColor: theme.colors.border }]}>
+          {commandHistory.map((entry) => (
+            <Pressable
+              key={entry.launchCmd}
+              testID={`history-cmd-${entry.launchCmd}`}
+              onPress={() => {
+                setInputText(entry.launchCmd);
+                setShowHistory(false);
+              }}
+              style={({ pressed }) => [
+                styles.slashItem,
+                pressed ? { backgroundColor: theme.colors.surface1 } : null,
+              ]}
+            >
+              <View style={styles.historyItemRow}>
+                <Text style={[styles.historyAgentBadge, { color: theme.colors.primary }]}>
+                  {entry.agentName}
+                </Text>
+                <Text style={[styles.slashItemText, { color: theme.colors.foreground }]} numberOfLines={1}>
+                  {entry.launchCmd}
+                </Text>
+              </View>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
       <View style={styles.inputRow}>
         <TextInput
           style={[
@@ -682,6 +727,16 @@ const styles = StyleSheet.create((theme) => ({
   slashItemText: {
     fontFamily: "monospace",
     fontSize: 13,
+  },
+  historyItemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  historyAgentBadge: {
+    fontSize: 11,
+    fontWeight: "600",
+    minWidth: 50,
   },
   headerRightRow: {
     flexDirection: "row",

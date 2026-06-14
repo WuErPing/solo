@@ -66,7 +66,7 @@ vi.mock("lucide-react-native", () => {
     Component.displayName = `Icon(${name})`;
     return Component;
   };
-  return { Terminal: icon("Terminal"), Monitor: icon("Monitor"), RefreshCw: icon("RefreshCw"), SquareTerminal: icon("SquareTerminal") };
+  return { Terminal: icon("Terminal"), Monitor: icon("Monitor"), RefreshCw: icon("RefreshCw"), SquareTerminal: icon("SquareTerminal"), Clock: icon("Clock"), ClipboardCopy: icon("ClipboardCopy") };
 });
 
 vi.mock("@/components/headers/back-header", () => ({
@@ -121,6 +121,7 @@ const mockExitedAgent = {
 
 let agentsOverride: typeof mockAgents = [];
 let otherPanesOverride: typeof mockOtherPanes = [];
+let commandHistoryOverride: Array<{ agentName: string; launchCmd: string; lastSeen: string }> = [];
 let isInitialLoadOverride = false;
 let isLoadingOverride = false;
 const mockRefreshAll = vi.fn();
@@ -133,6 +134,7 @@ vi.mock("@/hooks/use-tmux-agents", () => ({
   useAggregatedTmuxAgents: () => ({
     agents: agentsOverride,
     otherPanes: otherPanesOverride,
+    commandHistory: commandHistoryOverride,
     isLoading: isLoadingOverride,
     isInitialLoad: isInitialLoadOverride,
     error: null,
@@ -152,6 +154,7 @@ describe("TmuxDashboardScreen", () => {
     vi.clearAllMocks();
     agentsOverride = [];
     otherPanesOverride = [];
+    commandHistoryOverride = [];
     isInitialLoadOverride = false;
     isLoadingOverride = false;
   });
@@ -283,5 +286,28 @@ describe("TmuxDashboardScreen", () => {
     expect(screen.queryByText(/no tmux panes detected/i)).toBeNull();
     // Should show the segmented toggle
     expect(screen.getByText(/Other Panes/)).toBeDefined();
+  });
+
+  it("renders History tab and shows command history entries", () => {
+    agentsOverride = mockAgents;
+    commandHistoryOverride = [
+      { agentName: "claude", launchCmd: "claude", lastSeen: "2026-06-15T10:00:00Z" },
+      { agentName: "qodercli", launchCmd: "qodercli --permission-mode=bypass_permissions", lastSeen: "2026-06-15T09:00:00Z" },
+    ];
+    render(<TmuxDashboardScreen />);
+    expect(screen.getByText(/History \(2\)/)).toBeDefined();
+    fireEvent.click(screen.getByText(/History/));
+    // agentName labels appear in history cards
+    expect(screen.getAllByText("claude").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("qodercli").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("qodercli --permission-mode=bypass_permissions")).toBeDefined();
+  });
+
+  it("shows empty message when no command history exists", () => {
+    agentsOverride = mockAgents;
+    commandHistoryOverride = [];
+    render(<TmuxDashboardScreen />);
+    fireEvent.click(screen.getByText(/History/));
+    expect(screen.getByText(/No command history yet/)).toBeDefined();
   });
 });

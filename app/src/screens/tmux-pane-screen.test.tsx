@@ -69,6 +69,7 @@ vi.mock("lucide-react-native", () => {
     Send: icon("Send"),
     Palette: icon("Palette"),
     TextSelect: icon("TextSelect"),
+    Clock: icon("Clock"),
   };
 });
 
@@ -200,6 +201,18 @@ const { agentRef } = vi.hoisted(() => ({
   agentRef: { current: null as typeof mockAgent | null },
 }));
 agentRef.current = mockAgent;
+
+vi.mock("@/hooks/use-tmux-agents", () => ({
+  useAggregatedTmuxAgents: () => ({
+    agents: [],
+    otherPanes: [],
+    commandHistory: [],
+    isLoading: false,
+    isInitialLoad: false,
+    error: null,
+    refreshAll: vi.fn(),
+  }),
+}));
 
 vi.mock("@/stores/tmux-agent-store", () => ({
   useTmuxAgentStore: (selector: (s: { selectedAgent: typeof mockAgent | null }) => unknown) => {

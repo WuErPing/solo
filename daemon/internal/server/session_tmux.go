@@ -110,20 +110,44 @@ func (s *Session) handleTmuxListAgents(m *protocol.TmuxListAgentsRequest) {
 	agents, otherPanes, err := scanTmuxAgents(agentNames)
 	if err != nil {
 		errMsg := err.Error()
-		s.sendTmuxListAgentsResponse(m.RequestID, nil, nil, &errMsg)
+		s.sendTmuxListAgentsResponse(m.RequestID, nil, nil, nil, &errMsg)
 		return
 	}
-	s.sendTmuxListAgentsResponse(m.RequestID, agents, otherPanes, nil)
+
+	// Persist command history and include it in the response.
+	var history []protocol.AgentCommandEntry
+	if s.cfg.SoloHome != "" {
+		store := NewAgentCommandStore(s.cfg.SoloHome)
+		var newEntries []AgentCommandEntry
+		for _, a := range agents {
+			if a.LaunchCmd != "" {
+				newEntries = append(newEntries, AgentCommandEntry{
+					AgentName: a.AgentName,
+					LaunchCmd: a.LaunchCmd,
+				})
+			}
+		}
+		store.Merge(newEntries)
+		for _, e := range store.Entries() {
+			history = append(history, protocol.AgentCommandEntry{
+				AgentName: e.AgentName,
+				LaunchCmd: e.LaunchCmd,
+				LastSeen:  e.LastSeen,
+			})
+		}
+	}
+	s.sendTmuxListAgentsResponse(m.RequestID, agents, otherPanes, history, nil)
 }
 
-func (s *Session) sendTmuxListAgentsResponse(requestID string, agents []protocol.TmuxAgentInfo, otherPanes []protocol.TmuxPaneInfo, errMsg *string) {
+func (s *Session) sendTmuxListAgentsResponse(requestID string, agents []protocol.TmuxAgentInfo, otherPanes []protocol.TmuxPaneInfo, history []protocol.AgentCommandEntry, errMsg *string) {
 	s.sendMessage(protocol.NewSessionMessage(&protocol.TmuxListAgentsResponse{
 		Type: "tmux/list_agents/response",
 		Payload: protocol.TmuxListAgentsResponsePayload{
-			RequestID:  requestID,
-			Agents:     agents,
-			OtherPanes: otherPanes,
-			Error:      errMsg,
+			RequestID:      requestID,
+			Agents:         agents,
+			OtherPanes:     otherPanes,
+			CommandHistory: history,
+			Error:          errMsg,
 		},
 	}))
 }
@@ -249,8 +273,10 @@ func parseTmuxPaneLines(output string, agentNames map[string]bool) ([]protocol.T
 		}
 
 		title := ""
+		launchCmd := ""
 		if status != "exited" {
 			title = extractFirstPrompt(paneID, paneTitle, agentNames)
+			launchCmd = extractAgentLaunchCmd(panePID, agentName)
 		}
 
 		agents = append(agents, protocol.TmuxAgentInfo{
@@ -264,6 +290,7 @@ func parseTmuxPaneLines(output string, agentNames map[string]bool) ([]protocol.T
 			WorkingDir:  workingDir,
 			Title:       title,
 			Status:      status,
+			LaunchCmd:   launchCmd,
 		})
 	}
 	return agents, otherPanes
@@ -274,16 +301,23 @@ func parseTmuxPaneLines(output string, agentNames map[string]bool) ([]protocol.T
 // shows "node" or "python" but the actual agent is a child process.
 // Uses batched ps call to avoid N+1 subprocess invocations.
 func agentNameFromChildProcesses(ppid int, agentNames map[string]bool) string {
+	name, _ := findAgentChildProcess(ppid, agentNames)
+	return name
+}
+
+// findAgentChildProcess returns the agent name and PID of the first child process
+// matching a known agent name.
+func findAgentChildProcess(ppid int, agentNames map[string]bool) (string, int) {
 	ctx, cancel := context.WithTimeout(context.Background(), pgrepTimeout)
 	defer cancel()
 
 	out, err := exec.CommandContext(ctx, "pgrep", "-P", strconv.Itoa(ppid)).Output()
 	if err != nil {
-		return ""
+		return "", 0
 	}
 	pids := strings.Fields(strings.TrimSpace(string(out)))
 	if len(pids) == 0 {
-		return ""
+		return "", 0
 	}
 
 	// Query all child PIDs in a single ps call instead of one per PID.
@@ -291,18 +325,36 @@ func agentNameFromChildProcesses(ppid int, agentNames map[string]bool) string {
 	defer psCancel()
 	commOut, err := exec.CommandContext(psCtx, "ps", "-o", "comm=", "-p", strings.Join(pids, ",")).Output()
 	if err != nil {
-		return ""
+		return "", 0
 	}
-	for _, line := range strings.Split(strings.TrimSpace(string(commOut)), "\n") {
+	lines := strings.Split(strings.TrimSpace(string(commOut)), "\n")
+	for i, line := range lines {
 		name := strings.TrimSpace(line)
 		if idx := strings.LastIndex(name, "/"); idx >= 0 {
 			name = name[idx+1:]
 		}
-		if agentNames[name] {
-			return name
+		if agentNames[name] && i < len(pids) {
+			pid, _ := strconv.Atoi(pids[i])
+			return name, pid
 		}
 	}
-	return ""
+	return "", 0
+}
+
+// extractAgentLaunchCmd returns the full command line of the agent process.
+// It finds the agent's PID among the pane shell's children, then reads its args.
+func extractAgentLaunchCmd(panePID int, agentName string) string {
+	_, childPID := findAgentChildProcess(panePID, map[string]bool{agentName: true})
+	if childPID == 0 {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), psTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "ps", "-o", "args=", "-p", strconv.Itoa(childPID)).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 func (s *Session) handleTmuxCapturePane(m *protocol.TmuxCapturePaneRequest) {
