@@ -40,18 +40,7 @@ func (s *AgentCommandStore) load() {
 	if err := json.Unmarshal(b, &entries); err != nil {
 		return
 	}
-	// Drop stale entries whose LaunchCmd was captured before the setproctitle-
-	// aware fallback was added (e.g. agentName="kimi" with launchCmd=
-	// "kimi-code", which isn't a real binary on PATH). To preserve legitimate
-	// wrappers (e.g. "node kimi"), only drop when the binary doesn't exist.
-	clean := entries[:0]
-	for _, e := range entries {
-		if isStaleLaunchCmd(e.LaunchCmd, e.AgentName) {
-			continue
-		}
-		clean = append(clean, e)
-	}
-	s.entries = clean
+	s.entries = entries
 }
 
 func (s *AgentCommandStore) save() error {
@@ -110,4 +99,36 @@ func (s *AgentCommandStore) Entries() []AgentCommandEntry {
 	out := make([]AgentCommandEntry, len(s.entries))
 	copy(out, s.entries)
 	return out
+}
+
+// Delete removes the entry with the given LaunchCmd. Returns true if any entry was removed.
+func (s *AgentCommandStore) Delete(launchCmd string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, e := range s.entries {
+		if e.LaunchCmd == launchCmd {
+			s.entries = append(s.entries[:i], s.entries[i+1:]...)
+			_ = s.save()
+			return true
+		}
+	}
+	return false
+}
+
+// DeleteByAgentName removes all entries for the given agent names.
+// Used before a scan merge to replace stale entries for currently running agents.
+func (s *AgentCommandStore) DeleteByAgentName(agentNames map[string]bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for _, e := range s.entries {
+		if !agentNames[e.AgentName] {
+			s.entries[n] = e
+			n++
+		}
+	}
+	if n < len(s.entries) {
+		s.entries = s.entries[:n]
+		_ = s.save()
+	}
 }

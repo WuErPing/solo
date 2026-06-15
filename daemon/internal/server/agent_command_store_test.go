@@ -83,39 +83,76 @@ func TestAgentCommandStoreCorruptFile(t *testing.T) {
 	}
 }
 
-// TestAgentCommandStoreDropsStaleSetproctitleEntries verifies the load-time
-// cleanup of entries whose LaunchCmd was corrupted by the setproctitle bug
-// (prior to the fix): kimi reported as "kimi-code" instead of "kimi --yolo".
-func TestAgentCommandStoreDropsStaleSetproctitleEntries(t *testing.T) {
+func TestAgentCommandStoreDelete(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "agent-commands.json")
-	data := `[
-		{"agentName":"kimi","launchCmd":"kimi-code","lastSeen":"2026-06-14T19:27:05Z"},
-		{"agentName":"claude","launchCmd":"claude --dangerously-skip-permissions","lastSeen":"2026-06-14T19:27:05Z"},
-		{"agentName":"opencode","launchCmd":"opencode","lastSeen":"2026-06-14T19:27:05Z"},
-		{"agentName":"kimi","launchCmd":"kimi --yolo","lastSeen":"2026-06-14T19:27:05Z"},
-		{"agentName":"kimi","launchCmd":"kimi-cod BUN_INSTALL=/Users/x/.bun","lastSeen":"2026-06-14T19:27:05Z"}
-	]`
-	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
-		t.Fatal(err)
-	}
-
 	store := NewAgentCommandStore(dir)
-	entries := store.Entries()
+	store.Merge([]AgentCommandEntry{
+		{AgentName: "claude", LaunchCmd: "claude --dangerously-skip-permissions"},
+		{AgentName: "kimi", LaunchCmd: "kimi --yolo"},
+		{AgentName: "opencode", LaunchCmd: "opencode"},
+	})
 
-	want := map[string]string{
-		"claude --dangerously-skip-permissions": "claude",
-		"opencode":                              "opencode",
-		"kimi --yolo":                           "kimi",
+	if ok := store.Delete("kimi --yolo"); !ok {
+		t.Fatal("Delete returned false, want true")
 	}
-	if len(entries) != len(want) {
-		t.Fatalf("got %d entries, want %d: %+v", len(entries), len(want), entries)
+	entries := store.Entries()
+	if len(entries) != 2 {
+		t.Fatalf("after delete: got %d entries, want 2", len(entries))
 	}
 	for _, e := range entries {
-		if wantAgent, ok := want[e.LaunchCmd]; !ok {
-			t.Errorf("unexpected stale entry: agentName=%q launchCmd=%q", e.AgentName, e.LaunchCmd)
-		} else if e.AgentName != wantAgent {
-			t.Errorf("entry %q agentName=%q, want %q", e.LaunchCmd, e.AgentName, wantAgent)
+		if e.LaunchCmd == "kimi --yolo" {
+			t.Error("deleted entry still present")
 		}
 	}
+
+	// Verify persistence: reload from disk.
+	store2 := NewAgentCommandStore(dir)
+	entries2 := store2.Entries()
+	if len(entries2) != 2 {
+		t.Fatalf("reloaded: got %d entries, want 2", len(entries2))
+	}
 }
+
+func TestAgentCommandStoreDeleteNonexistent(t *testing.T) {
+	dir := t.TempDir()
+	store := NewAgentCommandStore(dir)
+	store.Merge([]AgentCommandEntry{
+		{AgentName: "claude", LaunchCmd: "claude"},
+	})
+
+	if ok := store.Delete("nonexistent"); ok {
+		t.Fatal("Delete returned true for nonexistent entry")
+	}
+	if len(store.Entries()) != 1 {
+		t.Fatalf("entries changed after deleting nonexistent: got %d, want 1", len(store.Entries()))
+	}
+}
+
+func TestAgentCommandStoreDeleteByAgentName(t *testing.T) {
+	dir := t.TempDir()
+	store := NewAgentCommandStore(dir)
+	store.Merge([]AgentCommandEntry{
+		{AgentName: "claude", LaunchCmd: "claude --dangerously-skip-permissions"},
+		{AgentName: "cursor-agent", LaunchCmd: "/usr/local/bin/cursor-agent --use-system-ca /path/to/index.js"},
+		{AgentName: "cursor-agent", LaunchCmd: "cursor-agent --model gpt-4"},
+		{AgentName: "opencode", LaunchCmd: "opencode"},
+	})
+
+	store.DeleteByAgentName(map[string]bool{"cursor-agent": true})
+	entries := store.Entries()
+	if len(entries) != 2 {
+		t.Fatalf("after delete: got %d entries, want 2: %+v", len(entries), entries)
+	}
+	for _, e := range entries {
+		if e.AgentName == "cursor-agent" {
+			t.Errorf("cursor-agent entry still present: %q", e.LaunchCmd)
+		}
+	}
+
+	// Verify persistence.
+	store2 := NewAgentCommandStore(dir)
+	if len(store2.Entries()) != 2 {
+		t.Fatalf("reloaded: got %d entries, want 2", len(store2.Entries()))
+	}
+}
+

@@ -156,3 +156,17 @@ export const TmuxKillSessionResponseSchema = z.object({
     error: z.string().nullable(),
   }),
 });
+
+export const TmuxDeleteCommandHistoryRequestSchema = z.object({
+  type: z.literal("tmux/delete_command_history"),
+  launchCmd: z.string(),
+  requestId: z.string(),
+});
+
+export const TmuxDeleteCommandHistoryResponseSchema = z.object({
+  type: z.literal("tmux/delete_command_history/response"),
+  payload: z.object({
+    requestId: z.string(),
+    error: z.string().nullable(),
+  }),
+});

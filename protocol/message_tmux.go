@@ -212,6 +212,33 @@ type TmuxKillSessionResponsePayload struct {
 	Error     *string `json:"error"`
 }
 
+// TmuxDeleteCommandHistoryRequest asks the daemon to delete a persisted launch command.
+type TmuxDeleteCommandHistoryRequest struct {
+	Type      string `json:"type"`
+	LaunchCmd string `json:"launchCmd"`
+	RequestID string `json:"requestId"`
+}
+
+func (m TmuxDeleteCommandHistoryRequest) MsgType() string {
+	return "tmux/delete_command_history"
+}
+
+// TmuxDeleteCommandHistoryResponse confirms the command was deleted.
+type TmuxDeleteCommandHistoryResponse struct {
+	Type    string                                    `json:"type"`
+	Payload TmuxDeleteCommandHistoryResponsePayload   `json:"payload"`
+}
+
+func (m TmuxDeleteCommandHistoryResponse) MsgType() string {
+	return "tmux/delete_command_history/response"
+}
+
+// TmuxDeleteCommandHistoryResponsePayload is the payload for TmuxDeleteCommandHistoryResponse.
+type TmuxDeleteCommandHistoryResponsePayload struct {
+	RequestID string  `json:"requestId"`
+	Error     *string `json:"error"`
+}
+
 // TmuxSendKeysRequest asks the daemon to send keystrokes to a tmux pane.
 type TmuxSendKeysRequest struct {
 	Type      string `json:"type"`

@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os/exec"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -155,6 +154,16 @@ func (s *Session) handleTmuxListAgents(m *protocol.TmuxListAgentsRequest) {
 			} else {
 				s.logger.Info("tmux agent skipped due to empty launchCmd", "paneID", a.PaneID, "agentName", a.AgentName)
 			}
+		}
+		// Remove stale entries for currently running agents before merging,
+		// so that updated launch commands (e.g. from pane scrollback) replace
+		// old ones (e.g. from ps wrapper args) instead of coexisting.
+		if len(newEntries) > 0 {
+			agentNames := make(map[string]bool, len(newEntries))
+			for _, e := range newEntries {
+				agentNames[e.AgentName] = true
+			}
+			store.DeleteByAgentName(agentNames)
 		}
 		store.Merge(newEntries)
 		for _, e := range store.Entries() {
@@ -341,7 +350,7 @@ func parseTmuxPaneLines(output string, agentNames map[string]bool) ([]protocol.T
 		launchCmd := ""
 		if status != "exited" {
 			title = extractFirstPrompt(paneID, paneTitle, agentNames)
-			launchCmd = extractAgentLaunchCmd(panePID, paneID, agentName, agentNames)
+			launchCmd = extractAgentLaunchCmd(panePID, agentName, agentNames)
 		}
 
 		agents = append(agents, protocol.TmuxAgentInfo{
@@ -442,29 +451,12 @@ func argsContainsAgentName(args string, agentNames map[string]bool) (string, boo
 	return "", false
 }
 
-// agentNameByPrefix returns the agent name whose "<name>-" prefix matches the
-// given command basename. This catches setproctitle-renamed binaries where the
-// process advertises e.g. "kimi-code" while the detected agent name is "kimi".
-// Returns "", false if no agent matches.
-func agentNameByPrefix(comm string, agentNames map[string]bool) (string, bool) {
-	if comm == "" {
-		return "", false
-	}
-	for name := range agentNames {
-		if strings.HasPrefix(comm, name+"-") {
-			return name, true
-		}
-	}
-	return "", false
-}
-
 // findAgentDescendant returns the agent name, PID, and full command line of the
 // first descendant of ppid whose command name matches a known agent name.
 // It searches recursively so wrappers (sh -> node -> kimi) are still found.
 // Matching order per descendant:
 //  1. exact comm match against agentNames
 //  2. any agent name token in args (wrappers: "node kimi")
-//  3. comm prefix match: comm == "<agent>-*" (setproctitle renames)
 func findAgentDescendant(ppid int, agentNames map[string]bool) (string, int, string) {
 	nodes, err := processListFunc()
 	if err != nil {
@@ -481,9 +473,6 @@ func findAgentDescendant(ppid int, agentNames map[string]bool) (string, int, str
 		if agentName, ok := argsContainsAgentName(n.args, agentNames); ok {
 			return agentName, n.pid, n.args
 		}
-		if agentName, ok := agentNameByPrefix(name, agentNames); ok {
-			return agentName, n.pid, n.args
-		}
 	}
 	return "", 0, ""
 }
@@ -496,136 +485,18 @@ func agentNameFromChildProcesses(ppid int, agentNames map[string]bool) string {
 	return name
 }
 
-// extractAgentLaunchCmd returns the full command line of the agent process.
-// It first searches for the detected agentName, then falls back to any known
-// agent name. This handles cases where tmux reports "kimi" but the actual
-// binary is "kimi-code".
-//
-// Some agents (notably kimi, which is Bun-compiled) rewrite their argv via
-// setproctitle() at startup, so `ps` reports "kimi-code" or
-// "kimi-cod BUN_INSTALL=..." instead of the user's actual "kimi --yolo".
-// Even without a rewrite, ps may report just "kimi" when the user typed
-// "kimi --yolo" if the binary renamed itself in place. To handle both cases:
-//   - If ps args look suspicious (binary ≠ agent name) OR have no flags
-//     (args may be truncated/rewritten), parse the tmux pane scrollback.
-//   - If the pane shows a flag-bearing invocation, use it as the upgrade;
-//     otherwise keep the ps result.
-func extractAgentLaunchCmd(panePID int, paneID string, agentName string, agentNames map[string]bool) string {
-	args := ""
+// extractAgentLaunchCmd returns the full command line of the agent process
+// from ps output. For wrapper scripts that rewrite argv (e.g. cursor-agent),
+// this reports the wrapper-injected args rather than the user's original
+// command — that trade-off is documented and accepted.
+func extractAgentLaunchCmd(panePID int, agentName string, agentNames map[string]bool) string {
 	if _, _, a := findAgentDescendant(panePID, map[string]bool{agentName: true}); a != "" {
-		args = a
-	} else if _, _, a := findAgentDescendant(panePID, agentNames); a != "" {
-		args = a
+		return a
 	}
-	if args == "" {
-		return ""
-	}
-
-	// Trust the ps result only when it looks like a normal agent invocation:
-	// first token matches the detected agent AND flags are present. Otherwise,
-	// fall back to pane scrollback to recover the user's original command.
-	suspicious := isSuspiciousPsArgs(args, agentName)
-	hasFlags := false
-	for _, f := range strings.Fields(args) {
-		if strings.HasPrefix(f, "-") {
-			hasFlags = true
-			break
-		}
-	}
-	if !suspicious && hasFlags {
-		return args
-	}
-
-	content, err := capturePaneFunc(paneID, -500)
-	if err != nil || content == "" {
-		return args
-	}
-	if found := findLastAgentInvocation(content, agentName); found != "" {
-		return found
-	}
-	return args
-}
-
-// isSuspiciousPsArgs reports whether the ps-derived args look like the binary
-// rewrote its argv (setproctitle). Heuristic: suspicious iff the first token's
-// basename differs from the detected agent name.
-//
-//   - "kimi-code"              vs agentName="kimi"  → suspicious (rewrite)
-//   - "kimi-cod BUN_..."       vs agentName="kimi"  → suspicious (rewrite)
-//   - "kimi"                  vs agentName="kimi"  → OK
-//   - "kimi --yolo"           vs agentName="kimi"  → OK
-//   - "/opt/kimi"             vs agentName="kimi"  → OK (path prefix)
-//
-// Wrappers like "node kimi" are flagged (first token is "node"), but the
-// caller's pane-content fallback recovers the real invocation.
-func isSuspiciousPsArgs(args string, agentName string) bool {
-	fields := strings.Fields(args)
-	if len(fields) == 0 {
-		return false
-	}
-	cmd0 := fields[0]
-	if idx := strings.LastIndex(cmd0, "/"); idx >= 0 {
-		cmd0 = cmd0[idx+1:]
-	}
-	return cmd0 != agentName
-}
-
-// isStaleLaunchCmd reports whether a persisted LaunchCmd is a stale artifact
-// of the setproctitle bug AND the binary does not exist on PATH. Used at load
-// time to auto-clean bad entries (e.g. "kimi-code" for agent "kimi") without
-// dropping legitimate wrappers like "node kimi" (where `node` exists).
-func isStaleLaunchCmd(launchCmd string, agentName string) bool {
-	if !isSuspiciousPsArgs(launchCmd, agentName) {
-		return false
-	}
-	fields := strings.Fields(launchCmd)
-	if len(fields) == 0 {
-		return false
-	}
-	cmd0 := fields[0]
-	if idx := strings.LastIndex(cmd0, "/"); idx >= 0 {
-		cmd0 = cmd0[idx+1:]
-	}
-	_, err := exec.LookPath(cmd0)
-	return err != nil
-}
-
-// findLastAgentInvocation scans pane scrollback bottom-up and returns the most
-// recent "<agentName> --flag..." command line. Returns "" if no match.
-// tmux `capture-pane -e` embeds ANSI SGR sequences in the text (e.g.
-// "\x1b[1mkimi\x1b[0m --yolo"), so strip them first to let the regex match.
-func findLastAgentInvocation(content string, agentName string) string {
-	re := regexp.MustCompile(`(^|[\s$;%#>])` + regexp.QuoteMeta(agentName) + `(\s+-\S+)+`)
-	lines := strings.Split(content, "\n")
-	for i := len(lines) - 1; i >= 0; i-- {
-		line := stripANSI(lines[i])
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		loc := re.FindStringIndex(line)
-		if loc == nil {
-			continue
-		}
-		// Extract from the agent name onward and trim trailing whitespace.
-		tail := line[loc[0]:]
-		tail = strings.TrimLeftFunc(tail, func(r rune) bool {
-			return r != rune(agentName[0])
-		})
-		return strings.TrimRight(tail, " \t\r\n")
+	if _, _, a := findAgentDescendant(panePID, agentNames); a != "" {
+		return a
 	}
 	return ""
-}
-
-// ansiRe matches ANSI X3.64 / ECMA-48 escape sequences (CSI + OSC) emitted by
-// terminals. `capture-pane -e` emits SGR sequences like "\x1b[38;5;78m" or
-// "\x1b[0m" interspersed with text; stripping them lets regex heuristics match
-// the underlying command lines.
-var ansiRe = regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[()][0-9A-B]`)
-
-// stripANSI removes ANSI escape sequences from s.
-func stripANSI(s string) string {
-	return ansiRe.ReplaceAllString(s, "")
 }
 
 func (s *Session) handleTmuxCapturePane(m *protocol.TmuxCapturePaneRequest) {
@@ -773,6 +644,27 @@ func (s *Session) sendTmuxKillSessionResponse(requestID string, errMsg *string) 
 	s.sendMessage(protocol.NewSessionMessage(&protocol.TmuxKillSessionResponse{
 		Type: "tmux/kill_session/response",
 		Payload: protocol.TmuxKillSessionResponsePayload{
+			RequestID: requestID,
+			Error:     errMsg,
+		},
+	}))
+}
+
+func (s *Session) handleTmuxDeleteCommandHistory(m *protocol.TmuxDeleteCommandHistoryRequest) {
+	if s.cfg.SoloHome == "" {
+		errMsg := "SoloHome not configured"
+		s.sendTmuxDeleteCommandHistoryResponse(m.RequestID, &errMsg)
+		return
+	}
+	store := NewAgentCommandStore(s.cfg.SoloHome)
+	store.Delete(m.LaunchCmd)
+	s.sendTmuxDeleteCommandHistoryResponse(m.RequestID, nil)
+}
+
+func (s *Session) sendTmuxDeleteCommandHistoryResponse(requestID string, errMsg *string) {
+	s.sendMessage(protocol.NewSessionMessage(&protocol.TmuxDeleteCommandHistoryResponse{
+		Type: "tmux/delete_command_history/response",
+		Payload: protocol.TmuxDeleteCommandHistoryResponsePayload{
 			RequestID: requestID,
 			Error:     errMsg,
 		},

@@ -16,6 +16,7 @@ import { useAggregatedTmuxAgents } from "@/hooks/use-tmux-agents";
 import { useTmuxStatusLines } from "@/hooks/use-tmux-status-lines";
 import { useTmuxNewSession } from "@/hooks/use-tmux-new-session";
 import { useTmuxKillSession } from "@/hooks/use-tmux-kill-session";
+import { useTmuxDeleteCommandHistory } from "@/hooks/use-tmux-delete-command-history";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useStoreReady } from "@/app/_layout";
 import { useTmuxAgentStore } from "@/stores/tmux-agent-store";
@@ -236,9 +237,11 @@ function PaneCard({
 function CommandHistoryCard({
   entry,
   onRun,
+  onDelete,
 }: {
   entry: AgentCommandEntry;
   onRun: () => void;
+  onDelete: () => void;
 }) {
   const { theme } = useUnistyles();
   const relativeTime = useMemo(() => {
@@ -265,7 +268,12 @@ function CommandHistoryCard({
           <Clock size={14} color={theme.colors.foregroundMuted} />
           <Text style={styles.historyAgentName}>{entry.agentName}</Text>
         </View>
-        <Text style={styles.historyTime}>{relativeTime}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Text style={styles.historyTime}>{relativeTime}</Text>
+          <Pressable onPress={onDelete} hitSlop={8} data-testid="delete-command" style={{ padding: 4 }}>
+            <X size={14} color={theme.colors.destructive} />
+          </Pressable>
+        </View>
       </View>
       <View style={styles.historyCmdRow}>
         <Text style={styles.historyCmd} numberOfLines={1}>
@@ -297,6 +305,7 @@ function TmuxDashboardScreenInner() {
   const statusLines = useTmuxStatusLines(agents);
   const { createSession, isLoading: isCreating, error: createError } = useTmuxNewSession();
   const { killSession } = useTmuxKillSession();
+  const { deleteCommand } = useTmuxDeleteCommandHistory();
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [selectedCmd, setSelectedCmd] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<DashboardTab>("agents");
@@ -386,6 +395,20 @@ function TmuxDashboardScreenInner() {
     const ok = await killSession(firstConnectedServerId, sessionName);
     if (ok) refreshAll();
   }, [firstConnectedServerId, killSession, refreshAll]);
+
+  const handleDeleteCommand = useCallback(async (entry: AgentCommandEntry) => {
+    if (!firstConnectedServerId) return;
+    const confirmed = await confirmDialog({
+      title: "Delete Command",
+      message: `Remove "${entry.launchCmd}" from history?`,
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    const ok = await deleteCommand(firstConnectedServerId, entry.launchCmd);
+    if (ok) refreshAll();
+  }, [firstConnectedServerId, deleteCommand, refreshAll]);
 
   const cmdGroups = useMemo(() => {
     const map = new Map<string, number>();
@@ -641,6 +664,7 @@ function TmuxDashboardScreenInner() {
                   key={`${entry.launchCmd}-${index}`}
                   entry={entry}
                   onRun={() => void handleRunCommand(entry)}
+                  onDelete={() => void handleDeleteCommand(entry)}
                 />
               ))}
             </View>

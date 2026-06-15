@@ -390,6 +390,10 @@ type TmuxKillSessionPayload = Extract<
   SessionOutboundMessage,
   { type: "tmux/kill_session/response" }
 >["payload"];
+type TmuxDeleteCommandHistoryPayload = Extract<
+  SessionOutboundMessage,
+  { type: "tmux/delete_command_history/response" }
+>["payload"];
 type TmuxStatusLinePayload = Extract<
   SessionOutboundMessage,
   { type: "tmux/status_line/response" }
@@ -3719,6 +3723,18 @@ export class DaemonClient {
         sessionName,
       },
       responseType: "tmux/kill_session/response",
+      timeout: 10000,
+    });
+  }
+
+  async tmuxDeleteCommandHistory(launchCmd: string, requestId?: string): Promise<TmuxDeleteCommandHistoryPayload> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "tmux/delete_command_history",
+        launchCmd,
+      },
+      responseType: "tmux/delete_command_history/response",
       timeout: 10000,
     });
   }
