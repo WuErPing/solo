@@ -40,7 +40,18 @@ func (s *AgentCommandStore) load() {
 	if err := json.Unmarshal(b, &entries); err != nil {
 		return
 	}
-	s.entries = entries
+	// Drop stale entries whose LaunchCmd was captured before the setproctitle-
+	// aware fallback was added (e.g. agentName="kimi" with launchCmd=
+	// "kimi-code", which isn't a real binary on PATH). To preserve legitimate
+	// wrappers (e.g. "node kimi"), only drop when the binary doesn't exist.
+	clean := entries[:0]
+	for _, e := range entries {
+		if isStaleLaunchCmd(e.LaunchCmd, e.AgentName) {
+			continue
+		}
+		clean = append(clean, e)
+	}
+	s.entries = clean
 }
 
 func (s *AgentCommandStore) save() error {

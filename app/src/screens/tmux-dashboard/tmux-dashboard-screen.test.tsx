@@ -356,4 +356,40 @@ describe("TmuxDashboardScreen", () => {
     fireEvent.click(screen.getByText(/History/));
     expect(screen.getByText(/No command history yet/)).toBeDefined();
   });
+
+  it("shows busy activity indicator for active agents", () => {
+    agentsOverride = [
+      { ...mockAgents[0], activity: "busy" },
+    ];
+    render(<TmuxDashboardScreen />);
+    expect(screen.getByText("busy")).toBeDefined();
+    expect(screen.queryByText("idle")).toBeNull();
+  });
+
+  it("shows idle activity indicator for idle agents", () => {
+    agentsOverride = [
+      { ...mockAgents[0], activity: "idle" },
+    ];
+    render(<TmuxDashboardScreen />);
+    expect(screen.getByText("idle")).toBeDefined();
+    expect(screen.queryByText("busy")).toBeNull();
+  });
+
+  it("shows no activity indicator when activity is unknown", () => {
+    agentsOverride = [
+      { ...mockAgents[0], activity: "" },
+    ];
+    render(<TmuxDashboardScreen />);
+    expect(screen.queryByText("busy")).toBeNull();
+    expect(screen.queryByText("idle")).toBeNull();
+  });
+
+  it("shows no activity indicator for exited agents", () => {
+    agentsOverride = [
+      { ...mockAgents[0], status: "exited", activity: "busy" },
+    ];
+    render(<TmuxDashboardScreen />);
+    expect(screen.queryByText("busy")).toBeNull();
+    expect(screen.getByText("exited")).toBeDefined();
+  });
 });

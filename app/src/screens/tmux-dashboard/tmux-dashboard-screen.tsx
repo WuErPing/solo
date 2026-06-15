@@ -73,6 +73,18 @@ function AgentCard({
               <Text style={styles.exitedBadgeText}>exited</Text>
             </View>
           ) : null}
+          {!isExited && agent.activity === "busy" ? (
+            <View style={styles.activityBadge}>
+              <View style={[styles.activityDot, { backgroundColor: theme.colors.primary }]} />
+              <Text style={styles.activityText}>busy</Text>
+            </View>
+          ) : null}
+          {!isExited && agent.activity === "idle" ? (
+            <View style={styles.activityBadge}>
+              <View style={[styles.activityDot, { backgroundColor: theme.colors.foregroundMuted }]} />
+              <Text style={[styles.activityText, { color: theme.colors.foregroundMuted }]}>idle</Text>
+            </View>
+          ) : null}
         </Pressable>
         <View style={styles.headerRightRow}>
           <Text style={styles.serverLabel}>{agent.serverLabel}</Text>
@@ -820,6 +832,22 @@ const styles = StyleSheet.create((theme) => ({
   },
   exitedBadgeText: {
     color: theme.colors.foregroundMuted,
+    fontSize: 10,
+    fontWeight: "500",
+  },
+  activityBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginLeft: 6,
+  },
+  activityDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  activityText: {
+    color: theme.colors.primary,
     fontSize: 10,
     fontWeight: "500",
   },

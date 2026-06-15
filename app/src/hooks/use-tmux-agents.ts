@@ -14,6 +14,7 @@ export interface TmuxAgent {
   workingDir: string;
   title?: string;
   status?: string;
+  activity?: string;
   serverId: string;
   serverLabel: string;
 }
@@ -70,6 +71,7 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
         queryKey: tmuxAgentsQueryKey(host.serverId),
         enabled: Boolean(client && isConnected),
         placeholderData: keepPreviousData,
+        refetchInterval: 5000,
         retry: 1,
         queryFn: async () => {
           const payload = await withLiveTmuxClient(host.serverId, (c) => c.tmuxListAgents());

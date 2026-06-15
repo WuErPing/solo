@@ -60,6 +60,9 @@ type Session struct {
 	setupProgress   map[string]*workspace.SetupProgressEvent // key: workspaceID
 	setupProgressMu sync.RWMutex
 
+	paneContentHashes   map[string]string // paneID → content hash for activity detection
+	paneContentHashesMu sync.RWMutex
+
 	done             chan struct{}
 	unsub            func() // unsubscribe from agent manager events
 	coalescerFlushID uint64 // registration ID for coalescer flush callback
@@ -162,7 +165,8 @@ func NewSession(clientID, clientType string, conn WSConn, cfg *config.Config, lo
 		workspaces:     make(map[string]*protocol.WorkspaceDescriptor),
 		slotToTerminal: make(map[byte]*terminal.TerminalProcess),
 		terminalToSlot: make(map[string]byte),
-		setupProgress:  make(map[string]*workspace.SetupProgressEvent),
+		setupProgress:    make(map[string]*workspace.SetupProgressEvent),
+		paneContentHashes: make(map[string]string),
 		scheduleStore:  scheduleStore,
 		done:           make(chan struct{}),
 		gracePeriod:    time.Duration(protocol.SessionDisconnectGraceMs) * time.Millisecond,

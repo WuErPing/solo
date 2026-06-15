@@ -28,7 +28,7 @@ func TestAgentCommandStoreMerge(t *testing.T) {
 
 	// Second merge: duplicate + new entry.
 	store.Merge([]AgentCommandEntry{
-		{AgentName: "claude", LaunchCmd: "claude"},               // duplicate
+		{AgentName: "claude", LaunchCmd: "claude"},                               // duplicate
 		{AgentName: "claude", LaunchCmd: "claude --dangerously-skip-permission"}, // new
 	})
 	entries = store.Entries()
@@ -80,5 +80,42 @@ func TestAgentCommandStoreCorruptFile(t *testing.T) {
 	entries := store.Entries()
 	if len(entries) != 0 {
 		t.Fatalf("corrupt file: got %d entries, want 0", len(entries))
+	}
+}
+
+// TestAgentCommandStoreDropsStaleSetproctitleEntries verifies the load-time
+// cleanup of entries whose LaunchCmd was corrupted by the setproctitle bug
+// (prior to the fix): kimi reported as "kimi-code" instead of "kimi --yolo".
+func TestAgentCommandStoreDropsStaleSetproctitleEntries(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "agent-commands.json")
+	data := `[
+		{"agentName":"kimi","launchCmd":"kimi-code","lastSeen":"2026-06-14T19:27:05Z"},
+		{"agentName":"claude","launchCmd":"claude --dangerously-skip-permissions","lastSeen":"2026-06-14T19:27:05Z"},
+		{"agentName":"opencode","launchCmd":"opencode","lastSeen":"2026-06-14T19:27:05Z"},
+		{"agentName":"kimi","launchCmd":"kimi --yolo","lastSeen":"2026-06-14T19:27:05Z"},
+		{"agentName":"kimi","launchCmd":"kimi-cod BUN_INSTALL=/Users/x/.bun","lastSeen":"2026-06-14T19:27:05Z"}
+	]`
+	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	store := NewAgentCommandStore(dir)
+	entries := store.Entries()
+
+	want := map[string]string{
+		"claude --dangerously-skip-permissions": "claude",
+		"opencode":                              "opencode",
+		"kimi --yolo":                           "kimi",
+	}
+	if len(entries) != len(want) {
+		t.Fatalf("got %d entries, want %d: %+v", len(entries), len(want), entries)
+	}
+	for _, e := range entries {
+		if wantAgent, ok := want[e.LaunchCmd]; !ok {
+			t.Errorf("unexpected stale entry: agentName=%q launchCmd=%q", e.AgentName, e.LaunchCmd)
+		} else if e.AgentName != wantAgent {
+			t.Errorf("entry %q agentName=%q, want %q", e.LaunchCmd, e.AgentName, wantAgent)
+		}
 	}
 }

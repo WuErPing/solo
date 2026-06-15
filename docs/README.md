@@ -45,6 +45,7 @@ docs/
     ├── opencode-cross-device-sync-fix.md   # Cross-client sync bug fix record
     ├── README.md                            # Analysis directory index
     ├── test-coverage.md                     # 统一测试覆盖率报告 (Go/App/E2E/CI)
+    ├── tmux-agent-misidentification-kimi-code-2026-06-15.md # kimi --yolo → kimi-code: 八层防御级联失败深度分析
     ├── tmux-pane-analysis.md               # Tmux pane subsystem: jitter fix + performance + rendering optimization
     └── tmux-transport-disposed-race.md      # Tmux Transport disposed race analysis
 ```
@@ -129,6 +130,7 @@ Deep dives into specific subsystems.
 | [Host Status Check](analysis/host-status-check.md) | Analysis | Probe cycle (2-30 s), adaptive switching, state machine conflict, grace-period fix |
 | [OpenCode Cross-Device Sync Fix](analysis/opencode-cross-device-sync-fix.md) | Fix record | Root cause and fix for cross-client sync issues |
 | [Test Coverage](analysis/test-coverage.md) | Report | 统一测试覆盖率报告: Go 后端 + App 前端 + E2E + CI/Codecov 集成 |
+| [Tmux Agent Misidentification (kimi → kimi-code)](analysis/tmux-agent-misidentification-kimi-code-2026-06-15.md) | Analysis | `kimi --yolo` 被误识为 `kimi-code`: Bun setproctitle 污染源 + 八层防御级联失败 + 修复 |
 | [Tmux Pane Analysis](analysis/tmux-pane-analysis.md) | Analysis | Jitter 根因与修复 + 4 层架构瓶颈 + xterm.js 迁移方案 |
 | [Tmux Transport Disposed Race](analysis/tmux-transport-disposed-race.md) | Analysis | `Transport not connected (status: disposed)` root cause: probe-cycle switch vs. in-flight tmux RPC |
 

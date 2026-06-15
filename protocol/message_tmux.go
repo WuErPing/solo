@@ -24,7 +24,8 @@ type TmuxAgentInfo struct {
 	WorkingDir  string `json:"workingDir"`
 	Title       string `json:"title,omitempty"`
 	GitCommit   string `json:"gitCommit,omitempty"`
-	Status      string `json:"status,omitempty"` // "active" (default/omitted) or "exited"
+	Status      string `json:"status,omitempty"`   // "active" (default/omitted) or "exited"
+	Activity    string `json:"activity,omitempty"` // "busy", "idle", or "" (unknown)
 	LaunchCmd   string `json:"launchCmd,omitempty"`
 }
 

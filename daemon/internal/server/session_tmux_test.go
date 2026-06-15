@@ -3,7 +3,10 @@ package server
 import (
 	"os/exec"
 	"strings"
+	"sync"
 	"testing"
+
+	"github.com/WuErPing/solo/protocol"
 )
 
 var testAgentNames = map[string]bool{
@@ -736,6 +739,77 @@ func TestFindAgentDescendantNoMatch(t *testing.T) {
 	}
 }
 
+// TestFindAgentDescendantByPrefix verifies the setproctitle fallback: a process
+// whose comm is "kimi-code" is detected as agent "kimi" via prefix matching,
+// even when kimi-code is not in agentNames.
+func TestFindAgentDescendantByPrefix(t *testing.T) {
+	orig := processListFunc
+	defer func() { processListFunc = orig }()
+	processListFunc = func() ([]processNode, error) {
+		return []processNode{
+			{pid: 1000, ppid: 1, comm: "tmux"},
+			{pid: 2000, ppid: 1000, comm: "bash"},
+			{pid: 3000, ppid: 2000, comm: "kimi-code", args: "kimi-code"},
+		}, nil
+	}
+
+	name, pid, args := findAgentDescendant(1000, map[string]bool{"kimi": true})
+	if name != "kimi" {
+		t.Errorf("name = %q, want 'kimi'", name)
+	}
+	if pid != 3000 {
+		t.Errorf("pid = %d, want 3000", pid)
+	}
+	if args != "kimi-code" {
+		t.Errorf("args = %q, want 'kimi-code'", args)
+	}
+}
+
+// TestFindAgentDescendantPrefixDoesNotMatchSibling verifies that prefix
+// matching does not conflate two distinct known agents: "kimi-cli" is an exact
+// match for the kimi-cli agent, not a prefix match for kimi.
+func TestFindAgentDescendantPrefixDoesNotMatchSibling(t *testing.T) {
+	orig := processListFunc
+	defer func() { processListFunc = orig }()
+	processListFunc = func() ([]processNode, error) {
+		return []processNode{
+			{pid: 1000, ppid: 1, comm: "tmux"},
+			{pid: 2000, ppid: 1000, comm: "bash"},
+			{pid: 3000, ppid: 2000, comm: "kimi-cli", args: "kimi-cli --foo"},
+		}, nil
+	}
+
+	name, _, _ := findAgentDescendant(1000, map[string]bool{"kimi": true, "kimi-cli": true})
+	if name != "kimi-cli" {
+		t.Errorf("name = %q, want 'kimi-cli' (exact match must win over prefix)", name)
+	}
+}
+
+func TestAgentNameByPrefix(t *testing.T) {
+	tests := []struct {
+		comm       string
+		agentNames map[string]bool
+		wantName   string
+		wantOK     bool
+	}{
+		{"kimi-code", map[string]bool{"kimi": true}, "kimi", true},
+		{"kimi-cli", map[string]bool{"kimi": true, "kimi-cli": true}, "kimi", true}, // pure prefix; exact match happens in caller
+		{"kimi", map[string]bool{"kimi": true}, "", false},                          // no dash suffix
+		{"claude-code", map[string]bool{"claude": true}, "claude", true},
+		{"vim", map[string]bool{"kimi": true}, "", false},
+		{"", map[string]bool{"kimi": true}, "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.comm, func(t *testing.T) {
+			gotName, gotOK := agentNameByPrefix(tt.comm, tt.agentNames)
+			if gotName != tt.wantName || gotOK != tt.wantOK {
+				t.Errorf("agentNameByPrefix(%q) = (%q, %v), want (%q, %v)",
+					tt.comm, gotName, gotOK, tt.wantName, tt.wantOK)
+			}
+		})
+	}
+}
+
 func TestExtractAgentLaunchCmdFromGrandchild(t *testing.T) {
 	orig := processListFunc
 	defer func() { processListFunc = orig }()
@@ -748,9 +822,320 @@ func TestExtractAgentLaunchCmdFromGrandchild(t *testing.T) {
 		}, nil
 	}
 
-	cmd := extractAgentLaunchCmd(1000, "kimi")
+	cmd := extractAgentLaunchCmd(1000, "%1", "kimi", map[string]bool{"kimi": true, "kimi-code": true})
 	if cmd != "kimi --permission-mode=bypass_permissions" {
 		t.Errorf("cmd = %q, want 'kimi --permission-mode=bypass_permissions'", cmd)
+	}
+}
+
+func TestExtractAgentLaunchCmdFallback(t *testing.T) {
+	origProc := processListFunc
+	origCap := capturePaneFunc
+	defer func() { processListFunc = origProc; capturePaneFunc = origCap }()
+	processListFunc = func() ([]processNode, error) {
+		return []processNode{
+			{pid: 1000, ppid: 1, comm: "tmux"},
+			{pid: 2000, ppid: 1000, comm: "bash"},
+			{pid: 3000, ppid: 2000, comm: "kimi-code", args: "kimi-code"},
+		}, nil
+	}
+	capturePaneFunc = func(_ string, _ int) (string, error) {
+		return "", nil
+	}
+
+	// kimi-code is NOT in agentNames — simulates the production built-in list.
+	// The prefix matcher must still map kimi-code → kimi.
+	agentNames := map[string]bool{"kimi": true}
+	cmd := extractAgentLaunchCmd(1000, "%5", "kimi", agentNames)
+	if cmd != "kimi-code" {
+		t.Errorf("cmd = %q, want 'kimi-code'", cmd)
+	}
+}
+
+// TestExtractAgentLaunchCmdFromPaneContent verifies the fix for the setproctitle
+// bug: kimi (Bun-compiled) rewrites its argv at runtime, so `ps` reports
+// "kimi-code" (or "kimi-cod BUN_INSTALL=...") instead of the user's actual
+// "kimi --yolo". The extractor should fall back to the tmux pane scrollback
+// to recover the original launch command.
+func TestExtractAgentLaunchCmdFromPaneContent(t *testing.T) {
+	origProc := processListFunc
+	origCap := capturePaneFunc
+	defer func() { processListFunc = origProc; capturePaneFunc = origCap }()
+	processListFunc = func() ([]processNode, error) {
+		return []processNode{
+			{pid: 1000, ppid: 1, comm: "tmux"},
+			{pid: 2000, ppid: 1000, comm: "bash"},
+			{pid: 3000, ppid: 2000, comm: "kimi-code", args: "kimi-code"},
+		}, nil
+	}
+	capturePaneFunc = func(paneID string, _ int) (string, error) {
+		if paneID != "%5" {
+			t.Errorf("capturePane called with paneID=%q, want %%5", paneID)
+		}
+		return "$ ls -la\n$ git status\n$ kimi --yolo\n\nWelcome to Kimi Code\n\n> ", nil
+	}
+
+	agentNames := map[string]bool{"kimi": true, "kimi-code": true}
+	cmd := extractAgentLaunchCmd(1000, "%5", "kimi", agentNames)
+	if cmd != "kimi --yolo" {
+		t.Errorf("cmd = %q, want 'kimi --yolo'", cmd)
+	}
+}
+
+// TestExtractAgentLaunchCmdBareUpgradedFromPane verifies that when ps reports
+// just "kimi" (no flags — possibly truncated/rewritten), the pane scrollback
+// can upgrade it to the real invocation "kimi --yolo".
+func TestExtractAgentLaunchCmdBareUpgradedFromPane(t *testing.T) {
+	origProc := processListFunc
+	origCap := capturePaneFunc
+	defer func() { processListFunc = origProc; capturePaneFunc = origCap }()
+	processListFunc = func() ([]processNode, error) {
+		return []processNode{
+			{pid: 1000, ppid: 1, comm: "tmux"},
+			{pid: 2000, ppid: 1000, comm: "bash"},
+			{pid: 3000, ppid: 2000, comm: "kimi", args: "kimi"},
+		}, nil
+	}
+	capturePaneFunc = func(_ string, _ int) (string, error) {
+		return "$ kimi --yolo\n\n> ", nil
+	}
+
+	cmd := extractAgentLaunchCmd(1000, "%5", "kimi", map[string]bool{"kimi": true})
+	if cmd != "kimi --yolo" {
+		t.Errorf("cmd = %q, want 'kimi --yolo'", cmd)
+	}
+}
+
+// TestExtractAgentLaunchCmdFromPaneContentWithANSI verifies the pane fallback
+// works against real capture-pane -e output, where ANSI SGR sequences are
+// interspersed with the typed command (e.g. "\x1b[1mkimi\x1b[0m --yolo").
+// This is the exact scenario the user hit: ps reported "kimi-code" (the
+// setproctitle-rewritten binary), and the fallback was needed to recover
+// "kimi --yolo" from the pane.
+func TestExtractAgentLaunchCmdFromPaneContentWithANSI(t *testing.T) {
+	origProc := processListFunc
+	origCap := capturePaneFunc
+	defer func() { processListFunc = origProc; capturePaneFunc = origCap }()
+	processListFunc = func() ([]processNode, error) {
+		return []processNode{
+			{pid: 1000, ppid: 1, comm: "tmux"},
+			{pid: 2000, ppid: 1000, comm: "bash"},
+			{pid: 3000, ppid: 2000, comm: "kimi-code", args: "kimi-code"},
+		}, nil
+	}
+	// Realistic capture-pane -e output with SGR codes on prompt + command.
+	capturePaneFunc = func(_ string, _ int) (string, error) {
+		return "\x1b[38;5;78muser@host\x1b[0m $ \x1b[1mkimi\x1b[0m --yolo\n" +
+			"\x1b[38;5;231mWelcome to Kimi\x1b[0m\n" +
+			"\x1b[1m\x1b[38;5;145m> \x1b[0m", nil
+	}
+
+	cmd := extractAgentLaunchCmd(1000, "%5", "kimi", map[string]bool{"kimi": true, "kimi-code": true})
+	if cmd != "kimi --yolo" {
+		t.Errorf("cmd = %q, want 'kimi --yolo'", cmd)
+	}
+}
+
+// TestExtractAgentLaunchCmdBareStaysWhenPaneEmpty verifies that when ps reports
+// "kimi" (no flags) and the pane has no flag-bearing invocation (e.g. the user
+// really typed "kimi" with no flags), the ps result is preserved.
+func TestExtractAgentLaunchCmdBareStaysWhenPaneEmpty(t *testing.T) {
+	origProc := processListFunc
+	origCap := capturePaneFunc
+	defer func() { processListFunc = origProc; capturePaneFunc = origCap }()
+	processListFunc = func() ([]processNode, error) {
+		return []processNode{
+			{pid: 1000, ppid: 1, comm: "tmux"},
+			{pid: 2000, ppid: 1000, comm: "bash"},
+			{pid: 3000, ppid: 2000, comm: "kimi", args: "kimi"},
+		}, nil
+	}
+	capturePaneFunc = func(_ string, _ int) (string, error) {
+		return "$ ls\n$ kimi\n\n> ", nil
+	}
+
+	cmd := extractAgentLaunchCmd(1000, "%5", "kimi", map[string]bool{"kimi": true})
+	if cmd != "kimi" {
+		t.Errorf("cmd = %q, want 'kimi'", cmd)
+	}
+}
+
+func TestIsStaleLaunchCmd(t *testing.T) {
+	tests := []struct {
+		name      string
+		launchCmd string
+		agentName string
+		want      bool
+	}{
+		{"legitimate kimi", "kimi", "kimi", false},
+		{"legitimate with flags", "kimi --yolo", "kimi", false},
+		{"phantom rewrite kimi-code", "kimi-code", "kimi", true},
+		{"phantom rewrite with env", "kimi-cod BUN_INSTALL=/x", "kimi", true},
+		{"legitimate wrapper node", "node kimi", "kimi", false}, // node exists
+		{"legitimate wrapper python", "python -m kimi", "kimi", false},
+		{"unknown binary", "nonexistent-binary-xyz", "kimi", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isStaleLaunchCmd(tt.launchCmd, tt.agentName)
+			if got != tt.want {
+				t.Errorf("isStaleLaunchCmd(%q, %q) = %v, want %v", tt.launchCmd, tt.agentName, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestStripANSI(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"plain text", "kimi --yolo", "kimi --yolo"},
+		{"SGR bold+reset", "\x1b[1mkimi\x1b[0m --yolo", "kimi --yolo"},
+		{"256-color prompt", "\x1b[38;5;78muser@host\x1b[0m $ kimi --yolo", "user@host $ kimi --yolo"},
+		{"multiple SGR", "\x1b[1m\x1b[38;5;231mQoder CLI\x1b[0m\x1b[38;5;145m v1.0.20\x1b[39m", "Qoder CLI v1.0.20"},
+		{"OSC title", "\x1b]0;my window title\x07kimi --yolo", "kimi --yolo"},
+		{"OSC ST-terminated", "\x1b]0;title\x1b\\kimi --yolo", "kimi --yolo"},
+		{"charset designator", "\x1b(Bkimi --yolo", "kimi --yolo"},
+		{"empty", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stripANSI(tt.in)
+			if got != tt.want {
+				t.Errorf("stripANSI(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFindLastAgentInvocation(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		agent   string
+		want    string
+	}{
+		{
+			name:    "basic match",
+			content: "$ ls\n$ kimi --yolo\n\nWelcome",
+			agent:   "kimi",
+			want:    "kimi --yolo",
+		},
+		{
+			name:    "flags and args",
+			content: "$ kimi --permission-mode=bypass_permissions --model gpt-4",
+			agent:   "kimi",
+			want:    "kimi --permission-mode=bypass_permissions --model gpt-4",
+		},
+		{
+			name:    "no flags anywhere",
+			content: "$ ls\n$ kimi\nWelcome",
+			agent:   "kimi",
+			want:    "",
+		},
+		{
+			name:    "match in middle of scrollback",
+			content: "$ kimi --yolo\n[some TUI output]\nmore lines\nstill more",
+			agent:   "kimi",
+			want:    "kimi --yolo",
+		},
+		{
+			name:    "agent name in path, not a flag call",
+			content: "$ cd /opt/kimi\n$ ls",
+			agent:   "kimi",
+			want:    "",
+		},
+		{
+			name:    "false positive: substring match blocked",
+			content: "$ mykimi --foo",
+			agent:   "kimi",
+			want:    "",
+		},
+		{
+			name:    "agent with hyphenated name",
+			content: "$ kimi-code --yolo",
+			agent:   "kimi-code",
+			want:    "kimi-code --yolo",
+		},
+		{
+			name:    "empty content",
+			content: "",
+			agent:   "kimi",
+			want:    "",
+		},
+		{
+			name:    "claude with flag",
+			content: "$ claude --dangerously-skip-permissions",
+			agent:   "claude",
+			want:    "claude --dangerously-skip-permissions",
+		},
+		{
+			name:    "trailing whitespace trimmed",
+			content: "$ kimi --yolo   \n",
+			agent:   "kimi",
+			want:    "kimi --yolo",
+		},
+		{
+			name:    "multiline with prompt prefix",
+			content: "user@host $ kimi --yolo\nmore output",
+			agent:   "kimi",
+			want:    "kimi --yolo",
+		},
+		{
+			name:    "ANSI SGR around agent name",
+			content: "\x1b[32muser@host\x1b[0m $ \x1b[1mkimi\x1b[0m --yolo\n\x1b[38;5;78m> \x1b[0m",
+			agent:   "kimi",
+			want:    "kimi --yolo",
+		},
+		{
+			name:    "ANSI 256-color prompt",
+			content: "\x1b[38;5;78muser@host\x1b[0m $ kimi \x1b[1m--yolo\x1b[0m\n",
+			agent:   "kimi",
+			want:    "kimi --yolo",
+		},
+		{
+			name:    "ANSI with multiple flags",
+			content: "$ \x1b[1mkimi\x1b[0m --permission-mode=bypass --model gpt-4",
+			agent:   "kimi",
+			want:    "kimi --permission-mode=bypass --model gpt-4",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := findLastAgentInvocation(tt.content, tt.agent)
+			if got != tt.want {
+				t.Errorf("findLastAgentInvocation() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsSuspiciousPsArgs(t *testing.T) {
+	tests := []struct {
+		args      string
+		agentName string
+		want      bool
+	}{
+		{"kimi-code", "kimi", true},                // different binary
+		{"kimi", "kimi", false},                    // same binary
+		{"kimi --yolo", "kimi", false},             // same binary with flags
+		{"kimi-code --yolo", "kimi", true},         // different binary (still suspicious)
+		{"/path/to/kimi", "kimi", false},           // same basename with path
+		{"/path/to/kimi-code", "kimi", true},       // different basename with path
+		{"kimi-code BUN_INSTALL=/x", "kimi", true}, // env-var rewrite
+		{"kimi -p", "kimi", false},                 // short flag
+		{"node kimi", "kimi", true},                // wrapper: first token is node
+		{"", "kimi", false},                        // empty
+	}
+	for _, tt := range tests {
+		t.Run(tt.args, func(t *testing.T) {
+			got := isSuspiciousPsArgs(tt.args, tt.agentName)
+			if got != tt.want {
+				t.Errorf("isSuspiciousPsArgs(%q, %q) = %v, want %v", tt.args, tt.agentName, got, tt.want)
+			}
+		})
 	}
 }
 
@@ -837,6 +1222,103 @@ func TestComputeContentHash(t *testing.T) {
 		h := computeContentHash("some terminal content with ANSI \x1b[31mcolors\x1b[0m")
 		if len(h) != 16 {
 			t.Errorf("expected 16-char hash, got %d chars: %q", len(h), h)
+		}
+	})
+}
+
+func TestDetectAgentActivity(t *testing.T) {
+	orig := capturePaneFunc
+	defer func() { capturePaneFunc = orig }()
+
+	// Mock capturePaneFunc to return controllable content.
+	var mu sync.Mutex
+	paneContents := map[string]string{
+		"%0": "line 1\nline 2\nline 3",
+		"%1": "output A\noutput B",
+	}
+	capturePaneFunc = func(paneID string, _ int) (string, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		return paneContents[paneID], nil
+	}
+
+	s := &Session{
+		paneContentHashes: make(map[string]string),
+	}
+
+	t.Run("first scan sets unknown activity", func(t *testing.T) {
+		agents := []protocol.TmuxAgentInfo{
+			{PaneID: "%0", AgentName: "claude"},
+			{PaneID: "%1", AgentName: "pi"},
+		}
+		s.detectAgentActivity(agents)
+		if agents[0].Activity != "" {
+			t.Errorf("agent[0].Activity = %q, want empty (first scan)", agents[0].Activity)
+		}
+		if agents[1].Activity != "" {
+			t.Errorf("agent[1].Activity = %q, want empty (first scan)", agents[1].Activity)
+		}
+	})
+
+	t.Run("unchanged content sets idle", func(t *testing.T) {
+		// Same content — should be idle.
+		agents := []protocol.TmuxAgentInfo{
+			{PaneID: "%0", AgentName: "claude"},
+			{PaneID: "%1", AgentName: "pi"},
+		}
+		s.detectAgentActivity(agents)
+		if agents[0].Activity != "idle" {
+			t.Errorf("agent[0].Activity = %q, want idle", agents[0].Activity)
+		}
+		if agents[1].Activity != "idle" {
+			t.Errorf("agent[1].Activity = %q, want idle", agents[1].Activity)
+		}
+	})
+
+	t.Run("changed content sets busy", func(t *testing.T) {
+		// Change one pane's content.
+		mu.Lock()
+		paneContents["%0"] = "line 1\nline 2\nline 3\nnew output"
+		mu.Unlock()
+
+		agents := []protocol.TmuxAgentInfo{
+			{PaneID: "%0", AgentName: "claude"},
+			{PaneID: "%1", AgentName: "pi"},
+		}
+		s.detectAgentActivity(agents)
+		if agents[0].Activity != "busy" {
+			t.Errorf("agent[0].Activity = %q, want busy (content changed)", agents[0].Activity)
+		}
+		if agents[1].Activity != "idle" {
+			t.Errorf("agent[1].Activity = %q, want idle (unchanged)", agents[1].Activity)
+		}
+	})
+
+	t.Run("exited agent cleans up hash", func(t *testing.T) {
+		agents := []protocol.TmuxAgentInfo{
+			{PaneID: "%0", AgentName: "claude", Status: "exited"},
+		}
+		s.detectAgentActivity(agents)
+		if agents[0].Activity != "" {
+			t.Errorf("exited agent Activity = %q, want empty", agents[0].Activity)
+		}
+		// Hash should be cleaned up.
+		s.paneContentHashesMu.RLock()
+		_, exists := s.paneContentHashes["%0"]
+		s.paneContentHashesMu.RUnlock()
+		if exists {
+			t.Error("expected hash for exited agent to be cleaned up")
+		}
+	})
+
+	t.Run("new pane after cleanup starts fresh", func(t *testing.T) {
+		// After cleanup, a new agent with same paneID should get unknown activity.
+		agents := []protocol.TmuxAgentInfo{
+			{PaneID: "%0", AgentName: "claude"},
+		}
+		s.detectAgentActivity(agents)
+		if agents[0].Activity != "" {
+			t.Errorf("agent[0].Activity = %q, want empty (fresh start after cleanup)", agents[0].Activity)
 		}
 	})
 }
