@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	loopUpdateName    string
-	loopUpdateArchive bool
+	loopUpdateName      string
+	loopUpdateArchive   bool
 	loopUpdateUnarchive bool
 )
 

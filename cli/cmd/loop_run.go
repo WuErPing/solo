@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/WuErPing/solo/cli/internal/cliutil"
 	"github.com/WuErPing/solo/cli/internal/client"
+	"github.com/WuErPing/solo/cli/internal/cliutil"
 	"github.com/WuErPing/solo/cli/internal/output"
 	"github.com/WuErPing/solo/protocol"
 )
@@ -156,4 +156,3 @@ func fetchLoop(ctx context.Context, c *client.DaemonClient, id string) (*protoco
 	}
 	return inspectResp.Payload.Loop, nil
 }
-

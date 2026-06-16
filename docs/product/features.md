@@ -2,7 +2,7 @@
 
 > Analysis Date: 2026-06-15
 > Repository: /Users/wuerping/code/wuerping/solo
-> Version: v0.6.2
+> Version: v0.6.3
 
 ## Product Overview
 
@@ -157,7 +157,8 @@ Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
   - 代理卡片按名称分组，显示会话徽章（会话名、窗口、窗格），支持筛选
   - 新建会话 — 直接从仪表板创建新的 tmux 会话，支持可选的工作目录和命令
   - 非代理窗格显示 — 浏览和交互非代理 tmux 窗格（shell、编辑器等），按命令分组
-  - 命令历史 — 跟踪和显示发送给编程代理的最近命令
+  - 命令历史 — 跟踪和显示发送给编程代理的最近命令，支持删除过期条目
+  - 会话管理 — 关闭（kill）tmux 会话，代理/窗格卡片带确认对话框
   - 窗格内容捕获（默认 200 行，5 秒自动刷新，可关闭自动刷新）
   - 懒加载历史（滚动驱动，每次 200 行，最大 5000 行）
   - 自定义终端主题（`system` / `dark` / `light` / `bash` / `auto`）
@@ -232,14 +233,14 @@ Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
 > 详细覆盖率数据、模块级分析、根因和路线图见: [`docs/analysis/test-coverage.md`](../analysis/test-coverage.md)
 
 #### 9.1 测试规模
-- **App 单元测试**：**235** 个测试文件，**1,657** 个测试用例（Vitest），已接入 CI（含 tmux dashboard、pane screen、status line、ANSI renderer、SVG preview 等新增测试）
+- **App 单元测试**：**235** 个测试文件，**1,663** 个测试用例（Vitest），已接入 CI（含 tmux dashboard、pane screen、status line、ANSI renderer、SVG preview、loop CRUD 等新增测试）
 - **App browser 测试**：1 个文件（Chromium via Playwright），未接入 CI
 - **App-bridge 测试**：3 个文件，**32 个测试用例**（Vitest），已接入 CI
 - **Daemon 测试文件**：**129** 个（Go），已接入 CI
 - **Relay-go 测试文件**：**8** 个（Go），已接入 CI
 - **Protocol 测试文件**：**4** 个（Go），已接入 CI
 - **CLI 测试文件**：**13** 个（Go），已接入 CI
-- **E2E 测试**：**31** 个 `.spec.ts`（Playwright），**nightly 运行**（含 SVG preview E2E）
+- **E2E 测试**：**35** 个 `.spec.ts`（Playwright），**nightly 运行**（含 loop-crud、tmux-close-session、SVG preview 等 E2E）
 - **Maestro 移动端**：~20 个 YAML flow，ad-hoc / 未接入 CI
 
 #### 9.2 关键测试域
@@ -366,8 +367,9 @@ Button, Dropdown Menu, Combobox, Tooltip, Shortcut, Segmented Control, Context M
 ### 已实现（此前标记为缺失）
 1. **GitHub 集成**：PR 状态查看、Git diff、分支切换、Workspace git actions
 2. **MCP 服务器**：Daemon 端完整实现，App 端设置页面有 "Automatically inject Solo MCP tools" 开关
-3. **Tmux Dashboard**：完整的 tmux 代理检测、窗格内容捕获、终端主题、ANSI 渲染、新建会话、命令历史、非代理窗格显示
+3. **Tmux Dashboard**：完整的 tmux 代理检测、窗格内容捕获、终端主题、ANSI 渲染、新建会话、命令历史（支持删除）、非代理窗格显示、会话关闭（kill-session）
 4. **SVG Preview**：Web 和移动端 SVG 文件预览
+5. **Loop**：迭代工作流 CRUD（创建、查看、更新、运行、停止、删除），App UI + CLI 全覆盖
 
 ### 高优先级缺失
 1. **Chat 系统**：多 Agent 协作场景
@@ -375,9 +377,8 @@ Button, Dropdown Menu, Combobox, Tooltip, Shortcut, Segmented Control, Context M
 3. **更多 Provider**：Cursor-Agent、Generic ACP、ACP Agent
 
 ### 中优先级缺失
-4. **Loop**：迭代工作流
-5. **Tasks 系统**：执行顺序管理
-6. **Workspace 归档**：归档管理
+4. **Tasks 系统**：执行顺序管理
+5. **Workspace 归档**：归档管理
 
 ## 技术栈
 

@@ -30,46 +30,46 @@ type LoopVerifyPromptResult struct {
 }
 
 type LoopIterationRecord struct {
-	Index             int                      `json:"index"`
-	WorkerAgentID     *string                  `json:"workerAgentId"`
-	WorkerStartedAt   string                   `json:"workerStartedAt"`
-	WorkerCompletedAt *string                  `json:"workerCompletedAt"`
-	VerifierAgentID   *string                  `json:"verifierAgentId"`
-	Status            string                   `json:"status"`        // "running" | "succeeded" | "failed" | "stopped"
-	WorkerOutcome     *string                  `json:"workerOutcome"` // "completed" | "failed" | "canceled"
-	FailureReason     *string                  `json:"failureReason"`
-	VerifyChecks      []LoopVerifyCheckResult  `json:"verifyChecks"`
-	VerifyPrompt      *LoopVerifyPromptResult  `json:"verifyPrompt"`
+	Index             int                     `json:"index"`
+	WorkerAgentID     *string                 `json:"workerAgentId"`
+	WorkerStartedAt   string                  `json:"workerStartedAt"`
+	WorkerCompletedAt *string                 `json:"workerCompletedAt"`
+	VerifierAgentID   *string                 `json:"verifierAgentId"`
+	Status            string                  `json:"status"`        // "running" | "succeeded" | "failed" | "stopped"
+	WorkerOutcome     *string                 `json:"workerOutcome"` // "completed" | "failed" | "canceled"
+	FailureReason     *string                 `json:"failureReason"`
+	VerifyChecks      []LoopVerifyCheckResult `json:"verifyChecks"`
+	VerifyPrompt      *LoopVerifyPromptResult `json:"verifyPrompt"`
 }
 
 type LoopRecord struct {
-	ID                  string                  `json:"id"`
-	Name                *string                 `json:"name"`
-	Prompt              string                  `json:"prompt"`
-	Cwd                 string                  `json:"cwd"`
-	Provider            string                  `json:"provider"`
-	Model               *string                 `json:"model"`
-	WorkerProvider      *string                 `json:"workerProvider"`
-	WorkerModel         *string                 `json:"workerModel"`
-	VerifierProvider    *string                 `json:"verifierProvider"`
-	VerifierModel       *string                 `json:"verifierModel"`
-	VerifyPrompt        *string                 `json:"verifyPrompt"`
-	VerifyChecks        []string                `json:"verifyChecks"`
-	Archive             bool                    `json:"archive"`
-	SleepMs             int                     `json:"sleepMs"`
-	MaxIterations       *int                    `json:"maxIterations"`
-	MaxTimeMs           *int                    `json:"maxTimeMs"`
-	Status              string                  `json:"status"` // "running" | "succeeded" | "failed" | "stopped"
-	CreatedAt           string                  `json:"createdAt"`
-	UpdatedAt           string                  `json:"updatedAt"`
-	StartedAt           string                  `json:"startedAt"`
-	CompletedAt         *string                 `json:"completedAt"`
-	StopRequestedAt     *string                 `json:"stopRequestedAt"`
-	Iterations          []LoopIterationRecord   `json:"iterations"`
-	Logs                []LoopLogEntry          `json:"logs"`
-	NextLogSeq          int                     `json:"nextLogSeq"`
-	ActiveIteration     *int                    `json:"activeIteration"`
-	ActiveWorkerAgentID *string                 `json:"activeWorkerAgentId"`
+	ID                    string                `json:"id"`
+	Name                  *string               `json:"name"`
+	Prompt                string                `json:"prompt"`
+	Cwd                   string                `json:"cwd"`
+	Provider              string                `json:"provider"`
+	Model                 *string               `json:"model"`
+	WorkerProvider        *string               `json:"workerProvider"`
+	WorkerModel           *string               `json:"workerModel"`
+	VerifierProvider      *string               `json:"verifierProvider"`
+	VerifierModel         *string               `json:"verifierModel"`
+	VerifyPrompt          *string               `json:"verifyPrompt"`
+	VerifyChecks          []string              `json:"verifyChecks"`
+	Archive               bool                  `json:"archive"`
+	SleepMs               int                   `json:"sleepMs"`
+	MaxIterations         *int                  `json:"maxIterations"`
+	MaxTimeMs             *int                  `json:"maxTimeMs"`
+	Status                string                `json:"status"` // "running" | "succeeded" | "failed" | "stopped"
+	CreatedAt             string                `json:"createdAt"`
+	UpdatedAt             string                `json:"updatedAt"`
+	StartedAt             string                `json:"startedAt"`
+	CompletedAt           *string               `json:"completedAt"`
+	StopRequestedAt       *string               `json:"stopRequestedAt"`
+	Iterations            []LoopIterationRecord `json:"iterations"`
+	Logs                  []LoopLogEntry        `json:"logs"`
+	NextLogSeq            int                   `json:"nextLogSeq"`
+	ActiveIteration       *int                  `json:"activeIteration"`
+	ActiveWorkerAgentID   *string               `json:"activeWorkerAgentId"`
 	ActiveVerifierAgentID *string               `json:"activeVerifierAgentId"`
 }
 
@@ -160,8 +160,8 @@ func (m LoopDeleteRequest) MsgType() string { return "loop/delete" }
 // --- Outbound Responses ---
 
 type LoopRunResponse struct {
-	Type    string                  `json:"type"`
-	Payload LoopRunResponsePayload  `json:"payload"`
+	Type    string                 `json:"type"`
+	Payload LoopRunResponsePayload `json:"payload"`
 }
 
 func (m LoopRunResponse) MsgType() string { return "loop/run/response" }
@@ -173,8 +173,8 @@ type LoopRunResponsePayload struct {
 }
 
 type LoopListResponse struct {
-	Type    string                   `json:"type"`
-	Payload LoopListResponsePayload  `json:"payload"`
+	Type    string                  `json:"type"`
+	Payload LoopListResponsePayload `json:"payload"`
 }
 
 func (m LoopListResponse) MsgType() string { return "loop/list/response" }

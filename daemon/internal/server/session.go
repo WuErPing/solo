@@ -12,8 +12,8 @@ import (
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/config"
-	daemonmetrics "github.com/WuErPing/solo/daemon/internal/metrics"
 	"github.com/WuErPing/solo/daemon/internal/loop"
+	daemonmetrics "github.com/WuErPing/solo/daemon/internal/metrics"
 	"github.com/WuErPing/solo/daemon/internal/push"
 	"github.com/WuErPing/solo/daemon/internal/schedule"
 	"github.com/WuErPing/solo/daemon/internal/terminal"

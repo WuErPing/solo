@@ -68,9 +68,10 @@ Solo is an AI coding assistant platform that connects your local development env
 │  │  │(TurnRecorder │ │              │ │   (Cron)      │ │   │
 │  │  │ / Redaction) │ │              │ │               │ │   │
 │  │  └──────────────┘ └──────────────┘ └───────────────┘ │   │
-│  │  ┌──────────────┐ ┌──────────────┐                   │   │
-│  │  │Push Notifier │ │ Relay Client │                   │   │
-│  │  └──────────────┘ └──────────────┘                   │   │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌───────────────┐ │   │
+│  │  │Push Notifier │ │ Relay Client │ │ Loop Engine   │ │   │
+│  │  │              │ │              │ │ (Autonomous)  │ │   │
+│  │  └──────────────┘ └──────────────┘ └───────────────┘ │   │
 │  └───────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -83,7 +84,7 @@ Solo is an AI coding assistant platform that connects your local development env
 |-----------|-----------|----------|----------------|
 | **App** | [`app/`](app/) | TypeScript / React Native | User interface (iOS, Android, Web) |
 | **App-Bridge** | [`app-bridge/`](app-bridge/) | TypeScript | Client-side communication library |
-| **Daemon** | [`daemon/`](daemon/) | Go | Core service — manages sessions, agents, and provider connections |
+| **Daemon** | [`daemon/`](daemon/) | Go | Core service — manages sessions, agents, loops, and provider connections |
 | **Relay** | [`relay-go/`](relay-go/) | Go | Connection relay for remote/mobile access |
 | **CLI** | [`cli/`](cli/) | Go | Command-line tool for session and agent management |
 | **Protocol** | [`protocol/`](protocol/) | Go | Shared protocol definitions |
@@ -242,7 +243,8 @@ Three-layer detection identifies agents even when `pane_current_command` reports
 - **New session creation** — create new tmux sessions directly from the dashboard with optional working directory and command
 - **Agent cards** — grouped by agent name with session badge (session name, window, pane), tap to filter
 - **Non-agent pane display** — browse and interact with non-agent tmux panes (shells, editors, etc.) grouped by command
-- **Command history** — track and display recent commands sent to coding agents
+- **Command history** — track and display recent commands sent to coding agents, with delete support for stale entries
+- **Session management** — close (kill) tmux sessions with confirmation dialog from agent/pane cards
 - **Pane content capture** — live terminal view (last 500 lines), auto-refreshes every 5 seconds
 - **Terminal themes** — configurable color themes (system, dark, light, tmux, Bash, auto) for pane rendering
 - **Interactive control** — send text commands with Enter, or use quick-action buttons:
@@ -277,6 +279,18 @@ Solo includes a timezone-aware cron scheduling system for running automated task
 
 ---
 
+## Loop Automation
+
+Solo includes an LLM-driven loop system that evolves scheduled tasks into autonomous iteration loops.
+
+- **Full CRUD** — create, inspect, update, run, stop, and delete loops from the app or CLI
+- **App UI** — dedicated screens for loop list, detail, and creation in the sidebar
+- **CLI commands** — `solo-cli loop ls|run|status|stop|update|delete`
+- **Provider integration** — loops use existing AI providers to execute iteration steps
+- **Execution tracking** — full run history and status monitoring
+
+---
+
 ## Security
 
 - **End-to-End Encryption**: All communication between client and daemon is encrypted using X25519 key exchange + XSalsa20-Poly1305.
@@ -291,8 +305,8 @@ The project uses GitHub Actions (`.github/workflows/ci.yml`) with the following 
 | Job | Trigger | Steps |
 |-----|---------|-------|
 | **Go** (matrix: protocol, cli, daemon, relay-go) | push/PR to main | `go mod verify` → `go build` → `go test -short -race -coverprofile` → `golangci-lint v2` → Codecov upload |
-| **JS** | push/PR to main | `npm ci` → lint (app, app-bridge, highlight) → typecheck → test (app 1657 tests, app-bridge 32 tests) → Codecov upload |
-| **E2E** (nightly) | daily 02:00 UTC + manual | Playwright E2E (22 specs) with daemon/relay/Metro globalSetup |
+| **JS** | push/PR to main | `npm ci` → lint (app, app-bridge, highlight) → typecheck → test (app 1663 tests, app-bridge 32 tests) → Codecov upload |
+| **E2E** (nightly) | daily 02:00 UTC + manual | Playwright E2E (35 specs) with daemon/relay/Metro globalSetup |
 
 ---
 

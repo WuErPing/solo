@@ -1,7 +1,7 @@
 # Solo — Documentation Index
 
 > **Purpose**: Persistent context base for Solo development, CI/CD, and architecture decisions.
-> **Last updated**: 2026-06-15
+> **Last updated**: 2026-06-16
 
 ---
 
@@ -154,8 +154,8 @@ Deep dives into specific subsystems.
 | Workflow | Job | Steps |
 |----------|-----|-------|
 | `.github/workflows/ci.yml` | `go` (matrix: protocol, cli, daemon, relay-go) | `go mod verify` → `go build -v ./...` → `go test -short -race -coverprofile=coverage.out` → upload coverage (Codecov + artifact, 14 days) → `golangci-lint v2.10` (`--timeout=5m`) |
-| `.github/workflows/ci.yml` | `js` | `npm ci` → lint app / app-bridge / highlight → typecheck all three → test highlight → test app (unit, **1657 tests**) → test app-bridge (**32 tests**) → upload coverage (Codecov + artifacts) |
-| `.github/workflows/e2e-nightly.yml` | `e2e-nightly` | daily 02:00 UTC + manual; Playwright E2E (31 specs) with daemon/relay/Metro globalSetup; failure artifacts retained 7 days |
+| `.github/workflows/ci.yml` | `js` | `npm ci` → lint app / app-bridge / highlight → typecheck all three → test highlight → test app (unit, **1663 tests**) → test app-bridge (**32 tests**) → upload coverage (Codecov + artifacts) |
+| `.github/workflows/e2e-nightly.yml` | `e2e-nightly` | daily 02:00 UTC + manual; Playwright E2E (35 specs) with daemon/relay/Metro globalSetup; failure artifacts retained 7 days |
 
 ### Tech stack summary
 

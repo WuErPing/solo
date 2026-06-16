@@ -12,12 +12,12 @@ import (
 )
 
 type loopListItem struct {
-	ID       string
-	ShortID  string
-	Name     string
-	Status   string
-	CWD      string
-	Created  string
+	ID      string
+	ShortID string
+	Name    string
+	Status  string
+	CWD     string
+	Created string
 }
 
 type loopRecordItem struct {
@@ -145,4 +145,3 @@ func parseLoopResponse(resp *protocol.WSOutboundMessage, target interface{}) err
 	payload, _ := json.Marshal(resp.Message)
 	return json.Unmarshal(payload, target)
 }
-

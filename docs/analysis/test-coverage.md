@@ -1,6 +1,6 @@
 # Solo 测试覆盖率报告
 
-> 最后更新: 2026-06-12
+> 最后更新: 2026-06-16
 > 本文档合并了此前分散的覆盖率文档，为项目测试覆盖率的唯一权威来源。
 
 ---
@@ -12,13 +12,13 @@
 | Go 后端 | `go test -short -race -coverprofile` | **~75%** (加权) | 大部分模块 >80%，2 个核心包 <70% |
 | App 前端 | Vitest + v8 | **35.5%** (statements) | 工具层良好，UI 层薄弱 |
 | App-Bridge | Vitest + v8 | **89.4%** | 优秀 |
-| E2E | Playwright | 31 specs, ~6200 行 | 核心流程覆盖，nightly 运行 |
+| E2E | Playwright | 35 specs, ~6900 行 | 核心流程覆盖，nightly 运行 |
 | CI | GitHub Actions | Go + JS + E2E nightly | Codecov 已集成 |
 
 **关键指标**:
 - Go 测试文件: 174 个 (158 源文件, 比例 1.10:1)
-- App 测试文件: 235 个 (unit) + 31 个 (E2E)
-- App 单元测试用例: 1,657 个
+- App 测试文件: 235 个 (unit) + 35 个 (E2E)
+- App 单元测试用例: 1,663 个
 - CI 每次 push 运行: Go 测试 + App unit 测试 + App-Bridge 测试 + Lint + Typecheck
 - E2E: 每日 02:00 UTC 自动运行 + 手动触发
 
@@ -36,7 +36,7 @@
 | **CLI** | `cli/cmd` | 70.4% | 低 |
 | | `cli/internal/client` | 87.4% | 良好 |
 | | `cli/internal/output` | 92.0% | 优秀 |
-| | `cli/internal/util` | 91.8% | 优秀 |
+| | `cli/internal/cliutil` | 91.8% | 优秀 |
 | **Relay** | `relay/internal/config` | 97.0% | 优秀 |
 | | `relay/internal/e2ee` | 83.2% | 良好 |
 | | `relay/internal/metrics` | 100.0% | 完整 |
@@ -74,7 +74,7 @@
 - `daemon/internal/memory` (95.8%), `daemon/internal/memory/redact` (95.8%)
 - `daemon/internal/memory/bridge` (90.9%)
 - `relay/internal/config` (97.0%)
-- `cli/internal/output` (92.0%), `cli/internal/util` (91.8%)
+- `cli/internal/output` (92.0%), `cli/internal/cliutil` (91.8%)
 - `daemon/internal/agent/base` (89.0%)
 
 ### 2.4 低覆盖率包 (< 70%) — 最高风险
@@ -160,7 +160,7 @@
 
 ## 4. E2E 测试覆盖
 
-> 31 个 Playwright spec 文件, ~6200 行代码
+> 35 个 Playwright spec 文件, ~6900 行代码
 > 运行方式: 每日 02:00 UTC nightly + workflow_dispatch 手动触发
 
 ### 4.1 E2E Spec 清单

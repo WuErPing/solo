@@ -77,7 +77,7 @@ This directory contains analysis documents for the Solo project.
 
 **Summary:**
 - 合并 5 个覆盖率文档为统一报告
-- Go 后端 ~75% (加权), App 前端 35.5%, E2E 31 specs
+- Go 后端 ~75% (加权), App 前端 35.5%, E2E 35 specs
 - CI/Codecov 完整集成, 识别 4 个覆盖率差距根因
 
 **Document:** [test-coverage.md](test-coverage.md)

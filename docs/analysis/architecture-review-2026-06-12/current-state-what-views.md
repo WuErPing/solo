@@ -97,7 +97,7 @@ User Input (app)
 | relay-go | Go unit | ~1,800 | 高 |
 | app | Vitest unit | ~25,000 | ~36% stmt |
 | app-bridge | Vitest unit | ~800 | ~89% stmt |
-| E2E | Playwright (nightly) | 22 specs | — |
+| E2E | Playwright (nightly) | 35 specs | — |
 
 ---
 
