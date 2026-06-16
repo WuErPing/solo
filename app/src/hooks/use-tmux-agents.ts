@@ -16,6 +16,8 @@ export interface TmuxAgent {
   status?: string;
   activity?: string;
   lastContentChange?: number;
+  lastContentChangeHHMM?: string;
+  lastContentChangeAgo?: string;
   serverId: string;
   serverLabel: string;
 }
@@ -30,6 +32,8 @@ export interface TmuxPane {
   workingDir: string;
   title?: string;
   lastContentChange?: number;
+  lastContentChangeHHMM?: string;
+  lastContentChangeAgo?: string;
   serverId: string;
   serverLabel: string;
 }

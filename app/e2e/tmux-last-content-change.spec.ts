@@ -51,7 +51,6 @@ test.describe("tmux last content change", () => {
 
     // The card should contain an HH:MM timestamp (pattern: two digits, colon, two digits).
     const hhmmPattern = /\d{2}:\d{2}/;
-    const card = sessionBadge.locator("xpath=ancestor::*[contains(@class,'card') or @data-testid='agent-card']").first();
 
     // Look for HH:MM text somewhere in the card area.
     const cardText = await page.locator("body").innerText();
@@ -60,6 +59,16 @@ test.describe("tmux last content change", () => {
     // Look for relative time text ("just now", "Xm ago", "Xh ago").
     const relativeTimePattern = /just now|\d+[mh] ago|\d+d ago/;
     expect(cardText).toMatch(relativeTimePattern);
+
+    // Verify HH:MM matches daemon's local time (same machine in e2e, so timezone-aligned).
+    const now = new Date();
+    const expectedHHMM = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    // The displayed HH:MM should be within ±1 minute of now (activity just happened).
+    const displayed = cardText.match(hhmmPattern)?.[0];
+    expect(displayed).toBeTruthy();
+    const [dh, dm] = displayed!.split(":").map(Number);
+    const diffMin = Math.abs((dh * 60 + dm) - (now.getHours() * 60 + now.getMinutes()));
+    expect(diffMin).toBeLessThanOrEqual(1);
   });
 
   test("writing to the pane updates the displayed time", async ({ page }) => {

@@ -89,20 +89,22 @@ vi.mock("@/stores/tmux-agent-store", () => ({
 
 // Fixed Unix timestamp for deterministic testing.
 const MOCK_LAST_CONTENT_CHANGE = 1781625900;
-// Compute expected HH:MM from the same timestamp (timezone-independent).
-const _d = new Date(MOCK_LAST_CONTENT_CHANGE * 1000);
-const MOCK_EXPECTED_HHMM = `${String(_d.getHours()).padStart(2, "0")}:${String(_d.getMinutes()).padStart(2, "0")}`;
+// Daemon-provided strings (the authoritative display values).
+const MOCK_EXPECTED_HHMM = "14:30";
+const MOCK_EXPECTED_AGO = "5m ago";
 
 const mockAgents = [
   {
     serverId: "s1", paneId: "%0", agentName: "claude", sessionName: "dev",
     windowName: "main", paneIndex: 0, panePid: 100, currentCmd: "claude",
     workingDir: "/a", serverLabel: "local", lastContentChange: MOCK_LAST_CONTENT_CHANGE,
+    lastContentChangeHHMM: MOCK_EXPECTED_HHMM, lastContentChangeAgo: MOCK_EXPECTED_AGO,
   },
   {
     serverId: "s1", paneId: "%1", agentName: "pi", sessionName: "dev",
     windowName: "main", paneIndex: 1, panePid: 200, currentCmd: "node",
     workingDir: "/b", serverLabel: "local", lastContentChange: MOCK_LAST_CONTENT_CHANGE,
+    lastContentChangeHHMM: MOCK_EXPECTED_HHMM, lastContentChangeAgo: MOCK_EXPECTED_AGO,
   },
 ];
 

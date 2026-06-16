@@ -10,6 +10,8 @@ export const TmuxPaneInfoSchema = z.object({
   workingDir: z.string(),
   title: z.string().optional(),
   lastContentChange: z.number().int().optional(),
+  lastContentChangeHHMM: z.string().optional(),
+  lastContentChangeAgo: z.string().optional(),
 });
 
 export const TmuxAgentInfoSchema = z.object({
@@ -25,6 +27,8 @@ export const TmuxAgentInfoSchema = z.object({
   activity: z.string().optional(),
   launchCmd: z.string().optional(),
   lastContentChange: z.number().int().optional(),
+  lastContentChangeHHMM: z.string().optional(),
+  lastContentChangeAgo: z.string().optional(),
 });
 
 export const AgentCommandEntrySchema = z.object({

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"os/exec"
 	"strings"
 	"sync"
@@ -886,6 +887,9 @@ func TestDetectAgentActivity(t *testing.T) {
 		if agents[1].LastContentChange < before || agents[1].LastContentChange > after {
 			t.Errorf("agent[1].LastContentChange = %d, want between %d and %d", agents[1].LastContentChange, before, after)
 		}
+		if agents[0].LastContentChangeHHMM == "" {
+			t.Error("agent[0].LastContentChangeHHMM should not be empty after first scan")
+		}
 	})
 
 	t.Run("unchanged content sets idle and preserves timestamp", func(t *testing.T) {
@@ -961,6 +965,60 @@ func TestDetectAgentActivity(t *testing.T) {
 		s.detectAgentActivity(agents)
 		if agents[0].Activity != "" {
 			t.Errorf("agent[0].Activity = %q, want empty (fresh start after cleanup)", agents[0].Activity)
+		}
+	})
+}
+
+func TestFormatUnixHHMM(t *testing.T) {
+	// Use a known timestamp: 2025-01-15 14:30:00 UTC.
+	ts := time.Date(2025, 1, 15, 14, 30, 0, 0, time.UTC).Unix()
+	got := formatUnixHHMM(ts)
+	want := fmt.Sprintf("%02d:%02d", time.Unix(ts, 0).Local().Hour(), time.Unix(ts, 0).Local().Minute())
+	if got != want {
+		t.Errorf("formatUnixHHMM(%d) = %q, want %q", ts, got, want)
+	}
+
+	t.Run("zero returns empty", func(t *testing.T) {
+		if got := formatUnixHHMM(0); got != "" {
+			t.Errorf("formatUnixHHMM(0) = %q, want empty", got)
+		}
+	})
+}
+
+func TestFormatWindowActivity(t *testing.T) {
+	now := time.Now().Unix()
+
+	t.Run("just now", func(t *testing.T) {
+		got := formatWindowActivity(now - 30)
+		if got != "just now" {
+			t.Errorf("formatWindowActivity(now-30) = %q, want %q", got, "just now")
+		}
+	})
+
+	t.Run("minutes ago", func(t *testing.T) {
+		got := formatWindowActivity(now - 300) // 5 min
+		if got != "5m ago" {
+			t.Errorf("formatWindowActivity(now-300) = %q, want %q", got, "5m ago")
+		}
+	})
+
+	t.Run("hours ago", func(t *testing.T) {
+		got := formatWindowActivity(now - 7200) // 2 hours
+		if got != "2h ago" {
+			t.Errorf("formatWindowActivity(now-7200) = %q, want %q", got, "2h ago")
+		}
+	})
+
+	t.Run("days ago", func(t *testing.T) {
+		got := formatWindowActivity(now - 172800) // 2 days
+		if got != "2d ago" {
+			t.Errorf("formatWindowActivity(now-172800) = %q, want %q", got, "2d ago")
+		}
+	})
+
+	t.Run("zero returns empty", func(t *testing.T) {
+		if got := formatWindowActivity(0); got != "" {
+			t.Errorf("formatWindowActivity(0) = %q, want empty", got)
 		}
 	})
 }

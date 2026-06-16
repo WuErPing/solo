@@ -224,6 +224,8 @@ func (s *Session) detectAgentActivity(agents []protocol.TmuxAgentInfo) {
 		} else {
 			a.Activity = "idle"
 		}
+		a.LastContentChangeHHMM = formatUnixHHMM(a.LastContentChange)
+		a.LastContentChangeAgo = formatWindowActivity(a.LastContentChange)
 	}
 }
 
@@ -246,6 +248,8 @@ func (s *Session) filterWindowActivity(panes []protocol.TmuxPaneInfo) {
 		} else {
 			s.paneLastContentChange[p.PaneID] = raw
 		}
+		p.LastContentChangeHHMM = formatUnixHHMM(p.LastContentChange)
+		p.LastContentChangeAgo = formatWindowActivity(p.LastContentChange)
 	}
 }
 
@@ -570,6 +574,36 @@ func (s *Session) sendTmuxCapturePaneResponse(requestID string, content string, 
 			Error:       errMsg,
 		},
 	}))
+}
+
+// formatUnixHHMM converts a Unix timestamp (seconds) to "HH:MM" in the daemon's local timezone.
+func formatUnixHHMM(unixSec int64) string {
+	if unixSec == 0 {
+		return ""
+	}
+	t := time.Unix(unixSec, 0)
+	return fmt.Sprintf("%02d:%02d", t.Hour(), t.Minute())
+}
+
+// formatWindowActivity converts a Unix timestamp (seconds) to a relative time string.
+func formatWindowActivity(unixSec int64) string {
+	if unixSec == 0 {
+		return ""
+	}
+	diff := time.Now().Unix() - unixSec
+	if diff < 60 {
+		return "just now"
+	}
+	mins := diff / 60
+	if mins < 60 {
+		return fmt.Sprintf("%dm ago", mins)
+	}
+	hours := mins / 60
+	if hours < 24 {
+		return fmt.Sprintf("%dh ago", hours)
+	}
+	days := hours / 24
+	return fmt.Sprintf("%dd ago", days)
 }
 
 // computeContentHash returns a 16-char hex SHA-256 prefix for content dedup.
