@@ -33,6 +33,27 @@ interface AgentNameGroup {
   count: number;
 }
 
+// Converts a Unix timestamp (seconds) to a relative time string.
+function formatWindowActivity(unixSec: number): string {
+  if (!unixSec) return "";
+  const diff = Date.now() / 1000 - unixSec;
+  if (diff < 60) return "just now";
+  const mins = Math.floor(diff / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+// Converts a Unix timestamp (seconds) to "HH:MM" format.
+function formatHHMM(unixSec: number): string {
+  const d = new Date(unixSec * 1000);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
 // Splits tmux statusRight like '"pane title" 22:45 06-Jun-26' into title and time/date parts.
 function splitStatusRight(statusRight: string): { title: string; timeDate?: string } {
   const match = statusRight.match(/^(".*?")\s+(.+)$/);
@@ -121,7 +142,7 @@ function AgentCard({
             ]}
           >
             {statusLine.statusRight ? (() => {
-              const { title, timeDate } = splitStatusRight(statusLine.statusRight);
+              const { title } = splitStatusRight(statusLine.statusRight);
               return (
                 <>
                   <AnsiTextContent
@@ -131,14 +152,10 @@ function AgentCard({
                       { color: theme.colors.foreground },
                     ]}
                   />
-                  {timeDate ? (
-                    <AnsiTextContent
-                      segments={parseAnsi(timeDate)}
-                      style={[
-                        styles.statusLineText,
-                        { color: theme.colors.foreground },
-                      ]}
-                    />
+                  {agent.lastContentChange ? (
+                    <Text style={[styles.statusLineText, { color: theme.colors.foreground }]}>
+                      {formatHHMM(agent.lastContentChange)}
+                    </Text>
                   ) : null}
                 </>
               );
@@ -149,6 +166,14 @@ function AgentCard({
           <Text style={styles.detailLabel}>
             PID:{agent.panePid}
           </Text>
+          {agent.lastContentChange ? (
+            <View style={styles.activityTimeRow}>
+              <Clock size={12} color={theme.colors.foregroundMuted} />
+              <Text style={styles.activityTimeText}>
+                {formatWindowActivity(agent.lastContentChange)}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </Pressable>
     </View>
@@ -228,6 +253,14 @@ function PaneCard({
           <Text style={styles.detailLabel}>
             PID:{pane.panePid}
           </Text>
+          {pane.lastContentChange ? (
+            <View style={styles.activityTimeRow}>
+              <Clock size={12} color={theme.colors.foregroundMuted} />
+              <Text style={styles.activityTimeText}>
+                {formatWindowActivity(pane.lastContentChange)}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </Pressable>
     </View>
@@ -811,6 +844,15 @@ const styles = StyleSheet.create((theme) => ({
     gap: 4,
   },
   detailLabel: {
+    color: theme.colors.foregroundMuted,
+    fontSize: 12,
+  },
+  activityTimeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  activityTimeText: {
     color: theme.colors.foregroundMuted,
     fontSize: 12,
   },

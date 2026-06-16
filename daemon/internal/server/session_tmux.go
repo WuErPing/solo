@@ -140,6 +140,9 @@ func (s *Session) handleTmuxListAgents(m *protocol.TmuxListAgentsRequest) {
 	// Detect agent activity by comparing pane content hashes between scans.
 	s.detectAgentActivity(agents)
 
+	// Filter tmux window_activity noise for non-agent panes.
+	s.filterWindowActivity(otherPanes)
+
 	// Persist command history and include it in the response.
 	var history []protocol.AgentCommandEntry
 	if s.cfg.SoloHome != "" {
@@ -179,6 +182,7 @@ func (s *Session) handleTmuxListAgents(m *protocol.TmuxListAgentsRequest) {
 
 // detectAgentActivity compares pane content hashes between consecutive scans
 // to determine if an agent is busy (content changed) or idle (content unchanged).
+// When content changes, it also records the timestamp for sorting.
 func (s *Session) detectAgentActivity(agents []protocol.TmuxAgentInfo) {
 	s.paneContentHashesMu.Lock()
 	defer s.paneContentHashesMu.Unlock()
@@ -186,12 +190,16 @@ func (s *Session) detectAgentActivity(agents []protocol.TmuxAgentInfo) {
 	for i := range agents {
 		a := &agents[i]
 		if a.Status == "exited" {
-			// Clean up hash for exited agents.
 			delete(s.paneContentHashes, a.PaneID)
+			delete(s.paneLastContentChange, a.PaneID)
 			continue
 		}
 
-		// Capture last 10 lines — lightweight, enough for activity detection.
+		// Use the hash-based timestamp if available.
+		if ts, ok := s.paneLastContentChange[a.PaneID]; ok {
+			a.LastContentChange = ts
+		}
+
 		content, err := capturePaneFunc(a.PaneID, -10)
 		if err != nil {
 			s.logger.Warn("tmux activity detection: capture failed", "paneID", a.PaneID, "error", err)
@@ -203,12 +211,40 @@ func (s *Session) detectAgentActivity(agents []protocol.TmuxAgentInfo) {
 		s.paneContentHashes[a.PaneID] = hash
 
 		if !exists {
-			// First scan — no baseline yet.
 			a.Activity = ""
+			// First scan: initialize timestamp so the card shows a time immediately.
+			now := time.Now().Unix()
+			s.paneLastContentChange[a.PaneID] = now
+			a.LastContentChange = now
 		} else if hash != prevHash {
 			a.Activity = "busy"
+			now := time.Now().Unix()
+			s.paneLastContentChange[a.PaneID] = now
+			a.LastContentChange = now
 		} else {
 			a.Activity = "idle"
+		}
+	}
+}
+
+// filterWindowActivity deduplicates tmux window_activity noise from status bar redraws.
+// When consecutive values differ by < 3 seconds, it keeps the previous timestamp.
+func (s *Session) filterWindowActivity(panes []protocol.TmuxPaneInfo) {
+	s.paneContentHashesMu.Lock()
+	defer s.paneContentHashesMu.Unlock()
+
+	for i := range panes {
+		p := &panes[i]
+		raw := p.LastContentChange
+		if raw == 0 {
+			continue
+		}
+		prev, exists := s.paneLastContentChange[p.PaneID]
+		if exists && raw-prev < 3 && raw-prev > -3 {
+			// Noise from status bar redraw — keep previous timestamp.
+			p.LastContentChange = prev
+		} else {
+			s.paneLastContentChange[p.PaneID] = raw
 		}
 	}
 }
@@ -230,7 +266,7 @@ func scanTmuxAgents(agentNames map[string]bool) ([]protocol.TmuxAgentInfo, []pro
 	ctx, cancel := context.WithTimeout(context.Background(), tmuxCommandTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "tmux", "list-panes", "-a", "-F",
-		"#{pane_id}|#{pane_index}|#{pane_pid}|#{pane_current_command}|#{session_name}|#{window_name}|#{pane_current_path}|#{pane_title}")
+		"#{pane_id}|#{pane_index}|#{pane_pid}|#{pane_current_command}|#{session_name}|#{window_name}|#{pane_current_path}|#{pane_title}|#{window_activity}")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, nil, err
@@ -289,6 +325,10 @@ func parseTmuxPaneLines(output string, agentNames map[string]bool) ([]protocol.T
 		if len(parts) >= 8 {
 			paneTitle = parts[7]
 		}
+		var lastContentChange int64
+		if len(parts) >= 9 {
+			lastContentChange, _ = strconv.ParseInt(parts[8], 10, 64)
+		}
 
 		agentName := ""
 		status := ""
@@ -321,14 +361,15 @@ func parseTmuxPaneLines(output string, agentNames map[string]bool) ([]protocol.T
 
 		if agentName == "" {
 			otherPanes = append(otherPanes, protocol.TmuxPaneInfo{
-				SessionName: sessionName,
-				WindowName:  windowName,
-				PaneID:      paneID,
-				PaneIndex:   paneIndex,
-				PanePID:     panePID,
-				CurrentCmd:  currentCmd,
-				WorkingDir:  workingDir,
-				Title:       paneTitle,
+				SessionName:       sessionName,
+				WindowName:        windowName,
+				PaneID:            paneID,
+				PaneIndex:         paneIndex,
+				PanePID:           panePID,
+				CurrentCmd:        currentCmd,
+				WorkingDir:        workingDir,
+				Title:             paneTitle,
+				LastContentChange: lastContentChange,
 			})
 			continue
 		}
@@ -341,17 +382,18 @@ func parseTmuxPaneLines(output string, agentNames map[string]bool) ([]protocol.T
 		}
 
 		agents = append(agents, protocol.TmuxAgentInfo{
-			SessionName: sessionName,
-			WindowName:  windowName,
-			PaneID:      paneID,
-			PaneIndex:   paneIndex,
-			PanePID:     panePID,
-			AgentName:   agentName,
-			CurrentCmd:  currentCmd,
-			WorkingDir:  workingDir,
-			Title:       title,
-			Status:      status,
-			LaunchCmd:   launchCmd,
+			SessionName:       sessionName,
+			WindowName:        windowName,
+			PaneID:            paneID,
+			PaneIndex:         paneIndex,
+			PanePID:           panePID,
+			AgentName:         agentName,
+			CurrentCmd:        currentCmd,
+			WorkingDir:        workingDir,
+			Title:             title,
+			Status:            status,
+			LaunchCmd:         launchCmd,
+			LastContentChange: lastContentChange,
 		})
 	}
 	return agents, otherPanes

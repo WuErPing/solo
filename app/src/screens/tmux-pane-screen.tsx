@@ -13,7 +13,7 @@ import {
   type PressableStateCallbackType,
 } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { Send, Palette, TextSelect, Clock } from "lucide-react-native";
+import { Send, Palette, TextSelect, Clock, ChevronDown, ChevronUp } from "lucide-react-native";
 import { router } from "expo-router";
 import { BackHeader } from "@/components/headers/back-header";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -105,6 +105,7 @@ function TmuxPaneScreenInner() {
   );
   const [loadTimedOut, setLoadTimedOut] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
+  const [inputPanelHidden, setInputPanelHidden] = useState(false);
   const [navButtonsVertical, setNavButtonsVertical] = useState(false);
   const preSelectAutoRefreshRef = useRef<boolean | null>(null);
   const flatListRef = useRef<FlatList<AnsiSegment[]>>(null);
@@ -311,6 +312,28 @@ function TmuxPaneScreenInner() {
             {autoRefreshToggle}
             {themePicker}
             <Pressable
+              onPress={() => setInputPanelHidden((prev) => !prev)}
+              style={({ pressed }) => [
+                styles.selectToggleButton,
+                inputPanelHidden ? { backgroundColor: theme.colors.primary } : null,
+                pressed ? { opacity: 0.7 } : null,
+              ]}
+            >
+              {inputPanelHidden ? (
+                <ChevronUp size={16} color={theme.colors.background} />
+              ) : (
+                <ChevronDown size={16} color={theme.colors.foregroundMuted} />
+              )}
+              <Text
+                style={[
+                  styles.selectToggleText,
+                  { color: inputPanelHidden ? theme.colors.primary : theme.colors.foregroundMuted },
+                ]}
+              >
+                {inputPanelHidden ? "Show" : "Hide"}
+              </Text>
+            </Pressable>
+            <Pressable
               onPress={toggleSelectMode}
               style={({ pressed }) => [
                 styles.selectToggleButton,
@@ -365,6 +388,8 @@ function TmuxPaneScreenInner() {
           )
         }
       />
+      {!inputPanelHidden && (
+      <>
       <View style={styles.keyButtonsRow}>
         <View style={styles.keyGroup}>
           <Text style={[styles.keyGroupLabel, { color: theme.colors.foregroundMuted }]}>View</Text>
@@ -564,6 +589,19 @@ function TmuxPaneScreenInner() {
           <Send size={16} color={theme.colors.background} />
         </Pressable>
       </View>
+      </>
+      )}
+      {inputPanelHidden && (
+        <Pressable
+          onPress={() => setInputPanelHidden(false)}
+          style={({ pressed }) => [
+            styles.floatingShowButton,
+            pressed ? { opacity: 0.7 } : null,
+          ]}
+        >
+          <ChevronUp size={20} color={theme.colors.background} />
+        </Pressable>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -782,5 +820,21 @@ const styles = StyleSheet.create((theme) => ({
   selectToggleText: {
     fontSize: 12,
     fontWeight: "500",
+  },
+  floatingShowButton: {
+    position: "absolute",
+    bottom: 16,
+    right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
 }));

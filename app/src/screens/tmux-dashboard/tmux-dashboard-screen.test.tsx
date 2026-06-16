@@ -87,16 +87,22 @@ vi.mock("@/stores/tmux-agent-store", () => ({
     selector({ setSelectedAgent: mockSetSelectedAgent }),
 }));
 
+// Fixed Unix timestamp for deterministic testing.
+const MOCK_LAST_CONTENT_CHANGE = 1781625900;
+// Compute expected HH:MM from the same timestamp (timezone-independent).
+const _d = new Date(MOCK_LAST_CONTENT_CHANGE * 1000);
+const MOCK_EXPECTED_HHMM = `${String(_d.getHours()).padStart(2, "0")}:${String(_d.getMinutes()).padStart(2, "0")}`;
+
 const mockAgents = [
   {
     serverId: "s1", paneId: "%0", agentName: "claude", sessionName: "dev",
     windowName: "main", paneIndex: 0, panePid: 100, currentCmd: "claude",
-    workingDir: "/a", serverLabel: "local",
+    workingDir: "/a", serverLabel: "local", lastContentChange: MOCK_LAST_CONTENT_CHANGE,
   },
   {
     serverId: "s1", paneId: "%1", agentName: "pi", sessionName: "dev",
     windowName: "main", paneIndex: 1, panePid: 200, currentCmd: "node",
-    workingDir: "/b", serverLabel: "local",
+    workingDir: "/b", serverLabel: "local", lastContentChange: MOCK_LAST_CONTENT_CHANGE,
   },
 ];
 
@@ -116,10 +122,11 @@ const mockOtherPanes = [
 const mockExitedAgent = {
   serverId: "s1", paneId: "%2", agentName: "claude", sessionName: "dev",
   windowName: "main", paneIndex: 2, panePid: 300, currentCmd: "bash",
-  workingDir: "/c", serverLabel: "local", status: "exited",
+  workingDir: "/c", serverLabel: "local", status: "exited", lastContentChange: 0,
 };
 
-let agentsOverride: typeof mockAgents = [];
+type MockAgent = (typeof mockAgents)[number] & { activity?: string; status?: string };
+let agentsOverride: MockAgent[] = [];
 let otherPanesOverride: typeof mockOtherPanes = [];
 let commandHistoryOverride: Array<{ agentName: string; launchCmd: string; lastSeen: string }> = [];
 let isInitialLoadOverride = false;
@@ -247,9 +254,9 @@ describe("TmuxDashboardScreen", () => {
     agentsOverride = mockAgents;
     render(<TmuxDashboardScreen />);
 
-    // statusRight pane title and time/date should be rendered
+    // statusRight pane title and last content change time should be rendered
     expect(screen.getAllByText('"Analyze tmux session"').length).toBe(2);
-    expect(screen.getAllByText("22:45 06-Jun-26").length).toBe(2);
+    expect(screen.getAllByText(MOCK_EXPECTED_HHMM).length).toBe(2);
 
     // statusLeft and statusCenter should NOT be rendered (redundant with S:/W:/P:/PID:)
     expect(screen.queryByText("[#S]")).toBeNull();

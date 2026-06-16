@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/WuErPing/solo/protocol"
 )
@@ -861,25 +862,34 @@ func TestDetectAgentActivity(t *testing.T) {
 	}
 
 	s := &Session{
-		paneContentHashes: make(map[string]string),
+		paneContentHashes:     make(map[string]string),
+		paneLastContentChange: make(map[string]int64),
 	}
 
-	t.Run("first scan sets unknown activity", func(t *testing.T) {
+	t.Run("first scan sets unknown activity and records timestamp", func(t *testing.T) {
+		before := time.Now().Unix()
 		agents := []protocol.TmuxAgentInfo{
 			{PaneID: "%0", AgentName: "claude"},
 			{PaneID: "%1", AgentName: "pi"},
 		}
 		s.detectAgentActivity(agents)
+		after := time.Now().Unix()
 		if agents[0].Activity != "" {
 			t.Errorf("agent[0].Activity = %q, want empty (first scan)", agents[0].Activity)
 		}
 		if agents[1].Activity != "" {
 			t.Errorf("agent[1].Activity = %q, want empty (first scan)", agents[1].Activity)
 		}
+		if agents[0].LastContentChange < before || agents[0].LastContentChange > after {
+			t.Errorf("agent[0].LastContentChange = %d, want between %d and %d", agents[0].LastContentChange, before, after)
+		}
+		if agents[1].LastContentChange < before || agents[1].LastContentChange > after {
+			t.Errorf("agent[1].LastContentChange = %d, want between %d and %d", agents[1].LastContentChange, before, after)
+		}
 	})
 
-	t.Run("unchanged content sets idle", func(t *testing.T) {
-		// Same content — should be idle.
+	t.Run("unchanged content sets idle and preserves timestamp", func(t *testing.T) {
+		// Same content — should be idle, timestamp unchanged.
 		agents := []protocol.TmuxAgentInfo{
 			{PaneID: "%0", AgentName: "claude"},
 			{PaneID: "%1", AgentName: "pi"},
@@ -891,15 +901,26 @@ func TestDetectAgentActivity(t *testing.T) {
 		if agents[1].Activity != "idle" {
 			t.Errorf("agent[1].Activity = %q, want idle", agents[1].Activity)
 		}
+		if agents[0].LastContentChange == 0 {
+			t.Error("agent[0].LastContentChange should not be 0")
+		}
 	})
 
-	t.Run("changed content sets busy", func(t *testing.T) {
+	t.Run("changed content sets busy and updates timestamp", func(t *testing.T) {
+		// Record the timestamp before the change.
+		agents := []protocol.TmuxAgentInfo{
+			{PaneID: "%0", AgentName: "claude"},
+			{PaneID: "%1", AgentName: "pi"},
+		}
+		s.detectAgentActivity(agents)
+		prevTS := agents[0].LastContentChange
+
 		// Change one pane's content.
 		mu.Lock()
 		paneContents["%0"] = "line 1\nline 2\nline 3\nnew output"
 		mu.Unlock()
 
-		agents := []protocol.TmuxAgentInfo{
+		agents = []protocol.TmuxAgentInfo{
 			{PaneID: "%0", AgentName: "claude"},
 			{PaneID: "%1", AgentName: "pi"},
 		}
@@ -909,6 +930,9 @@ func TestDetectAgentActivity(t *testing.T) {
 		}
 		if agents[1].Activity != "idle" {
 			t.Errorf("agent[1].Activity = %q, want idle (unchanged)", agents[1].Activity)
+		}
+		if agents[0].LastContentChange < prevTS {
+			t.Errorf("agent[0].LastContentChange = %d, want >= %d (should not decrease on content change)", agents[0].LastContentChange, prevTS)
 		}
 	})
 

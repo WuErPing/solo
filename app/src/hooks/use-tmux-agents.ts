@@ -15,6 +15,7 @@ export interface TmuxAgent {
   title?: string;
   status?: string;
   activity?: string;
+  lastContentChange?: number;
   serverId: string;
   serverLabel: string;
 }
@@ -28,6 +29,7 @@ export interface TmuxPane {
   currentCmd: string;
   workingDir: string;
   title?: string;
+  lastContentChange?: number;
   serverId: string;
   serverLabel: string;
 }
@@ -144,18 +146,20 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
       }
     }
 
-    // Sort by agentName, then by sessionName
+    // Sort by most recent session activity descending, fall back to agentName
     allAgents.sort((left, right) => {
-      const nameCmp = left.agentName.localeCompare(right.agentName);
-      if (nameCmp !== 0) return nameCmp;
-      return left.sessionName.localeCompare(right.sessionName);
+      const leftActivity = left.lastContentChange ?? 0;
+      const rightActivity = right.lastContentChange ?? 0;
+      if (leftActivity !== rightActivity) return rightActivity - leftActivity;
+      return left.agentName.localeCompare(right.agentName);
     });
 
-    // Sort other panes by sessionName, then windowName
+    // Sort other panes by most recent session activity descending, fall back to sessionName
     allOtherPanes.sort((left, right) => {
-      const sessionCmp = left.sessionName.localeCompare(right.sessionName);
-      if (sessionCmp !== 0) return sessionCmp;
-      return left.windowName.localeCompare(right.windowName);
+      const leftActivity = left.lastContentChange ?? 0;
+      const rightActivity = right.lastContentChange ?? 0;
+      if (leftActivity !== rightActivity) return rightActivity - leftActivity;
+      return left.sessionName.localeCompare(right.sessionName);
     });
 
     // Sort command history by lastSeen descending.

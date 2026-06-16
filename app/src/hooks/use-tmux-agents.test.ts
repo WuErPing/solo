@@ -176,4 +176,102 @@ describe("useAggregatedTmuxAgents", () => {
       expect(result.current.isLoading).toBe(false);
     });
   });
+
+  describe("sort by lastContentChange descending", () => {
+    it("sorts agents by lastContentChange descending (newest first)", async () => {
+      mockClient.tmuxListAgents.mockResolvedValue({
+        agents: [
+          { agentName: "alpha", sessionName: "s1", windowName: "w1", paneId: "%0", paneIndex: 0, panePid: 100, currentCmd: "claude", workingDir: "/tmp", lastContentChange: 1000 },
+          { agentName: "beta", sessionName: "s2", windowName: "w1", paneId: "%1", paneIndex: 0, panePid: 200, currentCmd: "claude", workingDir: "/tmp", lastContentChange: 3000 },
+          { agentName: "gamma", sessionName: "s3", windowName: "w1", paneId: "%2", paneIndex: 0, panePid: 300, currentCmd: "claude", workingDir: "/tmp", lastContentChange: 2000 },
+        ],
+        error: null,
+      });
+
+      const { result } = renderAgentsHook();
+
+      await waitFor(() => {
+        expect(result.current.agents).toHaveLength(3);
+      });
+      expect(result.current.agents[0].agentName).toBe("beta");
+      expect(result.current.agents[1].agentName).toBe("gamma");
+      expect(result.current.agents[2].agentName).toBe("alpha");
+    });
+
+    it("falls back to agentName when lastContentChange is equal", async () => {
+      mockClient.tmuxListAgents.mockResolvedValue({
+        agents: [
+          { agentName: "zebra", sessionName: "s1", windowName: "w1", paneId: "%0", paneIndex: 0, panePid: 100, currentCmd: "claude", workingDir: "/tmp", lastContentChange: 5000 },
+          { agentName: "alpha", sessionName: "s2", windowName: "w1", paneId: "%1", paneIndex: 0, panePid: 200, currentCmd: "claude", workingDir: "/tmp", lastContentChange: 5000 },
+        ],
+        error: null,
+      });
+
+      const { result } = renderAgentsHook();
+
+      await waitFor(() => {
+        expect(result.current.agents).toHaveLength(2);
+      });
+      expect(result.current.agents[0].agentName).toBe("alpha");
+      expect(result.current.agents[1].agentName).toBe("zebra");
+    });
+
+    it("treats missing lastContentChange as 0 (sorts last)", async () => {
+      mockClient.tmuxListAgents.mockResolvedValue({
+        agents: [
+          { agentName: "no-activity", sessionName: "s1", windowName: "w1", paneId: "%0", paneIndex: 0, panePid: 100, currentCmd: "claude", workingDir: "/tmp" },
+          { agentName: "has-activity", sessionName: "s2", windowName: "w1", paneId: "%1", paneIndex: 0, panePid: 200, currentCmd: "claude", workingDir: "/tmp", lastContentChange: 9000 },
+        ],
+        error: null,
+      });
+
+      const { result } = renderAgentsHook();
+
+      await waitFor(() => {
+        expect(result.current.agents).toHaveLength(2);
+      });
+      expect(result.current.agents[0].agentName).toBe("has-activity");
+      expect(result.current.agents[1].agentName).toBe("no-activity");
+    });
+
+    it("sorts otherPanes by lastContentChange descending", async () => {
+      mockClient.tmuxListAgents.mockResolvedValue({
+        agents: [],
+        otherPanes: [
+          { sessionName: "old", windowName: "w1", paneId: "%0", paneIndex: 0, panePid: 100, currentCmd: "bash", workingDir: "/tmp", lastContentChange: 100 },
+          { sessionName: "new", windowName: "w1", paneId: "%1", paneIndex: 0, panePid: 200, currentCmd: "bash", workingDir: "/tmp", lastContentChange: 9000 },
+          { sessionName: "mid", windowName: "w1", paneId: "%2", paneIndex: 0, panePid: 300, currentCmd: "bash", workingDir: "/tmp", lastContentChange: 5000 },
+        ],
+        error: null,
+      });
+
+      const { result } = renderAgentsHook();
+
+      await waitFor(() => {
+        expect(result.current.otherPanes).toHaveLength(3);
+      });
+      expect(result.current.otherPanes[0].sessionName).toBe("new");
+      expect(result.current.otherPanes[1].sessionName).toBe("mid");
+      expect(result.current.otherPanes[2].sessionName).toBe("old");
+    });
+
+    it("falls back to sessionName for otherPanes when lastContentChange is equal", async () => {
+      mockClient.tmuxListAgents.mockResolvedValue({
+        agents: [],
+        otherPanes: [
+          { sessionName: "zebra", windowName: "w1", paneId: "%0", paneIndex: 0, panePid: 100, currentCmd: "bash", workingDir: "/tmp", lastContentChange: 5000 },
+          { sessionName: "alpha", windowName: "w1", paneId: "%1", paneIndex: 0, panePid: 200, currentCmd: "bash", workingDir: "/tmp", lastContentChange: 5000 },
+        ],
+        error: null,
+      });
+
+      const { result } = renderAgentsHook();
+
+      await waitFor(() => {
+        expect(result.current.otherPanes).toHaveLength(2);
+      });
+      expect(result.current.otherPanes[0].sessionName).toBe("alpha");
+      expect(result.current.otherPanes[1].sessionName).toBe("zebra");
+    });
+  });
 });

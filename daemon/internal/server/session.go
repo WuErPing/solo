@@ -62,8 +62,9 @@ type Session struct {
 	setupProgress   map[string]*workspace.SetupProgressEvent // key: workspaceID
 	setupProgressMu sync.RWMutex
 
-	paneContentHashes   map[string]string // paneID → content hash for activity detection
-	paneContentHashesMu sync.RWMutex
+	paneContentHashes     map[string]string // paneID → content hash for activity detection
+	paneLastContentChange map[string]int64  // paneID → unix timestamp of last content change
+	paneContentHashesMu   sync.RWMutex
 
 	done             chan struct{}
 	unsub            func() // unsubscribe from agent manager events
@@ -148,35 +149,36 @@ type inboundQueueItem struct {
 // Deprecated: use NewSessionWithConfig
 func NewSession(clientID, clientType string, conn WSConn, cfg *config.Config, logger *slog.Logger, agentMgr *agent.AgentManager, timelineStore *agent.InMemoryTimelineStore, registry *agent.ProviderRegistry, workspaceStore *WorkspaceStore, terminalMgr *terminal.TerminalManager, projectReg *workspace.ProjectRegistry, workspaceReg *workspace.WorkspaceRegistry, gitSvc workspace.WorkspaceGitService, scriptMgr *workspace.ScriptManager, scriptProxy *workspace.ScriptProxy, broadcast func(protocol.WSOutboundMessage), scheduleStore *schedule.Store, loopStore *loop.Store) *Session {
 	sess := &Session{
-		clientID:          clientID,
-		clientType:        clientType,
-		conn:              conn,
-		cfg:               cfg,
-		logger:            logger.With("clientId", clientID),
-		agentMgr:          agentMgr,
-		timelineStore:     timelineStore,
-		registry:          registry,
-		workspaceStore:    workspaceStore,
-		terminalMgr:       terminalMgr,
-		projectReg:        projectReg,
-		workspaceReg:      workspaceReg,
-		gitSvc:            gitSvc,
-		scriptMgr:         scriptMgr,
-		scriptProxy:       scriptProxy,
-		broadcast:         broadcast,
-		workspaces:        make(map[string]*protocol.WorkspaceDescriptor),
-		slotToTerminal:    make(map[byte]*terminal.TerminalProcess),
-		terminalToSlot:    make(map[string]byte),
-		setupProgress:     make(map[string]*workspace.SetupProgressEvent),
-		paneContentHashes: make(map[string]string),
-		scheduleStore:     scheduleStore,
-		loopStore:         loopStore,
-		done:              make(chan struct{}),
-		gracePeriod:       time.Duration(protocol.SessionDisconnectGraceMs) * time.Millisecond,
-		sendQueue:         newSendQueue(),
-		writeDone:         make(chan struct{}),
-		inboundQueue:      make(chan inboundQueueItem, 64),
-		processDone:       make(chan struct{}),
+		clientID:              clientID,
+		clientType:            clientType,
+		conn:                  conn,
+		cfg:                   cfg,
+		logger:                logger.With("clientId", clientID),
+		agentMgr:              agentMgr,
+		timelineStore:         timelineStore,
+		registry:              registry,
+		workspaceStore:        workspaceStore,
+		terminalMgr:           terminalMgr,
+		projectReg:            projectReg,
+		workspaceReg:          workspaceReg,
+		gitSvc:                gitSvc,
+		scriptMgr:             scriptMgr,
+		scriptProxy:           scriptProxy,
+		broadcast:             broadcast,
+		workspaces:            make(map[string]*protocol.WorkspaceDescriptor),
+		slotToTerminal:        make(map[byte]*terminal.TerminalProcess),
+		terminalToSlot:        make(map[string]byte),
+		setupProgress:         make(map[string]*workspace.SetupProgressEvent),
+		paneContentHashes:     make(map[string]string),
+		paneLastContentChange: make(map[string]int64),
+		scheduleStore:         scheduleStore,
+		loopStore:             loopStore,
+		done:                  make(chan struct{}),
+		gracePeriod:           time.Duration(protocol.SessionDisconnectGraceMs) * time.Millisecond,
+		sendQueue:             newSendQueue(),
+		writeDone:             make(chan struct{}),
+		inboundQueue:          make(chan inboundQueueItem, 64),
+		processDone:           make(chan struct{}),
 	}
 
 	// Load persisted workspaces
