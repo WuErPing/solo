@@ -1,3 +1,4 @@
+// Package pidlock ensures only one daemon process runs at a time.
 package pidlock
 
 import (
@@ -28,7 +29,7 @@ func Acquire(soloHome string) (func(), error) {
 				}
 			}
 			// Stale PID file, remove it
-			os.Remove(pidPath)
+			_ = os.Remove(pidPath)
 		}
 	}
 
@@ -39,7 +40,7 @@ func Acquire(soloHome string) (func(), error) {
 	}
 
 	release := func() {
-		os.Remove(pidPath)
+		_ = os.Remove(pidPath)
 	}
 	return release, nil
 }

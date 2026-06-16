@@ -25,14 +25,14 @@ func newFakePiProcessManager(stdout io.ReadCloser, stderr io.ReadCloser, cmd *ex
 	return &fakePiProcessManager{stdout: stdout, stderr: stderr, cmd: cmd}
 }
 
-func (f *fakePiProcessManager) Start(ctx context.Context, args []string, cwd string, env []string) (io.ReadCloser, io.ReadCloser, io.WriteCloser, *exec.Cmd, error) {
+func (f *fakePiProcessManager) Start(_ context.Context, _ []string, _ string, _ []string) (io.ReadCloser, io.ReadCloser, io.WriteCloser, *exec.Cmd, error) {
 	return f.stdout, f.stderr, nil, f.cmd, nil
 }
-func (f *fakePiProcessManager) Stop(cmd *exec.Cmd, timeout time.Duration) error  { return nil }
-func (f *fakePiProcessManager) Interrupt(cmd *exec.Cmd) error                   { return nil }
-func (f *fakePiProcessManager) Kill(cmd *exec.Cmd) error                        { return nil }
-func (f *fakePiProcessManager) DrainStderr(stderr io.ReadCloser)                {}
-func (f *fakePiProcessManager) WaitForExit(cmd *exec.Cmd) (int, error)          { return 0, nil }
+func (f *fakePiProcessManager) Stop(_ *exec.Cmd, _ time.Duration) error { return nil }
+func (f *fakePiProcessManager) Interrupt(_ *exec.Cmd) error             { return nil }
+func (f *fakePiProcessManager) Kill(_ *exec.Cmd) error                  { return nil }
+func (f *fakePiProcessManager) DrainStderr(_ io.ReadCloser)             {}
+func (f *fakePiProcessManager) WaitForExit(_ *exec.Cmd) (int, error)    { return 0, nil }
 
 // newTestPiSession creates a piSession wired to a fake process manager.
 func newTestPiSession(logger *slog.Logger) *piSession {
@@ -318,7 +318,7 @@ func TestPiTerminalDetector_TurnEnd(t *testing.T) {
 	evt := AgentStreamEvent{
 		Event: protocol.TurnCompletedStreamEvent{Provider: "pi"},
 	}
-	result, err, isTerminal := detector.IsTerminal(evt)
+	result, isTerminal, err := detector.IsTerminal(evt)
 	if !isTerminal {
 		t.Fatal("expected turn_completed to be terminal")
 	}

@@ -17,7 +17,7 @@ func newGitSvcWithFake(t *testing.T, handler func(dir string, args []string) (st
 }
 
 func TestResolveRepoRootSuccess(t *testing.T) {
-	svc := newGitSvcWithFake(t, func(dir string, args []string) (string, error) {
+	svc := newGitSvcWithFake(t, func(_ string, args []string) (string, error) {
 		if args[0] == "rev-parse" && contains(args, "--show-toplevel") {
 			return "/home/user/project\n", nil
 		}
@@ -33,7 +33,7 @@ func TestResolveRepoRootSuccess(t *testing.T) {
 }
 
 func TestResolveRepoRootNotGit(t *testing.T) {
-	svc := newGitSvcWithFake(t, func(dir string, args []string) (string, error) {
+	svc := newGitSvcWithFake(t, func(_ string, _ []string) (string, error) {
 		return "", errors.New("not a git repo")
 	})
 	got, err := svc.ResolveRepoRoot("/not/a/repo")
@@ -46,7 +46,7 @@ func TestResolveRepoRootNotGit(t *testing.T) {
 }
 
 func TestGetCurrentBranch(t *testing.T) {
-	svc := newGitSvcWithFake(t, func(dir string, args []string) (string, error) {
+	svc := newGitSvcWithFake(t, func(_ string, args []string) (string, error) {
 		if args[0] == "rev-parse" && contains(args, "--abbrev-ref") {
 			return "feature-xyz\n", nil
 		}
@@ -62,7 +62,7 @@ func TestGetCurrentBranch(t *testing.T) {
 }
 
 func TestGetCurrentBranchError(t *testing.T) {
-	svc := newGitSvcWithFake(t, func(dir string, args []string) (string, error) {
+	svc := newGitSvcWithFake(t, func(_ string, _ []string) (string, error) {
 		return "", errors.New("git error")
 	})
 	_, err := svc.GetCurrentBranch("/repo")
@@ -71,14 +71,14 @@ func TestGetCurrentBranchError(t *testing.T) {
 	}
 }
 
-func TestGetRemoteUrl(t *testing.T) {
-	svc := newGitSvcWithFake(t, func(dir string, args []string) (string, error) {
+func TestGetRemoteURL(t *testing.T) {
+	svc := newGitSvcWithFake(t, func(_ string, args []string) (string, error) {
 		if args[0] == "remote" && contains(args, "get-url") {
 			return "https://github.com/owner/repo.git\n", nil
 		}
 		return "", nil
 	})
-	got, err := svc.GetRemoteUrl("/repo", "origin")
+	got, err := svc.GetRemoteURL("/repo", "origin")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -87,20 +87,20 @@ func TestGetRemoteUrl(t *testing.T) {
 	}
 }
 
-func TestGetRemoteUrlDefaultsToOrigin(t *testing.T) {
+func TestGetRemoteURLDefaultsToOrigin(t *testing.T) {
 	var capturedArgs []string
-	svc := newGitSvcWithFake(t, func(dir string, args []string) (string, error) {
+	svc := newGitSvcWithFake(t, func(_ string, args []string) (string, error) {
 		capturedArgs = args
 		return "https://github.com/o/r.git\n", nil
 	})
-	_, _ = svc.GetRemoteUrl("/repo", "")
+	_, _ = svc.GetRemoteURL("/repo", "")
 	if !contains(capturedArgs, "origin") {
 		t.Errorf("expected origin in args, got %v", capturedArgs)
 	}
 }
 
 func TestIsWorktreeMainRepo(t *testing.T) {
-	svc := newGitSvcWithFake(t, func(dir string, args []string) (string, error) {
+	svc := newGitSvcWithFake(t, func(_ string, args []string) (string, error) {
 		if args[0] == "rev-parse" && contains(args, "--git-dir") {
 			return ".git\n", nil
 		}
@@ -116,7 +116,7 @@ func TestIsWorktreeMainRepo(t *testing.T) {
 }
 
 func TestIsWorktreeLinkedWorktree(t *testing.T) {
-	svc := newGitSvcWithFake(t, func(dir string, args []string) (string, error) {
+	svc := newGitSvcWithFake(t, func(_ string, args []string) (string, error) {
 		if args[0] == "rev-parse" && contains(args, "--git-dir") {
 			return ".git/worktrees/my-branch\n", nil
 		}
@@ -132,7 +132,7 @@ func TestIsWorktreeLinkedWorktree(t *testing.T) {
 }
 
 func TestIsDirtyClean(t *testing.T) {
-	svc := newGitSvcWithFake(t, func(dir string, args []string) (string, error) {
+	svc := newGitSvcWithFake(t, func(_ string, args []string) (string, error) {
 		if args[0] == "status" {
 			return "", nil // empty output = clean
 		}
@@ -148,7 +148,7 @@ func TestIsDirtyClean(t *testing.T) {
 }
 
 func TestIsDirtyDirty(t *testing.T) {
-	svc := newGitSvcWithFake(t, func(dir string, args []string) (string, error) {
+	svc := newGitSvcWithFake(t, func(_ string, args []string) (string, error) {
 		if args[0] == "status" {
 			return " M README.md\n", nil
 		}
@@ -164,7 +164,7 @@ func TestIsDirtyDirty(t *testing.T) {
 }
 
 func TestGetMetadataGitRepo(t *testing.T) {
-	svc := newGitSvcWithFake(t, func(dir string, args []string) (string, error) {
+	svc := newGitSvcWithFake(t, func(_ string, args []string) (string, error) {
 		switch args[0] {
 		case "rev-parse":
 			if contains(args, "--show-toplevel") {
@@ -199,7 +199,7 @@ func TestGetMetadataGitRepo(t *testing.T) {
 }
 
 func TestGetMetadataNonGitDir(t *testing.T) {
-	svc := newGitSvcWithFake(t, func(dir string, args []string) (string, error) {
+	svc := newGitSvcWithFake(t, func(_ string, _ []string) (string, error) {
 		return "", errors.New("not a git repo")
 	})
 	meta, err := svc.GetMetadata("/some/dir")
@@ -213,7 +213,7 @@ func TestGetMetadataNonGitDir(t *testing.T) {
 
 func TestGetMetadataCacheHit(t *testing.T) {
 	callCount := 0
-	svc := newGitSvcWithFake(t, func(dir string, args []string) (string, error) {
+	svc := newGitSvcWithFake(t, func(_ string, args []string) (string, error) {
 		callCount++
 		switch args[0] {
 		case "rev-parse":
@@ -245,7 +245,7 @@ func TestGetMetadataCacheHit(t *testing.T) {
 }
 
 func TestGetMetadataCachedReturnsNilBeforePopulated(t *testing.T) {
-	svc := newGitSvcWithFake(t, func(dir string, args []string) (string, error) {
+	svc := newGitSvcWithFake(t, func(_ string, _ []string) (string, error) {
 		// slow git — return empty to avoid blocking
 		return "", errors.New("noop")
 	})
@@ -256,7 +256,7 @@ func TestGetMetadataCachedReturnsNilBeforePopulated(t *testing.T) {
 }
 
 func TestIsDirtyCachedReturnsNilBeforePopulated(t *testing.T) {
-	svc := newGitSvcWithFake(t, func(dir string, args []string) (string, error) {
+	svc := newGitSvcWithFake(t, func(_ string, _ []string) (string, error) {
 		return "", errors.New("noop")
 	})
 	got := svc.IsDirtyCached("/brand-new-dir")
@@ -266,7 +266,7 @@ func TestIsDirtyCachedReturnsNilBeforePopulated(t *testing.T) {
 }
 
 func TestIsDirtyCachedReturnsValueAfterGetMetadata(t *testing.T) {
-	svc := newGitSvcWithFake(t, func(dir string, args []string) (string, error) {
+	svc := newGitSvcWithFake(t, func(_ string, args []string) (string, error) {
 		switch args[0] {
 		case "rev-parse":
 			if contains(args, "--show-toplevel") {
@@ -296,7 +296,7 @@ func TestIsDirtyCachedReturnsValueAfterGetMetadata(t *testing.T) {
 }
 
 func TestBackgroundRefreshStartStop(t *testing.T) {
-	svc := newGitSvcWithFake(t, func(dir string, args []string) (string, error) {
+	svc := newGitSvcWithFake(t, func(_ string, _ []string) (string, error) {
 		return "", errors.New("noop")
 	})
 	ctx := context.Background()

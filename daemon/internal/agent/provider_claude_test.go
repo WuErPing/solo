@@ -25,15 +25,15 @@ func newFakeProcessManager(stdout io.ReadCloser, stderr io.ReadCloser, cmd *exec
 	return &fakeProcessManager{stdout: stdout, stderr: stderr, cmd: cmd}
 }
 
-func (f *fakeProcessManager) Start(ctx context.Context, args []string, cwd string, env []string) (io.ReadCloser, io.ReadCloser, io.WriteCloser, *exec.Cmd, error) {
+func (f *fakeProcessManager) Start(_ context.Context, _ []string, _ string, _ []string) (io.ReadCloser, io.ReadCloser, io.WriteCloser, *exec.Cmd, error) {
 	return f.stdout, f.stderr, nil, f.cmd, nil
 }
 
-func (f *fakeProcessManager) Stop(cmd *exec.Cmd, timeout time.Duration) error { return nil }
-func (f *fakeProcessManager) Interrupt(cmd *exec.Cmd) error                   { return nil }
-func (f *fakeProcessManager) Kill(cmd *exec.Cmd) error                        { return nil }
-func (f *fakeProcessManager) DrainStderr(stderr io.ReadCloser)                {}
-func (f *fakeProcessManager) WaitForExit(cmd *exec.Cmd) (int, error)          { return 0, nil }
+func (f *fakeProcessManager) Stop(_ *exec.Cmd, _ time.Duration) error { return nil }
+func (f *fakeProcessManager) Interrupt(_ *exec.Cmd) error             { return nil }
+func (f *fakeProcessManager) Kill(_ *exec.Cmd) error                  { return nil }
+func (f *fakeProcessManager) DrainStderr(_ io.ReadCloser)             {}
+func (f *fakeProcessManager) WaitForExit(_ *exec.Cmd) (int, error)    { return 0, nil }
 
 // newTestClaudeSession creates a claudeSession wired to a fake process manager
 // so tests can observe concurrency behaviour without launching real binaries.
@@ -262,7 +262,7 @@ func TestClaudeSession_Interrupt_ClearsActiveTurnID(t *testing.T) {
 
 // TestClaudeSession_ConcurrentRunAndInterrupt_NoRace runs Run and Interrupt
 // concurrently to ensure the mutex prevents data races.
-func TestClaudeSession_ConcurrentRunAndInterrupt_NoRace(t *testing.T) {
+func TestClaudeSession_ConcurrentRunAndInterrupt_NoRace(_ *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	for i := 0; i < 100; i++ {

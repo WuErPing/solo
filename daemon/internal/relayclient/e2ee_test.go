@@ -90,7 +90,7 @@ func TestPerformE2EEHandshake(t *testing.T) {
 		t.Fatalf("generate client keypair: %v", err)
 	}
 
-	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 	serverDone := make(chan struct{})
 	var e2eeConn *E2EEConn
 
@@ -163,7 +163,7 @@ func TestPerformE2EEHandshake_InvalidHelloType(t *testing.T) {
 	_, daemonPriv, _ := generateBoxKeyPair()
 	daemonPrivB64 := base64.StdEncoding.EncodeToString(daemonPriv[:])
 
-	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, _ := upgrader.Upgrade(w, r, nil)
 		defer conn.Close()
@@ -188,7 +188,7 @@ func TestPerformE2EEHandshake_InvalidHelloType(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 }
 
-func TestE2EEConn_Interface(t *testing.T) {
+func TestE2EEConn_Interface(_ *testing.T) {
 	// Ensure E2EEConn implements the interfaces
 	var _ interface {
 		ReadMessage() (int, []byte, error)
@@ -205,6 +205,6 @@ func generateBoxKeyPair() (pub, priv *[32]byte, err error) {
 	return box.GenerateKey(rand.Reader)
 }
 
-func testLogger(t *testing.T) *slog.Logger {
+func testLogger(_ *testing.T) *slog.Logger {
 	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 }

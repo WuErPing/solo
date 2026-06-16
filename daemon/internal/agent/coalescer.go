@@ -84,11 +84,11 @@ type FlushPayload struct {
 // StreamCoalescer batches rapid assistant_message, reasoning, and tool_call
 // timeline events within a time window, then emits merged items.
 type StreamCoalescer struct {
-	mu       sync.Mutex
-	buffers  map[string]*coalescerBuffer
-	windowMs time.Duration
-	onFlush  func(FlushPayload)
-	clock    Clock
+	mu      sync.Mutex
+	buffers map[string]*coalescerBuffer
+	window  time.Duration
+	onFlush func(FlushPayload)
+	clock   Clock
 }
 
 // NewStreamCoalescer creates a new coalescer with the given window and callback.
@@ -105,16 +105,16 @@ func newStreamCoalescerWithClock(windowMs int, onFlush func(FlushPayload), clk C
 		clk = defaultClock
 	}
 	return &StreamCoalescer{
-		buffers:  make(map[string]*coalescerBuffer),
-		windowMs: time.Duration(windowMs) * time.Millisecond,
-		onFlush:  onFlush,
-		clock:    clk,
+		buffers: make(map[string]*coalescerBuffer),
+		window:  time.Duration(windowMs) * time.Millisecond,
+		onFlush: onFlush,
+		clock:   clk,
 	}
 }
 
 // Handle processes a stream event. Returns true if the event was absorbed
 // (coalesced), false if it should be dispatched immediately.
-func (c *StreamCoalescer) Handle(agentID string, eventType string, item TimelineItem, provider string, turnID string) bool {
+func (c *StreamCoalescer) Handle(agentID string, _ string, item TimelineItem, provider string, turnID string) bool {
 	if !CoalescableTimelineTypes[item.Type] {
 		return false
 	}
@@ -178,7 +178,7 @@ func (c *StreamCoalescer) Handle(agentID string, eventType string, item Timeline
 	// Reasoning events use an extended window (2s) to keep thinking blocks
 	// intact across natural pauses; other types use the base window.
 	if buf.timer == nil {
-		window := c.windowMs
+		window := c.window
 		if item.Type == "reasoning" {
 			window = time.Duration(ReasoningCoalesceWindowMs) * time.Millisecond
 		}

@@ -59,7 +59,7 @@ func (m *mockTransport) OnMessage(h func([]byte)) {
 	m.mu.Unlock()
 }
 
-func (m *mockTransport) OnClose(h func()) {}
+func (m *mockTransport) OnClose(_ func()) {}
 
 func newTransportPair() (*mockTransport, *mockTransport) {
 	a := newMockTransport()
@@ -439,7 +439,7 @@ type noopTransport struct {
 	count int
 }
 
-func (n *noopTransport) Send(msg []byte) error {
+func (n *noopTransport) Send(_ []byte) error {
 	n.mu.Lock()
 	n.count++
 	n.mu.Unlock()
@@ -466,7 +466,7 @@ type failSendTransport struct {
 	failError error
 }
 
-func (f *failSendTransport) Send(msg []byte) error {
+func (f *failSendTransport) Send(_ []byte) error {
 	f.mu.Lock()
 	f.count++
 	n := f.count

@@ -1,16 +1,17 @@
 package agent
 
 import (
-	"github.com/WuErPing/solo/protocol"
 	"testing"
 	"time"
+
+	"github.com/WuErPing/solo/protocol"
 
 	"github.com/WuErPing/solo/daemon/internal/agent/base"
 )
 
 func TestAgentStreamEventValueImplementsCriticalEventInterface(t *testing.T) {
 	evt := AgentStreamEvent{
-		Event: protocol.TurnCompletedStreamEvent{},
+		Event:     protocol.TurnCompletedStreamEvent{},
 		Timestamp: time.Now(),
 	}
 

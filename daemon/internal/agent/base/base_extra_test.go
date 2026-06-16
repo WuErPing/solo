@@ -1,3 +1,4 @@
+// Package base contains shared primitives used by agent providers (dispatchers, process management, event pumping).
 package base
 
 import (
@@ -40,7 +41,7 @@ func TestCallbackDispatcher_UnsubscribeStopsDelivery(t *testing.T) {
 	d := NewCallbackDispatcher(slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	count := 0
-	unsub := d.Subscribe(func(evt interface{}) { count++ })
+	unsub := d.Subscribe(func(_ interface{}) { count++ })
 
 	d.Emit("a")
 	unsub()
@@ -55,7 +56,7 @@ func TestCallbackDispatcher_CloseDropsEvents(t *testing.T) {
 	d := NewCallbackDispatcher(slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	count := 0
-	d.Subscribe(func(evt interface{}) { count++ })
+	d.Subscribe(func(_ interface{}) { count++ })
 
 	d.Close()
 	d.Emit("after-close")
@@ -65,7 +66,7 @@ func TestCallbackDispatcher_CloseDropsEvents(t *testing.T) {
 	}
 }
 
-func TestCallbackDispatcher_CloseIdempotent(t *testing.T) {
+func TestCallbackDispatcher_CloseIdempotent(_ *testing.T) {
 	d := NewCallbackDispatcher(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	d.Close()
 	d.Close() // must not panic
@@ -77,7 +78,7 @@ func TestCallbackDispatcher_MultipleSubscribers(t *testing.T) {
 	var counts [3]int
 	for i := range counts {
 		i := i
-		d.Subscribe(func(evt interface{}) { counts[i]++ })
+		d.Subscribe(func(_ interface{}) { counts[i]++ })
 	}
 
 	d.Emit("x")
@@ -277,15 +278,15 @@ func (s *stubTranslator) Translate(raw []byte, _ time.Time) ([]interface{}, bool
 // terminalDetector marks "terminal" events as terminal.
 type terminalDetector struct{}
 
-func (terminalDetector) IsTerminal(evt interface{}) (*AgentRunResult, error, bool) {
+func (terminalDetector) IsTerminal(evt interface{}) (*AgentRunResult, bool, error) {
 	m, ok := evt.(map[string]interface{})
 	if !ok {
-		return nil, nil, false
+		return nil, false, nil
 	}
 	if m["type"] == "terminal" {
-		return &AgentRunResult{FinalText: "done"}, nil, true
+		return &AgentRunResult{FinalText: "done"}, true, nil
 	}
-	return nil, nil, false
+	return nil, false, nil
 }
 
 func TestEventPump_SetProvider(t *testing.T) {
@@ -429,8 +430,10 @@ func TestBaseSession_GetCurrentModePtr(t *testing.T) {
 func TestBaseSession_LockUnlock(t *testing.T) {
 	s := newBaseSessionForExtra(t)
 	s.Lock()
+	s.currentMode = "fast"
 	s.Unlock()
 	s.RLock()
+	_ = s.currentMode
 	s.RUnlock()
 	// reaching here without deadlock is the test
 }

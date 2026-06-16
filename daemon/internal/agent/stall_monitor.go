@@ -259,12 +259,12 @@ func normalizeText(s string) string {
 
 func mostFrequent(items []string) int {
 	counts := make(map[string]int, len(items))
-	max := 0
+	maxCount := 0
 	for _, it := range items {
 		counts[it]++
-		if counts[it] > max {
-			max = counts[it]
+		if counts[it] > maxCount {
+			maxCount = counts[it]
 		}
 	}
-	return max
+	return maxCount
 }

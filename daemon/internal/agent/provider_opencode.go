@@ -83,7 +83,7 @@ func (c *OpenCodeAgentClient) EnsureRunning(ctx context.Context) (string, error)
 	return c.serverManager.EnsureRunning(ctx)
 }
 
-func (c *OpenCodeAgentClient) IsAvailable(ctx context.Context) error {
+func (c *OpenCodeAgentClient) IsAvailable(_ context.Context) error {
 	if c.binaryPath == "" {
 		return fmt.Errorf("opencode binary not found")
 	}

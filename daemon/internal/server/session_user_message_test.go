@@ -34,8 +34,8 @@ func TestSession_UserMessageTimelineEventIsStoredAndSent(t *testing.T) {
 
 	// Simulate a user_message timeline event arriving from the agent provider
 	sess.handleStreamEvent(agent.AgentStreamEvent{
-		AgentID: "agent-1",
-		Event: protocol.TimelineStreamEvent{Provider: "claude", Item: protocol.TimelineItem{Type: "user_message", Text: "hello from user"}},
+		AgentID:   "agent-1",
+		Event:     protocol.TimelineStreamEvent{Provider: "claude", Item: protocol.TimelineItem{Type: "user_message", Text: "hello from user"}},
 		Timestamp: time.Now(),
 	})
 

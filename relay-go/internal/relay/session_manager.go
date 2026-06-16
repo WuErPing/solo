@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/WuErPing/solo/relay/internal/metrics"
+	relaymetrics "github.com/WuErPing/solo/relay/internal/metrics"
 )
 
 type SessionStore struct {
@@ -35,7 +35,7 @@ func (s *SessionStore) GetOrCreate(serverID string) *Session {
 	if !ok {
 		sess = NewSession(serverID, s.maxBuffer)
 		s.sessions[serverID] = sess
-		metrics.Sessions.Inc()
+		relaymetrics.Sessions.Inc()
 		s.logger.Info("session created", "event", "session_created", "serverId", serverID)
 	}
 	return sess
@@ -60,7 +60,7 @@ func (s *SessionStore) CleanupIfEmpty(serverID string) {
 
 	if empty {
 		delete(s.sessions, serverID)
-		metrics.Sessions.Dec()
+		relaymetrics.Sessions.Dec()
 		s.logger.Info("session cleaned up", "event", "session_cleaned_up", "serverId", serverID)
 	}
 }

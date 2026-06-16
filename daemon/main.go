@@ -1,3 +1,4 @@
+// Command solo is the local daemon backend for the Solo application.
 package main
 
 import (

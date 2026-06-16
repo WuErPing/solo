@@ -241,7 +241,7 @@ func TestChannelDispatcher_SubscribeUnsubscribe(t *testing.T) {
 }
 
 // TestChannelDispatcher_Close_StopsEmit verifies that Emit is a no-op after Close.
-func TestChannelDispatcher_Close_StopsEmit(t *testing.T) {
+func TestChannelDispatcher_Close_StopsEmit(_ *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	d := NewChannelDispatcher(logger)
 

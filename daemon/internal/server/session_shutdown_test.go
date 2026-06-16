@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -36,7 +37,7 @@ func (m *mockConn) ReadMessage() (messageType int, p []byte, err error) {
 	return websocket.TextMessage, nil, err
 }
 
-func (m *mockConn) WriteMessage(messageType int, data []byte) error {
+func (m *mockConn) WriteMessage(_ int, data []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.messages = append(m.messages, data)
@@ -50,13 +51,13 @@ func (m *mockConn) Close() error {
 	return nil
 }
 
-func (m *mockConn) WriteControl(messageType int, data []byte, deadline time.Time) error {
+func (m *mockConn) WriteControl(_ int, _ []byte, _ time.Time) error {
 	return nil
 }
 
-func (m *mockConn) SetPongHandler(h func(appData string) error) {}
+func (m *mockConn) SetPongHandler(_ func(appData string) error) {}
 
-func (m *mockConn) SetReadDeadline(t time.Time) error { return nil }
+func (m *mockConn) SetReadDeadline(_ time.Time) error { return nil }
 
 func (m *mockConn) injectReadError(err error) {
 	m.readOnce.Do(func() {
@@ -94,7 +95,7 @@ func TestSessionShutdownDoesNotPanicWithPendingCoalescer(t *testing.T) {
 	registry := agent.NewProviderRegistry()
 	registry.Register(agent.NewMockAgentClient())
 	agentMgr := agent.NewAgentManager(agentStorage, registry, logger)
-	agentMgr.Initialize(nil)
+	agentMgr.Initialize(context.TODO())
 	timelineStore := agent.NewInMemoryTimelineStore()
 	workspaceStore := NewWorkspaceStore(cfg.SoloHome, logger)
 	terminalMgr := terminal.NewTerminalManager(logger)
@@ -120,7 +121,7 @@ func TestSessionShutdownDoesNotPanicWithPendingCoalescer(t *testing.T) {
 			GitSvc:         gitSvc,
 			ScriptMgr:      scriptMgr,
 			ScriptProxy:    scriptProxy,
-			Broadcast:      func(msg protocol.WSOutboundMessage) {},
+			Broadcast:      func(_ protocol.WSOutboundMessage) {},
 		},
 	)
 

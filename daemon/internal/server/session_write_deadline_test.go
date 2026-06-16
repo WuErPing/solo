@@ -33,7 +33,7 @@ func (c *blockingWriteConn) ReadMessage() (int, []byte, error) {
 	return websocket.TextMessage, nil, err
 }
 
-func (c *blockingWriteConn) WriteMessage(messageType int, data []byte) error {
+func (c *blockingWriteConn) WriteMessage(_ int, _ []byte) error {
 	c.writeOnce.Do(func() { close(c.writeStarted) })
 	<-c.closed
 	return errors.New("connection closed while write was blocked")
@@ -44,13 +44,13 @@ func (c *blockingWriteConn) Close() error {
 	return nil
 }
 
-func (c *blockingWriteConn) WriteControl(messageType int, data []byte, deadline time.Time) error {
+func (c *blockingWriteConn) WriteControl(_ int, _ []byte, _ time.Time) error {
 	return nil
 }
 
-func (c *blockingWriteConn) SetPongHandler(h func(appData string) error) {}
+func (c *blockingWriteConn) SetPongHandler(_ func(appData string) error) {}
 
-func (c *blockingWriteConn) SetReadDeadline(t time.Time) error { return nil }
+func (c *blockingWriteConn) SetReadDeadline(_ time.Time) error { return nil }
 
 func (c *blockingWriteConn) injectReadError(err error) {
 	c.readOnce.Do(func() { c.readErr <- err })

@@ -29,7 +29,7 @@ func runAgentAttach(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer closeDaemonClient(c)
 
 	agentID := args[0]
 
@@ -62,7 +62,7 @@ func runAgentAttach(cmd *cobra.Command, args []string) error {
 			var streamMsg struct {
 				Payload protocol.AgentStreamPayload `json:"payload"`
 			}
-			json.Unmarshal(payload, &streamMsg)
+			_ = json.Unmarshal(payload, &streamMsg)
 			stream := streamMsg.Payload
 			if stream.AgentID != resolvedID {
 				continue
@@ -104,7 +104,9 @@ func printExistingTimeline(ctx context.Context, c *client.DaemonClient, agentID 
 			} `json:"entries"`
 		} `json:"payload"`
 	}
-	json.Unmarshal(payload, &timeline)
+	if err := json.Unmarshal(payload, &timeline); err != nil {
+		return fmt.Errorf("parse timeline: %w", err)
+	}
 
 	for _, entry := range timeline.Payload.Entries {
 		if err := printTimelineItem(entry.Item.Type, entry.Item.Text, entry.Item.Name); err != nil {
@@ -131,7 +133,7 @@ func fetchAndResolveAgentID(ctx context.Context, c *client.DaemonClient, idOrPre
 				Error *string                        `json:"error,omitempty"`
 			} `json:"payload"`
 		}
-		json.Unmarshal(payload, &fetchResp)
+		_ = json.Unmarshal(payload, &fetchResp)
 		if fetchResp.Payload.Agent != nil {
 			return fetchResp.Payload.Agent.ID, nil
 		}
@@ -158,7 +160,7 @@ func fetchAndResolveAgentID(ctx context.Context, c *client.DaemonClient, idOrPre
 			} `json:"entries"`
 		} `json:"payload"`
 	}
-	json.Unmarshal(payload, &fetchResp)
+	_ = json.Unmarshal(payload, &fetchResp)
 
 	var agents []agentEntry
 	for _, e := range fetchResp.Payload.Entries {

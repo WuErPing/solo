@@ -95,7 +95,7 @@ func (d *ChannelDispatcher) Unsubscribe(ch <-chan interface{}) {
 // safeSendCh sends evt to ch with a timeout, recovering from sends to closed channels.
 // Returns true if the event was sent, false if it timed out or the channel was closed.
 func safeSendCh(ch chan interface{}, evt interface{}, timeout time.Duration) bool {
-	defer func() { recover() }() // handle send on closed channel
+	defer func() { _ = recover() }() // handle send on closed channel
 	select {
 	case ch <- evt:
 		return true
@@ -107,7 +107,7 @@ func safeSendCh(ch chan interface{}, evt interface{}, timeout time.Duration) boo
 // safeTrySendCh attempts a non-blocking send, recovering from sends to closed channels.
 // Returns true if the event was sent, false if the channel was full or closed.
 func safeTrySendCh(ch chan interface{}, evt interface{}) bool {
-	defer func() { recover() }() // handle send on closed channel
+	defer func() { _ = recover() }() // handle send on closed channel
 	select {
 	case ch <- evt:
 		return true

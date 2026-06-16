@@ -193,7 +193,7 @@ func (s *Session) AttachSocket(conn WSConn) {
 
 // readLoopFor is the per-socket read loop. Returns when the socket errors or closes.
 func (s *Session) readLoopFor(entry socketEntry) {
-	defer entry.conn.Close()
+	defer func() { _ = entry.conn.Close() }()
 
 	for {
 		msgType, data, err := entry.conn.ReadMessage()
@@ -231,7 +231,7 @@ func (s *Session) writePumpFor(entry socketEntry) {
 		}
 		if err := writeMessageWithDeadline(entry.conn, item.msgType, item.data); err != nil {
 			s.logger.Warn("socket write error, closing", "socketId", entry.id, "error", err)
-			go entry.conn.Close()
+			go func() { _ = entry.conn.Close() }()
 			entry.sendQueue.Drain()
 			return
 		}
@@ -249,7 +249,7 @@ func (s *Session) pingLoopFor(pc PingableConn, entry socketEntry) {
 			deadline := time.Now().Add(time.Duration(pingInterval.Load()))
 			if err := pc.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
 				s.logger.Warn("socket ping failed", "socketId", entry.id, "error", err)
-				go entry.conn.Close()
+				go func() { _ = entry.conn.Close() }()
 				return
 			}
 		case <-entry.writeDone:
@@ -268,11 +268,11 @@ func (s *Session) setupPingPongFor(entry socketEntry) {
 	}
 	timeout := s.effectivePingTimeout()
 	// On each pong, extend deadline to allow the next full ping-pong cycle.
-	pc.SetPongHandler(func(appData string) error {
+	pc.SetPongHandler(func(_ string) error {
 		return pc.SetReadDeadline(time.Now().Add(time.Duration(pingInterval.Load()) + timeout))
 	})
 	// Initial deadline covers the first full ping-pong cycle.
-	pc.SetReadDeadline(time.Now().Add(time.Duration(pingInterval.Load()) + timeout))
+	_ = pc.SetReadDeadline(time.Now().Add(time.Duration(pingInterval.Load()) + timeout))
 }
 
 // broadcastToSockets enqueues item to every currently attached socket.
@@ -311,7 +311,7 @@ func (s *Session) pushActiveAgentsTo(entry socketEntry) {
 // Safe to call from a goroutine: uses recover to handle the case where the socket
 // disconnects (and entry.sendQueue is closed) while ListModels is still running.
 func (s *Session) sendProviderSnapshotTo(entry socketEntry) {
-	defer func() { recover() }() //nolint:errcheck // intentional: guard against send-on-closed-channel
+	defer func() { _ = recover() }() // intentional: guard against send-on-closed-channel
 	entries := s.registry.ToProviderSnapshotEntries()
 	msg := protocol.NewSessionMessage(&protocol.ProvidersSnapshotUpdate{
 		Type: "providers_snapshot_update",

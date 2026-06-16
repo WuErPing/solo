@@ -32,7 +32,7 @@ func init() {
 	daemonCmd.AddCommand(daemonRestartCmd)
 }
 
-func runDaemonRestart(cmd *cobra.Command, args []string) error {
+func runDaemonRestart(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 
 	// Try graceful restart via WebSocket
@@ -43,7 +43,7 @@ func runDaemonRestart(cmd *cobra.Command, args []string) error {
 			Message: "Cannot connect to daemon",
 		}
 	}
-	defer c.Close()
+	defer closeDaemonClient(c)
 
 	reason := "cli restart"
 	req := &protocol.RestartServerRequest{
@@ -61,6 +61,6 @@ func runDaemonRestart(cmd *cobra.Command, args []string) error {
 		return output.Render(cmdStdout, output.SingleResult(map[string]string{"status": "restarting"}, nil), opts)
 	}
 
-	fmt.Fprintln(cmdStdout, "Daemon restarting...")
+	_, _ = fmt.Fprintln(cmdStdout, "Daemon restarting...")
 	return nil
 }

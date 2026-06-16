@@ -44,7 +44,7 @@ func NewPiAgentClient(binaryPath string, logger *slog.Logger) *PiAgentClient {
 
 func (c *PiAgentClient) Provider() string { return piProviderName }
 
-func (c *PiAgentClient) IsAvailable(ctx context.Context) error {
+func (c *PiAgentClient) IsAvailable(_ context.Context) error {
 	if c.binaryPath == "" {
 		return fmt.Errorf("pi binary not found")
 	}
@@ -85,15 +85,15 @@ func (c *PiAgentClient) ResumeSession(ctx context.Context, handle *protocol.Agen
 	return sess, nil
 }
 
-func (c *PiAgentClient) ListModels(ctx context.Context, cwd string) ([]protocol.AgentModelDefinition, error) {
+func (c *PiAgentClient) ListModels(_ context.Context, _ string) ([]protocol.AgentModelDefinition, error) {
 	return piModels(), nil
 }
 
-func (c *PiAgentClient) ListModes(ctx context.Context, cwd string) ([]protocol.AgentMode, error) {
+func (c *PiAgentClient) ListModes(_ context.Context, _ string) ([]protocol.AgentMode, error) {
 	return piModes(), nil
 }
 
-func (c *PiAgentClient) ListClientCommands(ctx context.Context, cwd string) ([]protocol.AgentSlashCommand, error) {
+func (c *PiAgentClient) ListClientCommands(_ context.Context, _ string) ([]protocol.AgentSlashCommand, error) {
 	return nil, nil
 }
 
@@ -152,7 +152,7 @@ func newPiSession(binaryPath string, config *protocol.AgentSessionConfig, logger
 	}
 }
 
-func (s *piSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
+func (s *piSession) Run(ctx context.Context, text string, _ []protocol.ImageAttachment, _ []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 
 	if _, err := s.turnGuard.Acquire(); err != nil {
@@ -201,7 +201,7 @@ func (s *piSession) Run(ctx context.Context, text string, images []protocol.Imag
 	}, nil
 }
 
-func (s *piSession) StartTurn(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) (<-chan AgentStreamEvent, error) {
+func (s *piSession) StartTurn(ctx context.Context, text string, _ []protocol.ImageAttachment, _ []protocol.AgentAttachment) (<-chan AgentStreamEvent, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 
 	if _, err := s.turnGuard.Acquire(); err != nil {
@@ -274,7 +274,7 @@ func (s *piSession) startProcessLocked(ctx context.Context, prompt string) error
 	// Close stdin immediately — pi -p mode does not read from stdin,
 	// and keeping it open causes the process to hang indefinitely.
 	if stdin != nil {
-		stdin.Close()
+		_ = stdin.Close()
 	}
 
 	go s.process.DrainStderr(stderr)
@@ -355,10 +355,12 @@ func (s *piSession) buildEnv() []string {
 
 // --- Session Interface Methods ---
 
-func (s *piSession) Interrupt(ctx context.Context) error {
+func (s *piSession) Interrupt(_ context.Context) error {
 	s.mu.Lock()
 	s.base.Cancel()
-	s.process.Interrupt(s.cmd)
+	if err := s.process.Interrupt(s.cmd); err != nil {
+		s.base.Logger().Warn("failed to interrupt pi process", "error", err)
+	}
 	s.mu.Unlock()
 	s.turnGuard.Release()
 
@@ -379,7 +381,7 @@ func (s *piSession) Close() error {
 
 	s.turnGuard.Release()
 
-	s.base.Close()
+	closeErr := s.base.Close()
 
 	s.mu.Lock()
 	cmd := s.cmd
@@ -390,23 +392,23 @@ func (s *piSession) Close() error {
 		_, _ = s.process.WaitForExit(cmd)
 	}
 	s.dispatcher.Close()
-	return nil
+	return closeErr
 }
 
-func (s *piSession) RespondPermission(requestID string, response protocol.AgentPermissionResponse) error {
+func (s *piSession) RespondPermission(_ string, _ protocol.AgentPermissionResponse) error {
 	// Pi does not support interactive permission requests via the JSON stream.
 	return nil
 }
 
-func (s *piSession) GetRuntimeInfo(ctx context.Context) (*protocol.AgentRuntimeInfo, error) {
+func (s *piSession) GetRuntimeInfo(_ context.Context) (*protocol.AgentRuntimeInfo, error) {
 	return s.base.GetRuntimeInfo(), nil
 }
 
-func (s *piSession) GetAvailableModes(ctx context.Context) ([]protocol.AgentMode, error) {
+func (s *piSession) GetAvailableModes(_ context.Context) ([]protocol.AgentMode, error) {
 	return piModes(), nil
 }
 
-func (s *piSession) GetCurrentMode(ctx context.Context) (*string, error) {
+func (s *piSession) GetCurrentMode(_ context.Context) (*string, error) {
 	return s.base.GetCurrentModePtr(), nil
 }
 
@@ -430,11 +432,11 @@ func (s *piSession) GetPendingPermissions() []interface{} {
 	return nil
 }
 
-func (s *piSession) ListCommands(ctx context.Context) ([]protocol.AgentSlashCommand, error) {
+func (s *piSession) ListCommands(_ context.Context) ([]protocol.AgentSlashCommand, error) {
 	return nil, nil
 }
 
-func (s *piSession) StreamHistory(ctx context.Context) ([]AgentStreamEvent, error) {
+func (s *piSession) StreamHistory(_ context.Context) ([]AgentStreamEvent, error) {
 	return nil, nil
 }
 
@@ -636,10 +638,8 @@ func (t *piTranslator) translateAssistantMessageEvent(evt *piAssistantMessageEve
 	case "toolcall_delta":
 		// Pi toolcall_delta carries incremental arguments in 'delta'.
 		// We accumulate them on the session so toolcall_end has the full args.
-		if evt.Delta != "" {
-			// For now, we don't emit intermediate tool_call events.
-			// The frontend will see running → completed when toolcall_end arrives.
-		}
+		// For now, we don't emit intermediate tool_call events.
+		// The frontend will see running → completed when toolcall_end arrives.
 
 	case "toolcall_end":
 		// Pi uses 'toolcall_end' (no underscore) with 'toolCall' field.
@@ -701,16 +701,16 @@ type piTerminalDetector struct {
 	session *piSession
 }
 
-func (d *piTerminalDetector) IsTerminal(evt interface{}) (*base.AgentRunResult, error, bool) {
+func (d *piTerminalDetector) IsTerminal(evt interface{}) (*base.AgentRunResult, bool, error) {
 	streamEvt, ok := evt.(AgentStreamEvent)
 	if !ok {
-		return nil, nil, false
+		return nil, false, nil
 	}
 	switch e := streamEvt.Event.(type) {
 	case protocol.TurnCompletedStreamEvent:
-		return &base.AgentRunResult{Usage: e.Usage}, nil, true
+		return &base.AgentRunResult{Usage: e.Usage}, true, nil
 	}
-	return nil, nil, false
+	return nil, false, nil
 }
 
 // --- Pi JSON Event Types ---

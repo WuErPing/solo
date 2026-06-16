@@ -43,7 +43,9 @@ func NewStore(opts ...StoreOption) *Store {
 		opt(s)
 	}
 	if s.dataPath != "" {
-		s.load()
+		if err := s.load(); err != nil && s.logger != nil {
+			s.logger.Warn("failed to load schedules", "error", err)
+		}
 	}
 	return s
 }
@@ -56,10 +58,6 @@ func generateID() string {
 
 func nowISO() string {
 	return time.Now().UTC().Format(time.RFC3339)
-}
-
-func ptr[T any](v T) *T {
-	return &v
 }
 
 func computeNextRun(cadence protocol.ScheduleCadence) *string {

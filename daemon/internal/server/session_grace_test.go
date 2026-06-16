@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
@@ -32,7 +33,7 @@ func newTestSessionGrace(t *testing.T, conn WSConn, gracePeriod time.Duration) *
 	registry := agent.NewProviderRegistry()
 	registry.Register(agent.NewMockAgentClient())
 	agentMgr := agent.NewAgentManager(agentStorage, registry, logger)
-	agentMgr.Initialize(nil)
+	agentMgr.Initialize(context.TODO())
 	timelineStore := agent.NewInMemoryTimelineStore()
 	workspaceStore := NewWorkspaceStore(cfg.SoloHome, logger)
 	terminalMgr := terminal.NewTerminalManager(logger)
@@ -55,7 +56,7 @@ func newTestSessionGrace(t *testing.T, conn WSConn, gracePeriod time.Duration) *
 		GitSvc:         gitSvc,
 		ScriptMgr:      scriptMgr,
 		ScriptProxy:    scriptProxy,
-		Broadcast:      func(msg protocol.WSOutboundMessage) {},
+		Broadcast:      func(_ protocol.WSOutboundMessage) {},
 	})
 	sess.gracePeriod = gracePeriod
 	return sess
@@ -336,9 +337,9 @@ type mockActivityTracker struct {
 	onRemove func()
 }
 
-func (m *mockActivityTracker) UpdateActivity(sessionID string, appVisible bool, focusedAgentID string) {
+func (m *mockActivityTracker) UpdateActivity(_ string, _ bool, _ string) {
 }
-func (m *mockActivityTracker) Remove(sessionID string) {
+func (m *mockActivityTracker) Remove(_ string) {
 	if m.onRemove != nil {
 		m.onRemove()
 	}

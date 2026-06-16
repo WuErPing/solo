@@ -143,7 +143,7 @@ func (pm *ProcessManager) DrainStderr(stderr io.ReadCloser) {
 	if stderr == nil {
 		return
 	}
-	defer stderr.Close()
+	defer func() { _ = stderr.Close() }()
 
 	buf := make([]byte, 1024)
 	for {

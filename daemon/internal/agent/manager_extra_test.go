@@ -339,7 +339,7 @@ func TestRecordToManagedAgent(t *testing.T) {
 			Provider:  "mock",
 			SessionID: "sid-1",
 		},
-		LastError: strPtr("oops"),
+		LastError:  strPtr("oops"),
 		ArchivedAt: strPtr("2024-01-01T00:00:00Z"),
 	}
 
@@ -455,10 +455,10 @@ func TestConfigFromPersistenceHandle(t *testing.T) {
 		Provider:  "mock",
 		SessionID: "sid-1",
 		Metadata: map[string]interface{}{
-			"cwd":                "/tmp",
-			"model":              "gpt-4",
-			"modeId":             "default",
-			"thinkingOptionId":   "full",
+			"cwd":              "/tmp",
+			"model":            "gpt-4",
+			"modeId":           "default",
+			"thinkingOptionId": "full",
 		},
 	}
 	overrides := &protocol.AgentSessionConfig{Title: strPtr("Override")}
@@ -496,7 +496,7 @@ func TestAgentManagerConcurrentCreateDelete(t *testing.T) {
 	// Concurrent creators
 	for i := 0; i < 5; i++ {
 		wg.Add(1)
-		go func(idx int) {
+		go func(_ int) {
 			defer wg.Done()
 			for j := 0; j < 10; j++ {
 				ag, err := m.CreateAgent(context.Background(), &protocol.AgentSessionConfig{Provider: "mock", Cwd: "/tmp"}, nil)
@@ -551,7 +551,7 @@ func TestAgentManagerConcurrentCreateArchive(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		wg.Add(1)
-		go func(idx int) {
+		go func(_ int) {
 			defer wg.Done()
 			for j := 0; j < 10; j++ {
 				ag, err := m.CreateAgent(context.Background(), &protocol.AgentSessionConfig{Provider: "mock", Cwd: "/tmp"}, nil)
@@ -598,7 +598,7 @@ func TestAgentManagerConcurrentReadWrite(t *testing.T) {
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
-		go func(idx int) {
+		go func(_ int) {
 			defer wg.Done()
 			for j := 0; j < 50; j++ {
 				_ = m.GetAgent(ag.ID)
@@ -611,7 +611,7 @@ func TestAgentManagerConcurrentReadWrite(t *testing.T) {
 	// Mutators
 	for i := 0; i < 5; i++ {
 		wg.Add(1)
-		go func(idx int) {
+		go func(_ int) {
 			defer wg.Done()
 			for j := 0; j < 20; j++ {
 				ag.SetAttention(true, "test")

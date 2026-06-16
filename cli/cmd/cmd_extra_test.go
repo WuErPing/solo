@@ -229,7 +229,7 @@ func newEnhancedMockDaemon() *enhancedMockDaemon {
 }
 
 func (m *enhancedMockDaemon) handler(w http.ResponseWriter, r *http.Request) {
-	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
@@ -696,7 +696,6 @@ func TestMakeDaemonShortcut(t *testing.T) {
 	}
 }
 
-
 func TestMatchesLogFilter(t *testing.T) {
 	if !matchesLogFilter("tool_call", "tools") {
 		t.Error("expected tool_call to match tools filter")
@@ -924,7 +923,6 @@ func captureOutput(t *testing.T) *bytes.Buffer {
 	return &buf
 }
 
-
 func TestRunAgentWait_AlreadyIdle(t *testing.T) {
 	outBuf, _ := setupEnhancedCLI(t)
 	flagFormat = "table"
@@ -1044,8 +1042,8 @@ func TestRunDaemonPair(t *testing.T) {
 	cfg := map[string]interface{}{
 		"daemon": map[string]interface{}{
 			"relay": map[string]interface{}{
-				"enabled": true,
-				"endpoint": "wss://relay.example.com",
+				"enabled":        true,
+				"endpoint":       "wss://relay.example.com",
 				"publicEndpoint": "wss://relay.example.com",
 			},
 		},
@@ -1131,11 +1129,8 @@ func TestRunDaemonPair_RelayDisabled(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when relay disabled")
 	}
-	if !strings.Contains(outBuf.String(), "") {
-		// error is returned, stdout may be empty
-	}
+	_ = outBuf.String() // error is returned, stdout may be empty
 }
-
 
 func TestRunAgentMode_List(t *testing.T) {
 	outBuf, _ := setupEnhancedCLI(t)
@@ -1303,7 +1298,6 @@ func TestRunAgentLs_Quiet(t *testing.T) {
 	}
 }
 
-
 func TestRunAgentRun_Detach(t *testing.T) {
 	outBuf, _ := setupEnhancedCLI(t)
 	flagFormat = "table"
@@ -1438,7 +1432,6 @@ func TestWaitForAgentFinish_InvalidTimeout(t *testing.T) {
 	}
 	agentRunTimeout = ""
 }
-
 
 func TestResolveDaemonHost(t *testing.T) {
 	daemonStartPort = "9090"

@@ -67,10 +67,10 @@ func TestMergeAgentConfig_OverridesApplied(t *testing.T) {
 	model := "sonnet"
 	mode := "default"
 	overrides := &protocol.AgentSessionConfig{
-		Provider:  "claude",
-		Model:     &model,
-		ModeID:    &mode,
-		Cwd:       "/other",
+		Provider: "claude",
+		Model:    &model,
+		ModeID:   &mode,
+		Cwd:      "/other",
 	}
 	got := mergeAgentConfig(base, overrides, "opencode", "/home")
 	if got.Provider != "claude" {
@@ -104,8 +104,8 @@ func TestMergeAgentConfig_PartialOverrides(t *testing.T) {
 
 func TestConfigFromPersistenceHandle_Basic(t *testing.T) {
 	handle := &protocol.AgentPersistenceHandle{
-		Provider:    "claude",
-		SessionID:   "sess-1",
+		Provider:     "claude",
+		SessionID:    "sess-1",
 		NativeHandle: "native-1",
 		Metadata: map[string]interface{}{
 			"cwd":    "/project",
@@ -263,13 +263,13 @@ func TestRecordToManagedAgent_Basic(t *testing.T) {
 func TestRecordToManagedAgent_WithAttention(t *testing.T) {
 	reason := "needs input"
 	r := &StoredAgentRecord{
-		ID:               "agent-1",
-		Provider:         "opencode",
-		Cwd:              "/project",
-		CreatedAt:        "2025-01-01T00:00:00Z",
-		UpdatedAt:        "2025-01-01T00:00:00Z",
+		ID:                "agent-1",
+		Provider:          "opencode",
+		Cwd:               "/project",
+		CreatedAt:         "2025-01-01T00:00:00Z",
+		UpdatedAt:         "2025-01-01T00:00:00Z",
 		RequiresAttention: true,
-		AttentionReason:  &reason,
+		AttentionReason:   &reason,
 	}
 	got := recordToManagedAgent(r)
 	if !got.Attention.Requires {

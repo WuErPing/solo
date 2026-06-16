@@ -16,25 +16,25 @@ type hangingAfterTerminalClient struct {
 }
 
 func (c *hangingAfterTerminalClient) Provider() string { return "hanging-terminal" }
-func (c *hangingAfterTerminalClient) IsAvailable(ctx context.Context) error {
+func (c *hangingAfterTerminalClient) IsAvailable(_ context.Context) error {
 	return nil
 }
-func (c *hangingAfterTerminalClient) CreateSession(ctx context.Context, config *protocol.AgentSessionConfig) (AgentSession, error) {
+func (c *hangingAfterTerminalClient) CreateSession(_ context.Context, _ *protocol.AgentSessionConfig) (AgentSession, error) {
 	c.session = &hangingAfterTerminalSession{
 		events: make(chan AgentStreamEvent, 8),
 	}
 	return c.session, nil
 }
-func (c *hangingAfterTerminalClient) ResumeSession(ctx context.Context, handle *protocol.AgentPersistenceHandle) (AgentSession, error) {
+func (c *hangingAfterTerminalClient) ResumeSession(ctx context.Context, _ *protocol.AgentPersistenceHandle) (AgentSession, error) {
 	return c.CreateSession(ctx, &protocol.AgentSessionConfig{Provider: c.Provider()})
 }
-func (c *hangingAfterTerminalClient) ListModels(ctx context.Context, cwd string) ([]protocol.AgentModelDefinition, error) {
+func (c *hangingAfterTerminalClient) ListModels(_ context.Context, _ string) ([]protocol.AgentModelDefinition, error) {
 	return nil, nil
 }
-func (c *hangingAfterTerminalClient) ListModes(ctx context.Context, cwd string) ([]protocol.AgentMode, error) {
+func (c *hangingAfterTerminalClient) ListModes(_ context.Context, _ string) ([]protocol.AgentMode, error) {
 	return nil, nil
 }
-func (c *hangingAfterTerminalClient) ListClientCommands(ctx context.Context, cwd string) ([]protocol.AgentSlashCommand, error) {
+func (c *hangingAfterTerminalClient) ListClientCommands(_ context.Context, _ string) ([]protocol.AgentSlashCommand, error) {
 	return nil, nil
 }
 
@@ -42,7 +42,7 @@ type hangingAfterTerminalSession struct {
 	events chan AgentStreamEvent
 }
 
-func (s *hangingAfterTerminalSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
+func (s *hangingAfterTerminalSession) Run(ctx context.Context, _ string, _ []protocol.ImageAttachment, _ []protocol.AgentAttachment, _ string) (*AgentRunResult, error) {
 	s.events <- AgentStreamEvent{
 		Event:     protocol.TurnCompletedStreamEvent{Provider: "hanging-terminal"},
 		Timestamp: time.Now(),
@@ -54,35 +54,35 @@ func (s *hangingAfterTerminalSession) StartTurn(ctx context.Context, text string
 	go s.Run(ctx, text, images, attachments, "")
 	return s.events, nil
 }
-func (s *hangingAfterTerminalSession) Subscribe() <-chan AgentStreamEvent  { return s.events }
-func (s *hangingAfterTerminalSession) Interrupt(ctx context.Context) error { return nil }
+func (s *hangingAfterTerminalSession) Subscribe() <-chan AgentStreamEvent { return s.events }
+func (s *hangingAfterTerminalSession) Interrupt(_ context.Context) error  { return nil }
 func (s *hangingAfterTerminalSession) Close() error {
 	close(s.events)
 	return nil
 }
-func (s *hangingAfterTerminalSession) RespondPermission(requestID string, response protocol.AgentPermissionResponse) error {
+func (s *hangingAfterTerminalSession) RespondPermission(_ string, _ protocol.AgentPermissionResponse) error {
 	return nil
 }
-func (s *hangingAfterTerminalSession) GetRuntimeInfo(ctx context.Context) (*protocol.AgentRuntimeInfo, error) {
+func (s *hangingAfterTerminalSession) GetRuntimeInfo(_ context.Context) (*protocol.AgentRuntimeInfo, error) {
 	return &protocol.AgentRuntimeInfo{Provider: "hanging-terminal"}, nil
 }
-func (s *hangingAfterTerminalSession) GetAvailableModes(ctx context.Context) ([]protocol.AgentMode, error) {
+func (s *hangingAfterTerminalSession) GetAvailableModes(_ context.Context) ([]protocol.AgentMode, error) {
 	return nil, nil
 }
-func (s *hangingAfterTerminalSession) GetCurrentMode(ctx context.Context) (*string, error) {
+func (s *hangingAfterTerminalSession) GetCurrentMode(_ context.Context) (*string, error) {
 	return nil, nil
 }
-func (s *hangingAfterTerminalSession) SetMode(modeID string) error             { return nil }
-func (s *hangingAfterTerminalSession) SetModel(modelID string) error           { return nil }
-func (s *hangingAfterTerminalSession) SetThinkingOption(optionID string) error { return nil }
+func (s *hangingAfterTerminalSession) SetMode(_ string) error           { return nil }
+func (s *hangingAfterTerminalSession) SetModel(_ string) error          { return nil }
+func (s *hangingAfterTerminalSession) SetThinkingOption(_ string) error { return nil }
 func (s *hangingAfterTerminalSession) DescribePersistence() *protocol.AgentPersistenceHandle {
 	return &protocol.AgentPersistenceHandle{Provider: "hanging-terminal", SessionID: "session-hanging"}
 }
 func (s *hangingAfterTerminalSession) GetPendingPermissions() []interface{} { return nil }
-func (s *hangingAfterTerminalSession) ListCommands(ctx context.Context) ([]protocol.AgentSlashCommand, error) {
+func (s *hangingAfterTerminalSession) ListCommands(_ context.Context) ([]protocol.AgentSlashCommand, error) {
 	return nil, nil
 }
-func (s *hangingAfterTerminalSession) StreamHistory(ctx context.Context) ([]AgentStreamEvent, error) {
+func (s *hangingAfterTerminalSession) StreamHistory(_ context.Context) ([]AgentStreamEvent, error) {
 	return nil, nil
 }
 
@@ -141,32 +141,32 @@ type slowMockAgentClient struct {
 	session *slowMockAgentSession
 }
 
-func (c *slowMockAgentClient) Provider() string                      { return "slow-mock" }
-func (c *slowMockAgentClient) IsAvailable(ctx context.Context) error { return nil }
-func (c *slowMockAgentClient) CreateSession(ctx context.Context, config *protocol.AgentSessionConfig) (AgentSession, error) {
+func (c *slowMockAgentClient) Provider() string                    { return "slow-mock" }
+func (c *slowMockAgentClient) IsAvailable(_ context.Context) error { return nil }
+func (c *slowMockAgentClient) CreateSession(_ context.Context, _ *protocol.AgentSessionConfig) (AgentSession, error) {
 	c.session = &slowMockAgentSession{}
 	return c.session, nil
 }
-func (c *slowMockAgentClient) ResumeSession(ctx context.Context, handle *protocol.AgentPersistenceHandle) (AgentSession, error) {
+func (c *slowMockAgentClient) ResumeSession(ctx context.Context, _ *protocol.AgentPersistenceHandle) (AgentSession, error) {
 	return c.CreateSession(ctx, &protocol.AgentSessionConfig{Provider: c.Provider()})
 }
-func (c *slowMockAgentClient) ListModels(ctx context.Context, cwd string) ([]protocol.AgentModelDefinition, error) {
+func (c *slowMockAgentClient) ListModels(_ context.Context, _ string) ([]protocol.AgentModelDefinition, error) {
 	return nil, nil
 }
-func (c *slowMockAgentClient) ListModes(ctx context.Context, cwd string) ([]protocol.AgentMode, error) {
+func (c *slowMockAgentClient) ListModes(_ context.Context, _ string) ([]protocol.AgentMode, error) {
 	return nil, nil
 }
-func (c *slowMockAgentClient) ListClientCommands(ctx context.Context, cwd string) ([]protocol.AgentSlashCommand, error) {
+func (c *slowMockAgentClient) ListClientCommands(_ context.Context, _ string) ([]protocol.AgentSlashCommand, error) {
 	return nil, nil
 }
 
 type slowMockAgentSession struct{}
 
-func (s *slowMockAgentSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
+func (s *slowMockAgentSession) Run(ctx context.Context, _ string, _ []protocol.ImageAttachment, _ []protocol.AgentAttachment, _ string) (*AgentRunResult, error) {
 	<-ctx.Done()
 	return &AgentRunResult{SessionID: "slow-session"}, nil
 }
-func (s *slowMockAgentSession) StartTurn(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) (<-chan AgentStreamEvent, error) {
+func (s *slowMockAgentSession) StartTurn(ctx context.Context, _ string, _ []protocol.ImageAttachment, _ []protocol.AgentAttachment) (<-chan AgentStreamEvent, error) {
 	ch := make(chan AgentStreamEvent)
 	go func() {
 		<-ctx.Done()
@@ -177,29 +177,29 @@ func (s *slowMockAgentSession) StartTurn(ctx context.Context, text string, image
 func (s *slowMockAgentSession) Subscribe() <-chan AgentStreamEvent {
 	return nil
 }
-func (s *slowMockAgentSession) Interrupt(ctx context.Context) error { return nil }
-func (s *slowMockAgentSession) Close() error                        { return nil }
-func (s *slowMockAgentSession) RespondPermission(requestID string, response protocol.AgentPermissionResponse) error {
+func (s *slowMockAgentSession) Interrupt(_ context.Context) error { return nil }
+func (s *slowMockAgentSession) Close() error                      { return nil }
+func (s *slowMockAgentSession) RespondPermission(_ string, _ protocol.AgentPermissionResponse) error {
 	return nil
 }
-func (s *slowMockAgentSession) GetRuntimeInfo(ctx context.Context) (*protocol.AgentRuntimeInfo, error) {
+func (s *slowMockAgentSession) GetRuntimeInfo(_ context.Context) (*protocol.AgentRuntimeInfo, error) {
 	return &protocol.AgentRuntimeInfo{Provider: "slow-mock"}, nil
 }
-func (s *slowMockAgentSession) GetAvailableModes(ctx context.Context) ([]protocol.AgentMode, error) {
+func (s *slowMockAgentSession) GetAvailableModes(_ context.Context) ([]protocol.AgentMode, error) {
 	return nil, nil
 }
-func (s *slowMockAgentSession) GetCurrentMode(ctx context.Context) (*string, error) { return nil, nil }
-func (s *slowMockAgentSession) SetMode(modeID string) error                         { return nil }
-func (s *slowMockAgentSession) SetModel(modelID string) error                       { return nil }
-func (s *slowMockAgentSession) SetThinkingOption(optionID string) error             { return nil }
+func (s *slowMockAgentSession) GetCurrentMode(_ context.Context) (*string, error) { return nil, nil }
+func (s *slowMockAgentSession) SetMode(_ string) error                            { return nil }
+func (s *slowMockAgentSession) SetModel(_ string) error                           { return nil }
+func (s *slowMockAgentSession) SetThinkingOption(_ string) error                  { return nil }
 func (s *slowMockAgentSession) DescribePersistence() *protocol.AgentPersistenceHandle {
 	return &protocol.AgentPersistenceHandle{Provider: "slow-mock", SessionID: "slow-session"}
 }
 func (s *slowMockAgentSession) GetPendingPermissions() []interface{} { return nil }
-func (s *slowMockAgentSession) ListCommands(ctx context.Context) ([]protocol.AgentSlashCommand, error) {
+func (s *slowMockAgentSession) ListCommands(_ context.Context) ([]protocol.AgentSlashCommand, error) {
 	return nil, nil
 }
-func (s *slowMockAgentSession) StreamHistory(ctx context.Context) ([]AgentStreamEvent, error) {
+func (s *slowMockAgentSession) StreamHistory(_ context.Context) ([]AgentStreamEvent, error) {
 	return nil, nil
 }
 

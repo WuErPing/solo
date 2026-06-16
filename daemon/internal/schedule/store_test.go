@@ -231,9 +231,9 @@ func TestStore_PauseNotFound(t *testing.T) {
 func TestStore_PauseAlreadyPaused(t *testing.T) {
 	store := NewStore()
 	sched, _ := store.Create(protocol.ScheduleCreateRequest{
-		Prompt: "test",
+		Prompt:  "test",
 		Cadence: protocol.ScheduleCadence{Type: "every", EveryMs: 3600000},
-		Target: protocol.ScheduleTarget{Type: "agent", AgentID: "a"},
+		Target:  protocol.ScheduleTarget{Type: "agent", AgentID: "a"},
 	})
 	store.Pause(sched.ID)
 	_, err := store.Pause(sched.ID)
@@ -259,9 +259,9 @@ func TestStore_ResumeNotFound(t *testing.T) {
 func TestStore_ResumeAlreadyActive(t *testing.T) {
 	store := NewStore()
 	sched, _ := store.Create(protocol.ScheduleCreateRequest{
-		Prompt: "test",
+		Prompt:  "test",
 		Cadence: protocol.ScheduleCadence{Type: "every", EveryMs: 3600000},
-		Target: protocol.ScheduleTarget{Type: "agent", AgentID: "a"},
+		Target:  protocol.ScheduleTarget{Type: "agent", AgentID: "a"},
 	})
 	_, err := store.Resume(sched.ID)
 	if err == nil {
@@ -283,12 +283,12 @@ func TestStore_DeleteNotFound(t *testing.T) {
 	}
 }
 
-func TestStore_ConcurrentAccess(t *testing.T) {
+func TestStore_ConcurrentAccess(_ *testing.T) {
 	store := NewStore()
 	sched, _ := store.Create(protocol.ScheduleCreateRequest{
-		Prompt: "test",
+		Prompt:  "test",
 		Cadence: protocol.ScheduleCadence{Type: "every", EveryMs: 3600000},
-		Target: protocol.ScheduleTarget{Type: "agent", AgentID: "a"},
+		Target:  protocol.ScheduleTarget{Type: "agent", AgentID: "a"},
 	})
 
 	done := make(chan struct{})
@@ -541,7 +541,9 @@ type testLogHandler struct {
 	warns []string
 }
 
-func (h *testLogHandler) Enabled(_ context.Context, level slog.Level) bool { return level >= slog.LevelWarn }
+func (h *testLogHandler) Enabled(_ context.Context, level slog.Level) bool {
+	return level >= slog.LevelWarn
+}
 func (h *testLogHandler) Handle(_ context.Context, r slog.Record) error {
 	h.warns = append(h.warns, r.Message)
 	return nil

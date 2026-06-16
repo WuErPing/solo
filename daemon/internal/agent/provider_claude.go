@@ -41,7 +41,7 @@ func NewClaudeAgentClient(binaryPath string, logger *slog.Logger) *ClaudeAgentCl
 
 func (c *ClaudeAgentClient) Provider() string { return claudeProviderName }
 
-func (c *ClaudeAgentClient) IsAvailable(ctx context.Context) error {
+func (c *ClaudeAgentClient) IsAvailable(_ context.Context) error {
 	if c.binaryPath == "" {
 		return fmt.Errorf("claude binary not found")
 	}
@@ -84,15 +84,15 @@ func (c *ClaudeAgentClient) ResumeSession(ctx context.Context, handle *protocol.
 	return nil, fmt.Errorf("no persistence handle provided")
 }
 
-func (c *ClaudeAgentClient) ListModels(ctx context.Context, cwd string) ([]protocol.AgentModelDefinition, error) {
+func (c *ClaudeAgentClient) ListModels(_ context.Context, _ string) ([]protocol.AgentModelDefinition, error) {
 	return claudeModels(), nil
 }
 
-func (c *ClaudeAgentClient) ListModes(ctx context.Context, cwd string) ([]protocol.AgentMode, error) {
+func (c *ClaudeAgentClient) ListModes(_ context.Context, _ string) ([]protocol.AgentMode, error) {
 	return claudeModes(), nil
 }
 
-func (c *ClaudeAgentClient) ListClientCommands(ctx context.Context, cwd string) ([]protocol.AgentSlashCommand, error) {
+func (c *ClaudeAgentClient) ListClientCommands(_ context.Context, _ string) ([]protocol.AgentSlashCommand, error) {
 	return nil, nil
 }
 
@@ -176,7 +176,7 @@ func (s *claudeSession) accumulateUsage(turn *protocol.AgentUsage) {
 	}
 }
 
-func (s *claudeSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
+func (s *claudeSession) Run(ctx context.Context, text string, _ []protocol.ImageAttachment, _ []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 
 	if _, err := s.turnGuard.Acquire(); err != nil {
@@ -226,7 +226,7 @@ func (s *claudeSession) Run(ctx context.Context, text string, images []protocol.
 	}, nil
 }
 
-func (s *claudeSession) StartTurn(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) (<-chan AgentStreamEvent, error) {
+func (s *claudeSession) StartTurn(ctx context.Context, text string, _ []protocol.ImageAttachment, _ []protocol.AgentAttachment) (<-chan AgentStreamEvent, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 
 	if _, err := s.turnGuard.Acquire(); err != nil {
@@ -374,10 +374,12 @@ func (s *claudeSession) buildEnv() []string {
 
 // --- Session Interface Methods ---
 
-func (s *claudeSession) Interrupt(ctx context.Context) error {
+func (s *claudeSession) Interrupt(_ context.Context) error {
 	s.mu.Lock()
 	s.base.Cancel()
-	s.process.Interrupt(s.cmd)
+	if err := s.process.Interrupt(s.cmd); err != nil {
+		s.base.Logger().Warn("failed to interrupt claude process", "error", err)
+	}
 	s.mu.Unlock()
 	s.turnGuard.Release()
 
@@ -399,7 +401,7 @@ func (s *claudeSession) Close() error {
 
 	s.turnGuard.Release()
 
-	s.base.Close()
+	closeErr := s.base.Close()
 
 	s.mu.Lock()
 	cmd := s.cmd
@@ -417,7 +419,7 @@ func (s *claudeSession) Close() error {
 	s.permissions.RejectAll()
 	s.dispatcher.Close()
 
-	return nil
+	return closeErr
 }
 
 func (s *claudeSession) RespondPermission(requestID string, response protocol.AgentPermissionResponse) error {
@@ -444,15 +446,15 @@ func (s *claudeSession) RespondPermission(requestID string, response protocol.Ag
 	return s.permissions.Respond(requestID, response)
 }
 
-func (s *claudeSession) GetRuntimeInfo(ctx context.Context) (*protocol.AgentRuntimeInfo, error) {
+func (s *claudeSession) GetRuntimeInfo(_ context.Context) (*protocol.AgentRuntimeInfo, error) {
 	return s.base.GetRuntimeInfo(), nil
 }
 
-func (s *claudeSession) GetAvailableModes(ctx context.Context) ([]protocol.AgentMode, error) {
+func (s *claudeSession) GetAvailableModes(_ context.Context) ([]protocol.AgentMode, error) {
 	return claudeModes(), nil
 }
 
-func (s *claudeSession) GetCurrentMode(ctx context.Context) (*string, error) {
+func (s *claudeSession) GetCurrentMode(_ context.Context) (*string, error) {
 	return s.base.GetCurrentModePtr(), nil
 }
 
@@ -476,11 +478,11 @@ func (s *claudeSession) GetPendingPermissions() []interface{} {
 	return s.permissions.GetPending()
 }
 
-func (s *claudeSession) ListCommands(ctx context.Context) ([]protocol.AgentSlashCommand, error) {
+func (s *claudeSession) ListCommands(_ context.Context) ([]protocol.AgentSlashCommand, error) {
 	return nil, nil
 }
 
-func (s *claudeSession) StreamHistory(ctx context.Context) ([]AgentStreamEvent, error) {
+func (s *claudeSession) StreamHistory(_ context.Context) ([]AgentStreamEvent, error) {
 	return nil, nil
 }
 
@@ -710,7 +712,7 @@ func (t *claudeTranslator) translateAssistantMessage(msg sdkMessage, now time.Ti
 			// Parse tool input into structured detail (matches OpenCode's deriveToolCallDetail)
 			var toolInput interface{}
 			if block.Input != nil {
-				json.Unmarshal(block.Input, &toolInput)
+				_ = json.Unmarshal(block.Input, &toolInput)
 			}
 			detail := deriveToolCallDetail(block.Name, toolInput, nil)
 			events = append(events, AgentStreamEvent{
@@ -806,9 +808,7 @@ func (t *claudeTranslator) translateStreamEvent(msg sdkMessage, now time.Time) [
 		}
 
 	case "message_delta":
-		if streamEvt.Delta != nil && streamEvt.Delta.StopReason == "end_turn" {
-			// Turn completed naturally
-		}
+		// Turn completed naturally when Delta.StopReason == "end_turn"; nothing to emit.
 
 	case "content_block_stop":
 		events = append(events, AgentStreamEvent{
@@ -909,7 +909,7 @@ func (t *claudeTranslator) translatePermissionRequest(msg sdkMessage, now time.T
 	}
 	if msg.Message != nil {
 		var msgData interface{}
-		json.Unmarshal(msg.Message, &msgData)
+		_ = json.Unmarshal(msg.Message, &msgData)
 		if msgData != nil {
 			input["message"] = msgData
 		}
@@ -940,10 +940,10 @@ type claudeTerminalDetector struct {
 	session *claudeSession
 }
 
-func (d *claudeTerminalDetector) IsTerminal(evt interface{}) (*base.AgentRunResult, error, bool) {
+func (d *claudeTerminalDetector) IsTerminal(evt interface{}) (*base.AgentRunResult, bool, error) {
 	streamEvt, ok := evt.(AgentStreamEvent)
 	if !ok {
-		return nil, nil, false
+		return nil, false, nil
 	}
 
 	result := &base.AgentRunResult{
@@ -954,11 +954,11 @@ func (d *claudeTerminalDetector) IsTerminal(evt interface{}) (*base.AgentRunResu
 	case protocol.TurnCompletedStreamEvent:
 		result.Canceled = false
 		result.Usage = e.Usage
-		return result, nil, true
+		return result, true, nil
 	case protocol.TurnFailedStreamEvent:
-		return result, fmt.Errorf("%s", e.Error), true
+		return result, true, fmt.Errorf("%s", e.Error)
 	}
-	return nil, nil, false
+	return nil, false, nil
 }
 
 // --- SDK Types ---
@@ -988,7 +988,7 @@ type sdkMessage struct {
 	Status string `json:"status,omitempty"`
 
 	TaskID      string `json:"task_id,omitempty"`
-	TaskStatus  string `json:"status,omitempty"`
+	TaskStatus  string `json:"task_status,omitempty"`
 	Summary     string `json:"summary,omitempty"`
 	Description string `json:"description,omitempty"`
 

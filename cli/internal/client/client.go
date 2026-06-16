@@ -1,3 +1,4 @@
+// Package client provides a WebSocket client for connecting to the Solo daemon.
 package client
 
 import (
@@ -66,17 +67,17 @@ func NewDaemonClient(ctx context.Context, host, clientID string) (*DaemonClient,
 		ProtocolVersion: protocol.WSProtocolVersion,
 	}
 	if err := conn.WriteJSON(hello); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("send hello: %w", err)
 	}
 
 	// Read server_info and providers_snapshot_update with timeout
-	conn.SetReadDeadline(time.Now().Add(protocol.HelloTimeoutMs * time.Millisecond))
+	_ = conn.SetReadDeadline(time.Now().Add(protocol.HelloTimeoutMs * time.Millisecond))
 
 	// Read server_info
 	var serverInfoMsg protocol.WSOutboundMessage
 	if err := conn.ReadJSON(&serverInfoMsg); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("read server_info: %w", err)
 	}
 	if serverInfoMsg.Type == "session" {
@@ -85,10 +86,10 @@ func NewDaemonClient(ctx context.Context, host, clientID string) (*DaemonClient,
 			Type   string `json:"type"`
 			Status string `json:"status"`
 		}
-		json.Unmarshal(payload, &status)
+		_ = json.Unmarshal(payload, &status)
 		if status.Status == "server_info" {
 			var si protocol.ServerInfoPayload
-			json.Unmarshal(payload, &si)
+			_ = json.Unmarshal(payload, &si)
 			c.serverInfo = &si
 		}
 	}
@@ -96,7 +97,7 @@ func NewDaemonClient(ctx context.Context, host, clientID string) (*DaemonClient,
 	// Read providers_snapshot_update
 	var providersMsg protocol.WSOutboundMessage
 	if err := conn.ReadJSON(&providersMsg); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("read providers_snapshot: %w", err)
 	}
 	if providersMsg.Type == "session" {
@@ -104,15 +105,15 @@ func NewDaemonClient(ctx context.Context, host, clientID string) (*DaemonClient,
 		var msg struct {
 			Type string `json:"type"`
 		}
-		json.Unmarshal(payload, &msg)
+		_ = json.Unmarshal(payload, &msg)
 		if msg.Type == "providers_snapshot_update" {
 			var update protocol.ProvidersSnapshotUpdate
-			json.Unmarshal(payload, &update)
+			_ = json.Unmarshal(payload, &update)
 			c.providersSnapshot = &update.Payload
 		}
 	}
 
-	conn.SetReadDeadline(time.Time{}) // Clear deadline
+	_ = conn.SetReadDeadline(time.Time{}) // Clear deadline
 
 	// Start read pump
 	go c.readPump()
@@ -125,9 +126,9 @@ func (c *DaemonClient) Close() error {
 	c.closeOnce.Do(func() {
 		close(c.done)
 		if c.conn != nil {
-			c.conn.WriteMessage(websocket.CloseMessage,
+			_ = c.conn.WriteMessage(websocket.CloseMessage,
 				websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-			c.conn.Close()
+			_ = c.conn.Close()
 		}
 	})
 	return nil
@@ -262,7 +263,7 @@ func (c *DaemonClient) readPump() {
 				RequestID string `json:"requestId"`
 			} `json:"payload"`
 		}
-		json.Unmarshal(payload, &peek)
+		_ = json.Unmarshal(payload, &peek)
 
 		innerType := peek.Type
 		reqID := peek.Payload.RequestID
@@ -298,10 +299,10 @@ func (c *DaemonClient) readPump() {
 func setRequestID(msg protocol.SessionInboundMessage, reqID string) {
 	data, _ := json.Marshal(msg)
 	var m map[string]interface{}
-	json.Unmarshal(data, &m)
+	_ = json.Unmarshal(data, &m)
 	m["requestId"] = reqID
 	data, _ = json.Marshal(m)
-	json.Unmarshal(data, msg)
+	_ = json.Unmarshal(data, msg)
 }
 
 func mustMarshal(v interface{}) json.RawMessage {

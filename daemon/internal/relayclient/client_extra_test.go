@@ -89,7 +89,7 @@ func TestClient_Start_AlreadyStopped(t *testing.T) {
 	}
 }
 
-func TestHandleControlMessage_Sync(t *testing.T) {
+func TestHandleControlMessage_Sync(_ *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	c := NewClient("srv-1", "localhost:9999", &mockWSServer{}, logger, nil, true)
 
@@ -100,7 +100,7 @@ func TestHandleControlMessage_Sync(t *testing.T) {
 	c.handleControlMessage(msg)
 }
 
-func TestHandleControlMessage_Connected(t *testing.T) {
+func TestHandleControlMessage_Connected(_ *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	wsServer := &mockWSServer{}
 	c := NewClient("srv-1", "localhost:9999", wsServer, logger, nil, true)
@@ -115,7 +115,7 @@ func TestHandleControlMessage_Connected(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 }
 
-func TestHandleControlMessage_Connected_Duplicate(t *testing.T) {
+func TestHandleControlMessage_Connected_Duplicate(_ *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	wsServer := &mockWSServer{}
 	c := NewClient("srv-1", "localhost:9999", wsServer, logger, nil, true)
@@ -153,7 +153,7 @@ func TestHandleControlMessage_Ping(t *testing.T) {
 	c := NewClient("srv-1", "localhost:9999", &mockWSServer{}, logger, nil, true)
 
 	// Use a real websocket connection for the controlConn
-	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, _ := upgrader.Upgrade(w, r, nil)
 		defer conn.Close()
@@ -194,7 +194,7 @@ func TestHandleControlMessage_Ping(t *testing.T) {
 	}
 }
 
-func TestHandleControlMessage_Pong(t *testing.T) {
+func TestHandleControlMessage_Pong(_ *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	c := NewClient("srv-1", "localhost:9999", &mockWSServer{}, logger, nil, true)
 
@@ -203,7 +203,7 @@ func TestHandleControlMessage_Pong(t *testing.T) {
 	// Should be a no-op beyond activity recording
 }
 
-func TestHandleControlMessage_Unknown(t *testing.T) {
+func TestHandleControlMessage_Unknown(_ *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	c := NewClient("srv-1", "localhost:9999", &mockWSServer{}, logger, nil, true)
 
@@ -212,7 +212,7 @@ func TestHandleControlMessage_Unknown(t *testing.T) {
 	// Should not panic
 }
 
-func TestHandleControlMessage_InvalidJSON(t *testing.T) {
+func TestHandleControlMessage_InvalidJSON(_ *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	c := NewClient("srv-1", "localhost:9999", &mockWSServer{}, logger, nil, true)
 
@@ -327,7 +327,7 @@ func TestCloseAllDataConns(t *testing.T) {
 	}
 }
 
-func TestSendPong_NoControlConn(t *testing.T) {
+func TestSendPong_NoControlConn(_ *testing.T) {
 	c := NewClient("srv-1", "localhost:9999", &mockWSServer{}, nil, nil, true)
 	// Should not panic when controlConn is nil
 	c.sendPong()
@@ -335,10 +335,10 @@ func TestSendPong_NoControlConn(t *testing.T) {
 
 // fakeWSConn is a test double for wsconn.WSConn.
 type fakeWSConn struct {
-	closed      atomic.Bool
-	writeCount  atomic.Int32
-	messages    [][]byte
-	mu          sync.Mutex
+	closed     atomic.Bool
+	writeCount atomic.Int32
+	messages   [][]byte
+	mu         sync.Mutex
 }
 
 func (f *fakeWSConn) ReadMessage() (int, []byte, error) {
@@ -351,7 +351,7 @@ func (f *fakeWSConn) ReadMessage() (int, []byte, error) {
 	}
 }
 
-func (f *fakeWSConn) WriteMessage(messageType int, data []byte) error {
+func (f *fakeWSConn) WriteMessage(_ int, data []byte) error {
 	f.writeCount.Add(1)
 	f.mu.Lock()
 	f.messages = append(f.messages, data)
@@ -369,7 +369,7 @@ func TestControlReadPump_ContextCancel(t *testing.T) {
 	c := NewClient("srv-1", "localhost:9999", &mockWSServer{}, logger, nil, true)
 
 	// Use a real websocket connection for read pump
-	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, _ := upgrader.Upgrade(w, r, nil)
 		defer conn.Close()
@@ -409,7 +409,7 @@ func TestControlKeepalive_StaleConnection(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	c := NewClient("srv-1", "localhost:9999", &mockWSServer{}, logger, nil, false)
 
-	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, _ := upgrader.Upgrade(w, r, nil)
 		defer conn.Close()
@@ -455,7 +455,7 @@ func TestControlKeepalive_StaleConnection(t *testing.T) {
 // connection and starts the read pump + keepalive goroutines.
 func TestConnectControl_Success(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 
 	connected := make(chan struct{}, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -531,7 +531,7 @@ func TestConnectControl_AlreadyStopped(t *testing.T) {
 // incoming text messages.
 func TestControlReadPump_ReceivesMessage(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
@@ -588,7 +588,7 @@ func TestControlReadPump_ReceivesMessage(t *testing.T) {
 // ignored by the read pump.
 func TestControlReadPump_NonTextMessageIgnored(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
@@ -644,7 +644,7 @@ func TestControlReadPump_NonTextMessageIgnored(t *testing.T) {
 // connection is closed unexpectedly, scheduleReconnect is called.
 func TestControlReadPump_ScheduleReconnectOnClose(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
@@ -709,7 +709,7 @@ func TestStop_Idempotent(t *testing.T) {
 // TestStop_ClosesControlConn verifies Stop closes the active control connection.
 func TestStop_ClosesControlConn(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 
 	connected := make(chan struct{}, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

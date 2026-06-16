@@ -1,3 +1,4 @@
+// Package relayclient maintains the WebSocket connection to the Solo relay.
 package relayclient
 
 import (
@@ -120,9 +121,9 @@ func (c *Client) Stop() {
 
 	c.controlMu.Lock()
 	if c.controlConn != nil {
-		c.controlConn.WriteMessage(websocket.CloseMessage,
+		_ = c.controlConn.WriteMessage(websocket.CloseMessage,
 			websocket.FormatCloseMessage(websocket.CloseNormalClosure, "daemon stopping"))
-		c.controlConn.Close()
+		_ = c.controlConn.Close()
 		c.controlConn = nil
 	}
 	if c.controlCancel != nil {
@@ -186,7 +187,7 @@ func (c *Client) controlReadPump(ctx context.Context, conn *websocket.Conn) {
 			c.controlConn = nil
 		}
 		c.controlMu.Unlock()
-		conn.Close()
+		_ = conn.Close()
 		c.scheduleReconnect()
 	}()
 
@@ -288,7 +289,7 @@ func (c *Client) sendPong() {
 		Ts:   time.Now().UnixMilli(),
 	}
 	data, _ := json.Marshal(pong)
-	conn.WriteMessage(websocket.TextMessage, data)
+	_ = conn.WriteMessage(websocket.TextMessage, data)
 }
 
 func (c *Client) controlKeepalive(ctx context.Context, conn *websocket.Conn) {
@@ -303,7 +304,7 @@ func (c *Client) controlKeepalive(ctx context.Context, conn *websocket.Conn) {
 			lastMs := c.lastActivityMs.Load()
 			if time.Now().UnixMilli()-lastMs > int64(controlStaleTimeout.Milliseconds()) {
 				c.logger.Warn("relay control socket stale, forcing reconnect")
-				conn.Close()
+				_ = conn.Close()
 				return
 			}
 
@@ -382,7 +383,7 @@ func (c *Client) openDataSocketURL(connectionID, u string) {
 			c.dataConnsMu.Lock()
 			delete(c.dataConns, connectionID)
 			c.dataConnsMu.Unlock()
-			rawConn.Close()
+			_ = rawConn.Close()
 			return
 		}
 		conn = e2eeConn
@@ -408,7 +409,7 @@ func (c *Client) openDataSocketURL(connectionID, u string) {
 	// handleNewConnection, right after server_info is sent).
 	openTimer := time.AfterFunc(dataSocketOpenTimeout, func() {
 		logger.Warn("relay data socket open timeout, terminating", "connectionId", connectionID)
-		conn.Close()
+		_ = conn.Close()
 	})
 
 	if notifier, ok := c.wsServer.(HelloProcessedNotifier); ok {
@@ -430,7 +431,7 @@ func (c *Client) openDataSocketURL(connectionID, u string) {
 	c.dataConnsMu.Lock()
 	delete(c.dataConns, connectionID)
 	c.dataConnsMu.Unlock()
-	conn.Close()
+	_ = conn.Close()
 	logger.Info("relay data socket closed", "connectionId", connectionID)
 }
 
@@ -442,9 +443,9 @@ func (c *Client) closeDataConn(connectionID string) {
 	}
 	c.dataConnsMu.Unlock()
 	if conn != nil {
-		conn.WriteMessage(websocket.CloseMessage,
+		_ = conn.WriteMessage(websocket.CloseMessage,
 			websocket.FormatCloseMessage(websocket.CloseNormalClosure, "client disconnected"))
-		conn.Close()
+		_ = conn.Close()
 	}
 }
 
@@ -458,9 +459,9 @@ func (c *Client) closeAllDataConns() {
 	c.dataConnsMu.Unlock()
 
 	for _, conn := range conns {
-		conn.WriteMessage(websocket.CloseMessage,
+		_ = conn.WriteMessage(websocket.CloseMessage,
 			websocket.FormatCloseMessage(websocket.CloseGoingAway, "daemon stopping"))
-		conn.Close()
+		_ = conn.Close()
 	}
 }
 

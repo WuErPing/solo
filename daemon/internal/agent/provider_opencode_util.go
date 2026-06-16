@@ -94,10 +94,6 @@ func deriveToolCallDetail(toolName string, input, output interface{}) protocol.T
 	}
 }
 
-func intPtr(v int) *int {
-	return &v
-}
-
 func deriveShellDetail(input, output interface{}) protocol.ToolCallDetail {
 	detail := protocol.ShellDetail{
 		Type:    "shell",
@@ -177,7 +173,7 @@ func deriveReadDetail(input, output interface{}) protocol.ToolCallDetail {
 	}
 	return detail
 }
-func deriveWriteDetail(input, output interface{}) protocol.ToolCallDetail {
+func deriveWriteDetail(input, _ interface{}) protocol.ToolCallDetail {
 	detail := protocol.WriteDetail{
 		Type:     "write",
 		FilePath: "",
@@ -195,7 +191,7 @@ func deriveWriteDetail(input, output interface{}) protocol.ToolCallDetail {
 	}
 	return detail
 }
-func deriveEditDetail(input, output interface{}) protocol.ToolCallDetail {
+func deriveEditDetail(input, _ interface{}) protocol.ToolCallDetail {
 	detail := protocol.EditDetail{
 		Type:     "edit",
 		FilePath: "",
@@ -209,8 +205,8 @@ func deriveEditDetail(input, output interface{}) protocol.ToolCallDetail {
 			if old := extractString(m, "old_string", "old_str", "oldContent", "old_content"); old != "" {
 				detail.OldString = old
 			}
-			if new := extractString(m, "new_string", "new_str", "newContent", "new_content", "content"); new != "" {
-				detail.NewString = truncateText(new, 2000)
+			if newStr := extractString(m, "new_string", "new_str", "newContent", "new_content", "content"); newStr != "" {
+				detail.NewString = truncateText(newStr, 2000)
 			}
 			if diff := extractString(m, "patch", "diff", "unified_diff", "unifiedDiff"); diff != "" {
 				detail.UnifiedDiff = truncateText(diff, 2000)
@@ -219,7 +215,7 @@ func deriveEditDetail(input, output interface{}) protocol.ToolCallDetail {
 	}
 	return detail
 }
-func deriveSearchDetail(input, output interface{}) protocol.ToolCallDetail {
+func deriveSearchDetail(input, _ interface{}) protocol.ToolCallDetail {
 	detail := protocol.SearchDetail{
 		Type:  "search",
 		Query: "",

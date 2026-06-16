@@ -12,7 +12,7 @@ func TestAllOutboundMessageTypes(t *testing.T) {
 		// message_agent_outbound.go
 		{&StatusMessage{}, "status"},
 		{&PongMessage{}, "pong"},
-		{&RpcErrorMessage{}, "rpc_error"},
+		{&RPCErrorMessage{}, "rpc_error"},
 		{&AgentStreamMessage{}, "agent_stream"},
 		{&AgentUpdateMessage{}, "agent_update"},
 		{&FetchAgentsResponse{}, "fetch_agents_response"},

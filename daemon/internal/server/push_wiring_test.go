@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"testing"
@@ -38,8 +39,8 @@ func TestProveIt_SessionWithActivityTrackerPushSends(t *testing.T) {
 	}
 
 	event := agent.AgentStreamEvent{
-		AgentID: "agent-1",
-		Event: protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
+		AgentID:   "agent-1",
+		Event:     protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
 		Timestamp: time.Now(),
 	}
 
@@ -94,7 +95,7 @@ func TestProveIt_WSServerHasActivityTracker(t *testing.T) {
 	registry := agent.NewProviderRegistry()
 	registry.Register(agent.NewMockAgentClient())
 	agentMgr := agent.NewAgentManager(agentStorage, registry, logger)
-	agentMgr.Initialize(nil)
+	agentMgr.Initialize(context.TODO())
 	timelineStore := agent.NewInMemoryTimelineStore()
 	workspaceStore := NewWorkspaceStore(cfg.SoloHome, logger)
 	terminalMgr := terminal.NewTerminalManager(logger)
@@ -145,8 +146,8 @@ func TestProveIt_NotificationDataIncludesServerId(t *testing.T) {
 	session.pusher = &mockPusher{}
 
 	event := agent.AgentStreamEvent{
-		AgentID: "agent-1",
-		Event: protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
+		AgentID:   "agent-1",
+		Event:     protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
 		Timestamp: time.Now(),
 	}
 
@@ -163,7 +164,7 @@ func TestProveIt_NotificationDataIncludesServerId(t *testing.T) {
 	notification, _ := evt["notification"].(map[string]interface{})
 	data, _ := notification["data"].(map[string]interface{})
 
-	if _, hasServerId := data["serverId"]; !hasServerId {
+	if _, hasServerID := data["serverId"]; !hasServerID {
 		t.Error("notification.data missing serverId field")
 	}
 	if data["serverId"] != "test-server" {

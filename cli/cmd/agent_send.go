@@ -37,7 +37,7 @@ func runAgentSend(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer closeDaemonClient(c)
 
 	agentID, err := fetchAndResolveAgentID(ctx, c, args[0])
 	if err != nil {

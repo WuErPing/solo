@@ -1,12 +1,13 @@
 package agent
 
 import (
-	"github.com/WuErPing/solo/protocol"
 	"io"
 	"log/slog"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/WuErPing/solo/protocol"
 
 	"github.com/WuErPing/solo/daemon/internal/agent/base"
 )
@@ -90,11 +91,11 @@ func TestSubscribeToSession_SlowHandleStreamEventDoesNotDropCritical(t *testing.
 	}
 
 	// Emit turn_completed — this is critical and MUST NOT be dropped
-		// Emit turn_completed — this is critical and MUST NOT be dropped
-		dispatcher.Emit(AgentStreamEvent{
-			Event:     protocol.TurnCompletedStreamEvent{Provider: "mock"},
-			Timestamp: time.Now(),
-		})
+	// Emit turn_completed — this is critical and MUST NOT be dropped
+	dispatcher.Emit(AgentStreamEvent{
+		Event:     protocol.TurnCompletedStreamEvent{Provider: "mock"},
+		Timestamp: time.Now(),
+	})
 
 	// Wait for all processing to complete
 	time.Sleep(5 * time.Second)

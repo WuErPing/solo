@@ -57,7 +57,7 @@ func (c *helloThenBlockConn) ReadMessage() (int, []byte, error) {
 	return websocket.TextMessage, nil, err
 }
 
-func (c *helloThenBlockConn) WriteMessage(messageType int, data []byte) error {
+func (c *helloThenBlockConn) WriteMessage(_ int, data []byte) error {
 	c.writeOnce.Do(func() { close(c.writeStarted) })
 	c.mu.Lock()
 	c.writes = append(c.writes, data)
@@ -70,13 +70,13 @@ func (c *helloThenBlockConn) Close() error {
 	return nil
 }
 
-func (c *helloThenBlockConn) WriteControl(messageType int, data []byte, deadline time.Time) error {
+func (c *helloThenBlockConn) WriteControl(_ int, _ []byte, _ time.Time) error {
 	return nil
 }
 
-func (c *helloThenBlockConn) SetPongHandler(h func(appData string) error) {}
+func (c *helloThenBlockConn) SetPongHandler(_ func(appData string) error) {}
 
-func (c *helloThenBlockConn) SetReadDeadline(t time.Time) error { return nil }
+func (c *helloThenBlockConn) SetReadDeadline(_ time.Time) error { return nil }
 
 func (c *helloThenBlockConn) injectReadError(err error) {
 	select {

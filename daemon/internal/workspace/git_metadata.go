@@ -10,5 +10,5 @@ type WorkspaceGitMetadata struct {
 	ProjectSlug          string      `json:"projectSlug"`
 	RepoRoot             *string     `json:"repoRoot,omitempty"`
 	CurrentBranch        *string     `json:"currentBranch,omitempty"`
-	RemoteUrl            *string     `json:"remoteUrl,omitempty"`
+	RemoteURL            *string     `json:"remoteUrl,omitempty"`
 }

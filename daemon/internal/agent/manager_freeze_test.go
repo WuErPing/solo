@@ -122,10 +122,10 @@ func TestSubscribeToSession_OpenCodeTerminalEventFallback_WhenWorkChFull(t *test
 			Event:   protocol.TimelineStreamEvent{Provider: opencodeProviderName, Item: protocol.TimelineItem{Type: "text", Text: "filler"}},
 		}
 	}
-		eventsCh <- AgentStreamEvent{
-			AgentID: ag.ID,
-			Event:   protocol.TurnCompletedStreamEvent{Provider: opencodeProviderName},
-		}
+	eventsCh <- AgentStreamEvent{
+		AgentID: ag.ID,
+		Event:   protocol.TurnCompletedStreamEvent{Provider: opencodeProviderName},
+	}
 	close(eventsCh)
 
 	deadline := time.After(3 * time.Second)

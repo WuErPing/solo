@@ -35,27 +35,27 @@ func init() {
 	rootCmd.AddCommand(onboardCmd)
 }
 
-func runOnboard(cmd *cobra.Command, args []string) error {
-	fmt.Fprintln(cmdStdout, output.Bold("Welcome to Solo!"))
-	fmt.Fprintln(cmdStdout)
+func runOnboard(_ *cobra.Command, _ []string) error {
+	_, _ = fmt.Fprintln(cmdStdout, output.Bold("Welcome to Solo!"))
+	_, _ = fmt.Fprintln(cmdStdout)
 
 	home := client.SoloHome()
 	if onboardHome != "" {
 		home = onboardHome
 	}
-	fmt.Fprintf(cmdStdout, "Solo home: %s\n", home)
+	_, _ = fmt.Fprintf(cmdStdout, "Solo home: %s\n", home)
 
 	// Pre-flight: ensure keypair is valid (regenerates legacy Ed25519 keys before daemon starts)
 	if _, err := client.LoadOrCreateDaemonKeyPair(); err != nil {
-		fmt.Fprintf(cmdStdout, output.Yellow("Warning: could not verify daemon keypair: %v\n"), err)
+		_, _ = fmt.Fprintf(cmdStdout, output.Yellow("Warning: could not verify daemon keypair: %v\n"), err)
 	}
 
 	// Step 1: Start daemon if not running
 	running, pid, _ := client.IsDaemonRunning()
 	if running {
-		fmt.Fprintf(cmdStdout, "Daemon already running (PID %d)\n", pid)
+		_, _ = fmt.Fprintf(cmdStdout, "Daemon already running (PID %d)\n", pid)
 	} else {
-		fmt.Fprintln(cmdStdout, "Starting daemon...")
+		_, _ = fmt.Fprintln(cmdStdout, "Starting daemon...")
 		if err := startDaemonForOnboard(); err != nil {
 			return err
 		}
@@ -64,14 +64,14 @@ func runOnboard(cmd *cobra.Command, args []string) error {
 	// Step 2: Wait for daemon ready
 	timeout := time.Duration(onboardTimeout) * time.Second
 	host := resolveOnboardHost()
-	fmt.Fprintln(cmdStdout, "Waiting for daemon to become ready...")
+	_, _ = fmt.Fprintln(cmdStdout, "Waiting for daemon to become ready...")
 	if err := waitForDaemon(host, timeout); err != nil {
 		return &output.CommandError{
 			Code:    "DAEMON_START_TIMEOUT",
 			Message: fmt.Sprintf("Timed out after %ds waiting for daemon readiness", onboardTimeout),
 		}
 	}
-	fmt.Fprintf(cmdStdout, "Daemon ready on %s\n", host)
+	_, _ = fmt.Fprintf(cmdStdout, "Daemon ready on %s\n", host)
 
 	// Step 3: Generate pairing offer
 	relayDisabled := onboardNoRelay
@@ -82,28 +82,28 @@ func runOnboard(cmd *cobra.Command, args []string) error {
 	}
 
 	if relayDisabled {
-		fmt.Fprintln(cmdStdout, output.Yellow("Relay is disabled; pairing is unavailable."))
+		_, _ = fmt.Fprintln(cmdStdout, output.Yellow("Relay is disabled; pairing is unavailable."))
 		printNextSteps(home, "")
 		return nil
 	}
 
 	pairingURL, err := generatePairingURL(home)
 	if err != nil {
-		fmt.Fprintln(cmdStdout, output.Yellow("Pairing offer unavailable."))
+		_, _ = fmt.Fprintln(cmdStdout, output.Yellow("Pairing offer unavailable."))
 		printNextSteps(home, "")
 		return nil
 	}
 
 	// Render QR code
-	fmt.Fprintln(cmdStdout)
-	fmt.Fprintln(cmdStdout, output.Bold("Scan to pair:"))
+	_, _ = fmt.Fprintln(cmdStdout)
+	_, _ = fmt.Fprintln(cmdStdout, output.Bold("Scan to pair:"))
 	qr, err := qrcode.New(pairingURL, qrcode.Medium)
 	if err == nil {
-		fmt.Fprintln(cmdStdout, qr.ToSmallString(false))
+		_, _ = fmt.Fprintln(cmdStdout, qr.ToSmallString(false))
 	}
 
-	fmt.Fprintln(cmdStdout, output.Bold("Pairing link:"))
-	fmt.Fprintln(cmdStdout, pairingURL)
+	_, _ = fmt.Fprintln(cmdStdout, output.Bold("Pairing link:"))
+	_, _ = fmt.Fprintln(cmdStdout, pairingURL)
 
 	printNextSteps(home, pairingURL)
 	return nil
@@ -133,7 +133,7 @@ func startDaemonForOnboard() error {
 	if err != nil {
 		return &output.CommandError{Code: "DAEMON_START_FAILED", Message: fmt.Sprintf("Failed to start daemon: %v", err)}
 	}
-	fmt.Fprintf(cmdStdout, "Daemon started (PID %d)\n", pid)
+	_, _ = fmt.Fprintf(cmdStdout, "Daemon started (PID %d)\n", pid)
 	return nil
 }
 
@@ -176,24 +176,24 @@ func generatePairingURL(home string) (string, error) {
 }
 
 func printNextSteps(home, pairingURL string) {
-	fmt.Fprintln(cmdStdout)
-	fmt.Fprintln(cmdStdout, output.Bold("Next steps:"))
+	_, _ = fmt.Fprintln(cmdStdout)
+	_, _ = fmt.Fprintln(cmdStdout, output.Bold("Next steps:"))
 	if pairingURL != "" {
-		fmt.Fprintln(cmdStdout, "  1. Open Solo and scan the QR code above, or paste the pairing link.")
+		_, _ = fmt.Fprintln(cmdStdout, "  1. Open Solo and scan the QR code above, or paste the pairing link.")
 	} else {
-		fmt.Fprintln(cmdStdout, "  1. Open Solo and connect to your daemon.")
+		_, _ = fmt.Fprintln(cmdStdout, "  1. Open Solo and connect to your daemon.")
 	}
-	fmt.Fprintln(cmdStdout, "  2. Example: solo run \"your prompt\"")
-	fmt.Fprintln(cmdStdout, "  3. Docs: https://solo.sh/docs")
+	_, _ = fmt.Fprintln(cmdStdout, "  2. Example: solo run \"your prompt\"")
+	_, _ = fmt.Fprintln(cmdStdout, "  3. Docs: https://solo.sh/docs")
 
-	fmt.Fprintln(cmdStdout)
-	fmt.Fprintln(cmdStdout, output.Bold("CLI quick reference:"))
-	fmt.Fprintln(cmdStdout, "  1. solo --help")
-	fmt.Fprintln(cmdStdout, "  2. solo ls")
-	fmt.Fprintln(cmdStdout, "  3. solo run \"your prompt\"")
-	fmt.Fprintln(cmdStdout, "  4. solo status")
-	fmt.Fprintf(cmdStdout, "  5. Daemon logs: %s/daemon.log\n", home)
+	_, _ = fmt.Fprintln(cmdStdout)
+	_, _ = fmt.Fprintln(cmdStdout, output.Bold("CLI quick reference:"))
+	_, _ = fmt.Fprintln(cmdStdout, "  1. solo --help")
+	_, _ = fmt.Fprintln(cmdStdout, "  2. solo ls")
+	_, _ = fmt.Fprintln(cmdStdout, "  3. solo run \"your prompt\"")
+	_, _ = fmt.Fprintln(cmdStdout, "  4. solo status")
+	_, _ = fmt.Fprintf(cmdStdout, "  5. Daemon logs: %s/daemon.log\n", home)
 
-	fmt.Fprintln(cmdStdout)
-	fmt.Fprintln(cmdStdout, output.Green("Solo is ready!"))
+	_, _ = fmt.Fprintln(cmdStdout)
+	_, _ = fmt.Fprintln(cmdStdout, output.Green("Solo is ready!"))
 }

@@ -39,8 +39,8 @@ func (m TmuxListAgentsRequest) MsgType() string { return "tmux/list_agents" }
 
 // TmuxListAgentsResponse returns the detected agents.
 type TmuxListAgentsResponse struct {
-	Type    string                         `json:"type"`
-	Payload TmuxListAgentsResponsePayload  `json:"payload"`
+	Type    string                        `json:"type"`
+	Payload TmuxListAgentsResponsePayload `json:"payload"`
 }
 
 func (m TmuxListAgentsResponse) MsgType() string { return "tmux/list_agents/response" }
@@ -54,11 +54,11 @@ type AgentCommandEntry struct {
 
 // TmuxListAgentsResponsePayload is the payload for TmuxListAgentsResponse.
 type TmuxListAgentsResponsePayload struct {
-	RequestID       string               `json:"requestId"`
-	Agents          []TmuxAgentInfo      `json:"agents"`
-	OtherPanes      []TmuxPaneInfo       `json:"otherPanes"`
-	CommandHistory  []AgentCommandEntry  `json:"commandHistory,omitempty"`
-	Error           *string              `json:"error"`
+	RequestID      string              `json:"requestId"`
+	Agents         []TmuxAgentInfo     `json:"agents"`
+	OtherPanes     []TmuxPaneInfo      `json:"otherPanes"`
+	CommandHistory []AgentCommandEntry `json:"commandHistory,omitempty"`
+	Error          *string             `json:"error"`
 }
 
 // TmuxCapturePaneRequest asks the daemon to capture the content of a tmux pane.
@@ -77,8 +77,8 @@ func (m TmuxCapturePaneRequest) MsgType() string { return "tmux/capture_pane" }
 
 // TmuxCapturePaneResponse returns the captured pane content.
 type TmuxCapturePaneResponse struct {
-	Type    string                          `json:"type"`
-	Payload TmuxCapturePaneResponsePayload  `json:"payload"`
+	Type    string                         `json:"type"`
+	Payload TmuxCapturePaneResponsePayload `json:"payload"`
 }
 
 func (m TmuxCapturePaneResponse) MsgType() string { return "tmux/capture_pane/response" }
@@ -132,9 +132,9 @@ func (m TmuxGetThemeResponse) MsgType() string { return "tmux/get_theme/response
 
 // TmuxGetThemeResponsePayload is the payload for TmuxGetThemeResponse.
 type TmuxGetThemeResponsePayload struct {
-	RequestID string           `json:"requestId"`
-	Theme     TmuxThemeColors  `json:"theme"`
-	Error     *string          `json:"error"`
+	RequestID string          `json:"requestId"`
+	Theme     TmuxThemeColors `json:"theme"`
+	Error     *string         `json:"error"`
 }
 
 // TmuxStatusLineRequest asks the daemon to read the tmux status line content.
@@ -148,8 +148,8 @@ func (m TmuxStatusLineRequest) MsgType() string { return "tmux/status_line" }
 
 // TmuxStatusLineResponse returns the status line content.
 type TmuxStatusLineResponse struct {
-	Type    string                          `json:"type"`
-	Payload TmuxStatusLineResponsePayload   `json:"payload"`
+	Type    string                        `json:"type"`
+	Payload TmuxStatusLineResponsePayload `json:"payload"`
 }
 
 func (m TmuxStatusLineResponse) MsgType() string { return "tmux/status_line/response" }
@@ -165,11 +165,11 @@ type TmuxStatusLineResponsePayload struct {
 
 // TmuxNewSessionRequest asks the daemon to create a new tmux session.
 type TmuxNewSessionRequest struct {
-	Type      string  `json:"type"`
-	Name      string  `json:"name"`
+	Type       string  `json:"type"`
+	Name       string  `json:"name"`
 	WorkingDir *string `json:"workingDir,omitempty"`
-	Command   *string `json:"command,omitempty"`
-	RequestID string  `json:"requestId"`
+	Command    *string `json:"command,omitempty"`
+	RequestID  string  `json:"requestId"`
 }
 
 func (m TmuxNewSessionRequest) MsgType() string { return "tmux/new_session" }
@@ -225,8 +225,8 @@ func (m TmuxDeleteCommandHistoryRequest) MsgType() string {
 
 // TmuxDeleteCommandHistoryResponse confirms the command was deleted.
 type TmuxDeleteCommandHistoryResponse struct {
-	Type    string                                    `json:"type"`
-	Payload TmuxDeleteCommandHistoryResponsePayload   `json:"payload"`
+	Type    string                                  `json:"type"`
+	Payload TmuxDeleteCommandHistoryResponsePayload `json:"payload"`
 }
 
 func (m TmuxDeleteCommandHistoryResponse) MsgType() string {
@@ -252,8 +252,8 @@ func (m TmuxSendKeysRequest) MsgType() string { return "tmux/send_keys" }
 
 // TmuxSendKeysResponse confirms the keys were sent.
 type TmuxSendKeysResponse struct {
-	Type    string                       `json:"type"`
-	Payload TmuxSendKeysResponsePayload  `json:"payload"`
+	Type    string                      `json:"type"`
+	Payload TmuxSendKeysResponsePayload `json:"payload"`
 }
 
 func (m TmuxSendKeysResponse) MsgType() string { return "tmux/send_keys/response" }

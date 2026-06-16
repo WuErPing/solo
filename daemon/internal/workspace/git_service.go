@@ -25,8 +25,8 @@ type WorkspaceGitService interface {
 	// GetCurrentBranch returns the current git branch name.
 	GetCurrentBranch(cwd string) (string, error)
 
-	// GetRemoteUrl returns the remote URL for the given remote name (default "origin").
-	GetRemoteUrl(cwd string, remote string) (string, error)
+	// GetRemoteURL returns the remote URL for the given remote name (default "origin").
+	GetRemoteURL(cwd string, remote string) (string, error)
 
 	// IsWorktree returns true if cwd is a git worktree (not the main repo).
 	IsWorktree(cwd string) (bool, error)
@@ -136,10 +136,10 @@ func (s *gitServiceImpl) GetMetadata(cwd string) (*WorkspaceGitMetadata, error) 
 	}
 
 	// Get remote URL
-	remoteUrl, err := s.GetRemoteUrl(cwd, "origin")
-	if err == nil && remoteUrl != "" {
-		meta.RemoteUrl = &remoteUrl
-		meta.GitRemote = &remoteUrl
+	remoteURL, err := s.GetRemoteURL(cwd, "origin")
+	if err == nil && remoteURL != "" {
+		meta.RemoteURL = &remoteURL
+		meta.GitRemote = &remoteURL
 	}
 
 	// Check if worktree
@@ -147,7 +147,7 @@ func (s *gitServiceImpl) GetMetadata(cwd string) (*WorkspaceGitMetadata, error) 
 	meta.IsWorktree = isWorktree
 
 	// Derive project slug from remote URL or directory name
-	meta.ProjectSlug = deriveProjectSlug(meta.RemoteUrl, meta.ProjectDisplayName)
+	meta.ProjectSlug = deriveProjectSlug(meta.RemoteURL, meta.ProjectDisplayName)
 
 	// Compute dirty flag alongside metadata.
 	// Reuse the cached dirty value if available to avoid an extra subprocess.
@@ -183,7 +183,7 @@ func (s *gitServiceImpl) GetCurrentBranch(cwd string) (string, error) {
 	return strings.TrimSpace(out), nil
 }
 
-func (s *gitServiceImpl) GetRemoteUrl(cwd string, remote string) (string, error) {
+func (s *gitServiceImpl) GetRemoteURL(cwd string, remote string) (string, error) {
 	if remote == "" {
 		remote = "origin"
 	}
@@ -288,10 +288,10 @@ func (s *gitServiceImpl) refreshAll(ctx context.Context) {
 }
 
 // deriveProjectSlug derives a URL-safe slug from the remote URL or directory name.
-func deriveProjectSlug(remoteUrl *string, displayName string) string {
-	if remoteUrl != nil {
+func deriveProjectSlug(remoteURL *string, displayName string) string {
+	if remoteURL != nil {
 		// Extract repo name from GitHub URL: https://github.com/owner/repo.git -> repo
-		url := *remoteUrl
+		url := *remoteURL
 		url = strings.TrimSuffix(url, ".git")
 		parts := strings.Split(url, "/")
 		if len(parts) > 0 {

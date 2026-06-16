@@ -1,3 +1,4 @@
+// Package config loads and validates daemon configuration.
 package config
 
 import (
@@ -278,9 +279,9 @@ func generateID() string {
 	if f == nil {
 		return fmt.Sprintf("%08x", os.Getpid())
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	b := make([]byte, 4)
-	f.Read(b)
+	_, _ = f.Read(b)
 	return fmt.Sprintf("%08x", b)
 }
 

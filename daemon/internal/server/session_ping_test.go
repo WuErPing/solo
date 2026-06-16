@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -23,7 +24,6 @@ import (
 type slowWritePingConn struct {
 	mu         sync.Mutex
 	readErr    chan error
-	readOnce   sync.Once
 	writeDelay time.Duration // artificial delay per WriteMessage call
 	messages   [][]byte
 	pingTimes  []time.Time
@@ -42,7 +42,7 @@ func (c *slowWritePingConn) ReadMessage() (int, []byte, error) {
 	return websocket.TextMessage, nil, err
 }
 
-func (c *slowWritePingConn) WriteMessage(messageType int, data []byte) error {
+func (c *slowWritePingConn) WriteMessage(_ int, data []byte) error {
 	// Simulate slow network I/O — this is what causes ping starvation
 	// in the old writePump: the select loop is stuck here and can't
 	// service the pingCh case.
@@ -62,7 +62,7 @@ func (c *slowWritePingConn) Close() error {
 
 // WriteControl is called from the pingLoop goroutine (after the fix).
 // In gorilla/websocket, WriteControl is documented as concurrent-safe.
-func (c *slowWritePingConn) WriteControl(messageType int, data []byte, deadline time.Time) error {
+func (c *slowWritePingConn) WriteControl(messageType int, _ []byte, _ time.Time) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if messageType == websocket.PingMessage {
@@ -71,12 +71,8 @@ func (c *slowWritePingConn) WriteControl(messageType int, data []byte, deadline 
 	return nil
 }
 
-func (c *slowWritePingConn) SetPongHandler(h func(appData string) error) {}
-func (c *slowWritePingConn) SetReadDeadline(t time.Time) error           { return nil }
-
-func (c *slowWritePingConn) injectReadError(err error) {
-	c.readOnce.Do(func() { c.readErr <- err })
-}
+func (c *slowWritePingConn) SetPongHandler(_ func(appData string) error) {}
+func (c *slowWritePingConn) SetReadDeadline(_ time.Time) error           { return nil }
 
 // newTestSessionForPing creates a Session wired for ping starvation tests.
 // It does NOT call Run(); the caller drives writePump manually.
@@ -93,7 +89,7 @@ func newTestSessionForPing(t *testing.T, conn WSConn) *Session {
 	registry := agent.NewProviderRegistry()
 	registry.Register(agent.NewMockAgentClient())
 	agentMgr := agent.NewAgentManager(agentStorage, registry, logger)
-	agentMgr.Initialize(nil)
+	agentMgr.Initialize(context.TODO())
 	timelineStore := agent.NewInMemoryTimelineStore()
 	workspaceStore := NewWorkspaceStore(cfg.SoloHome, logger)
 	terminalMgr := terminal.NewTerminalManager(logger)
@@ -106,11 +102,11 @@ func newTestSessionForPing(t *testing.T, conn WSConn) *Session {
 	sess := NewSessionWithConfig(
 		"test-client", string(protocol.ClientCLI), conn,
 		SessionConfig{
-			Config:        cfg,
-			Logger:        logger,
-			AgentMgr:      agentMgr,
-			TimelineStore: timelineStore,
-			Registry:      registry,
+			Config:         cfg,
+			Logger:         logger,
+			AgentMgr:       agentMgr,
+			TimelineStore:  timelineStore,
+			Registry:       registry,
 			WorkspaceStore: workspaceStore,
 			TerminalMgr:    terminalMgr,
 			ProjectReg:     projectReg,
@@ -118,7 +114,7 @@ func newTestSessionForPing(t *testing.T, conn WSConn) *Session {
 			GitSvc:         gitSvc,
 			ScriptMgr:      scriptMgr,
 			ScriptProxy:    scriptProxy,
-			Broadcast:      func(msg protocol.WSOutboundMessage) {},
+			Broadcast:      func(_ protocol.WSOutboundMessage) {},
 		},
 	)
 	return sess

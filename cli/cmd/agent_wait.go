@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/WuErPing/solo/cli/internal/cliutil"
 	"github.com/WuErPing/solo/cli/internal/output"
-	"github.com/WuErPing/solo/cli/internal/util"
 	"github.com/WuErPing/solo/protocol"
 )
 
@@ -33,7 +33,7 @@ func runAgentWait(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer closeDaemonClient(c)
 
 	agentID, err := fetchAndResolveAgentID(ctx, c, args[0])
 	if err != nil {
@@ -42,7 +42,7 @@ func runAgentWait(cmd *cobra.Command, args []string) error {
 
 	// Apply timeout if specified
 	if agentWaitTimeout != "" {
-		timeout, err := util.ParseDuration(agentWaitTimeout)
+		timeout, err := cliutil.ParseDuration(agentWaitTimeout)
 		if err != nil {
 			return &output.CommandError{Code: "INVALID_TIMEOUT", Message: "Invalid wait timeout value", Details: err.Error()}
 		}
@@ -69,7 +69,7 @@ func runAgentWait(cmd *cobra.Command, args []string) error {
 				Agent *protocol.AgentSnapshotPayload `json:"agent"`
 			} `json:"payload"`
 		}
-		json.Unmarshal(payload, &fetchResp)
+		_ = json.Unmarshal(payload, &fetchResp)
 		if fetchResp.Payload.Agent != nil {
 			status := string(fetchResp.Payload.Agent.Status)
 			if status == "idle" || status == "error" || status == "closed" {
@@ -95,7 +95,7 @@ func runAgentWait(cmd *cobra.Command, args []string) error {
 					} `json:"agent"`
 				} `json:"payload"`
 			}
-			json.Unmarshal(payload, &updateWrapper)
+			_ = json.Unmarshal(payload, &updateWrapper)
 			update := updateWrapper.Payload
 			if update.Agent.ID == agentID {
 				status := update.Agent.Status
@@ -125,7 +125,7 @@ func runAgentWait(cmd *cobra.Command, args []string) error {
 						Agent *protocol.AgentSnapshotPayload `json:"agent"`
 					} `json:"payload"`
 				}
-				json.Unmarshal(payload, &fetchResp)
+				_ = json.Unmarshal(payload, &fetchResp)
 				if fetchResp.Payload.Agent != nil {
 					status := string(fetchResp.Payload.Agent.Status)
 					if status == "idle" || status == "error" || status == "closed" {

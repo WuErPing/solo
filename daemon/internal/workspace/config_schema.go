@@ -1,3 +1,4 @@
+// Package workspace discovers git repositories, worktrees, and project metadata.
 package workspace
 
 import (

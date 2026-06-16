@@ -83,7 +83,7 @@ func TestWaitForWritePump_ZeroTimeout(t *testing.T) {
 	}
 }
 
-func TestCloseWSConn_Nil(t *testing.T) {
+func TestCloseWSConn_Nil(_ *testing.T) {
 	closeWSConn(nil) // should not panic
 }
 

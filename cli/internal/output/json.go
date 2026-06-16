@@ -7,7 +7,7 @@ import (
 )
 
 // renderJSON writes the command result as formatted JSON.
-func renderJSON(w io.Writer, result *CommandResult, opts OutputOptions) error {
+func renderJSON(w io.Writer, result *CommandResult, _ OutputOptions) error {
 	var data interface{}
 	if result.IsSingle {
 		data = result.Single
@@ -24,12 +24,12 @@ func renderJSON(w io.Writer, result *CommandResult, opts OutputOptions) error {
 		return fmt.Errorf("marshal JSON: %w", err)
 	}
 
-	fmt.Fprintln(w, string(b))
-	return nil
+	_, err = fmt.Fprintln(w, string(b))
+	return err
 }
 
 // renderJSONError writes a CommandError as JSON.
 func renderJSONError(w io.Writer, err *CommandError) {
 	b, _ := json.MarshalIndent(map[string]*CommandError{"error": err}, "", "  ")
-	fmt.Fprintln(w, string(b))
+	_, _ = fmt.Fprintln(w, string(b))
 }

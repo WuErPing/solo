@@ -23,9 +23,9 @@ func NewMockAgentClient() *MockAgentClient {
 
 func (m *MockAgentClient) Provider() string { return "mock" }
 
-func (m *MockAgentClient) IsAvailable(ctx context.Context) error { return nil }
+func (m *MockAgentClient) IsAvailable(_ context.Context) error { return nil }
 
-func (m *MockAgentClient) CreateSession(ctx context.Context, config *protocol.AgentSessionConfig) (AgentSession, error) {
+func (m *MockAgentClient) CreateSession(_ context.Context, _ *protocol.AgentSessionConfig) (AgentSession, error) {
 	s := &MockAgentSession{
 		events:    make(chan AgentStreamEvent, 64),
 		mode:      "default",
@@ -38,23 +38,23 @@ func (m *MockAgentClient) CreateSession(ctx context.Context, config *protocol.Ag
 	return s, nil
 }
 
-func (m *MockAgentClient) ResumeSession(ctx context.Context, handle *protocol.AgentPersistenceHandle) (AgentSession, error) {
+func (m *MockAgentClient) ResumeSession(ctx context.Context, _ *protocol.AgentPersistenceHandle) (AgentSession, error) {
 	return m.CreateSession(ctx, &protocol.AgentSessionConfig{Provider: "mock"})
 }
 
-func (m *MockAgentClient) ListModels(ctx context.Context, cwd string) ([]protocol.AgentModelDefinition, error) {
+func (m *MockAgentClient) ListModels(_ context.Context, _ string) ([]protocol.AgentModelDefinition, error) {
 	return []protocol.AgentModelDefinition{
 		{Provider: "mock", ID: "mock-model", Label: "Mock Model", IsDefault: true},
 	}, nil
 }
 
-func (m *MockAgentClient) ListModes(ctx context.Context, cwd string) ([]protocol.AgentMode, error) {
+func (m *MockAgentClient) ListModes(_ context.Context, _ string) ([]protocol.AgentMode, error) {
 	return []protocol.AgentMode{
 		{ID: "default", Label: "Default", Description: "Mock default mode"},
 	}, nil
 }
 
-func (m *MockAgentClient) ListClientCommands(ctx context.Context, cwd string) ([]protocol.AgentSlashCommand, error) {
+func (m *MockAgentClient) ListClientCommands(_ context.Context, _ string) ([]protocol.AgentSlashCommand, error) {
 	return nil, nil
 }
 
@@ -68,7 +68,7 @@ type MockAgentSession struct {
 	sessionID string
 }
 
-func (s *MockAgentSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
+func (s *MockAgentSession) Run(_ context.Context, text string, _ []protocol.ImageAttachment, _ []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
 	if !s.emit(AgentStreamEvent{
 		Event: protocol.ThreadStartedStreamEvent{
 			Provider:  "mock",
@@ -122,7 +122,9 @@ func (s *MockAgentSession) StartTurn(ctx context.Context, text string, images []
 		s.events = make(chan AgentStreamEvent, 64)
 	}
 	s.mu.Unlock()
-	go s.Run(ctx, text, images, attachments, "")
+	go func() {
+		_, _ = s.Run(ctx, text, images, attachments, "")
+	}()
 	return s.events, nil
 }
 
@@ -130,7 +132,7 @@ func (s *MockAgentSession) Subscribe() <-chan AgentStreamEvent {
 	return s.events
 }
 
-func (s *MockAgentSession) Interrupt(ctx context.Context) error { return nil }
+func (s *MockAgentSession) Interrupt(_ context.Context) error { return nil }
 
 func (s *MockAgentSession) Close() error {
 	s.mu.Lock()
@@ -152,20 +154,11 @@ func (s *MockAgentSession) emit(event AgentStreamEvent) bool {
 	return true
 }
 
-func (s *MockAgentSession) closeEvents() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if !s.closed {
-		s.closed = true
-		close(s.events)
-	}
-}
-
-func (s *MockAgentSession) RespondPermission(requestID string, response protocol.AgentPermissionResponse) error {
+func (s *MockAgentSession) RespondPermission(_ string, _ protocol.AgentPermissionResponse) error {
 	return nil
 }
 
-func (s *MockAgentSession) GetRuntimeInfo(ctx context.Context) (*protocol.AgentRuntimeInfo, error) {
+func (s *MockAgentSession) GetRuntimeInfo(_ context.Context) (*protocol.AgentRuntimeInfo, error) {
 	return &protocol.AgentRuntimeInfo{
 		Provider:  "mock",
 		SessionID: &s.sessionID,
@@ -174,13 +167,13 @@ func (s *MockAgentSession) GetRuntimeInfo(ctx context.Context) (*protocol.AgentR
 	}, nil
 }
 
-func (s *MockAgentSession) GetAvailableModes(ctx context.Context) ([]protocol.AgentMode, error) {
+func (s *MockAgentSession) GetAvailableModes(_ context.Context) ([]protocol.AgentMode, error) {
 	return []protocol.AgentMode{
 		{ID: "default", Label: "Default", Description: "Mock default mode"},
 	}, nil
 }
 
-func (s *MockAgentSession) GetCurrentMode(ctx context.Context) (*string, error) {
+func (s *MockAgentSession) GetCurrentMode(_ context.Context) (*string, error) {
 	return &s.mode, nil
 }
 
@@ -198,7 +191,7 @@ func (s *MockAgentSession) SetModel(modelID string) error {
 	return nil
 }
 
-func (s *MockAgentSession) SetThinkingOption(optionID string) error { return nil }
+func (s *MockAgentSession) SetThinkingOption(_ string) error { return nil }
 
 func (s *MockAgentSession) DescribePersistence() *protocol.AgentPersistenceHandle {
 	return &protocol.AgentPersistenceHandle{
@@ -212,10 +205,10 @@ func (s *MockAgentSession) GetPendingPermissions() []interface{} {
 	return nil
 }
 
-func (s *MockAgentSession) ListCommands(ctx context.Context) ([]protocol.AgentSlashCommand, error) {
+func (s *MockAgentSession) ListCommands(_ context.Context) ([]protocol.AgentSlashCommand, error) {
 	return nil, nil
 }
 
-func (s *MockAgentSession) StreamHistory(ctx context.Context) ([]AgentStreamEvent, error) {
+func (s *MockAgentSession) StreamHistory(_ context.Context) ([]AgentStreamEvent, error) {
 	return nil, nil
 }

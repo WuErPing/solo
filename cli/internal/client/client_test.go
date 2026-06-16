@@ -97,7 +97,7 @@ func newMockDaemonServer() *mockDaemonServer {
 			},
 			GeneratedAt: time.Now().Format(time.RFC3339),
 		},
-		upgrader: websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }},
+		upgrader: websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }},
 	}
 }
 

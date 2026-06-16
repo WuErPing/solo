@@ -28,7 +28,7 @@ func (b *blockingSessionAttacher) AttachExternalConnection(conn wsconn.WSConn) {
 // that accepted the data socket connection but the daemon-side hello never fires.
 func newMockRelayServer(t *testing.T) *httptest.Server {
 	t.Helper()
-	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
@@ -124,7 +124,7 @@ func TestOpenDataSocket_NoTimeoutOnNormalPath(t *testing.T) {
 
 type fastSessionAttacher struct{}
 
-func (f *fastSessionAttacher) AttachExternalConnection(conn wsconn.WSConn) {
+func (f *fastSessionAttacher) AttachExternalConnection(_ wsconn.WSConn) {
 	// Return immediately — simulates quick session end
 }
 

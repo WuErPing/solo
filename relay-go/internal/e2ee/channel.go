@@ -1,3 +1,4 @@
+// Package e2ee provides end-to-end encrypted channels over a byte transport.
 package e2ee
 
 import (

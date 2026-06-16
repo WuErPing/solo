@@ -135,19 +135,19 @@ func (s *ExpoPushService) sendBatch(messages []expoPushMessage) error {
 
 		if resp.StatusCode == http.StatusOK {
 			err := s.handleResponse(resp, messages)
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			return err
 		}
 
 		// Non-retryable: 4xx except 429
 		if resp.StatusCode >= 400 && resp.StatusCode < 500 && resp.StatusCode != http.StatusTooManyRequests {
 			s.logger.Error("expo API client error", "status", resp.StatusCode)
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			return fmt.Errorf("expo API returned status %d", resp.StatusCode)
 		}
 
 		// Retryable: 429 and 5xx
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		lastErr = fmt.Errorf("expo API returned status %d", resp.StatusCode)
 		s.logger.Warn("expo API retryable error", "status", resp.StatusCode, "attempt", attempt)
 	}

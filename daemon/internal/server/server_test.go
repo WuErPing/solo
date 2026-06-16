@@ -18,29 +18,13 @@ import (
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/config"
+	"github.com/WuErPing/solo/daemon/internal/loop"
 	"github.com/WuErPing/solo/daemon/internal/push"
 	"github.com/WuErPing/solo/daemon/internal/schedule"
 	"github.com/WuErPing/solo/daemon/internal/terminal"
 	"github.com/WuErPing/solo/daemon/internal/workspace"
 	"github.com/WuErPing/solo/protocol"
 )
-
-func newTestDaemon(t *testing.T) (*Daemon, string) {
-	t.Helper()
-	cfg := &config.Config{
-		SoloHome:   t.TempDir(),
-		Listen:     "127.0.0.1:0",
-		ServerID:   "test-server",
-		Version:    "0.1.0",
-		AppBaseURL: "https://solo.up2ai.top",
-	}
-	logger := newTestLogger()
-	d, err := NewDaemon(cfg, logger)
-	if err != nil {
-		t.Fatalf("NewDaemon: %v", err)
-	}
-	return d, ""
-}
 
 func newTestWSServer(t *testing.T) (*WSServer, *httptest.Server) {
 	t.Helper()
@@ -87,6 +71,7 @@ func newTestWSServer(t *testing.T) (*WSServer, *httptest.Server) {
 		Pusher:          pusher,
 		ActivityTracker: activityTracker,
 		ScheduleStore:   schedule.NewStore(schedule.WithDataPath(filepath.Join(cfg.SoloHome, "schedules.json"))),
+		LoopStore:       loop.NewStore(),
 	})
 
 	mux := http.NewServeMux()

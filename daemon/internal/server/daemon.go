@@ -17,7 +17,8 @@ import (
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/config"
-	"github.com/WuErPing/solo/daemon/internal/metrics"
+	daemonmetrics "github.com/WuErPing/solo/daemon/internal/metrics"
+	"github.com/WuErPing/solo/daemon/internal/loop"
 	"github.com/WuErPing/solo/daemon/internal/push"
 	"github.com/WuErPing/solo/daemon/internal/relayclient"
 	"github.com/WuErPing/solo/daemon/internal/schedule"
@@ -48,6 +49,7 @@ type Daemon struct {
 	memoryBridge     MemoryBridge
 	scheduleStore    *schedule.Store
 	scheduleExecutor *schedule.Executor
+	loopStore        *loop.Store
 	executorCancel   context.CancelFunc
 }
 
@@ -180,6 +182,12 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 		schedule.WithLogger(logger),
 	)
 
+	// Create shared loop store (single instance for all sessions)
+	loopStore := loop.NewStore(
+		loop.WithDataPath(filepath.Join(cfg.SoloHome, "loops.json")),
+		loop.WithLogger(logger),
+	)
+
 	// Create WS server with dependencies
 	ws := NewWSServerWithConfig(DaemonConfig{
 		Config:          cfg,
@@ -199,6 +207,7 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 		ActivityTracker: activityTracker,
 		MemoryBridge:    memoryBridge,
 		ScheduleStore:   scheduleStore,
+		LoopStore:       loopStore,
 	})
 
 	mux := http.NewServeMux()
@@ -226,6 +235,7 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 		memoryRecorder: memoryRecorder,
 		memoryBridge:   memoryBridge,
 		scheduleStore:  scheduleStore,
+		loopStore:      loopStore,
 		http: &http.Server{
 			Handler: mux,
 		},
@@ -383,22 +393,26 @@ func (d *Daemon) prewarmOpenCodeServer() {
 	}
 }
 
-func handleHealth(w http.ResponseWriter, r *http.Request) {
+func handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"status":    "ok",
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	})
+	}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func handleStatus(cfg *config.Config) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
 			"serverId": cfg.ServerID,
 			"version":  cfg.Version,
 			"listen":   cfg.Listen,
-		})
+		}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	}
 }
 
@@ -424,6 +438,7 @@ type WSServer struct {
 	activityTracker ActivityTracker
 	memoryBridge    MemoryBridge
 	scheduleStore   *schedule.Store
+	loopStore       *loop.Store
 	done            chan struct{}
 	mu              sync.RWMutex
 	gracePeriod     time.Duration // override for SessionDisconnectGraceMs; 0 = use default
@@ -434,7 +449,7 @@ type WSServer struct {
 
 // NewWSServer creates a new WebSocket server with agent dependencies.
 // Deprecated: use NewWSServerWithConfig
-func NewWSServer(cfg *config.Config, logger *slog.Logger, agentMgr *agent.AgentManager, timelineStore *agent.InMemoryTimelineStore, registry *agent.ProviderRegistry, workspaceStore *WorkspaceStore, terminalMgr *terminal.TerminalManager, projectReg *workspace.ProjectRegistry, workspaceReg *workspace.WorkspaceRegistry, gitSvc workspace.WorkspaceGitService, scriptMgr *workspace.ScriptManager, scriptProxy *workspace.ScriptProxy, pushTokenStore push.TokenStore, pusher push.Pusher, activityTracker ActivityTracker, memoryBridge MemoryBridge, scheduleStore *schedule.Store) *WSServer {
+func NewWSServer(cfg *config.Config, logger *slog.Logger, agentMgr *agent.AgentManager, timelineStore *agent.InMemoryTimelineStore, registry *agent.ProviderRegistry, workspaceStore *WorkspaceStore, terminalMgr *terminal.TerminalManager, projectReg *workspace.ProjectRegistry, workspaceReg *workspace.WorkspaceRegistry, gitSvc workspace.WorkspaceGitService, scriptMgr *workspace.ScriptManager, scriptProxy *workspace.ScriptProxy, pushTokenStore push.TokenStore, pusher push.Pusher, activityTracker ActivityTracker, memoryBridge MemoryBridge, scheduleStore *schedule.Store, loopStore *loop.Store) *WSServer {
 	return &WSServer{
 		cfg:             cfg,
 		logger:          logger,
@@ -454,6 +469,7 @@ func NewWSServer(cfg *config.Config, logger *slog.Logger, agentMgr *agent.AgentM
 		activityTracker: activityTracker,
 		memoryBridge:    memoryBridge,
 		scheduleStore:   scheduleStore,
+		loopStore:       loopStore,
 		done:            make(chan struct{}),
 	}
 }
@@ -478,6 +494,7 @@ type DaemonConfig struct {
 	ActivityTracker ActivityTracker
 	MemoryBridge    MemoryBridge
 	ScheduleStore   *schedule.Store
+	LoopStore       *loop.Store
 }
 
 // NewWSServerWithConfig creates a new WebSocket server using a DaemonConfig.
@@ -500,6 +517,7 @@ func NewWSServerWithConfig(cfg DaemonConfig) *WSServer {
 		cfg.ActivityTracker,
 		cfg.MemoryBridge,
 		cfg.ScheduleStore,
+		cfg.LoopStore,
 	)
 }
 
@@ -615,32 +633,32 @@ func (s *WSServer) handleNewConnection(conn WSConn) {
 		s.logger.Info("hello received", "clientId", hello.ClientID, "clientType", hello.ClientType, "protocolVersion", hello.ProtocolVersion)
 	case err := <-errCh:
 		s.logger.Info("connection closed before hello", "error", err)
-		conn.Close()
+		_ = conn.Close()
 		return
 	case <-helloTimer.C:
 		s.logger.Info("hello timeout, closing connection")
-		conn.WriteMessage(websocket.CloseMessage,
+		_ = conn.WriteMessage(websocket.CloseMessage,
 			websocket.FormatCloseMessage(protocol.WSCloseHelloTimeout, "hello timeout"))
-		conn.Close()
+		_ = conn.Close()
 		return
 	case <-s.done:
 		s.logger.Info("server shutting down, closing connection")
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 
 	if hello.Type != "hello" {
 		s.logger.Info("invalid hello type", "type", hello.Type)
-		conn.WriteMessage(websocket.CloseMessage,
+		_ = conn.WriteMessage(websocket.CloseMessage,
 			websocket.FormatCloseMessage(protocol.WSCloseInvalidHello, "expected hello message"))
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 	if hello.ProtocolVersion != protocol.WSProtocolVersion {
 		s.logger.Info("incompatible protocol version", "version", hello.ProtocolVersion, "expected", protocol.WSProtocolVersion)
-		conn.WriteMessage(websocket.CloseMessage,
+		_ = conn.WriteMessage(websocket.CloseMessage,
 			websocket.FormatCloseMessage(protocol.WSCloseIncompatibleProtocol, "incompatible protocol version"))
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 
@@ -667,12 +685,12 @@ func (s *WSServer) handleNewConnection(conn WSConn) {
 	data, err := json.Marshal(serverInfo)
 	if err != nil {
 		s.logger.Error("cannot marshal server_info", "error", err)
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 	if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
 		s.logger.Error("cannot send server_info", "error", err)
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 	s.logger.Info("server_info sent", "clientId", clientID, "bytes", len(data), "json", string(data))
@@ -700,7 +718,7 @@ func (s *WSServer) handleNewConnection(conn WSConn) {
 		s.mu.Lock()
 		if s.sessions[clientID] == existingSess && !existingSess.IsInGrace() {
 			delete(s.sessions, clientID)
-			metrics.SessionsActive.Dec()
+			daemonmetrics.SessionsActive.Dec()
 		}
 		s.mu.Unlock()
 		s.logger.Info("client disconnected after session resume", "clientId", clientID)
@@ -738,6 +756,7 @@ func (s *WSServer) handleNewConnection(conn WSConn) {
 		ScriptProxy:    s.scriptProxy,
 		Broadcast:      s.broadcast,
 		ScheduleStore:  s.scheduleStore,
+		LoopStore:      s.loopStore,
 	})
 	if _, isRelay := conn.(*relayclient.E2EEConn); isRelay {
 		sess.SetIsRelay(true)
@@ -755,18 +774,18 @@ func (s *WSServer) handleNewConnection(conn WSConn) {
 		s.mu.Lock()
 		if s.sessions[clientID] == sess {
 			delete(s.sessions, clientID)
-			metrics.SessionsActive.Dec()
+			daemonmetrics.SessionsActive.Dec()
 		}
 		s.mu.Unlock()
 	}
 
 	s.logger.Info("client connected", "clientId", clientID, "clientType", clientType)
-	metrics.ConnectionsTotal.Inc()
+	daemonmetrics.ConnectionsTotal.Inc()
 
 	s.mu.Lock()
 	s.sessions[clientID] = sess
 	s.mu.Unlock()
-	metrics.SessionsActive.Inc()
+	daemonmetrics.SessionsActive.Inc()
 
 	sess.Run()
 
@@ -775,7 +794,7 @@ func (s *WSServer) handleNewConnection(conn WSConn) {
 	s.mu.Lock()
 	if s.sessions[clientID] == sess && !sess.IsInGrace() {
 		delete(s.sessions, clientID)
-		metrics.SessionsActive.Dec()
+		daemonmetrics.SessionsActive.Dec()
 	}
 	s.mu.Unlock()
 

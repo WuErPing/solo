@@ -15,25 +15,25 @@ type mockAgentClient struct {
 }
 
 func (m *mockAgentClient) Provider() string { return m.providerName }
-func (m *mockAgentClient) IsAvailable(ctx context.Context) error {
+func (m *mockAgentClient) IsAvailable(_ context.Context) error {
 	if m.available {
 		return nil
 	}
 	return errors.New("not available")
 }
-func (m *mockAgentClient) CreateSession(ctx context.Context, config *protocol.AgentSessionConfig) (AgentSession, error) {
+func (m *mockAgentClient) CreateSession(_ context.Context, _ *protocol.AgentSessionConfig) (AgentSession, error) {
 	return nil, nil
 }
-func (m *mockAgentClient) ResumeSession(ctx context.Context, handle *protocol.AgentPersistenceHandle) (AgentSession, error) {
+func (m *mockAgentClient) ResumeSession(_ context.Context, _ *protocol.AgentPersistenceHandle) (AgentSession, error) {
 	return nil, nil
 }
-func (m *mockAgentClient) ListModels(ctx context.Context, cwd string) ([]protocol.AgentModelDefinition, error) {
+func (m *mockAgentClient) ListModels(_ context.Context, _ string) ([]protocol.AgentModelDefinition, error) {
 	return m.models, nil
 }
-func (m *mockAgentClient) ListModes(ctx context.Context, cwd string) ([]protocol.AgentMode, error) {
+func (m *mockAgentClient) ListModes(_ context.Context, _ string) ([]protocol.AgentMode, error) {
 	return nil, nil
 }
-func (m *mockAgentClient) ListClientCommands(ctx context.Context, cwd string) ([]protocol.AgentSlashCommand, error) {
+func (m *mockAgentClient) ListClientCommands(_ context.Context, _ string) ([]protocol.AgentSlashCommand, error) {
 	return nil, nil
 }
 

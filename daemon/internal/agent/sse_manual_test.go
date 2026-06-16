@@ -15,7 +15,7 @@ import (
 
 func TestManualSSEFlow(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	
+
 	client := NewOpenCodeAgentClient("", logger)
 	if err := client.IsAvailable(context.Background()); err != nil {
 		t.Skip("opencode not available:", err)
@@ -29,7 +29,7 @@ func TestManualSSEFlow(t *testing.T) {
 
 	cwd := t.TempDir()
 	modelID := models[0].ID
-	
+
 	sess, err := client.CreateSession(context.Background(), &protocol.AgentSessionConfig{
 		Provider: "opencode",
 		Cwd:      cwd,
@@ -42,9 +42,9 @@ func TestManualSSEFlow(t *testing.T) {
 		sess.Close()
 		ShutdownOpenCodeServerManager()
 	})
-	
+
 	ch := sess.Subscribe()
-	
+
 	go func() {
 		for evt := range ch {
 			m, ok := evt.Event.(map[string]interface{})
@@ -54,7 +54,9 @@ func TestManualSSEFlow(t *testing.T) {
 			t.Logf("EVENT: %v", m["type"])
 			if item, ok := m["item"].(map[string]interface{}); ok {
 				text := fmt.Sprint(item["text"])
-				if len(text) > 60 { text = text[:60] + "..." }
+				if len(text) > 60 {
+					text = text[:60] + "..."
+				}
 				t.Logf("  item type=%v text=%q", item["type"], text)
 			}
 		}

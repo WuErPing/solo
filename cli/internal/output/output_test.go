@@ -107,7 +107,7 @@ func TestRender_Table_NoHeaders(t *testing.T) {
 func TestRender_Table_EmptyList(t *testing.T) {
 	var buf bytes.Buffer
 	schema := &Schema{
-		Columns: []ColumnDef{{Header: "NAME", FieldFunc: func(i interface{}) string { return "" }, Width: 5}},
+		Columns: []ColumnDef{{Header: "NAME", FieldFunc: func(_ interface{}) string { return "" }, Width: 5}},
 	}
 	result := ListResult([]interface{}{}, schema)
 	if err := Render(&buf, result, OutputOptions{Format: FormatTable, NoColor: true}); err != nil {
@@ -162,7 +162,7 @@ func TestRender_JSON_List(t *testing.T) {
 func TestRender_JSON_Serialize(t *testing.T) {
 	var buf bytes.Buffer
 	schema := &Schema{
-		Serialize: func(data interface{}) interface{} {
+		Serialize: func(_ interface{}) interface{} {
 			return map[string]string{"transformed": "yes"}
 		},
 	}

@@ -9,7 +9,7 @@ import (
 func TestMessageHandlerRegistry_RegisterAndDispatch(t *testing.T) {
 	r := newMessageHandlerRegistry()
 	called := false
-	r.Register("test_msg", func(s *Session, msg protocol.SessionInboundMessage) {
+	r.Register("test_msg", func(_ *Session, _ protocol.SessionInboundMessage) {
 		called = true
 	})
 
@@ -35,10 +35,10 @@ func TestMessageHandlerRegistry_Overwrite(t *testing.T) {
 	r := newMessageHandlerRegistry()
 	first := false
 	second := false
-	r.Register("test", func(s *Session, msg protocol.SessionInboundMessage) {
+	r.Register("test", func(_ *Session, _ protocol.SessionInboundMessage) {
 		first = true
 	})
-	r.Register("test", func(s *Session, msg protocol.SessionInboundMessage) {
+	r.Register("test", func(_ *Session, _ protocol.SessionInboundMessage) {
 		second = true
 	})
 

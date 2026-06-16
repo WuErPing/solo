@@ -1,3 +1,4 @@
+// Package cmd implements the Solo CLI commands.
 package cmd
 
 import (

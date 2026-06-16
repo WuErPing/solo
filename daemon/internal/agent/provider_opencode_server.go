@@ -32,7 +32,6 @@ type OpenCodeServerManager struct {
 	currentServer        *OpenCodeServerGeneration
 	retiredServers       map[*OpenCodeServerGeneration]struct{}
 	startPromise         chan struct{}
-	startResult          *OpenCodeServerGeneration
 	startErr             error
 	exitHandlerOnce      sync.Once
 	forcedRefreshPromise chan struct{}
@@ -104,13 +103,13 @@ func (m *OpenCodeServerManager) killServer(s *OpenCodeServerGeneration) {
 	if s.cmd == nil || s.cmd.Process == nil {
 		return
 	}
-	s.cmd.Process.Signal(syscall.SIGTERM)
+	_ = s.cmd.Process.Signal(syscall.SIGTERM)
 	done := make(chan error, 1)
 	go func() { done <- s.cmd.Wait() }()
 	select {
 	case <-done:
 	case <-time.After(opencodeServerShutdownTimeout):
-		s.cmd.Process.Kill()
+		_ = s.cmd.Process.Kill()
 	}
 }
 
@@ -352,10 +351,10 @@ func (m *OpenCodeServerManager) startServer(ctx context.Context) (*OpenCodeServe
 	select {
 	case <-started:
 	case <-time.After(opencodeServerStartTimeout):
-		cmd.Process.Kill()
+		_ = cmd.Process.Kill()
 		return nil, fmt.Errorf("opencode server startup timeout")
 	case <-ctx.Done():
-		cmd.Process.Kill()
+		_ = cmd.Process.Kill()
 		return nil, fmt.Errorf("opencode server startup cancelled: %w", ctx.Err())
 	}
 

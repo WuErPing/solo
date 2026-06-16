@@ -36,7 +36,7 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer closeDaemonClient(c)
 
 	if agentDeleteAll || agentDeleteCwd != "" {
 		return deleteMultipleAgents(ctx, c)
@@ -100,7 +100,9 @@ func deleteMultipleAgents(ctx context.Context, c *client.DaemonClient) error {
 			} `json:"entries"`
 		} `json:"payload"`
 	}
-	json.Unmarshal(payload, &fetchResp)
+	if err := json.Unmarshal(payload, &fetchResp); err != nil {
+		return fmt.Errorf("parse response: %w", err)
+	}
 
 	deleted := 0
 	for _, entry := range fetchResp.Payload.Entries {

@@ -82,7 +82,7 @@ func TestInMemoryTokenStore_ConcurrentAccess(t *testing.T) {
 	// Concurrent registrations
 	for i := 0; i < 100; i++ {
 		wg.Add(1)
-		go func(idx int) {
+		go func(_ int) {
 			defer wg.Done()
 			store.Register("token")
 		}(i)

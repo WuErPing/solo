@@ -1,3 +1,4 @@
+// Package relay implements the Solo WebSocket relay server.
 package relay
 
 import (
@@ -34,7 +35,8 @@ func sendControlJSON(conn *websocket.Conn, v any) {
 	if err != nil {
 		return
 	}
-	conn.WriteMessage(websocket.TextMessage, data)
+	// Best-effort control message; the peer will time out if it never arrives.
+	_ = conn.WriteMessage(websocket.TextMessage, data)
 }
 
 func sendSync(conn *websocket.Conn, connectionIDs []string) {
@@ -50,8 +52,10 @@ func notifyControl(sess *Session, v any) {
 		return
 	}
 	if err := sess.ControlSocket.Conn.WriteMessage(websocket.TextMessage, data); err != nil {
-		sess.ControlSocket.Conn.WriteMessage(websocket.CloseMessage,
+		// Connection is failing; close it best-effort and drop the reference.
+		_ = sess.ControlSocket.Conn.WriteMessage(websocket.CloseMessage,
 			websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "Control send failed"))
+		_ = sess.ControlSocket.Conn.Close()
 		sess.ControlSocket = nil
 	}
 }
@@ -62,7 +66,7 @@ func handleControlPing(conn *websocket.Conn) {
 
 var nudgeMu sync.Mutex
 
-func startControlNudge(store *SessionStore, sess *Session, connectionID string, syncDelay, resetDelay time.Duration, logger *slog.Logger) {
+func startControlNudge(_ *SessionStore, sess *Session, connectionID string, syncDelay, resetDelay time.Duration, logger *slog.Logger) {
 	nudgeMu.Lock()
 	defer nudgeMu.Unlock()
 
@@ -100,9 +104,9 @@ func startControlNudge(store *SessionStore, sess *Session, connectionID string, 
 
 			if sess.ControlSocket != nil {
 				logger.Warn("force-closing unresponsive control socket", "serverId", sess.ServerID, "connectionId", connectionID)
-				sess.ControlSocket.Conn.WriteMessage(websocket.CloseMessage,
+				_ = sess.ControlSocket.Conn.WriteMessage(websocket.CloseMessage,
 					websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "Control unresponsive"))
-				sess.ControlSocket.Conn.Close()
+				_ = sess.ControlSocket.Conn.Close()
 				sess.ControlSocket = nil
 			}
 		})
@@ -163,9 +167,9 @@ func startServerDataNudge(sess *Session, connectionID string, syncDelay, resetDe
 
 			if sess.ControlSocket != nil {
 				logger.Warn("force-closing unresponsive control socket (server-data waiting for client)", "serverId", sess.ServerID, "connectionId", connectionID)
-				sess.ControlSocket.Conn.WriteMessage(websocket.CloseMessage,
+				_ = sess.ControlSocket.Conn.WriteMessage(websocket.CloseMessage,
 					websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "Control unresponsive"))
-				sess.ControlSocket.Conn.Close()
+				_ = sess.ControlSocket.Conn.Close()
 				sess.ControlSocket = nil
 			}
 		})

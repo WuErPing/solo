@@ -1,3 +1,4 @@
+// Package agent provides the agent provider abstractions and lifecycle management for Solo.
 package agent
 
 import (

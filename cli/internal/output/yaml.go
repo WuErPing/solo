@@ -8,7 +8,7 @@ import (
 )
 
 // renderYAML writes the command result as YAML.
-func renderYAML(w io.Writer, result *CommandResult, opts OutputOptions) error {
+func renderYAML(w io.Writer, result *CommandResult, _ OutputOptions) error {
 	var data interface{}
 	if result.IsSingle {
 		data = result.Single
@@ -25,12 +25,14 @@ func renderYAML(w io.Writer, result *CommandResult, opts OutputOptions) error {
 		return fmt.Errorf("marshal YAML: %w", err)
 	}
 
-	w.Write(b)
+	if _, err := w.Write(b); err != nil {
+		return err
+	}
 	return nil
 }
 
 // renderYAMLError writes a CommandError as YAML.
 func renderYAMLError(w io.Writer, err *CommandError) {
 	b, _ := yaml.Marshal(map[string]*CommandError{"error": err})
-	w.Write(b)
+	_, _ = w.Write(b)
 }

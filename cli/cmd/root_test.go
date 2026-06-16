@@ -35,7 +35,7 @@ func newMockDaemonServer() *mockDaemonServer {
 			},
 			GeneratedAt: "2024-01-01T00:00:00Z",
 		},
-		upgrader: websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }},
+		upgrader: websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }},
 	}
 }
 
@@ -99,8 +99,8 @@ func (m *mockDaemonServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		// Respond based on message type
 		resp := map[string]interface{}{
-			"type":      "fetch_agents_response",
-			"payload":   map[string]interface{}{
+			"type": "fetch_agents_response",
+			"payload": map[string]interface{}{
 				"requestId": peek.Payload.RequestID,
 				"entries":   []interface{}{},
 				"pageInfo":  map[string]interface{}{"hasMore": false},
@@ -417,7 +417,7 @@ func TestRunProviderLs_NoProviders(t *testing.T) {
 	}
 }
 
-func TestExecute(t *testing.T) {
+func TestExecute(_ *testing.T) {
 	// Execute with no args should not panic.
 	rootCmd.SetArgs([]string{})
 	// Just ensure it doesn't crash; we don't want to actually call os.Exit.

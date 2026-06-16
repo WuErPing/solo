@@ -19,25 +19,25 @@ type cancelAfterTerminalClient struct {
 }
 
 func (c *cancelAfterTerminalClient) Provider() string { return "cancel-terminal" }
-func (c *cancelAfterTerminalClient) IsAvailable(ctx context.Context) error {
+func (c *cancelAfterTerminalClient) IsAvailable(_ context.Context) error {
 	return nil
 }
-func (c *cancelAfterTerminalClient) CreateSession(ctx context.Context, config *protocol.AgentSessionConfig) (AgentSession, error) {
+func (c *cancelAfterTerminalClient) CreateSession(_ context.Context, _ *protocol.AgentSessionConfig) (AgentSession, error) {
 	c.session = &cancelAfterTerminalSession{
 		events: make(chan AgentStreamEvent, 8),
 	}
 	return c.session, nil
 }
-func (c *cancelAfterTerminalClient) ResumeSession(ctx context.Context, handle *protocol.AgentPersistenceHandle) (AgentSession, error) {
+func (c *cancelAfterTerminalClient) ResumeSession(ctx context.Context, _ *protocol.AgentPersistenceHandle) (AgentSession, error) {
 	return c.CreateSession(ctx, &protocol.AgentSessionConfig{Provider: c.Provider()})
 }
-func (c *cancelAfterTerminalClient) ListModels(ctx context.Context, cwd string) ([]protocol.AgentModelDefinition, error) {
+func (c *cancelAfterTerminalClient) ListModels(_ context.Context, _ string) ([]protocol.AgentModelDefinition, error) {
 	return nil, nil
 }
-func (c *cancelAfterTerminalClient) ListModes(ctx context.Context, cwd string) ([]protocol.AgentMode, error) {
+func (c *cancelAfterTerminalClient) ListModes(_ context.Context, _ string) ([]protocol.AgentMode, error) {
 	return nil, nil
 }
-func (c *cancelAfterTerminalClient) ListClientCommands(ctx context.Context, cwd string) ([]protocol.AgentSlashCommand, error) {
+func (c *cancelAfterTerminalClient) ListClientCommands(_ context.Context, _ string) ([]protocol.AgentSlashCommand, error) {
 	return nil, nil
 }
 
@@ -45,7 +45,7 @@ type cancelAfterTerminalSession struct {
 	events chan AgentStreamEvent
 }
 
-func (s *cancelAfterTerminalSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
+func (s *cancelAfterTerminalSession) Run(ctx context.Context, _ string, _ []protocol.ImageAttachment, _ []protocol.AgentAttachment, _ string) (*AgentRunResult, error) {
 	// Emit turn_canceled before returning context.Canceled.
 	// This mirrors what EventPump does when the context is cancelled.
 	s.events <- AgentStreamEvent{
@@ -64,33 +64,35 @@ func (s *cancelAfterTerminalSession) StartTurn(ctx context.Context, text string,
 	go s.Run(ctx, text, images, attachments, "")
 	return s.events, nil
 }
-func (s *cancelAfterTerminalSession) Subscribe() <-chan AgentStreamEvent  { return s.events }
-func (s *cancelAfterTerminalSession) Interrupt(ctx context.Context) error { return nil }
+func (s *cancelAfterTerminalSession) Subscribe() <-chan AgentStreamEvent { return s.events }
+func (s *cancelAfterTerminalSession) Interrupt(_ context.Context) error  { return nil }
 func (s *cancelAfterTerminalSession) Close() error {
 	close(s.events)
 	return nil
 }
-func (s *cancelAfterTerminalSession) RespondPermission(requestID string, response protocol.AgentPermissionResponse) error {
+func (s *cancelAfterTerminalSession) RespondPermission(_ string, _ protocol.AgentPermissionResponse) error {
 	return nil
 }
-func (s *cancelAfterTerminalSession) GetRuntimeInfo(ctx context.Context) (*protocol.AgentRuntimeInfo, error) {
+func (s *cancelAfterTerminalSession) GetRuntimeInfo(_ context.Context) (*protocol.AgentRuntimeInfo, error) {
 	return &protocol.AgentRuntimeInfo{Provider: "cancel-terminal"}, nil
 }
-func (s *cancelAfterTerminalSession) GetAvailableModes(ctx context.Context) ([]protocol.AgentMode, error) {
+func (s *cancelAfterTerminalSession) GetAvailableModes(_ context.Context) ([]protocol.AgentMode, error) {
 	return nil, nil
 }
-func (s *cancelAfterTerminalSession) GetCurrentMode(ctx context.Context) (*string, error) { return nil, nil }
-func (s *cancelAfterTerminalSession) SetMode(modeID string) error                         { return nil }
-func (s *cancelAfterTerminalSession) SetModel(modelID string) error                       { return nil }
-func (s *cancelAfterTerminalSession) SetThinkingOption(optionID string) error             { return nil }
+func (s *cancelAfterTerminalSession) GetCurrentMode(_ context.Context) (*string, error) {
+	return nil, nil
+}
+func (s *cancelAfterTerminalSession) SetMode(_ string) error           { return nil }
+func (s *cancelAfterTerminalSession) SetModel(_ string) error          { return nil }
+func (s *cancelAfterTerminalSession) SetThinkingOption(_ string) error { return nil }
 func (s *cancelAfterTerminalSession) DescribePersistence() *protocol.AgentPersistenceHandle {
 	return &protocol.AgentPersistenceHandle{Provider: "cancel-terminal", SessionID: "session-cancel"}
 }
 func (s *cancelAfterTerminalSession) GetPendingPermissions() []interface{} { return nil }
-func (s *cancelAfterTerminalSession) ListCommands(ctx context.Context) ([]protocol.AgentSlashCommand, error) {
+func (s *cancelAfterTerminalSession) ListCommands(_ context.Context) ([]protocol.AgentSlashCommand, error) {
 	return nil, nil
 }
-func (s *cancelAfterTerminalSession) StreamHistory(ctx context.Context) ([]AgentStreamEvent, error) {
+func (s *cancelAfterTerminalSession) StreamHistory(_ context.Context) ([]AgentStreamEvent, error) {
 	return nil, nil
 }
 
@@ -151,7 +153,7 @@ func TestAgentManagerDoesNotOverwriteIdleWithErrorOnCancel(t *testing.T) {
 				return
 			}
 			if status == protocol.AgentError {
-				t.Fatalf("agent ended in error state; expected idle. "+
+				t.Fatalf("agent ended in error state; expected idle. " +
 					"This means the Run-return path overwrote the idle set by the event stream path.")
 			}
 		case <-deadline:

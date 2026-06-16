@@ -10,109 +10,14 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"golang.org/x/crypto/nacl/box"
 )
-
-// createTestE2EEPair creates a server with an E2EEConn and a client connection
-// that can exchange encrypted messages. Returns the E2EEConn and a cleanup func.
-func createTestE2EEPair(t *testing.T) (*E2EEConn, *websocket.Conn, func()) {
-	t.Helper()
-
-	_, daemonPriv, err := generateBoxKeyPair()
-	if err != nil {
-		t.Fatalf("generate daemon keypair: %v", err)
-	}
-	daemonPrivB64 := base64.StdEncoding.EncodeToString(daemonPriv[:])
-
-	clientPub, clientPriv, err := generateBoxKeyPair()
-	if err != nil {
-		t.Fatalf("generate client keypair: %v", err)
-	}
-
-	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
-	serverDone := make(chan *E2EEConn, 1)
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			t.Errorf("upgrade: %v", err)
-			return
-		}
-		e2eeConn, err := PerformE2EEHandshake(conn, daemonPrivB64, testLogger(t))
-		if err != nil {
-			conn.Close()
-			t.Errorf("handshake: %v", err)
-			return
-		}
-		serverDone <- e2eeConn
-		// Keep alive until closed
-		<-time.After(10 * time.Second)
-		conn.Close()
-	}))
-
-	wsURL := "ws" + srv.URL[4:]
-	clientConn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
-	if err != nil {
-		srv.Close()
-		t.Fatalf("dial: %v", err)
-	}
-
-	hello := map[string]string{
-		"type": "e2ee_hello",
-		"key":  base64.StdEncoding.EncodeToString(clientPub[:]),
-	}
-	helloData, _ := json.Marshal(hello)
-	if err := clientConn.WriteMessage(websocket.TextMessage, helloData); err != nil {
-		clientConn.Close()
-		srv.Close()
-		t.Fatalf("write hello: %v", err)
-	}
-
-	var e2eeConn *E2EEConn
-	select {
-	case e2eeConn = <-serverDone:
-	case <-time.After(2 * time.Second):
-		clientConn.Close()
-		srv.Close()
-		t.Fatal("handshake timeout")
-	}
-
-	// Compute shared key for client-side encryption
-	var sharedKey [32]byte
-	var daemonPrivArr [32]byte
-	copy(daemonPrivArr[:], mustDecodeB64(daemonPrivB64))
-	box.Precompute(&sharedKey, clientPub, &daemonPrivArr)
-	// Actually we need the server's perspective: shared key = Precompute(clientPub, daemonPriv)
-	// But the client needs: Precompute(daemonPub, clientPriv)
-	// Since we don't have daemonPub here, let's use the daemonPriv approach:
-	var daemonPrivBytes [32]byte
-	copy(daemonPrivBytes[:], mustDecodeB64(daemonPrivB64))
-	box.Precompute(&sharedKey, clientPub, &daemonPrivBytes)
-
-	cleanup := func() {
-		clientConn.Close()
-		srv.Close()
-	}
-
-	// Store shared key for helper
-	t.Cleanup(cleanup)
-	_ = clientPriv
-	_ = sharedKey
-
-	return e2eeConn, clientConn, cleanup
-}
-
-func mustDecodeB64(s string) []byte {
-	b, _ := base64.StdEncoding.DecodeString(s)
-	return b
-}
 
 func TestE2EEConn_Close(t *testing.T) {
 	_, daemonPriv, _ := generateBoxKeyPair()
 	daemonPrivB64 := base64.StdEncoding.EncodeToString(daemonPriv[:])
 	clientPub, _, _ := generateBoxKeyPair()
 
-	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 	e2eeDone := make(chan *E2EEConn, 1)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -148,7 +53,7 @@ func TestE2EEConn_SetPongHandler(t *testing.T) {
 	daemonPrivB64 := base64.StdEncoding.EncodeToString(daemonPriv[:])
 	clientPub, _, _ := generateBoxKeyPair()
 
-	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 	e2eeDone := make(chan *E2EEConn, 1)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -178,7 +83,7 @@ func TestE2EEConn_SetPongHandler(t *testing.T) {
 	}()
 
 	called := false
-	e2eeConn.SetPongHandler(func(appData string) error {
+	e2eeConn.SetPongHandler(func(_ string) error {
 		called = true
 		return nil
 	})
@@ -191,7 +96,7 @@ func TestE2EEConn_SetReadDeadline(t *testing.T) {
 	daemonPrivB64 := base64.StdEncoding.EncodeToString(daemonPriv[:])
 	clientPub, _, _ := generateBoxKeyPair()
 
-	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 	e2eeDone := make(chan *E2EEConn, 1)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -230,7 +135,7 @@ func TestE2EEConn_SetWriteDeadline(t *testing.T) {
 	daemonPrivB64 := base64.StdEncoding.EncodeToString(daemonPriv[:])
 	clientPub, _, _ := generateBoxKeyPair()
 
-	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 	e2eeDone := make(chan *E2EEConn, 1)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -269,7 +174,7 @@ func TestE2EEConn_WriteControl(t *testing.T) {
 	daemonPrivB64 := base64.StdEncoding.EncodeToString(daemonPriv[:])
 	clientPub, _, _ := generateBoxKeyPair()
 
-	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 	e2eeDone := make(chan *E2EEConn, 1)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -309,7 +214,7 @@ func TestE2EEConn_ReadMessage_Encrypted(t *testing.T) {
 	daemonPrivB64 := base64.StdEncoding.EncodeToString(daemonPriv[:])
 	clientPub, clientPriv, _ := generateBoxKeyPair()
 
-	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 	e2eeDone := make(chan *E2EEConn, 1)
 
 	var daemonPubBytes [32]byte
@@ -382,11 +287,9 @@ func TestE2EEConn_ReadMessage_Encrypted(t *testing.T) {
 	// Set a deadline so ReadMessage doesn't block forever
 	e2eeConn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
 
-	_, _, err = e2eeConn.ReadMessage()
-	// Should timeout (stray frame skipped, then no more data)
-	if err == nil {
-		// Might get the stray or timeout, both are acceptable
-	}
+	_, _, _ = e2eeConn.ReadMessage()
+	// Should timeout (stray frame skipped, then no more data).
+	// Might get the stray or timeout, both are acceptable.
 	_ = clientPriv
 	_ = daemonPubBytes
 }

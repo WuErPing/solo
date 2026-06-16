@@ -53,20 +53,21 @@ type PongPayload struct {
 
 func (m *PongMessage) MsgType() string { return "pong" }
 
-// RpcErrorMessage
-type RpcErrorMessage struct {
+// RPCErrorMessage is the outbound message type for RPC errors.
+type RPCErrorMessage struct {
 	Type    string          `json:"type"`
-	Payload RpcErrorPayload `json:"payload"`
+	Payload RPCErrorPayload `json:"payload"`
 }
 
-type RpcErrorPayload struct {
+// RPCErrorPayload carries the details of an RPC error.
+type RPCErrorPayload struct {
 	RequestID   string  `json:"requestId"`
 	RequestType *string `json:"requestType,omitempty"`
 	Error       string  `json:"error"`
 	Code        *string `json:"code,omitempty"`
 }
 
-func (m *RpcErrorMessage) MsgType() string { return "rpc_error" }
+func (m *RPCErrorMessage) MsgType() string { return "rpc_error" }
 
 // AgentSnapshotPayload is the full state of an agent sent to clients.
 type AgentSnapshotPayload struct {

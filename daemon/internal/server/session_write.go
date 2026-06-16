@@ -13,7 +13,7 @@ func writeMessageWithDeadline(conn WSConn, messageType int, data []byte) error {
 	}
 	if wc, ok := conn.(WriteDeadlineConn); ok {
 		_ = wc.SetWriteDeadline(time.Now().Add(websocketWriteTimeout))
-		defer wc.SetWriteDeadline(time.Time{})
+		defer func() { _ = wc.SetWriteDeadline(time.Time{}) }()
 	}
 	return conn.WriteMessage(messageType, data)
 }

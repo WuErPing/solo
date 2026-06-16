@@ -69,7 +69,7 @@ func DialerForHost(host string) *websocket.Dialer {
 		return websocket.DefaultDialer
 	}
 	return &websocket.Dialer{
-		NetDial: func(network, addr string) (net.Conn, error) {
+		NetDial: func(_, _ string) (net.Conn, error) {
 			return net.Dial("unix", path)
 		},
 	}

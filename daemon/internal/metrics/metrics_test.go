@@ -1,10 +1,12 @@
-package metrics
+package daemonmetrics_test
 
 import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+
+	daemonmetrics "github.com/WuErPing/solo/daemon/internal/metrics"
 )
 
 func TestMetricsAreRegistered(t *testing.T) {
@@ -36,9 +38,9 @@ func TestMetricsAreRegistered(t *testing.T) {
 
 func TestSessionsActiveGauge(t *testing.T) {
 	// Set gauge to a known value and verify via collector.
-	SessionsActive.Set(5)
+	daemonmetrics.SessionsActive.Set(5)
 
-	val, err := getGaugeValue(SessionsActive)
+	val, err := getGaugeValue(daemonmetrics.SessionsActive)
 	if err != nil {
 		t.Fatalf("get gauge value: %v", err)
 	}
@@ -46,8 +48,8 @@ func TestSessionsActiveGauge(t *testing.T) {
 		t.Errorf("SessionsActive = %v, want 5", val)
 	}
 
-	SessionsActive.Dec()
-	val, err = getGaugeValue(SessionsActive)
+	daemonmetrics.SessionsActive.Dec()
+	val, err = getGaugeValue(daemonmetrics.SessionsActive)
 	if err != nil {
 		t.Fatalf("get gauge value after dec: %v", err)
 	}
@@ -55,8 +57,8 @@ func TestSessionsActiveGauge(t *testing.T) {
 		t.Errorf("SessionsActive = %v, want 4", val)
 	}
 
-	SessionsActive.Inc()
-	val, err = getGaugeValue(SessionsActive)
+	daemonmetrics.SessionsActive.Inc()
+	val, err = getGaugeValue(daemonmetrics.SessionsActive)
 	if err != nil {
 		t.Fatalf("get gauge value after inc: %v", err)
 	}
@@ -66,14 +68,14 @@ func TestSessionsActiveGauge(t *testing.T) {
 }
 
 func TestConnectionsTotalCounter(t *testing.T) {
-	before, err := getCounterValue(ConnectionsTotal)
+	before, err := getCounterValue(daemonmetrics.ConnectionsTotal)
 	if err != nil {
 		t.Fatalf("get counter value: %v", err)
 	}
 
-	ConnectionsTotal.Inc()
+	daemonmetrics.ConnectionsTotal.Inc()
 
-	after, err := getCounterValue(ConnectionsTotal)
+	after, err := getCounterValue(daemonmetrics.ConnectionsTotal)
 	if err != nil {
 		t.Fatalf("get counter value after inc: %v", err)
 	}
@@ -84,14 +86,14 @@ func TestConnectionsTotalCounter(t *testing.T) {
 }
 
 func TestMessagesSentTotalCounter(t *testing.T) {
-	before, err := getCounterValue(MessagesSentTotal)
+	before, err := getCounterValue(daemonmetrics.MessagesSentTotal)
 	if err != nil {
 		t.Fatalf("get counter value: %v", err)
 	}
 
-	MessagesSentTotal.Inc()
+	daemonmetrics.MessagesSentTotal.Inc()
 
-	after, err := getCounterValue(MessagesSentTotal)
+	after, err := getCounterValue(daemonmetrics.MessagesSentTotal)
 	if err != nil {
 		t.Fatalf("get counter value after inc: %v", err)
 	}
@@ -102,14 +104,14 @@ func TestMessagesSentTotalCounter(t *testing.T) {
 }
 
 func TestMessagesReceivedTotalCounter(t *testing.T) {
-	before, err := getCounterValue(MessagesReceivedTotal)
+	before, err := getCounterValue(daemonmetrics.MessagesReceivedTotal)
 	if err != nil {
 		t.Fatalf("get counter value: %v", err)
 	}
 
-	MessagesReceivedTotal.Inc()
+	daemonmetrics.MessagesReceivedTotal.Inc()
 
-	after, err := getCounterValue(MessagesReceivedTotal)
+	after, err := getCounterValue(daemonmetrics.MessagesReceivedTotal)
 	if err != nil {
 		t.Fatalf("get counter value after inc: %v", err)
 	}

@@ -201,5 +201,3 @@ func TestManagedAgentModelAndTitle(t *testing.T) {
 		t.Error("expected title to be set")
 	}
 }
-
-

@@ -1,3 +1,4 @@
+// Package push sends push notifications to clients.
 package push
 
 import (
@@ -135,7 +136,6 @@ func stripMarkdown(text string) string {
 			}
 		}
 	}
-	text = strings.Join(lines, "\n")
 
 	// Blockquotes
 	for i, line := range lines {
@@ -145,7 +145,6 @@ func stripMarkdown(text string) string {
 			lines[i] = strings.TrimLeft(lines[i], " ")
 		}
 	}
-	text = strings.Join(lines, "\n")
 
 	// Lists
 	for i, line := range lines {

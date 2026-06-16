@@ -59,7 +59,9 @@ func renderTable(w io.Writer, result *CommandResult, opts OutputOptions) error {
 		if !opts.NoColor {
 			headerLine = HeaderColor.Sprint(headerLine)
 		}
-		fmt.Fprintln(w, headerLine)
+		if _, err := fmt.Fprintln(w, headerLine); err != nil {
+			return err
+		}
 	}
 
 	// Render data rows
@@ -75,7 +77,9 @@ func renderTable(w io.Writer, result *CommandResult, opts OutputOptions) error {
 			}
 			cells[i] = padCell(val, widths[i], col.Align)
 		}
-		fmt.Fprintln(w, strings.Join(cells, "  "))
+		if _, err := fmt.Fprintln(w, strings.Join(cells, "  ")); err != nil {
+			return err
+		}
 	}
 
 	return nil

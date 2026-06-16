@@ -14,7 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/WuErPing/solo/protocol"
-	"github.com/WuErPing/solo/relay/internal/metrics"
+	relaymetrics "github.com/WuErPing/solo/relay/internal/metrics"
 )
 
 const version = "relay-go-v1"
@@ -65,14 +65,16 @@ func (s *Server) Handler() http.Handler {
 	return mux
 }
 
-func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+	if err := json.NewEncoder(w).Encode(map[string]any{
 		"status":      "ok",
 		"sessions":    s.Store.SessionCount(),
 		"connections": s.connCount.Load(),
 		"version":     version,
-	})
+	}); err != nil {
+		s.Logger.Warn("health response encode failed", "error", err)
+	}
 }
 
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
@@ -102,7 +104,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.connCount.Add(1)
-	metrics.Connections.Inc()
+	relaymetrics.Connections.Inc()
 
 	sess := s.Store.GetOrCreate(serverID)
 	sess.mu.Lock()
@@ -116,8 +118,12 @@ func (s *Server) handleV2Connect(sess *Session, role ConnectionRole, connectionI
 	resolvedID := connectionID
 	if role == RoleClient && resolvedID == "" {
 		b := make([]byte, 8)
-		rand.Read(b)
-		resolvedID = "conn_" + hex.EncodeToString(b)
+		if _, err := rand.Read(b); err != nil {
+			s.Logger.Error("failed to read random bytes", "error", err)
+			resolvedID = fmt.Sprintf("conn_%d", time.Now().UnixNano())
+		} else {
+			resolvedID = "conn_" + hex.EncodeToString(b)
+		}
 	}
 
 	isControl := role == RoleServer && resolvedID == ""
@@ -126,9 +132,9 @@ func (s *Server) handleV2Connect(sess *Session, role ConnectionRole, connectionI
 	switch {
 	case isControl:
 		if sess.ControlSocket != nil {
-			sess.ControlSocket.Conn.WriteMessage(websocket.CloseMessage,
+			_ = sess.ControlSocket.Conn.WriteMessage(websocket.CloseMessage,
 				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "Replaced by new connection"))
-			sess.ControlSocket.Conn.Close()
+			_ = sess.ControlSocket.Conn.Close()
 		}
 		sess.ControlSocket = &ControlSocket{Conn: conn, CreatedAt: time.Now()}
 		s.Logger.Info("socket connected", "event", "control_connected", "serverId", sess.ServerID, "role", "server")
@@ -137,9 +143,9 @@ func (s *Server) handleV2Connect(sess *Session, role ConnectionRole, connectionI
 	case isData:
 		cd := sess.GetOrCreateConnection(resolvedID, s.MaxBuffer)
 		if cd.ServerDataSocket != nil {
-			cd.ServerDataSocket.Conn.WriteMessage(websocket.CloseMessage,
+			_ = cd.ServerDataSocket.Conn.WriteMessage(websocket.CloseMessage,
 				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "Replaced by new connection"))
-			cd.ServerDataSocket.Conn.Close()
+			_ = cd.ServerDataSocket.Conn.Close()
 		}
 		cd.ServerDataSocket = &DataSocket{Conn: conn, ConnectionID: resolvedID, CreatedAt: time.Now()}
 		s.Logger.Info("socket connected", "event", "data_connected", "serverId", sess.ServerID, "role", "server", "connectionId", resolvedID)
@@ -178,9 +184,9 @@ func (s *Server) handleV2Connect(sess *Session, role ConnectionRole, connectionI
 func (s *Server) readPump(sess *Session, serverID string, role ConnectionRole, connectionID string, conn *websocket.Conn) {
 	defer func() {
 		s.handleClose(sess, serverID, role, connectionID, conn)
-		conn.Close()
+		_ = conn.Close()
 		s.connCount.Add(-1)
-		metrics.Connections.Dec()
+		relaymetrics.Connections.Dec()
 		s.Store.CleanupIfEmpty(serverID)
 	}()
 
@@ -227,7 +233,7 @@ func (s *Server) handleMessage(sess *Session, role ConnectionRole, connectionID 
 			if err := cd.ServerDataSocket.Conn.WriteMessage(msgType, msg); err != nil {
 				s.Logger.Warn("write to server failed", "connectionId", connectionID, "error", err)
 			}
-			metrics.FramesForwarded.Inc()
+			relaymetrics.FramesForwarded.Inc()
 		} else {
 			cd.Buffer.Push(msgType, msg)
 		}
@@ -237,9 +243,9 @@ func (s *Server) handleMessage(sess *Session, role ConnectionRole, connectionID 
 		for _, client := range cd.ClientSockets {
 			if err := client.Conn.WriteMessage(msgType, msg); err != nil {
 				s.Logger.Warn("write to client failed, removing dead socket", "error", err)
-				client.Conn.Close()
+				_ = client.Conn.Close()
 			} else {
-				metrics.FramesForwarded.Inc()
+				relaymetrics.FramesForwarded.Inc()
 				remaining = append(remaining, client)
 			}
 		}
@@ -262,9 +268,9 @@ func (s *Server) handleClose(sess *Session, serverID string, role ConnectionRole
 		sess.ControlSocket = nil
 		for _, cd := range sess.Connections {
 			if cd.ServerDataSocket != nil {
-				cd.ServerDataSocket.Conn.WriteMessage(websocket.CloseMessage,
+				_ = cd.ServerDataSocket.Conn.WriteMessage(websocket.CloseMessage,
 					websocket.FormatCloseMessage(websocket.CloseGoingAway, "Control disconnected"))
-				cd.ServerDataSocket.Conn.Close()
+				_ = cd.ServerDataSocket.Conn.Close()
 				cd.ServerDataSocket = nil
 			}
 		}
@@ -276,9 +282,9 @@ func (s *Server) handleClose(sess *Session, serverID string, role ConnectionRole
 		}
 		cd.ServerDataSocket = nil
 		for _, client := range cd.ClientSockets {
-			client.Conn.WriteMessage(websocket.CloseMessage,
+			_ = client.Conn.WriteMessage(websocket.CloseMessage,
 				websocket.FormatCloseMessage(websocket.CloseServiceRestart, "Server disconnected"))
-			client.Conn.Close()
+			_ = client.Conn.Close()
 		}
 		cd.ClientSockets = cd.ClientSockets[:0]
 		cd.Buffer.Clear()
@@ -304,9 +310,9 @@ func (s *Server) handleClose(sess *Session, serverID string, role ConnectionRole
 			cd.Buffer.Clear()
 			cancelControlNudge(sess, connectionID)
 			if cd.ServerDataSocket != nil {
-				cd.ServerDataSocket.Conn.WriteMessage(websocket.CloseMessage,
+				_ = cd.ServerDataSocket.Conn.WriteMessage(websocket.CloseMessage,
 					websocket.FormatCloseMessage(websocket.CloseGoingAway, "Client disconnected"))
-				cd.ServerDataSocket.Conn.Close()
+				_ = cd.ServerDataSocket.Conn.Close()
 				cd.ServerDataSocket = nil
 			}
 			notifyControl(sess, DisconnectedMessage{Type: "disconnected", ConnectionID: connectionID})

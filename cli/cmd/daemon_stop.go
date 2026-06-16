@@ -26,7 +26,7 @@ func init() {
 	daemonCmd.AddCommand(daemonStopCmd)
 }
 
-func runDaemonStop(cmd *cobra.Command, args []string) error {
+func runDaemonStop(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 	c, err := newClient(ctx, flagHost)
 	if err != nil {
@@ -36,7 +36,7 @@ func runDaemonStop(cmd *cobra.Command, args []string) error {
 			Details: err.Error(),
 		}
 	}
-	defer c.Close()
+	defer closeDaemonClient(c)
 
 	req := &protocol.ShutdownServerRequest{
 		Type: "shutdown_server_request",
@@ -52,6 +52,6 @@ func runDaemonStop(cmd *cobra.Command, args []string) error {
 		return output.Render(cmdStdout, output.SingleResult(map[string]string{"status": "stopped"}, nil), opts)
 	}
 
-	fmt.Fprintln(cmdStdout, "Daemon stopped")
+	_, _ = fmt.Fprintln(cmdStdout, "Daemon stopped")
 	return nil
 }

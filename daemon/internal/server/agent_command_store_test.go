@@ -155,4 +155,3 @@ func TestAgentCommandStoreDeleteByAgentName(t *testing.T) {
 		t.Fatalf("reloaded: got %d entries, want 2", len(store2.Entries()))
 	}
 }
-

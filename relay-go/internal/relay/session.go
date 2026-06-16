@@ -50,7 +50,7 @@ type Session struct {
 	serverDataNudgeTimers map[string]*nudgeTimer
 }
 
-func NewSession(serverID string, maxBuffer int) *Session {
+func NewSession(serverID string, _ int) *Session {
 	return &Session{
 		ServerID:              serverID,
 		Connections:           make(map[string]*ConnectionData),

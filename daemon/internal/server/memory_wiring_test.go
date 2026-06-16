@@ -9,12 +9,12 @@ import (
 // stubMemoryBridge implements MemoryBridge with no-ops for testing.
 type stubMemoryBridge struct{}
 
-func (stubMemoryBridge) OnUserTurn(_, _, _ string)                        {}
-func (stubMemoryBridge) OnAssistantTurn(_, _, _ string)                   {}
-func (stubMemoryBridge) OnAssistantChunk(_, _, _ string)                  {}
-func (stubMemoryBridge) OnAssistantTurnEnd(_, _ string)                   {}
-func (stubMemoryBridge) OnSystemTurn(_, _, _ string)                      {}
-func (stubMemoryBridge) Close() error                                     { return nil }
+func (stubMemoryBridge) OnUserTurn(_, _, _ string)       {}
+func (stubMemoryBridge) OnAssistantTurn(_, _, _ string)  {}
+func (stubMemoryBridge) OnAssistantChunk(_, _, _ string) {}
+func (stubMemoryBridge) OnAssistantTurnEnd(_, _ string)  {}
+func (stubMemoryBridge) OnSystemTurn(_, _, _ string)     {}
+func (stubMemoryBridge) Close() error                    { return nil }
 
 // stubMemoryRecorder implements MemoryRecorder with no-ops for testing.
 type stubMemoryRecorder struct{}
@@ -65,7 +65,7 @@ func TestBuildMemoryFeature_BuilderError(t *testing.T) {
 	defer func() { memoryFeatureBuilder = orig }()
 
 	testErr := errors.New("builder failed")
-	RegisterMemoryFeatureBuilder(func(cfg interface{}) (*MemoryFeature, error) {
+	RegisterMemoryFeatureBuilder(func(_ interface{}) (*MemoryFeature, error) {
 		return nil, testErr
 	})
 
@@ -83,11 +83,11 @@ func TestRegisterMemoryFeatureBuilder_Overwrite(t *testing.T) {
 	defer func() { memoryFeatureBuilder = orig }()
 
 	callCount := 0
-	RegisterMemoryFeatureBuilder(func(cfg interface{}) (*MemoryFeature, error) {
+	RegisterMemoryFeatureBuilder(func(_ interface{}) (*MemoryFeature, error) {
 		callCount++
 		return nil, nil
 	})
-	RegisterMemoryFeatureBuilder(func(cfg interface{}) (*MemoryFeature, error) {
+	RegisterMemoryFeatureBuilder(func(_ interface{}) (*MemoryFeature, error) {
 		callCount += 10
 		return nil, nil
 	})

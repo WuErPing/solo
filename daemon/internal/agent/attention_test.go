@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"testing"
@@ -19,7 +20,7 @@ func createTestManager(t *testing.T) *AgentManager {
 	registry := NewProviderRegistry()
 	registry.Register(&hangingAfterTerminalClient{})
 	manager := NewAgentManager(storage, registry, logger)
-	if err := manager.Initialize(nil); err != nil {
+	if err := manager.Initialize(context.TODO()); err != nil {
 		t.Fatalf("Initialize manager: %v", err)
 	}
 	return manager
@@ -28,7 +29,7 @@ func createTestManager(t *testing.T) *AgentManager {
 func TestAgentManager_EmitAttentionRequired_OnTurnCompleted(t *testing.T) {
 	manager := createTestManager(t)
 
-	ag, err := manager.CreateAgent(nil, &protocol.AgentSessionConfig{
+	ag, err := manager.CreateAgent(context.TODO(), &protocol.AgentSessionConfig{
 		Provider: "hanging-terminal",
 		Cwd:      t.TempDir(),
 	}, nil)
@@ -47,8 +48,8 @@ func TestAgentManager_EmitAttentionRequired_OnTurnCompleted(t *testing.T) {
 
 	// Simulate turn_completed event
 	event := AgentStreamEvent{
-		AgentID: ag.ID,
-		Event:   protocol.TurnCompletedStreamEvent{},
+		AgentID:   ag.ID,
+		Event:     protocol.TurnCompletedStreamEvent{},
 		Timestamp: time.Now(),
 	}
 	manager.handleStreamEvent(ag, event)
@@ -77,7 +78,7 @@ func TestAgentManager_EmitAttentionRequired_OnTurnCompleted(t *testing.T) {
 func TestAgentManager_EmitAttentionRequired_OnTurnFailed(t *testing.T) {
 	manager := createTestManager(t)
 
-	ag, err := manager.CreateAgent(nil, &protocol.AgentSessionConfig{
+	ag, err := manager.CreateAgent(context.TODO(), &protocol.AgentSessionConfig{
 		Provider: "hanging-terminal",
 		Cwd:      t.TempDir(),
 	}, nil)
@@ -96,8 +97,8 @@ func TestAgentManager_EmitAttentionRequired_OnTurnFailed(t *testing.T) {
 
 	// Simulate turn_failed event
 	event := AgentStreamEvent{
-		AgentID: ag.ID,
-		Event:   protocol.TurnFailedStreamEvent{Error: "something went wrong"},
+		AgentID:   ag.ID,
+		Event:     protocol.TurnFailedStreamEvent{Error: "something went wrong"},
 		Timestamp: time.Now(),
 	}
 	manager.handleStreamEvent(ag, event)
@@ -120,7 +121,7 @@ func TestAgentManager_EmitAttentionRequired_OnTurnFailed(t *testing.T) {
 func TestAgentManager_EmitAttentionRequired_OnPermissionRequested(t *testing.T) {
 	manager := createTestManager(t)
 
-	ag, err := manager.CreateAgent(nil, &protocol.AgentSessionConfig{
+	ag, err := manager.CreateAgent(context.TODO(), &protocol.AgentSessionConfig{
 		Provider: "hanging-terminal",
 		Cwd:      t.TempDir(),
 	}, nil)
@@ -168,7 +169,7 @@ func TestAgentManager_EmitAttentionRequired_OnPermissionRequested(t *testing.T) 
 func TestAgentManager_EmitAttentionRequired_MultipleEvents(t *testing.T) {
 	manager := createTestManager(t)
 
-	ag, err := manager.CreateAgent(nil, &protocol.AgentSessionConfig{
+	ag, err := manager.CreateAgent(context.TODO(), &protocol.AgentSessionConfig{
 		Provider: "hanging-terminal",
 		Cwd:      t.TempDir(),
 	}, nil)
@@ -205,7 +206,7 @@ func TestAgentManager_EmitAttentionRequired_MultipleEvents(t *testing.T) {
 func TestAgentManager_EmitAttentionRequired_IncludesNotificationPayload(t *testing.T) {
 	manager := createTestManager(t)
 
-	ag, err := manager.CreateAgent(nil, &protocol.AgentSessionConfig{
+	ag, err := manager.CreateAgent(context.TODO(), &protocol.AgentSessionConfig{
 		Provider: "hanging-terminal",
 		Cwd:      t.TempDir(),
 	}, nil)
@@ -251,7 +252,7 @@ func TestAgentManager_EmitAttentionRequired_IncludesNotificationPayload(t *testi
 func TestAgentManager_EmitAttentionRequired_IncludesShouldNotifyAndTimestamp(t *testing.T) {
 	manager := createTestManager(t)
 
-	ag, err := manager.CreateAgent(nil, &protocol.AgentSessionConfig{
+	ag, err := manager.CreateAgent(context.TODO(), &protocol.AgentSessionConfig{
 		Provider: "hanging-terminal",
 		Cwd:      t.TempDir(),
 	}, nil)

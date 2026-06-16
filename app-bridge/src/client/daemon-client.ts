@@ -338,6 +338,8 @@ type LoopInspectPayload = Extract<
 >["payload"];
 type LoopLogsPayload = Extract<SessionOutboundMessage, { type: "loop/logs/response" }>["payload"];
 type LoopStopPayload = Extract<SessionOutboundMessage, { type: "loop/stop/response" }>["payload"];
+type LoopUpdatePayload = Extract<SessionOutboundMessage, { type: "loop/update/response" }>["payload"];
+type LoopDeletePayload = Extract<SessionOutboundMessage, { type: "loop/delete/response" }>["payload"];
 type ScheduleCreatePayload = Extract<
   SessionOutboundMessage,
   { type: "schedule/create/response" }
@@ -501,6 +503,16 @@ export interface LoopLogsOptions {
   requestId?: string;
 }
 export interface StopLoopOptions {
+  id: string;
+  requestId?: string;
+}
+export interface UpdateLoopOptions {
+  id: string;
+  name?: string | null;
+  archive?: boolean | null;
+  requestId?: string;
+}
+export interface DeleteLoopOptions {
   id: string;
   requestId?: string;
 }
@@ -3809,6 +3821,33 @@ export class DaemonClient {
         id: normalized.id,
       },
       responseType: "loop/stop/response",
+      timeout: 10000,
+    });
+  }
+
+  async loopUpdate(options: UpdateLoopOptions): Promise<LoopUpdatePayload> {
+    return this.sendCorrelatedSessionRequest({
+      requestId: options.requestId,
+      message: {
+        type: "loop/update",
+        id: options.id,
+        ...(options.name ? { name: options.name } : {}),
+        ...(typeof options.archive === "boolean" ? { archive: options.archive } : {}),
+      },
+      responseType: "loop/update/response",
+      timeout: 10000,
+    });
+  }
+
+  async loopDelete(options: string | DeleteLoopOptions): Promise<LoopDeletePayload> {
+    const normalized = typeof options === "string" ? { id: options } : options;
+    return this.sendCorrelatedSessionRequest({
+      requestId: normalized.requestId,
+      message: {
+        type: "loop/delete",
+        id: normalized.id,
+      },
+      responseType: "loop/delete/response",
       timeout: 10000,
     });
   }

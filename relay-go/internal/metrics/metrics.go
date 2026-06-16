@@ -1,4 +1,7 @@
-package metrics
+// Package relaymetrics exposes Prometheus metrics for the relay server.
+// It is named relaymetrics to avoid conflicting with the standard library's
+// runtime/metrics package basename as flagged by revive.
+package relaymetrics
 
 import "github.com/prometheus/client_golang/prometheus"
 

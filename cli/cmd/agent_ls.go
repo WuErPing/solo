@@ -35,13 +35,13 @@ func init() {
 	agentCmd.AddCommand(agentLsCmd)
 }
 
-func runAgentLs(cmd *cobra.Command, args []string) error {
+func runAgentLs(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 	c, err := newClient(ctx, flagHost)
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer closeDaemonClient(c)
 
 	// Build fetch request
 	req := &protocol.FetchAgentsRequest{
@@ -95,7 +95,6 @@ func runAgentLs(cmd *cobra.Command, args []string) error {
 
 	// Convert to display items
 	var items []interface{}
-	var agents []agentEntry
 	for _, entry := range fetchResp.Payload.Entries {
 		a := entry.Agent
 
@@ -114,8 +113,6 @@ func runAgentLs(cmd *cobra.Command, args []string) error {
 		if a.Title != nil {
 			title = *a.Title
 		}
-		agents = append(agents, agentEntry{ID: a.ID, Title: title})
-
 		thinking := "-"
 		if a.EffectiveThinkingOptionID != nil && *a.EffectiveThinkingOptionID != "" {
 			thinking = *a.EffectiveThinkingOptionID

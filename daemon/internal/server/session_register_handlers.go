@@ -103,6 +103,15 @@ func (s *Session) registerHandlers() {
 	r.Register("schedule/delete", typeHandler(s.handleScheduleDelete))
 	r.Register("schedule/update", typeHandler(s.handleScheduleUpdate))
 
+	// --- Loop handlers (session_loop.go) ---
+	r.Register("loop/run", typeHandler(s.handleLoopRun))
+	r.Register("loop/list", typeHandler(s.handleLoopList))
+	r.Register("loop/inspect", typeHandler(s.handleLoopInspect))
+	r.Register("loop/logs", typeHandler(s.handleLoopLogs))
+	r.Register("loop/stop", typeHandler(s.handleLoopStop))
+	r.Register("loop/update", typeHandler(s.handleLoopUpdate))
+	r.Register("loop/delete", typeHandler(s.handleLoopDelete))
+
 	// --- Tmux handlers (session_tmux.go) ---
 	r.Register("tmux/list_agents", typeHandler(s.handleTmuxListAgents))
 	r.Register("tmux/capture_pane", typeHandler(s.handleTmuxCapturePane))
@@ -116,7 +125,7 @@ func (s *Session) registerHandlers() {
 // typeHandler is a helper that converts a typed handler func into a messageHandler.
 // This avoids repeating the type assertion boilerplate for every handler.
 func typeHandler[T protocol.SessionInboundMessage](fn func(T)) messageHandler {
-	return func(s *Session, msg protocol.SessionInboundMessage) {
+	return func(_ *Session, msg protocol.SessionInboundMessage) {
 		fn(msg.(T))
 	}
 }

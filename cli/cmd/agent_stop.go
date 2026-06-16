@@ -36,7 +36,7 @@ func runAgentStop(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer closeDaemonClient(c)
 
 	if agentStopAll || agentStopCwd != "" {
 		return stopMultipleAgents(ctx, c)
@@ -102,7 +102,9 @@ func stopMultipleAgents(ctx context.Context, c *client.DaemonClient) error {
 			} `json:"entries"`
 		} `json:"payload"`
 	}
-	json.Unmarshal(payload, &fetchResp)
+	if err := json.Unmarshal(payload, &fetchResp); err != nil {
+		return fmt.Errorf("parse response: %w", err)
+	}
 
 	stopped := 0
 	for _, entry := range fetchResp.Payload.Entries {
@@ -117,7 +119,7 @@ func stopMultipleAgents(ctx context.Context, c *client.DaemonClient) error {
 			Type:    "cancel_agent_request",
 			AgentID: entry.Agent.ID,
 		}
-		c.Request(ctx, stopReq) // best effort
+		_, _ = c.Request(ctx, stopReq) // best effort
 		stopped++
 	}
 
@@ -137,7 +139,7 @@ func isRPCError(resp *protocol.WSOutboundMessage) bool {
 	var peek struct {
 		Type string `json:"type"`
 	}
-	json.Unmarshal(payload, &peek)
+	_ = json.Unmarshal(payload, &peek)
 	return peek.Type == "rpc_error"
 }
 
@@ -148,6 +150,6 @@ func extractRPCError(resp *protocol.WSOutboundMessage) string {
 			Error string `json:"error"`
 		} `json:"payload"`
 	}
-	json.Unmarshal(payload, &rpcErr)
+	_ = json.Unmarshal(payload, &rpcErr)
 	return rpcErr.Payload.Error
 }

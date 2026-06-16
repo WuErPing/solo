@@ -14,9 +14,8 @@ type fakeClock struct {
 }
 
 type fakeTimer struct {
-	d    time.Duration
-	f    func()
-	stop bool
+	d time.Duration
+	f func()
 }
 
 func (fc *fakeClock) AfterFunc(d time.Duration, f func()) *time.Timer {

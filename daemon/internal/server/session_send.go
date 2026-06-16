@@ -5,7 +5,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/WuErPing/solo/daemon/internal/metrics"
+	daemonmetrics "github.com/WuErPing/solo/daemon/internal/metrics"
 	"github.com/WuErPing/solo/protocol"
 )
 
@@ -58,7 +58,7 @@ func isAgentStreamMessage(msg protocol.WSOutboundMessage) bool {
 }
 
 func (s *Session) sendMessage(msg protocol.WSOutboundMessage) {
-	metrics.MessagesSentTotal.Inc()
+	daemonmetrics.MessagesSentTotal.Inc()
 	data, err := json.Marshal(msg)
 	if err != nil {
 		s.logger.Error("cannot marshal message", "error", err)
@@ -97,9 +97,9 @@ func (s *Session) sendMessage(msg protocol.WSOutboundMessage) {
 }
 
 func (s *Session) sendRPCError(requestID, requestType, errMsg string, code *string) {
-	s.sendMessage(protocol.NewSessionMessage(&protocol.RpcErrorMessage{
+	s.sendMessage(protocol.NewSessionMessage(&protocol.RPCErrorMessage{
 		Type: "rpc_error",
-		Payload: protocol.RpcErrorPayload{
+		Payload: protocol.RPCErrorPayload{
 			RequestID:   requestID,
 			RequestType: &requestType,
 			Error:       errMsg,
@@ -109,7 +109,7 @@ func (s *Session) sendRPCError(requestID, requestType, errMsg string, code *stri
 }
 
 func (s *Session) SendBinaryFrame(frame protocol.TerminalStreamFrame) {
-	metrics.MessagesSentTotal.Inc()
+	daemonmetrics.MessagesSentTotal.Inc()
 	data := protocol.EncodeTerminalFrame(frame)
 	item := sendQueueItem{msgType: websocket.BinaryMessage, data: data}
 

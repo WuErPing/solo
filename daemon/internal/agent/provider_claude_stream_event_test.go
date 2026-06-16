@@ -245,7 +245,7 @@ func TestClaudeTerminalDetector_RecognisesTypedTerminalEvents(t *testing.T) {
 
 	t.Run("turn_completed", func(t *testing.T) {
 		evt := AgentStreamEvent{Event: protocol.TurnCompletedStreamEvent{Provider: claudeProviderName}}
-		result, err, ok := detector.IsTerminal(evt)
+		result, ok, err := detector.IsTerminal(evt)
 		if !ok {
 			t.Fatal("expected turn_completed to be terminal")
 		}
@@ -259,7 +259,7 @@ func TestClaudeTerminalDetector_RecognisesTypedTerminalEvents(t *testing.T) {
 
 	t.Run("turn_failed", func(t *testing.T) {
 		evt := AgentStreamEvent{Event: protocol.TurnFailedStreamEvent{Provider: claudeProviderName, Error: "boom"}}
-		result, err, ok := detector.IsTerminal(evt)
+		result, ok, err := detector.IsTerminal(evt)
 		if !ok {
 			t.Fatal("expected turn_failed to be terminal")
 		}
@@ -273,7 +273,7 @@ func TestClaudeTerminalDetector_RecognisesTypedTerminalEvents(t *testing.T) {
 
 	t.Run("timeline is not terminal", func(t *testing.T) {
 		evt := AgentStreamEvent{Event: protocol.TimelineStreamEvent{Item: protocol.TimelineItem{Type: "assistant_message", Text: "hi"}}}
-		_, _, ok := detector.IsTerminal(evt)
+		_, ok, _ := detector.IsTerminal(evt)
 		if ok {
 			t.Fatal("expected timeline event to be non-terminal")
 		}

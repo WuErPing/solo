@@ -381,14 +381,14 @@ func TestKimiWireTranslator_EmitsStreamEvents(t *testing.T) {
 			wire:         `{"jsonrpc":"2.0","method":"event","params":{"type":"UnknownEvent","payload":{}}}`,
 			wantTerminal: false,
 			wantLen:      0,
-			check:        func(t *testing.T, evts []interface{}) {},
+			check:        func(_ *testing.T, _ []interface{}) {},
 		},
 		{
 			name:         "NonEvent method ignored",
 			wire:         `{"jsonrpc":"2.0","id":"2","result":{"status":"finished"}}`,
 			wantTerminal: false,
 			wantLen:      0,
-			check:        func(t *testing.T, evts []interface{}) {},
+			check:        func(_ *testing.T, _ []interface{}) {},
 		},
 	}
 
@@ -424,7 +424,7 @@ func TestKimiWireTerminalDetector_IsTerminal_TurnCompleted(t *testing.T) {
 		},
 	}
 
-	result, err, isTerm := det.IsTerminal(evt)
+	result, isTerm, err := det.IsTerminal(evt)
 	if !isTerm {
 		t.Fatal("expected terminal")
 	}
@@ -451,7 +451,7 @@ func TestKimiWireTerminalDetector_IsTerminal_NonTerminal(t *testing.T) {
 		},
 	}
 
-	_, _, isTerm := det.IsTerminal(evt)
+	_, isTerm, _ := det.IsTerminal(evt)
 	if isTerm {
 		t.Error("expected non-terminal")
 	}
@@ -491,29 +491,29 @@ func (f *fakeWriteCloser) String() string {
 
 // fakeKimiProcessManager is a test double for Wire mode.
 type fakeKimiProcessManager struct {
-	stdout     io.ReadCloser
-	stderr     io.ReadCloser
-	stdin      io.WriteCloser
-	cmd        *exec.Cmd
-	started    bool
-	startArgs  []string
+	stdout    io.ReadCloser
+	stderr    io.ReadCloser
+	stdin     io.WriteCloser
+	cmd       *exec.Cmd
+	started   bool
+	startArgs []string
 }
 
 func newFakeKimiProcessManager(stdout io.ReadCloser, stderr io.ReadCloser, stdin io.WriteCloser, cmd *exec.Cmd) *fakeKimiProcessManager {
 	return &fakeKimiProcessManager{stdout: stdout, stderr: stderr, stdin: stdin, cmd: cmd}
 }
 
-func (f *fakeKimiProcessManager) Start(ctx context.Context, args []string, cwd string, env []string) (io.ReadCloser, io.ReadCloser, io.WriteCloser, *exec.Cmd, error) {
+func (f *fakeKimiProcessManager) Start(_ context.Context, args []string, _ string, _ []string) (io.ReadCloser, io.ReadCloser, io.WriteCloser, *exec.Cmd, error) {
 	f.started = true
 	f.startArgs = args
 	return f.stdout, f.stderr, f.stdin, f.cmd, nil
 }
 
-func (f *fakeKimiProcessManager) Stop(cmd *exec.Cmd, timeout time.Duration) error  { return nil }
-func (f *fakeKimiProcessManager) Interrupt(cmd *exec.Cmd) error                    { return nil }
-func (f *fakeKimiProcessManager) Kill(cmd *exec.Cmd) error                         { return nil }
-func (f *fakeKimiProcessManager) DrainStderr(stderr io.ReadCloser)                 {}
-func (f *fakeKimiProcessManager) WaitForExit(cmd *exec.Cmd) (int, error)           { return 0, nil }
+func (f *fakeKimiProcessManager) Stop(_ *exec.Cmd, _ time.Duration) error { return nil }
+func (f *fakeKimiProcessManager) Interrupt(_ *exec.Cmd) error             { return nil }
+func (f *fakeKimiProcessManager) Kill(_ *exec.Cmd) error                  { return nil }
+func (f *fakeKimiProcessManager) DrainStderr(_ io.ReadCloser)             {}
+func (f *fakeKimiProcessManager) WaitForExit(_ *exec.Cmd) (int, error)    { return 0, nil }
 
 // newTestKimiSessionWithPipes creates a kimiSession wired to fake pipes for testing.
 func newTestKimiSessionWithPipes(logger *slog.Logger) (*kimiSession, *io.PipeWriter, *fakeWriteCloser) {
@@ -522,12 +522,12 @@ func newTestKimiSessionWithPipes(logger *slog.Logger) (*kimiSession, *io.PipeWri
 	fakeCmd := exec.Command("sleep", "3600")
 
 	s := &kimiSession{
-		base:             base.NewBaseSession(kimiProviderName, &protocol.AgentSessionConfig{Cwd: "/tmp/test"}, logger),
-		dispatcher:       base.NewChannelDispatcher(logger),
-		binaryPath:       "fake-kimi",
-		stdinPipe:        fakeStdin,
-		process:          newFakeKimiProcessManager(stdoutR, io.NopCloser(nil), fakeStdin, fakeCmd),
-		turnGuard:        base.NewTurnGuard(),
+		base:       base.NewBaseSession(kimiProviderName, &protocol.AgentSessionConfig{Cwd: "/tmp/test"}, logger),
+		dispatcher: base.NewChannelDispatcher(logger),
+		binaryPath: "fake-kimi",
+		stdinPipe:  fakeStdin,
+		process:    newFakeKimiProcessManager(stdoutR, io.NopCloser(nil), fakeStdin, fakeCmd),
+		turnGuard:  base.NewTurnGuard(),
 	}
 	return s, stdoutW, fakeStdin
 }

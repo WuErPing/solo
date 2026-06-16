@@ -26,6 +26,9 @@ var (
 	cmdStderr io.Writer = os.Stderr
 )
 
+// closeDaemonClient closes c, swallowing close errors; safe for defer cleanup.
+func closeDaemonClient(c *client.DaemonClient) { _ = c.Close() }
+
 // errFprintf wraps fmt.Fprintf and returns its error, so callers cannot
 // accidentally discard the write result (satisfies errcheck).
 func errFprintf(w io.Writer, format string, a ...any) error {
@@ -70,7 +73,7 @@ func init() {
 // Execute runs the root command.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
@@ -88,7 +91,7 @@ func getOutputOpts(format string, json bool, quiet bool, noHeaders bool, noColor
 	}
 	f, err := output.ParseOutputFormat(format)
 	if err != nil {
-		fmt.Fprintln(cmdStderr, err.Error())
+		_, _ = fmt.Fprintln(cmdStderr, err.Error())
 		os.Exit(1)
 	}
 	return output.OutputOptions{Format: f, NoHeaders: noHeaders, NoColor: noColor}

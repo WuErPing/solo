@@ -108,7 +108,7 @@ func TestExecutor_RecordsFailure(t *testing.T) {
 	}
 }
 
-func TestExecutor_StopsOnContextCancel(t *testing.T) {
+func TestExecutor_StopsOnContextCancel(_ *testing.T) {
 	store := NewStore()
 	runner := &fakeRunner{}
 	executor := NewExecutor(store, runner, 10*time.Millisecond, testLogger)

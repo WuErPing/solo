@@ -114,7 +114,7 @@ func TestTurnGuard_Acquire_NilGuard(t *testing.T) {
 	}
 }
 
-func TestTurnGuard_Release_NilGuard(t *testing.T) {
+func TestTurnGuard_Release_NilGuard(_ *testing.T) {
 	var g *TurnGuard
 	g.Release() // must not panic
 }

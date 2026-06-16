@@ -364,6 +364,31 @@ export function buildHostScheduleDetailRoute(serverId: string, scheduleId: strin
   return `${base}/${encodeSegment(normalizedScheduleId)}` as const;
 }
 
+export function buildHostLoopsRoute(serverId: string) {
+  const base = buildHostRootRoute(serverId);
+  if (base === "/") {
+    return "/" as const;
+  }
+  return `${base}/loops` as const;
+}
+
+export function buildHostLoopDetailRoute(serverId: string, loopId: string) {
+  const base = buildHostLoopsRoute(serverId);
+  const normalizedLoopId = trimNonEmpty(loopId);
+  if (base === "/" || !normalizedLoopId) {
+    return "/" as const;
+  }
+  return `${base}/${encodeSegment(normalizedLoopId)}` as const;
+}
+
+export function buildHostLoopCreateRoute(serverId: string) {
+  const base = buildHostLoopsRoute(serverId);
+  if (base === "/") {
+    return "/" as const;
+  }
+  return `${base}/create` as const;
+}
+
 export function buildHostOpenProjectRoute(serverId: string) {
   const base = buildHostRootRoute(serverId);
   if (base === "/") {
@@ -459,6 +484,9 @@ export function mapPathnameToServer(pathname: string, nextServerId: string) {
   }
   if (suffix.startsWith("schedules")) {
     return `${base}/schedules` as const;
+  }
+  if (suffix.startsWith("loops")) {
+    return `${base}/loops` as const;
   }
   if (suffix.startsWith("open-project")) {
     return `${base}/open-project` as const;

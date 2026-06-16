@@ -142,7 +142,7 @@ func (t *TerminalProcess) Resize(rows, cols uint16) error {
 	}
 
 	if t.process != nil {
-		t.process.Signal(syscall.SIGWINCH)
+		_ = t.process.Signal(syscall.SIGWINCH)
 	}
 	return nil
 }
@@ -154,7 +154,7 @@ func (t *TerminalProcess) Kill() {
 		return
 	}
 	if t.process != nil {
-		t.process.Signal(syscall.SIGTERM)
+		_ = t.process.Signal(syscall.SIGTERM)
 	}
 	go func() {
 		select {
@@ -162,7 +162,7 @@ func (t *TerminalProcess) Kill() {
 		case <-time.After(2 * time.Second):
 			t.mu.Lock()
 			if !t.exited && t.process != nil {
-				t.process.Signal(syscall.SIGKILL)
+				_ = t.process.Signal(syscall.SIGKILL)
 			}
 			t.mu.Unlock()
 		}
@@ -198,7 +198,7 @@ func (t *TerminalProcess) Close() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.ptmx != nil {
-		t.ptmx.Close()
+		_ = t.ptmx.Close()
 		t.ptmx = nil
 	}
 }

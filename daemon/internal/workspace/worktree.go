@@ -78,9 +78,12 @@ func CreateSoloWorktree(
 			},
 			Created: false,
 		}
-		result.Workspace, result.Project = upsertRegistries(
+		result.Workspace, result.Project, err = upsertRegistries(
 			existing, branch, repoRoot, cwd, gitSvc, projectReg, workspaceReg,
 		)
+		if err != nil {
+			return nil, fmt.Errorf("register existing worktree: %w", err)
+		}
 		return result, nil
 	}
 
@@ -107,9 +110,12 @@ func CreateSoloWorktree(
 		},
 		Created: true,
 	}
-	result.Workspace, result.Project = upsertRegistries(
+	result.Workspace, result.Project, err = upsertRegistries(
 		finalPath, intent.BranchName, repoRoot, cwd, gitSvc, projectReg, workspaceReg,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("register new worktree: %w", err)
+	}
 	return result, nil
 }
 
@@ -233,7 +239,7 @@ func resolveExistingWorktree(worktreesRoot, slug string) (path string, branch st
 }
 
 // generateSlug produces a URL-safe slug from the input.
-func generateSlug(slug *string, refName *string, action *string) string {
+func generateSlug(slug *string, refName *string, _ *string) string {
 	var seed string
 	if slug != nil && *slug != "" {
 		seed = *slug
@@ -283,7 +289,7 @@ func upsertRegistries(
 	gitSvc WorkspaceGitService,
 	projectReg *ProjectRegistry,
 	workspaceReg *WorkspaceRegistry,
-) (*PersistedWorkspaceRecord, *PersistedProjectRecord) {
+) (*PersistedWorkspaceRecord, *PersistedProjectRecord, error) {
 	// Resolve source project
 	meta, _ := gitSvc.GetMetadata(inputCwd)
 	displayName := filepath.Base(repoRoot)
@@ -297,7 +303,9 @@ func upsertRegistries(
 		projectID = existing.ProjectID
 	}
 
-	projectReg.UpsertProject(projectID, repoRoot, ProjectKindGit, displayName)
+	if err := projectReg.UpsertProject(projectID, repoRoot, ProjectKindGit, displayName); err != nil {
+		return nil, nil, fmt.Errorf("upsert project: %w", err)
+	}
 
 	// Create workspace record
 	workspaceID := worktreePath
@@ -306,12 +314,14 @@ func upsertRegistries(
 		wsDisplayName = filepath.Base(worktreePath)
 	}
 
-	workspaceReg.UpsertWorkspace(workspaceID, projectID, worktreePath, WorkspaceKindWorktree, wsDisplayName)
+	if err := workspaceReg.UpsertWorkspace(workspaceID, projectID, worktreePath, WorkspaceKindWorktree, wsDisplayName); err != nil {
+		return nil, nil, fmt.Errorf("upsert workspace: %w", err)
+	}
 
 	// Fetch the persisted records to return
 	ws, _ := workspaceReg.Get(workspaceID)
 	proj, _ := projectReg.Get(projectID)
-	return ws, proj
+	return ws, proj, nil
 }
 
 // gitRun executes a git command in the given directory via gitCmd.
@@ -342,6 +352,8 @@ func DeleteWorktree(soloHome, worktreePath string) error {
 	}
 
 	// Prune stale worktree references
-	gitRun(filepath.Dir(worktreePath), "worktree", "prune")
+	if err := gitRun(filepath.Dir(worktreePath), "worktree", "prune"); err != nil {
+		return fmt.Errorf("prune worktrees: %w", err)
+	}
 	return nil
 }

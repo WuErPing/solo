@@ -1,3 +1,4 @@
+// Package relay implements the Solo WebSocket relay server.
 package relay
 
 import (
@@ -5,7 +6,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/WuErPing/solo/relay/internal/metrics"
+	relaymetrics "github.com/WuErPing/solo/relay/internal/metrics"
 )
 
 type bufferedFrame struct {
@@ -27,10 +28,10 @@ func NewFrameBuffer(maxSize int) *FrameBuffer {
 
 func (b *FrameBuffer) Push(msgType int, frame []byte) {
 	b.frames = append(b.frames, bufferedFrame{msgType: msgType, data: frame})
-	metrics.FramesBuffered.Inc()
+	relaymetrics.FramesBuffered.Inc()
 	if len(b.frames) > b.maxSize {
 		b.frames = b.frames[len(b.frames)-b.maxSize:]
-		metrics.BufferOverflows.Inc()
+		relaymetrics.BufferOverflows.Inc()
 	}
 }
 

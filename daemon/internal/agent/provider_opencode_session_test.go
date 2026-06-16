@@ -32,8 +32,8 @@ func TestSendToChannel_CriticalEventsBlock(t *testing.T) {
 
 	// Send a critical event: should block until room is available
 	criticalEvt := AgentStreamEvent{
-		AgentID: "test-agent",
-		Event: protocol.TurnCompletedStreamEvent{Provider: "test"},
+		AgentID:   "test-agent",
+		Event:     protocol.TurnCompletedStreamEvent{Provider: "test"},
 		Timestamp: time.Now(),
 	}
 
@@ -66,8 +66,8 @@ func TestSendToChannel_CriticalEventsBlock(t *testing.T) {
 
 func TestOpenCodeTerminalEventValueIsDispatcherCritical(t *testing.T) {
 	evt := AgentStreamEvent{
-		AgentID: "test-agent",
-		Event: protocol.TurnCompletedStreamEvent{Provider: opencodeProviderName},
+		AgentID:   "test-agent",
+		Event:     protocol.TurnCompletedStreamEvent{Provider: opencodeProviderName},
 		Timestamp: time.Now(),
 	}
 
@@ -126,8 +126,8 @@ func TestSendToChannel_BuggyPatternDropsCritical(t *testing.T) {
 
 	// Send a critical event with the buggy pattern -- it gets dropped
 	criticalEvt := AgentStreamEvent{
-		AgentID: "test-agent",
-		Event: protocol.TurnFailedStreamEvent{Provider: "test", Error: "failed"},
+		AgentID:   "test-agent",
+		Event:     protocol.TurnFailedStreamEvent{Provider: "test", Error: "failed"},
 		Timestamp: time.Now(),
 	}
 
@@ -210,8 +210,8 @@ func TestStartTurnIntegration_PreservesCriticalEvents(t *testing.T) {
 	// sendToChannel blocks on critical events, so the callback goroutine will
 	// block until the drainer makes room.
 	session.notifySubscribers(AgentStreamEvent{
-		AgentID: "test-agent",
-		Event: protocol.TurnCompletedStreamEvent{Provider: opencodeProviderName},
+		AgentID:   "test-agent",
+		Event:     protocol.TurnCompletedStreamEvent{Provider: opencodeProviderName},
 		Timestamp: time.Now(),
 	})
 
@@ -272,8 +272,8 @@ func TestStartTurnIntegration_BuggyPatternDropsCritical(t *testing.T) {
 
 	// Emit a critical event. The buggy callback drops it immediately.
 	session.notifySubscribers(AgentStreamEvent{
-		AgentID: "test-agent",
-		Event: protocol.TurnCanceledStreamEvent{Provider: opencodeProviderName},
+		AgentID:   "test-agent",
+		Event:     protocol.TurnCanceledStreamEvent{Provider: opencodeProviderName},
 		Timestamp: time.Now(),
 	})
 	time.Sleep(50 * time.Millisecond)
@@ -330,8 +330,8 @@ func TestSubscribe_NeverDropsCriticalEvents(t *testing.T) {
 
 	// Emit a critical event while the channel is full
 	session.notifySubscribers(AgentStreamEvent{
-		AgentID: "test-agent",
-		Event: protocol.TurnFailedStreamEvent{Provider: opencodeProviderName, Error: "failed"},
+		AgentID:   "test-agent",
+		Event:     protocol.TurnFailedStreamEvent{Provider: opencodeProviderName, Error: "failed"},
 		Timestamp: time.Now(),
 	})
 

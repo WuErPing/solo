@@ -1,4 +1,4 @@
-package util
+package cliutil
 
 import (
 	"fmt"
@@ -15,7 +15,7 @@ type ResolvedProviderModel struct {
 
 // ResolveProviderModel resolves --provider and --model flags.
 // Supports --provider <provider>/<model> slash notation.
-func ResolveProviderModel(providerFlag, modelFlag string, snapshot *protocol.ProvidersSnapshotPayload) (*ResolvedProviderModel, error) {
+func ResolveProviderModel(providerFlag, modelFlag string, _ *protocol.ProvidersSnapshotPayload) (*ResolvedProviderModel, error) {
 	providerInput := strings.TrimSpace(providerFlag)
 	modelInput := strings.TrimSpace(modelFlag)
 

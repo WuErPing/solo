@@ -12,7 +12,8 @@ import (
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/config"
-	"github.com/WuErPing/solo/daemon/internal/metrics"
+	daemonmetrics "github.com/WuErPing/solo/daemon/internal/metrics"
+	"github.com/WuErPing/solo/daemon/internal/loop"
 	"github.com/WuErPing/solo/daemon/internal/push"
 	"github.com/WuErPing/solo/daemon/internal/schedule"
 	"github.com/WuErPing/solo/daemon/internal/terminal"
@@ -43,7 +44,8 @@ type Session struct {
 	activityTracker ActivityTracker
 	pusher          push.Pusher
 	memoryBridge    MemoryBridge
-	scheduleStore    *schedule.Store
+	scheduleStore   *schedule.Store
+	loopStore       *loop.Store
 
 	workspaces   map[string]*protocol.WorkspaceDescriptor
 	workspacesMu sync.RWMutex
@@ -144,36 +146,37 @@ type inboundQueueItem struct {
 
 // NewSession creates a new session.
 // Deprecated: use NewSessionWithConfig
-func NewSession(clientID, clientType string, conn WSConn, cfg *config.Config, logger *slog.Logger, agentMgr *agent.AgentManager, timelineStore *agent.InMemoryTimelineStore, registry *agent.ProviderRegistry, workspaceStore *WorkspaceStore, terminalMgr *terminal.TerminalManager, projectReg *workspace.ProjectRegistry, workspaceReg *workspace.WorkspaceRegistry, gitSvc workspace.WorkspaceGitService, scriptMgr *workspace.ScriptManager, scriptProxy *workspace.ScriptProxy, broadcast func(protocol.WSOutboundMessage), scheduleStore *schedule.Store) *Session {
+func NewSession(clientID, clientType string, conn WSConn, cfg *config.Config, logger *slog.Logger, agentMgr *agent.AgentManager, timelineStore *agent.InMemoryTimelineStore, registry *agent.ProviderRegistry, workspaceStore *WorkspaceStore, terminalMgr *terminal.TerminalManager, projectReg *workspace.ProjectRegistry, workspaceReg *workspace.WorkspaceRegistry, gitSvc workspace.WorkspaceGitService, scriptMgr *workspace.ScriptManager, scriptProxy *workspace.ScriptProxy, broadcast func(protocol.WSOutboundMessage), scheduleStore *schedule.Store, loopStore *loop.Store) *Session {
 	sess := &Session{
-		clientID:       clientID,
-		clientType:     clientType,
-		conn:           conn,
-		cfg:            cfg,
-		logger:         logger.With("clientId", clientID),
-		agentMgr:       agentMgr,
-		timelineStore:  timelineStore,
-		registry:       registry,
-		workspaceStore: workspaceStore,
-		terminalMgr:    terminalMgr,
-		projectReg:     projectReg,
-		workspaceReg:   workspaceReg,
-		gitSvc:         gitSvc,
-		scriptMgr:      scriptMgr,
-		scriptProxy:    scriptProxy,
-		broadcast:      broadcast,
-		workspaces:     make(map[string]*protocol.WorkspaceDescriptor),
-		slotToTerminal: make(map[byte]*terminal.TerminalProcess),
-		terminalToSlot: make(map[string]byte),
-		setupProgress:    make(map[string]*workspace.SetupProgressEvent),
+		clientID:          clientID,
+		clientType:        clientType,
+		conn:              conn,
+		cfg:               cfg,
+		logger:            logger.With("clientId", clientID),
+		agentMgr:          agentMgr,
+		timelineStore:     timelineStore,
+		registry:          registry,
+		workspaceStore:    workspaceStore,
+		terminalMgr:       terminalMgr,
+		projectReg:        projectReg,
+		workspaceReg:      workspaceReg,
+		gitSvc:            gitSvc,
+		scriptMgr:         scriptMgr,
+		scriptProxy:       scriptProxy,
+		broadcast:         broadcast,
+		workspaces:        make(map[string]*protocol.WorkspaceDescriptor),
+		slotToTerminal:    make(map[byte]*terminal.TerminalProcess),
+		terminalToSlot:    make(map[string]byte),
+		setupProgress:     make(map[string]*workspace.SetupProgressEvent),
 		paneContentHashes: make(map[string]string),
-		scheduleStore:  scheduleStore,
-		done:           make(chan struct{}),
-		gracePeriod:    time.Duration(protocol.SessionDisconnectGraceMs) * time.Millisecond,
-		sendQueue:      newSendQueue(),
-		writeDone:      make(chan struct{}),
-		inboundQueue:   make(chan inboundQueueItem, 64),
-		processDone:    make(chan struct{}),
+		scheduleStore:     scheduleStore,
+		loopStore:         loopStore,
+		done:              make(chan struct{}),
+		gracePeriod:       time.Duration(protocol.SessionDisconnectGraceMs) * time.Millisecond,
+		sendQueue:         newSendQueue(),
+		writeDone:         make(chan struct{}),
+		inboundQueue:      make(chan inboundQueueItem, 64),
+		processDone:       make(chan struct{}),
 	}
 
 	// Load persisted workspaces
@@ -212,6 +215,7 @@ type SessionConfig struct {
 	ScriptProxy    *workspace.ScriptProxy
 	Broadcast      func(protocol.WSOutboundMessage)
 	ScheduleStore  *schedule.Store
+	LoopStore      *loop.Store
 }
 
 // NewSessionWithConfig creates a new session using a SessionConfig.
@@ -234,6 +238,7 @@ func NewSessionWithConfig(clientID, clientType string, conn WSConn, cfg SessionC
 		cfg.ScriptProxy,
 		cfg.Broadcast,
 		cfg.ScheduleStore,
+		cfg.LoopStore,
 	)
 }
 
@@ -276,7 +281,7 @@ func (s *Session) Run() {
 // immediately destroyed. The calling goroutine is freed (Run() returns)
 // while the session waits for a potential reconnect via ReplaceConn().
 func (s *Session) runReadLoop() {
-	defer s.conn.Close()
+	defer func() { _ = s.conn.Close() }()
 
 	for {
 		s.connMu.Lock()
@@ -331,7 +336,7 @@ func (s *Session) processLoop() {
 	for item := range s.inboundQueue {
 		wg.Add(1)
 		item := item
-		metrics.MessagesReceivedTotal.Inc()
+		daemonmetrics.MessagesReceivedTotal.Inc()
 		go func() {
 			defer wg.Done()
 			defer func() {
@@ -389,13 +394,14 @@ func (s *Session) setupPingPong() {
 	timeout := s.effectivePingTimeout()
 
 	// When a pong is received, extend deadline to allow the next full ping-pong cycle.
-	pc.SetPongHandler(func(appData string) error {
-		return pc.SetReadDeadline(time.Now().Add(time.Duration(pingInterval.Load()) + timeout))
+	pc.SetPongHandler(func(_ string) error {
+		_ = pc.SetReadDeadline(time.Now().Add(time.Duration(pingInterval.Load()) + timeout))
+		return nil
 	})
 
 	// Set initial read deadline to allow the first full ping-pong cycle:
 	// pingInterval (time until first ping is sent) + timeout (time for pong to arrive).
-	pc.SetReadDeadline(time.Now().Add(time.Duration(pingInterval.Load()) + timeout))
+	_ = pc.SetReadDeadline(time.Now().Add(time.Duration(pingInterval.Load()) + timeout))
 }
 
 // writePump drains the send queue and writes to the WebSocket.
@@ -424,7 +430,7 @@ func (s *Session) writePump() {
 		}
 		if err := writeMessageWithDeadline(s.conn, item.msgType, item.data); err != nil {
 			s.logger.Warn("write error, closing connection to trigger reconnect", "error", err)
-			go s.conn.Close()
+			go func() { _ = s.conn.Close() }()
 			s.sendQueue.Drain()
 			return
 		}
@@ -444,7 +450,7 @@ func (s *Session) pingLoop(pc PingableConn) {
 			deadline := time.Now().Add(time.Duration(pingInterval.Load()))
 			if err := pc.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
 				s.logger.Warn("ping failed, closing connection", "error", err)
-				go s.conn.Close()
+				go func() { _ = s.conn.Close() }()
 				return
 			}
 		case <-s.done:
@@ -804,10 +810,10 @@ func (s *Session) handleRegisterPushToken(msg *protocol.RegisterPushTokenMessage
 	}
 
 	s.pushTokenStore.Register(msg.Token)
-	s.logger.Info("push token registered", "tokenPrefix", msg.Token[:min(len(msg.Token), 8)])
+	s.logger.Info("push token registered", "tokenPrefix", msg.Token[:minInt(len(msg.Token), 8)])
 }
 
-func min(a, b int) int {
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}

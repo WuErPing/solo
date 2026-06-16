@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+
 	"github.com/WuErPing/solo/daemon/internal/agent/base"
 	"github.com/WuErPing/solo/protocol"
 )
@@ -44,7 +45,7 @@ func NewKimiAgentClient(binaryPath string, logger *slog.Logger) *KimiAgentClient
 
 func (c *KimiAgentClient) Provider() string { return kimiProviderName }
 
-func (c *KimiAgentClient) IsAvailable(ctx context.Context) error {
+func (c *KimiAgentClient) IsAvailable(_ context.Context) error {
 	if c.binaryPath == "" {
 		return fmt.Errorf("kimi binary not found")
 	}
@@ -85,7 +86,7 @@ func (c *KimiAgentClient) ResumeSession(ctx context.Context, handle *protocol.Ag
 	return sess, nil
 }
 
-func (c *KimiAgentClient) ListModels(ctx context.Context, cwd string) ([]protocol.AgentModelDefinition, error) {
+func (c *KimiAgentClient) ListModels(_ context.Context, _ string) ([]protocol.AgentModelDefinition, error) {
 	models, err := c.fetchModelsFromConfig()
 	if err == nil && len(models) > 0 {
 		return models, nil
@@ -96,11 +97,11 @@ func (c *KimiAgentClient) ListModels(ctx context.Context, cwd string) ([]protoco
 	return kimiModels(), nil
 }
 
-func (c *KimiAgentClient) ListModes(ctx context.Context, cwd string) ([]protocol.AgentMode, error) {
+func (c *KimiAgentClient) ListModes(_ context.Context, _ string) ([]protocol.AgentMode, error) {
 	return kimiModes(), nil
 }
 
-func (c *KimiAgentClient) ListClientCommands(ctx context.Context, cwd string) ([]protocol.AgentSlashCommand, error) {
+func (c *KimiAgentClient) ListClientCommands(ctx context.Context, _ string) ([]protocol.AgentSlashCommand, error) {
 	if err := c.IsAvailable(ctx); err != nil {
 		return nil, err
 	}
@@ -219,7 +220,7 @@ func newKimiSession(binaryPath string, config *protocol.AgentSessionConfig, logg
 	}
 }
 
-func (s *kimiSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
+func (s *kimiSession) Run(ctx context.Context, text string, _ []protocol.ImageAttachment, _ []protocol.AgentAttachment, _ string) (*AgentRunResult, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 
 	if _, err := s.turnGuard.Acquire(); err != nil {
@@ -259,7 +260,7 @@ func (s *kimiSession) Run(ctx context.Context, text string, images []protocol.Im
 	}, nil
 }
 
-func (s *kimiSession) StartTurn(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) (<-chan AgentStreamEvent, error) {
+func (s *kimiSession) StartTurn(ctx context.Context, text string, _ []protocol.ImageAttachment, _ []protocol.AgentAttachment) (<-chan AgentStreamEvent, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 
 	if _, err := s.turnGuard.Acquire(); err != nil {
@@ -315,11 +316,13 @@ func (s *kimiSession) Subscribe() <-chan AgentStreamEvent {
 	return ch
 }
 
-func (s *kimiSession) Interrupt(ctx context.Context) error {
+func (s *kimiSession) Interrupt(_ context.Context) error {
 	s.mu.Lock()
 	s.base.Cancel()
 	if s.stdinPipe != nil {
-		s.writeJSONRPCRequest("cancel", nil)
+		if err := s.writeJSONRPCRequest("cancel", nil); err != nil {
+			s.base.Logger().Warn("failed to send cancel request", "error", err)
+		}
 	}
 	s.mu.Unlock()
 	s.turnGuard.Release()
@@ -341,7 +344,7 @@ func (s *kimiSession) Close() error {
 
 	s.turnGuard.Release()
 
-	s.base.Close()
+	closeErr := s.base.Close()
 
 	s.mu.Lock()
 	cmd := s.cmd
@@ -352,7 +355,7 @@ func (s *kimiSession) Close() error {
 		_, _ = s.process.WaitForExit(cmd)
 	}
 	s.dispatcher.Close()
-	return nil
+	return closeErr
 }
 
 func (s *kimiSession) RespondPermission(requestID string, response protocol.AgentPermissionResponse) error {
@@ -484,15 +487,15 @@ func (s *kimiSession) writeJSONRPCResponse(id string, result interface{}) error 
 	return s.writeJSONRPC(resp)
 }
 
-func (s *kimiSession) GetRuntimeInfo(ctx context.Context) (*protocol.AgentRuntimeInfo, error) {
+func (s *kimiSession) GetRuntimeInfo(_ context.Context) (*protocol.AgentRuntimeInfo, error) {
 	return s.base.GetRuntimeInfo(), nil
 }
 
-func (s *kimiSession) GetAvailableModes(ctx context.Context) ([]protocol.AgentMode, error) {
+func (s *kimiSession) GetAvailableModes(_ context.Context) ([]protocol.AgentMode, error) {
 	return kimiModes(), nil
 }
 
-func (s *kimiSession) GetCurrentMode(ctx context.Context) (*string, error) {
+func (s *kimiSession) GetCurrentMode(_ context.Context) (*string, error) {
 	return s.base.GetCurrentModePtr(), nil
 }
 
@@ -516,7 +519,7 @@ func (s *kimiSession) GetPendingPermissions() []interface{} {
 	return nil
 }
 
-func (s *kimiSession) ListCommands(ctx context.Context) ([]protocol.AgentSlashCommand, error) {
+func (s *kimiSession) ListCommands(_ context.Context) ([]protocol.AgentSlashCommand, error) {
 	// Return the same static list as the client-level command list.
 	// TODO: cache commands parsed from the initialize response for accuracy.
 	return []protocol.AgentSlashCommand{
@@ -532,7 +535,7 @@ func (s *kimiSession) ListCommands(ctx context.Context) ([]protocol.AgentSlashCo
 	}, nil
 }
 
-func (s *kimiSession) StreamHistory(ctx context.Context) ([]AgentStreamEvent, error) {
+func (s *kimiSession) StreamHistory(_ context.Context) ([]AgentStreamEvent, error) {
 	return nil, nil
 }
 
@@ -582,7 +585,7 @@ func (t *kimiWireTranslator) Translate(raw []byte, timestamp time.Time) ([]inter
 			Text  string `json:"text"`
 			Think string `json:"think"`
 		}
-		json.Unmarshal(msg.Params.Payload, &payload)
+		_ = json.Unmarshal(msg.Params.Payload, &payload)
 
 		itemType := "assistant_message"
 		text := payload.Text
@@ -609,7 +612,7 @@ func (t *kimiWireTranslator) Translate(raw []byte, timestamp time.Time) ([]inter
 				Arguments string `json:"arguments"`
 			} `json:"function"`
 		}
-		json.Unmarshal(msg.Params.Payload, &payload)
+		_ = json.Unmarshal(msg.Params.Payload, &payload)
 		events = append(events, AgentStreamEvent{
 			Event: protocol.TimelineStreamEvent{
 				Item:     protocol.TimelineItem{Type: "tool_call", CallID: payload.ID, Name: payload.Function.Name, Status: "running"},
@@ -625,7 +628,7 @@ func (t *kimiWireTranslator) Translate(raw []byte, timestamp time.Time) ([]inter
 				IsError bool `json:"is_error"`
 			} `json:"return_value"`
 		}
-		json.Unmarshal(msg.Params.Payload, &payload)
+		_ = json.Unmarshal(msg.Params.Payload, &payload)
 		status := "completed"
 		if payload.ReturnValue.IsError {
 			status = "failed"
@@ -655,7 +658,7 @@ func (t *kimiWireTranslator) Translate(raw []byte, timestamp time.Time) ([]inter
 			Action      string `json:"action"`
 			Description string `json:"description"`
 		}
-		json.Unmarshal(msg.Params.Payload, &payload)
+		_ = json.Unmarshal(msg.Params.Payload, &payload)
 		request := protocol.PermissionRequest{
 			ID:       payload.ID,
 			Provider: kimiProviderName,
@@ -705,7 +708,7 @@ func (t *kimiWireTranslator) Translate(raw []byte, timestamp time.Time) ([]inter
 			WaitS       int    `json:"wait_s"`
 			ErrorType   string `json:"error_type"`
 		}
-		json.Unmarshal(msg.Params.Payload, &payload)
+		_ = json.Unmarshal(msg.Params.Payload, &payload)
 		events = append(events, AgentStreamEvent{
 			Event: protocol.TimelineStreamEvent{
 				Item:     protocol.TimelineItem{Type: "error", Text: fmt.Sprintf("Step %d retry %d/%d after %ds: %s", payload.N, payload.NextAttempt, payload.MaxAttempts, payload.WaitS, payload.ErrorType)},
@@ -724,14 +727,14 @@ type kimiWireTerminalDetector struct {
 	session *kimiSession
 }
 
-func (d *kimiWireTerminalDetector) IsTerminal(evt interface{}) (*base.AgentRunResult, error, bool) {
+func (d *kimiWireTerminalDetector) IsTerminal(evt interface{}) (*base.AgentRunResult, bool, error) {
 	streamEvt, ok := evt.(AgentStreamEvent)
 	if !ok {
-		return nil, nil, false
+		return nil, false, nil
 	}
 	switch streamEvt.Event.(type) {
 	case protocol.TurnCompletedStreamEvent:
-		return &base.AgentRunResult{}, nil, true
+		return &base.AgentRunResult{}, true, nil
 	}
-	return nil, nil, false
+	return nil, false, nil
 }

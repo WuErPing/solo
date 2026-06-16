@@ -53,19 +53,6 @@ func readUntilType(t *testing.T, conn *websocket.Conn, targetType string) protoc
 	}
 }
 
-// drainInitialMessages reads and discards messages sent right after hello.
-func drainInitialMessages(t *testing.T, conn *websocket.Conn) {
-	t.Helper()
-	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
-	for {
-		_, _, err := conn.ReadMessage()
-		if err != nil {
-			break
-		}
-	}
-	conn.SetReadDeadline(time.Time{})
-}
-
 // readInitialMessages reads the 2 expected initial messages (server_info + providers_snapshot_update).
 func readInitialMessages(t *testing.T, conn *websocket.Conn) {
 	t.Helper()

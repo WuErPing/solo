@@ -1,3 +1,4 @@
+// Package output renders CLI command results to JSON, YAML, tables, and quiet ID lists.
 package output
 
 import (

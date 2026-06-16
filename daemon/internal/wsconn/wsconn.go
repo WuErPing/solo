@@ -1,3 +1,4 @@
+// Package wsconn defines the WebSocket connection interface used by the server.
 package wsconn
 
 import "time"

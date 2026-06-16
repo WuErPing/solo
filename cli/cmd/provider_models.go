@@ -29,11 +29,11 @@ func runProviderModels(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer closeDaemonClient(c)
 
 	ps := c.ProvidersSnapshot()
 	if ps == nil {
-		fmt.Fprintln(cmdStdout, "No providers available")
+		_, _ = fmt.Fprintln(cmdStdout, "No providers available")
 		return nil
 	}
 
@@ -85,11 +85,11 @@ func runProviderModels(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(items) == 0 {
-		fmt.Fprintln(cmdStdout, "No models available")
+		_, _ = fmt.Fprintln(cmdStdout, "No models available")
 		return nil
 	}
 
-		return output.Render(cmdStdout, output.ListResult(items, schema), opts)
+	return output.Render(cmdStdout, output.ListResult(items, schema), opts)
 }
 
 type modelEntry struct {

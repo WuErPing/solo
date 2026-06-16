@@ -1,3 +1,4 @@
+// Package terminal runs local pseudo-terminal processes.
 package terminal
 
 import (

@@ -153,7 +153,7 @@ func (s *AgentStorage) upsertLocked(record *StoredAgentRecord) error {
 
 	// Remove old file if path changed
 	if oldPath, ok := s.pathByID[record.ID]; ok && oldPath != targetPath {
-		os.Remove(oldPath)
+		_ = os.Remove(oldPath)
 	}
 
 	s.cache[record.ID] = record
@@ -175,7 +175,9 @@ func (s *AgentStorage) Remove(agentID string) error {
 
 	path, ok := s.pathByID[agentID]
 	if ok {
-		os.Remove(path)
+		_ = os.Remove(path)
+		// Best-effort removal of the now-empty project directory.
+		_ = os.Remove(filepath.Dir(path))
 	}
 	delete(s.cache, agentID)
 	delete(s.pathByID, agentID)

@@ -61,7 +61,7 @@ func TestStreamCoalescerDifferentTypesNotMerged(t *testing.T) {
 }
 
 func TestStreamCoalescerEmptyTextDiscarded(t *testing.T) {
-	c := NewStreamCoalescer(50, func(p FlushPayload) {
+	c := NewStreamCoalescer(50, func(_ FlushPayload) {
 		t.Error("should not flush empty text")
 	})
 
@@ -72,7 +72,7 @@ func TestStreamCoalescerEmptyTextDiscarded(t *testing.T) {
 }
 
 func TestStreamCoalescerNonCoalescablePassesThrough(t *testing.T) {
-	c := NewStreamCoalescer(50, func(p FlushPayload) {
+	c := NewStreamCoalescer(50, func(_ FlushPayload) {
 		t.Error("should not flush non-coalescable events")
 	})
 

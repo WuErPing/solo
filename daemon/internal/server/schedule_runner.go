@@ -138,4 +138,3 @@ func agentResult(agentID string, snapshot protocol.AgentSnapshotPayload) schedul
 
 	return result
 }
-

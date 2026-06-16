@@ -173,7 +173,7 @@ func TestExpoPushService_Send_Batching(t *testing.T) {
 }
 
 func TestExpoPushService_Send_EmptyTokens(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Error("should not call Expo API with empty tokens")
 	}))
 	defer server.Close()
@@ -196,7 +196,7 @@ func newTestService(serverURL string, tokenStore TokenStore) *ExpoPushService {
 
 func TestExpoPushService_RetriesOn429(t *testing.T) {
 	var calls atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		count := calls.Add(1)
 		if count < 3 {
 			w.WriteHeader(http.StatusTooManyRequests)
@@ -221,7 +221,7 @@ func TestExpoPushService_RetriesOn429(t *testing.T) {
 
 func TestExpoPushService_RetriesOn5xx(t *testing.T) {
 	var calls atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		count := calls.Add(1)
 		if count < 2 {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -246,7 +246,7 @@ func TestExpoPushService_RetriesOn5xx(t *testing.T) {
 
 func TestExpoPushService_NoRetryOn4xx(t *testing.T) {
 	var calls atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		calls.Add(1)
 		w.WriteHeader(http.StatusBadRequest)
 	}))
@@ -266,7 +266,7 @@ func TestExpoPushService_NoRetryOn4xx(t *testing.T) {
 
 func TestExpoPushService_MaxRetriesExhausted(t *testing.T) {
 	var calls atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		calls.Add(1)
 		w.WriteHeader(http.StatusTooManyRequests)
 	}))

@@ -87,7 +87,7 @@ func (s *openCodeSession) consumeSSE(ctx context.Context, turnID string) (*Agent
 		connCancel()
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	s.base.Logger().Info("SSE connected to /global/event", "url", url, "status", resp.StatusCode)
 
@@ -231,7 +231,7 @@ func (s *openCodeSession) pingServer(ctx context.Context) bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	return resp.StatusCode < 500
 }
@@ -321,7 +321,7 @@ func (s *openCodeSession) translateEvent(eventType string, raw map[string]json.R
 			SessionID string `json:"sessionID"`
 		}
 		if raw, ok := raw["properties"]; ok {
-			json.Unmarshal(raw, &props)
+			_ = json.Unmarshal(raw, &props)
 		}
 		if props.SessionID == s.base.SessionID() {
 			evt := protocol.TurnCompletedStreamEvent{
@@ -339,7 +339,7 @@ func (s *openCodeSession) translateEvent(eventType string, raw map[string]json.R
 			Error     interface{} `json:"error"`
 		}
 		if raw, ok := raw["properties"]; ok {
-			json.Unmarshal(raw, &props)
+			_ = json.Unmarshal(raw, &props)
 		}
 		if props.SessionID == s.base.SessionID() {
 			emit(protocol.TurnFailedStreamEvent{
@@ -360,7 +360,7 @@ func (s *openCodeSession) translateEvent(eventType string, raw map[string]json.R
 			} `json:"todos"`
 		}
 		if raw, ok := raw["properties"]; ok {
-			json.Unmarshal(raw, &props)
+			_ = json.Unmarshal(raw, &props)
 		}
 		if props.SessionID == s.base.SessionID() {
 			var items []TodoItem
@@ -385,7 +385,7 @@ func (s *openCodeSession) translateEvent(eventType string, raw map[string]json.R
 			SessionID string `json:"sessionID"`
 		}
 		if raw, ok := raw["properties"]; ok {
-			json.Unmarshal(raw, &props)
+			_ = json.Unmarshal(raw, &props)
 		}
 		if props.SessionID == s.base.SessionID() {
 			emit(protocol.TimelineStreamEvent{
@@ -406,7 +406,7 @@ func (s *openCodeSession) translateSessionCreatedOrUpdated(raw map[string]json.R
 		SessionID string `json:"sessionID"`
 	}
 	if raw, ok := raw["properties"]; ok {
-		json.Unmarshal(raw, &props)
+		_ = json.Unmarshal(raw, &props)
 	}
 	sid := props.Info.ID
 	if sid == "" {
@@ -437,7 +437,7 @@ func (s *openCodeSession) translateMessageUpdated(raw map[string]json.RawMessage
 		} `json:"info"`
 	}
 	if raw, ok := raw["properties"]; ok {
-		json.Unmarshal(raw, &props)
+		_ = json.Unmarshal(raw, &props)
 	}
 	if props.Info.SessionID != s.base.SessionID() {
 		return
@@ -485,7 +485,7 @@ func (s *openCodeSession) translateMessagePartDelta(raw map[string]json.RawMessa
 		Delta     string `json:"delta"`
 	}
 	if raw, ok := raw["properties"]; ok {
-		json.Unmarshal(raw, &delta)
+		_ = json.Unmarshal(raw, &delta)
 	}
 	if delta.SessionID != s.base.SessionID() {
 		return
@@ -558,7 +558,7 @@ func (s *openCodeSession) translateMessagePartUpdated(raw map[string]json.RawMes
 		} `json:"part"`
 	}
 	if raw, ok := raw["properties"]; ok {
-		json.Unmarshal(raw, &props)
+		_ = json.Unmarshal(raw, &props)
 	}
 	part := props.Part
 	if part.SessionID != s.base.SessionID() {
@@ -626,7 +626,7 @@ func (s *openCodeSession) translateMessagePartUpdated(raw map[string]json.RawMes
 				Output interface{} `json:"output"`
 				Error  interface{} `json:"error"`
 			}
-			json.Unmarshal(part.State, &state)
+			_ = json.Unmarshal(part.State, &state)
 			toolStatus = state.Status
 			toolInput = state.Input
 			toolOutput = state.Output
@@ -778,7 +778,7 @@ func (s *openCodeSession) translatePermissionAsked(raw map[string]json.RawMessag
 		Patterns   []string        `json:"patterns"`
 	}
 	if raw, ok := raw["properties"]; ok {
-		json.Unmarshal(raw, &props)
+		_ = json.Unmarshal(raw, &props)
 	}
 	if props.SessionID != s.base.SessionID() {
 		return
@@ -802,14 +802,14 @@ func (s *openCodeSession) translatePermissionAsked(raw map[string]json.RawMessag
 	}
 	if props.Metadata != nil {
 		var metadataObj interface{}
-		json.Unmarshal(props.Metadata, &metadataObj)
+		_ = json.Unmarshal(props.Metadata, &metadataObj)
 		if metadataObj != nil {
 			input["metadata"] = metadataObj
 		}
 	}
 	if props.Tool != nil {
 		var toolObj interface{}
-		json.Unmarshal(props.Tool, &toolObj)
+		_ = json.Unmarshal(props.Tool, &toolObj)
 		if toolObj != nil {
 			input["tool"] = toolObj
 		}
@@ -876,7 +876,7 @@ func (s *openCodeSession) translateQuestionAsked(raw map[string]json.RawMessage,
 		Tool json.RawMessage `json:"tool"`
 	}
 	if raw, ok := raw["properties"]; ok {
-		json.Unmarshal(raw, &props)
+		_ = json.Unmarshal(raw, &props)
 	}
 	if props.SessionID != s.base.SessionID() {
 		return
@@ -932,7 +932,7 @@ func (s *openCodeSession) translateQuestionAsked(raw map[string]json.RawMessage,
 	}
 	if props.Tool != nil {
 		var toolObj interface{}
-		json.Unmarshal(props.Tool, &toolObj)
+		_ = json.Unmarshal(props.Tool, &toolObj)
 		if toolObj != nil {
 			if request.Input == nil {
 				request.Input = map[string]interface{}{}
@@ -956,7 +956,7 @@ func (s *openCodeSession) translateSessionStatus(raw map[string]json.RawMessage,
 		} `json:"status"`
 	}
 	if raw, ok := raw["properties"]; ok {
-		json.Unmarshal(raw, &props)
+		_ = json.Unmarshal(raw, &props)
 	}
 	if props.SessionID != s.base.SessionID() {
 		return

@@ -132,7 +132,9 @@ func newOpenCodeSession(baseURL, sessionID string, config *protocol.AgentSession
 
 	// Apply default mode for OpenCode
 	if config.ModeID == nil || *config.ModeID == "" || *config.ModeID == "default" {
-		s.base.SetMode("build")
+		if err := s.base.SetMode("build"); err != nil {
+			s.base.Logger().Warn("failed to set default opencode mode", "error", err)
+		}
 	}
 
 	return s
@@ -289,7 +291,7 @@ func (s *openCodeSession) StartTurn(ctx context.Context, text string, images []p
 	go func() {
 		defer unsub()
 		defer close(ch)
-		s.consumeSSE(runCtx, turnID)
+		_, _ = s.consumeSSE(runCtx, turnID)
 	}()
 
 	// Give the SSE connection time to establish before sending the prompt.
@@ -363,7 +365,7 @@ func (s *openCodeSession) sendPrompt(ctx context.Context, text string, images []
 // sendSlashCommand routes through /session.command for slash commands.
 // Fire-and-forget: the SSE stream delivers terminal events. If the API call
 // hits a headers timeout, we log and wait for SSE (matches Solo behavior).
-func (s *openCodeSession) sendSlashCommand(ctx context.Context, name, args string) error {
+func (s *openCodeSession) sendSlashCommand(_ context.Context, name, args string) error {
 	body := map[string]interface{}{
 		"command":   name,
 		"arguments": args,
@@ -447,7 +449,7 @@ func (s *openCodeSession) fetchCommands(ctx context.Context) ([]protocol.AgentSl
 // ListCommands returns available slash commands (matches Solo's listCommands).
 // Uses cached commands if available; otherwise waits for background warmup
 // with a 2-second timeout and falls back to an empty list.
-func (s *openCodeSession) ListCommands(ctx context.Context) ([]protocol.AgentSlashCommand, error) {
+func (s *openCodeSession) ListCommands(_ context.Context) ([]protocol.AgentSlashCommand, error) {
 	// Fast path: cached commands available
 	s.commandsMu.RLock()
 	if len(s.cachedCommands) > 0 {
@@ -469,13 +471,15 @@ func (s *openCodeSession) ListCommands(ctx context.Context) ([]protocol.AgentSla
 
 // --- Session Interface Methods ---
 
-func (s *openCodeSession) Interrupt(ctx context.Context) error {
+func (s *openCodeSession) Interrupt(_ context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.base.Cancel()
 
-	go opencodePostJSON(context.Background(), s.baseURL, "/session/"+s.base.SessionID()+"/abort", s.base.Config().Cwd, nil, nil)
+	go func() {
+		_ = opencodePostJSON(context.Background(), s.baseURL, "/session/"+s.base.SessionID()+"/abort", s.base.Config().Cwd, nil, nil)
+	}()
 
 	s.notifySubscribers(AgentStreamEvent{
 		Event: protocol.TurnCanceledStreamEvent{
@@ -514,11 +518,16 @@ func (s *openCodeSession) Close() error {
 
 	// Reject all pending permissions via HTTP
 	for reqID, perm := range s.pendingPerms {
+		reqID := reqID
 		if perm.kind == "question" {
-			go opencodePostJSON(context.Background(), s.baseURL, "/question/"+reqID+"/reject", s.base.Config().Cwd, nil, nil)
+			go func() {
+				_ = opencodePostJSON(context.Background(), s.baseURL, "/question/"+reqID+"/reject", s.base.Config().Cwd, nil, nil)
+			}()
 		} else {
-			go opencodePostJSON(context.Background(), s.baseURL, "/permission/"+reqID+"/reply", s.base.Config().Cwd,
-				map[string]interface{}{"requestID": reqID, "reply": "reject", "message": "Session closed"}, nil)
+			go func() {
+				_ = opencodePostJSON(context.Background(), s.baseURL, "/permission/"+reqID+"/reply", s.base.Config().Cwd,
+					map[string]interface{}{"requestID": reqID, "reply": "reject", "message": "Session closed"}, nil)
+			}()
 		}
 	}
 	s.pendingPerms = make(map[string]pendingPermission)
@@ -541,8 +550,8 @@ func (s *openCodeSession) Close() error {
 
 	// Abort + archive (fire-and-forget)
 	go func() {
-		opencodePostJSON(context.Background(), s.baseURL, "/session/"+s.base.SessionID()+"/abort", s.base.Config().Cwd, nil, nil)
-		opencodePostJSON(context.Background(), s.baseURL, "/session/"+s.base.SessionID(), s.base.Config().Cwd,
+		_ = opencodePostJSON(context.Background(), s.baseURL, "/session/"+s.base.SessionID()+"/abort", s.base.Config().Cwd, nil, nil)
+		_ = opencodePostJSON(context.Background(), s.baseURL, "/session/"+s.base.SessionID(), s.base.Config().Cwd,
 			map[string]interface{}{
 				"time": map[string]interface{}{"archived": time.Now().UnixMilli()},
 			}, nil)
@@ -567,12 +576,16 @@ func (s *openCodeSession) RespondPermission(requestID string, response protocol.
 
 	if pending.kind == "question" {
 		if response.Behavior == "deny" {
-			go opencodePostJSON(context.Background(), s.baseURL, "/question/"+requestID+"/reject", s.base.Config().Cwd, nil, nil)
+			go func() {
+				_ = opencodePostJSON(context.Background(), s.baseURL, "/question/"+requestID+"/reject", s.base.Config().Cwd, nil, nil)
+			}()
 		} else {
 			// Extract answers from response (gap #11)
 			answers := extractQuestionAnswers(pending.input, response)
-			go opencodePostJSON(context.Background(), s.baseURL, "/question/"+requestID+"/reply", s.base.Config().Cwd,
-				map[string]interface{}{"answers": answers}, nil)
+			go func() {
+				_ = opencodePostJSON(context.Background(), s.baseURL, "/question/"+requestID+"/reply", s.base.Config().Cwd,
+					map[string]interface{}{"answers": answers}, nil)
+			}()
 		}
 	} else {
 		reply := "reject"
@@ -587,13 +600,15 @@ func (s *openCodeSession) RespondPermission(requestID string, response protocol.
 		if response.Behavior == "deny" && response.Message != "" {
 			body["message"] = response.Message
 		}
-		go opencodePostJSON(context.Background(), s.baseURL, "/permission/"+requestID+"/reply", s.base.Config().Cwd, body, nil)
+		go func() {
+			_ = opencodePostJSON(context.Background(), s.baseURL, "/permission/"+requestID+"/reply", s.base.Config().Cwd, body, nil)
+		}()
 	}
 
 	return nil
 }
 
-func (s *openCodeSession) GetRuntimeInfo(ctx context.Context) (*protocol.AgentRuntimeInfo, error) {
+func (s *openCodeSession) GetRuntimeInfo(_ context.Context) (*protocol.AgentRuntimeInfo, error) {
 	return s.base.GetRuntimeInfo(), nil
 }
 
@@ -642,7 +657,7 @@ func (s *openCodeSession) GetAvailableModes(ctx context.Context) ([]protocol.Age
 	return sorted, nil
 }
 
-func (s *openCodeSession) GetCurrentMode(ctx context.Context) (*string, error) {
+func (s *openCodeSession) GetCurrentMode(_ context.Context) (*string, error) {
 	return s.base.GetCurrentModePtr(), nil
 }
 
@@ -652,8 +667,7 @@ func (s *openCodeSession) SetMode(modeID string) error {
 	if modeID == "" || modeID == "default" {
 		modeID = "build"
 	}
-	s.base.SetMode(modeID)
-	return nil
+	return s.base.SetMode(modeID)
 }
 
 func (s *openCodeSession) SetModel(modelID string) error {
@@ -676,8 +690,7 @@ func (s *openCodeSession) SetModel(modelID string) error {
 func (s *openCodeSession) SetThinkingOption(optionID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.base.SetThinkingOption(optionID)
-	return nil
+	return s.base.SetThinkingOption(optionID)
 }
 
 func (s *openCodeSession) DescribePersistence() *protocol.AgentPersistenceHandle {
@@ -774,7 +787,7 @@ func (s *openCodeSession) StreamHistory(ctx context.Context) ([]AgentStreamEvent
 							Output interface{} `json:"output"`
 							Error  interface{} `json:"error"`
 						}
-						json.Unmarshal(part.State, &state)
+						_ = json.Unmarshal(part.State, &state)
 						toolStatus = state.Status
 						toolInput = state.Input
 						toolOutput = state.Output

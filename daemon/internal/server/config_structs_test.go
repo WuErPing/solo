@@ -178,7 +178,7 @@ func TestSessionConfig(t *testing.T) {
 	registry := agent.NewProviderRegistry()
 	registry.Register(agent.NewMockAgentClient())
 	agentMgr := agent.NewAgentManager(agentStorage, registry, logger)
-	agentMgr.Initialize(nil)
+	agentMgr.Initialize(context.TODO())
 	timelineStore := agent.NewInMemoryTimelineStore()
 	workspaceStore := NewWorkspaceStore(cfg.SoloHome, logger)
 	terminalMgr := terminal.NewTerminalManager(logger)
@@ -202,7 +202,7 @@ func TestSessionConfig(t *testing.T) {
 		GitSvc:         gitSvc,
 		ScriptMgr:      scriptMgr,
 		ScriptProxy:    scriptProxy,
-		Broadcast:      func(msg protocol.WSOutboundMessage) {},
+		Broadcast:      func(_ protocol.WSOutboundMessage) {},
 	}
 
 	// Verify all fields are set
@@ -258,7 +258,7 @@ func TestNewSessionWithConfig(t *testing.T) {
 	registry := agent.NewProviderRegistry()
 	registry.Register(agent.NewMockAgentClient())
 	agentMgr := agent.NewAgentManager(agentStorage, registry, logger)
-	agentMgr.Initialize(nil)
+	agentMgr.Initialize(context.TODO())
 	timelineStore := agent.NewInMemoryTimelineStore()
 	workspaceStore := NewWorkspaceStore(cfg.SoloHome, logger)
 	terminalMgr := terminal.NewTerminalManager(logger)
@@ -281,7 +281,7 @@ func TestNewSessionWithConfig(t *testing.T) {
 		GitSvc:         gitSvc,
 		ScriptMgr:      scriptMgr,
 		ScriptProxy:    scriptProxy,
-		Broadcast:      func(msg protocol.WSOutboundMessage) {},
+		Broadcast:      func(_ protocol.WSOutboundMessage) {},
 	}
 
 	// RED: This should fail because NewSessionWithConfig doesn't exist yet

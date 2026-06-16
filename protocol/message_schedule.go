@@ -12,9 +12,9 @@ type ScheduleCadence struct {
 // --- Schedule Target ---
 
 type ScheduleTarget struct {
-	Type   string                `json:"type"` // "agent" | "new-agent"
+	Type    string               `json:"type"` // "agent" | "new-agent"
 	AgentID string               `json:"agentId,omitempty"`
-	Config *ScheduleAgentConfig  `json:"config,omitempty"`
+	Config  *ScheduleAgentConfig `json:"config,omitempty"`
 }
 
 type ScheduleAgentConfig struct {
@@ -85,14 +85,14 @@ type ScheduleSummary struct {
 // --- Inbound Requests ---
 
 type ScheduleCreateRequest struct {
-	Type     string          `json:"type"`
-	RequestID string         `json:"requestId"`
-	Prompt   string          `json:"prompt"`
-	Name     string          `json:"name,omitempty"`
-	Cadence  ScheduleCadence `json:"cadence"`
-	Target   ScheduleTarget  `json:"target"`
-	MaxRuns  *int            `json:"maxRuns,omitempty"`
-	ExpiresAt string         `json:"expiresAt,omitempty"`
+	Type      string          `json:"type"`
+	RequestID string          `json:"requestId"`
+	Prompt    string          `json:"prompt"`
+	Name      string          `json:"name,omitempty"`
+	Cadence   ScheduleCadence `json:"cadence"`
+	Target    ScheduleTarget  `json:"target"`
+	MaxRuns   *int            `json:"maxRuns,omitempty"`
+	ExpiresAt string          `json:"expiresAt,omitempty"`
 }
 
 func (m ScheduleCreateRequest) MsgType() string { return "schedule/create" }
@@ -145,15 +145,15 @@ type ScheduleDeleteRequest struct {
 func (m ScheduleDeleteRequest) MsgType() string { return "schedule/delete" }
 
 type ScheduleUpdateRequest struct {
-	Type      string          `json:"type"`
-	RequestID string          `json:"requestId"`
-	ScheduleID string         `json:"scheduleId"`
-	Prompt    string          `json:"prompt"`
-	Name      string          `json:"name,omitempty"`
-	Cadence   ScheduleCadence `json:"cadence"`
-	Target    ScheduleTarget  `json:"target"`
-	MaxRuns   *int            `json:"maxRuns,omitempty"`
-	ExpiresAt string          `json:"expiresAt,omitempty"`
+	Type       string          `json:"type"`
+	RequestID  string          `json:"requestId"`
+	ScheduleID string          `json:"scheduleId"`
+	Prompt     string          `json:"prompt"`
+	Name       string          `json:"name,omitempty"`
+	Cadence    ScheduleCadence `json:"cadence"`
+	Target     ScheduleTarget  `json:"target"`
+	MaxRuns    *int            `json:"maxRuns,omitempty"`
+	ExpiresAt  string          `json:"expiresAt,omitempty"`
 }
 
 func (m ScheduleUpdateRequest) MsgType() string { return "schedule/update" }
@@ -161,7 +161,7 @@ func (m ScheduleUpdateRequest) MsgType() string { return "schedule/update" }
 // --- Outbound Responses ---
 
 type ScheduleCreateResponse struct {
-	Type    string                     `json:"type"`
+	Type    string                        `json:"type"`
 	Payload ScheduleCreateResponsePayload `json:"payload"`
 }
 
@@ -174,7 +174,7 @@ type ScheduleCreateResponsePayload struct {
 }
 
 type ScheduleUpdateResponse struct {
-	Type    string                     `json:"type"`
+	Type    string                        `json:"type"`
 	Payload ScheduleUpdateResponsePayload `json:"payload"`
 }
 
@@ -188,7 +188,7 @@ type ScheduleUpdateResponsePayload struct {
 }
 
 type ScheduleListResponse struct {
-	Type    string                   `json:"type"`
+	Type    string                      `json:"type"`
 	Payload ScheduleListResponsePayload `json:"payload"`
 }
 
@@ -201,7 +201,7 @@ type ScheduleListResponsePayload struct {
 }
 
 type ScheduleInspectResponse struct {
-	Type    string                     `json:"type"`
+	Type    string                         `json:"type"`
 	Payload ScheduleInspectResponsePayload `json:"payload"`
 }
 
@@ -214,7 +214,7 @@ type ScheduleInspectResponsePayload struct {
 }
 
 type ScheduleLogsResponse struct {
-	Type    string                   `json:"type"`
+	Type    string                      `json:"type"`
 	Payload ScheduleLogsResponsePayload `json:"payload"`
 }
 
@@ -227,7 +227,7 @@ type ScheduleLogsResponsePayload struct {
 }
 
 type SchedulePauseResponse struct {
-	Type    string                   `json:"type"`
+	Type    string                       `json:"type"`
 	Payload SchedulePauseResponsePayload `json:"payload"`
 }
 
@@ -240,7 +240,7 @@ type SchedulePauseResponsePayload struct {
 }
 
 type ScheduleResumeResponse struct {
-	Type    string                    `json:"type"`
+	Type    string                        `json:"type"`
 	Payload ScheduleResumeResponsePayload `json:"payload"`
 }
 
@@ -253,7 +253,7 @@ type ScheduleResumeResponsePayload struct {
 }
 
 type ScheduleDeleteResponse struct {
-	Type    string                    `json:"type"`
+	Type    string                        `json:"type"`
 	Payload ScheduleDeleteResponsePayload `json:"payload"`
 }
 

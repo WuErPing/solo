@@ -98,6 +98,8 @@ func AllocatePort() (int, error) {
 		return 0, fmt.Errorf("allocate port: %w", err)
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
-	ln.Close()
+	if err := ln.Close(); err != nil {
+		return 0, fmt.Errorf("close listener: %w", err)
+	}
 	return port, nil
 }

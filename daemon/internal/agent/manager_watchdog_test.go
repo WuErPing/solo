@@ -159,7 +159,7 @@ func TestSendAgentMessage_WatchdogInterruptsHangingRun(t *testing.T) {
 				return // watchdog fired, agent transitioned away from running
 			}
 		case <-deadline:
-			t.Fatalf("agent is still running after watchdog should have fired (maxAgentRunDuration=%v)", maxAgentRunDuration)
+			t.Fatalf("agent is still running after watchdog should have fired (maxAgentRunDuration=%v)", maxAgentRunDuration.Load())
 		}
 	}
 }

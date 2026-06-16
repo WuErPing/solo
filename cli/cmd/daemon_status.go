@@ -19,7 +19,7 @@ func init() {
 	daemonCmd.AddCommand(daemonStatusCmd)
 }
 
-func runDaemonStatus(cmd *cobra.Command, args []string) error {
+func runDaemonStatus(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 	c, err := newClient(ctx, flagHost)
 	if err != nil {
@@ -29,7 +29,7 @@ func runDaemonStatus(cmd *cobra.Command, args []string) error {
 			Details: "Start the daemon with: solo daemon start",
 		}
 	}
-	defer c.Close()
+	defer closeDaemonClient(c)
 
 	si := c.ServerInfo()
 	ps := c.ProvidersSnapshot()
@@ -55,11 +55,11 @@ func runDaemonStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Human-readable output
-	fmt.Fprintf(cmdStdout, "Daemon is running\n")
+	_, _ = fmt.Fprintf(cmdStdout, "Daemon is running\n")
 	if si != nil {
-		fmt.Fprintf(cmdStdout, "  Server ID: %s\n", si.ServerID)
+		_, _ = fmt.Fprintf(cmdStdout, "  Server ID: %s\n", si.ServerID)
 		if si.Version != nil {
-			fmt.Fprintf(cmdStdout, "  Version:   %s\n", *si.Version)
+			_, _ = fmt.Fprintf(cmdStdout, "  Version:   %s\n", *si.Version)
 		}
 	}
 	if ps != nil {
@@ -69,7 +69,7 @@ func runDaemonStatus(cmd *cobra.Command, args []string) error {
 				ready++
 			}
 		}
-		fmt.Fprintf(cmdStdout, "  Providers: %d (%d ready)\n", len(ps.Entries), ready)
+		_, _ = fmt.Fprintf(cmdStdout, "  Providers: %d (%d ready)\n", len(ps.Entries), ready)
 	}
 
 	// Fetch agent count
@@ -81,7 +81,7 @@ func runDaemonStatus(cmd *cobra.Command, args []string) error {
 		Type      string `json:"type"`
 		RequestID string `json:"requestId"`
 	}
-	json.Unmarshal(reqData, &req)
+	_ = json.Unmarshal(reqData, &req)
 
 	// Use client to count agents
 	fetchResp, err := c.Request(ctx, &agentCountRequest{})
@@ -92,8 +92,8 @@ func runDaemonStatus(cmd *cobra.Command, args []string) error {
 				Entries []interface{} `json:"entries"`
 			} `json:"payload"`
 		}
-		json.Unmarshal(payload, &fr)
-		fmt.Fprintf(cmdStdout, "  Agents:    %d\n", len(fr.Payload.Entries))
+		_ = json.Unmarshal(payload, &fr)
+		_, _ = fmt.Fprintf(cmdStdout, "  Agents:    %d\n", len(fr.Payload.Entries))
 	}
 
 	return nil

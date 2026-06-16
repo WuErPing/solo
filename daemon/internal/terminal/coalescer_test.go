@@ -106,7 +106,7 @@ func TestOutputCoalescer_MultipleFlushes(t *testing.T) {
 func TestOutputCoalescer_EmptyData(t *testing.T) {
 	var flushCount int
 	var mu sync.Mutex
-	c := NewOutputCoalescer(func(payload []byte) {
+	c := NewOutputCoalescer(func(_ []byte) {
 		mu.Lock()
 		flushCount++
 		mu.Unlock()

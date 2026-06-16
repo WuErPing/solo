@@ -19,11 +19,11 @@ type augmentedMockClient struct {
 	runErr           error
 }
 
-func (a *augmentedMockClient) IsAvailable(ctx context.Context) error {
+func (a *augmentedMockClient) IsAvailable(_ context.Context) error {
 	return a.availableErr
 }
 
-func (a *augmentedMockClient) CreateSession(ctx context.Context, config *protocol.AgentSessionConfig) (AgentSession, error) {
+func (a *augmentedMockClient) CreateSession(_ context.Context, _ *protocol.AgentSessionConfig) (AgentSession, error) {
 	if a.createSessionErr != nil {
 		return nil, a.createSessionErr
 	}

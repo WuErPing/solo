@@ -2,7 +2,6 @@ package workspace
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -70,8 +69,8 @@ func installFake(t *testing.T, fake *fakeGitCommander) {
 	orig := getGitCmd()
 	setGitCmd(fake)
 	t.Cleanup(func() {
-		setGitCmd(orig)  // stop routing new calls to fake
-		fake.wg.Wait()   // drain any goroutines already inside recordAndDispatch
+		setGitCmd(orig) // stop routing new calls to fake
+		fake.wg.Wait()  // drain any goroutines already inside recordAndDispatch
 	})
 }
 
@@ -175,7 +174,7 @@ func TestGenerateSlugFallbackToUUID(t *testing.T) {
 func TestResolveIntentCheckout(t *testing.T) {
 	ref := "existing-branch"
 	action := "checkout"
-	fake := newFakeGit(func(dir string, args []string) (string, error) {
+	fake := newFakeGit(func(_ string, _ []string) (string, error) {
 		return "", nil
 	})
 	installFake(t, fake)
@@ -205,7 +204,7 @@ func TestResolveIntentCheckoutRequiresRefName(t *testing.T) {
 
 func TestResolveIntentBranchOff(t *testing.T) {
 	// HEAD -> "main", show-ref fails (branch doesn't exist yet)
-	fake := newFakeGit(func(dir string, args []string) (string, error) {
+	fake := newFakeGit(func(_ string, args []string) (string, error) {
 		switch args[0] {
 		case "rev-parse":
 			if contains(args, "--abbrev-ref") {
@@ -235,7 +234,7 @@ func TestResolveIntentBranchOff(t *testing.T) {
 func TestResolveIntentBranchOffDeduplicates(t *testing.T) {
 	// "my-slug" exists, "my-slug-1" does not
 	callCount := 0
-	fake := newFakeGit(func(dir string, args []string) (string, error) {
+	fake := newFakeGit(func(_ string, args []string) (string, error) {
 		switch args[0] {
 		case "rev-parse":
 			if contains(args, "--abbrev-ref") {
@@ -267,7 +266,7 @@ func TestResolveIntentBranchOffDeduplicates(t *testing.T) {
 // ---- resolveDefaultBranch ----
 
 func TestResolveDefaultBranchFromHEAD(t *testing.T) {
-	fake := newFakeGit(func(dir string, args []string) (string, error) {
+	fake := newFakeGit(func(_ string, args []string) (string, error) {
 		if args[0] == "rev-parse" && contains(args, "--abbrev-ref") {
 			return "develop\n", nil
 		}
@@ -282,7 +281,7 @@ func TestResolveDefaultBranchFromHEAD(t *testing.T) {
 }
 
 func TestResolveDefaultBranchFromOriginHEAD(t *testing.T) {
-	fake := newFakeGit(func(dir string, args []string) (string, error) {
+	fake := newFakeGit(func(_ string, args []string) (string, error) {
 		if args[0] == "rev-parse" && contains(args, "--abbrev-ref") {
 			// HEAD is detached
 			return "HEAD\n", nil
@@ -301,7 +300,7 @@ func TestResolveDefaultBranchFromOriginHEAD(t *testing.T) {
 }
 
 func TestResolveDefaultBranchFallback(t *testing.T) {
-	fake := newFakeGit(func(dir string, args []string) (string, error) {
+	fake := newFakeGit(func(_ string, _ []string) (string, error) {
 		return "", errors.New("fail")
 	})
 	installFake(t, fake)
@@ -320,7 +319,7 @@ func TestCreateSoloWorktreeNewBranch(t *testing.T) {
 
 	const repoRoot = "/fake/repo"
 
-	fake := newFakeGit(func(dir string, args []string) (string, error) {
+	fake := newFakeGit(func(_ string, args []string) (string, error) {
 		switch args[0] {
 		case "rev-parse":
 			if contains(args, "--show-toplevel") {
@@ -395,7 +394,7 @@ func TestCreateSoloWorktreeReturnsExisting(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fake := newFakeGit(func(dir string, args []string) (string, error) {
+	fake := newFakeGit(func(_ string, args []string) (string, error) {
 		switch args[0] {
 		case "rev-parse":
 			if contains(args, "--show-toplevel") {
@@ -444,7 +443,7 @@ func TestCreateSoloWorktreeNotGitRepo(t *testing.T) {
 	soloHome := t.TempDir()
 	projectReg, workspaceReg := newTmpRegistries(t)
 
-	fake := newFakeGit(func(dir string, args []string) (string, error) {
+	fake := newFakeGit(func(_ string, args []string) (string, error) {
 		if args[0] == "rev-parse" && contains(args, "--show-toplevel") {
 			return "", errors.New("not a git repo")
 		}
@@ -467,7 +466,7 @@ func TestCreateSoloWorktreeCheckoutAction(t *testing.T) {
 	projectReg, workspaceReg := newTmpRegistries(t)
 	const repoRoot = "/fake/repo"
 
-	fake := newFakeGit(func(dir string, args []string) (string, error) {
+	fake := newFakeGit(func(_ string, args []string) (string, error) {
 		switch args[0] {
 		case "rev-parse":
 			if contains(args, "--show-toplevel") {
@@ -475,7 +474,7 @@ func TestCreateSoloWorktreeCheckoutAction(t *testing.T) {
 			}
 		case "show-ref":
 			// local branch exists
-			return fmt.Sprintf("abc123 refs/heads/target-branch\n"), nil
+			return "abc123 refs/heads/target-branch\n", nil
 		case "worktree":
 			if args[1] == "add" {
 				_ = os.MkdirAll(args[2], 0o755)

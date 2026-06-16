@@ -269,19 +269,6 @@ func extractLastMeaningfulLine(content string) string {
 	return lastLine
 }
 
-func getGitCommitHash(workingDir string) string {
-	if workingDir == "" {
-		return ""
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "git", "-C", workingDir, "rev-parse", "--short", "HEAD").Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
-}
-
 func parseTmuxPaneLines(output string, agentNames map[string]bool) ([]protocol.TmuxAgentInfo, []protocol.TmuxPaneInfo) {
 	agents := make([]protocol.TmuxAgentInfo, 0)
 	otherPanes := make([]protocol.TmuxPaneInfo, 0)

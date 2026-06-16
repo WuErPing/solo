@@ -21,7 +21,7 @@ func init() {
 	daemonCmd.AddCommand(daemonPairCmd)
 }
 
-func runDaemonPair(cmd *cobra.Command, args []string) error {
+func runDaemonPair(_ *cobra.Command, _ []string) error {
 	// Read server ID
 	serverID, err := client.ReadServerID()
 	if err != nil {
@@ -77,19 +77,19 @@ func runDaemonPair(cmd *cobra.Command, args []string) error {
 	// Render QR code to terminal
 	qr, err := qrcode.New(url, qrcode.Medium)
 	if err == nil {
-		fmt.Fprintln(cmdStdout, "\nScan to pair:")
-		fmt.Fprintln(cmdStdout, qr.ToSmallString(false))
+		_, _ = fmt.Fprintln(cmdStdout, "\nScan to pair:")
+		_, _ = fmt.Fprintln(cmdStdout, qr.ToSmallString(false))
 	} else {
-		fmt.Fprintln(cmdStdout, "\nScan to pair:")
+		_, _ = fmt.Fprintln(cmdStdout, "\nScan to pair:")
 	}
 
-	fmt.Fprintln(cmdStdout, url)
+	_, _ = fmt.Fprintln(cmdStdout, url)
 
 	offer, err := client.DecodePairingOffer(url)
 	if err == nil {
 		offerJSON, _ := json.MarshalIndent(offer, "", "  ")
-		fmt.Fprintln(cmdStdout, "\nPairing link (plaintext):")
-		fmt.Fprintln(cmdStdout, string(offerJSON))
+		_, _ = fmt.Fprintln(cmdStdout, "\nPairing link (plaintext):")
+		_, _ = fmt.Fprintln(cmdStdout, string(offerJSON))
 	}
 
 	return nil

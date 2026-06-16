@@ -10,8 +10,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/WuErPing/solo/cli/internal/client"
+	"github.com/WuErPing/solo/cli/internal/cliutil"
 	"github.com/WuErPing/solo/cli/internal/output"
-	"github.com/WuErPing/solo/cli/internal/util"
 	"github.com/WuErPing/solo/protocol"
 )
 
@@ -51,7 +51,7 @@ func runAgentRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer closeDaemonClient(c)
 
 	prompt := args[0]
 	if prompt == "" {
@@ -59,7 +59,7 @@ func runAgentRun(cmd *cobra.Command, args []string) error {
 	}
 
 	// Resolve provider/model
-	resolved, err := util.ResolveProviderModel(agentRunProvider, agentRunModel, c.ProvidersSnapshot())
+	resolved, err := cliutil.ResolveProviderModel(agentRunProvider, agentRunModel, c.ProvidersSnapshot())
 	if err != nil {
 		return err
 	}
@@ -142,7 +142,7 @@ type waitForFinishResult struct {
 
 func waitForAgentFinish(ctx context.Context, c *client.DaemonClient, agentID string) waitForFinishResult {
 	if agentRunTimeout != "" {
-		timeout, err := util.ParseDuration(agentRunTimeout)
+		timeout, err := cliutil.ParseDuration(agentRunTimeout)
 		if err != nil {
 			return waitForFinishResult{err: &output.CommandError{Code: "INVALID_TIMEOUT", Message: "Invalid wait timeout value", Details: err.Error()}}
 		}
@@ -185,7 +185,9 @@ func requestWaitForFinish(ctx context.Context, c *client.DaemonClient, req *prot
 				Error string `json:"error"`
 			} `json:"payload"`
 		}
-		json.Unmarshal(payload, &rpcErr)
+		if err := json.Unmarshal(payload, &rpcErr); err != nil {
+			return waitForFinishResult{err: fmt.Errorf("parse rpc error: %w", err)}
+		}
 		return waitForFinishResult{err: &output.CommandError{Code: "WAIT_FOR_FINISH_FAILED", Message: rpcErr.Payload.Error}}
 	}
 	if waitResp.Payload.Status == "timeout" {
@@ -263,7 +265,9 @@ func printStreamEvent(event interface{}) error {
 			Name string `json:"name,omitempty"`
 		} `json:"item,omitempty"`
 	}
-	json.Unmarshal(data, &evt)
+	if err := json.Unmarshal(data, &evt); err != nil {
+		return fmt.Errorf("parse stream event: %w", err)
+	}
 
 	switch evt.Type {
 	case "timeline":
@@ -304,7 +308,9 @@ func parseAgentCreatedResponse(resp *protocol.WSOutboundMessage) (string, error)
 		} `json:"payload"`
 		Type string `json:"type"`
 	}
-	json.Unmarshal(payload, &created)
+	if err := json.Unmarshal(payload, &created); err != nil {
+		return "", fmt.Errorf("parse create response: %w", err)
+	}
 
 	// Check for RPC error
 	var rpcErr struct {
@@ -313,7 +319,9 @@ func parseAgentCreatedResponse(resp *protocol.WSOutboundMessage) (string, error)
 		} `json:"payload"`
 		Type string `json:"type"`
 	}
-	json.Unmarshal(payload, &rpcErr)
+	if err := json.Unmarshal(payload, &rpcErr); err != nil {
+		return "", fmt.Errorf("parse rpc error: %w", err)
+	}
 	if rpcErr.Type == "rpc_error" && rpcErr.Payload.Error != "" {
 		return "", &output.CommandError{Code: "AGENT_CREATE_FAILED", Message: rpcErr.Payload.Error}
 	}

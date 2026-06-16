@@ -147,11 +147,11 @@ func stringPtrValue(s *string) string {
 	return *s
 }
 
-func textPrefix(s string, max int) string {
-	if max <= 0 || len(s) <= max {
+func textPrefix(s string, limit int) string {
+	if limit <= 0 || len(s) <= limit {
 		return s
 	}
-	return s[:max]
+	return s[:limit]
 }
 
 func strPtrOrNil(s string) *string {

@@ -27,7 +27,7 @@ func runAgentInspect(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer closeDaemonClient(c)
 
 	agentID, err := fetchAndResolveAgentID(ctx, c, args[0])
 	if err != nil {
@@ -52,7 +52,9 @@ func runAgentInspect(cmd *cobra.Command, args []string) error {
 			Error *string                        `json:"error,omitempty"`
 		} `json:"payload"`
 	}
-	json.Unmarshal(payload, &fetchResp)
+	if err := json.Unmarshal(payload, &fetchResp); err != nil {
+		return fmt.Errorf("parse response: %w", err)
+	}
 
 	if fetchResp.Payload.Error != nil {
 		return &output.CommandError{Code: "AGENT_NOT_FOUND", Message: *fetchResp.Payload.Error}

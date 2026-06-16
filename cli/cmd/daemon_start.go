@@ -37,7 +37,7 @@ func init() {
 	daemonCmd.AddCommand(daemonStartCmd)
 }
 
-func runDaemonStart(cmd *cobra.Command, args []string) error {
+func runDaemonStart(_ *cobra.Command, _ []string) error {
 	// Check if daemon is already running
 	running, pid, _ := client.IsDaemonRunning()
 	if running {
@@ -72,7 +72,7 @@ func runDaemonStart(cmd *cobra.Command, args []string) error {
 		fgCmd := exec.Command(daemonBin, execArgs...)
 		fgCmd.Stdout = os.Stdout
 		fgCmd.Stderr = os.Stderr
-		fmt.Fprintln(cmdStdout, "Starting daemon in foreground...")
+		_, _ = fmt.Fprintln(cmdStdout, "Starting daemon in foreground...")
 		return fgCmd.Run()
 	}
 
@@ -81,7 +81,7 @@ func runDaemonStart(cmd *cobra.Command, args []string) error {
 		return &output.CommandError{Code: "DAEMON_START_FAILED", Message: fmt.Sprintf("Failed to start daemon: %v", err)}
 	}
 
-	fmt.Fprintf(cmdStdout, "Daemon starting (PID %d)...\n", pid)
+	_, _ = fmt.Fprintf(cmdStdout, "Daemon starting (PID %d)...\n", pid)
 
 	// Wait for daemon to become healthy
 	host := resolveDaemonHost()
@@ -89,7 +89,7 @@ func runDaemonStart(cmd *cobra.Command, args []string) error {
 		return &output.CommandError{Code: "DAEMON_START_TIMEOUT", Message: "Daemon did not become healthy in time"}
 	}
 
-	fmt.Fprintf(cmdStdout, "Daemon is running at %s\n", host)
+	_, _ = fmt.Fprintf(cmdStdout, "Daemon is running at %s\n", host)
 	return nil
 }
 
@@ -157,7 +157,7 @@ func waitForDaemon(host string, timeout time.Duration) error {
 	for time.Now().Before(deadline) {
 		resp, err := http.Get(url)
 		if err == nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
 				return nil
 			}

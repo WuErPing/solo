@@ -1,3 +1,4 @@
+// Command relay runs the Solo WebSocket relay server.
 package main
 
 import (
@@ -10,7 +11,7 @@ import (
 	"time"
 
 	"github.com/WuErPing/solo/relay/internal/config"
-	"github.com/WuErPing/solo/relay/internal/metrics"
+	relaymetrics "github.com/WuErPing/solo/relay/internal/metrics"
 	"github.com/WuErPing/solo/relay/internal/relay"
 )
 
@@ -20,7 +21,7 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.LogLevel}))
 	slog.SetDefault(logger)
 
-	_ = metrics.Sessions
+	_ = relaymetrics.Sessions
 
 	store := relay.NewSessionStore(cfg.MaxBuffer, logger)
 	srv := relay.NewServer(store, cfg.MaxBuffer, logger, cfg.AllowedOrigins)

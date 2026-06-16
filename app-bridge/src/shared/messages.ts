@@ -61,11 +61,15 @@ import {
   LoopInspectRequestSchema,
   LoopLogsRequestSchema,
   LoopStopRequestSchema,
+  LoopUpdateRequestSchema,
+  LoopDeleteRequestSchema,
   LoopRunResponseSchema,
   LoopListResponseSchema,
   LoopInspectResponseSchema,
   LoopLogsResponseSchema,
   LoopStopResponseSchema,
+  LoopUpdateResponseSchema,
+  LoopDeleteResponseSchema,
 } from "../server/loop/rpc-schemas.js";
 import {
   SoloConfigRawSchema,
@@ -1770,6 +1774,8 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   LoopInspectRequestSchema,
   LoopLogsRequestSchema,
   LoopStopRequestSchema,
+  LoopUpdateRequestSchema,
+  LoopDeleteRequestSchema,
 ]);
 
 export type SessionInboundMessage = z.infer<typeof SessionInboundMessageSchema>;
@@ -3399,6 +3405,8 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   LoopInspectResponseSchema,
   LoopLogsResponseSchema,
   LoopStopResponseSchema,
+  LoopUpdateResponseSchema,
+  LoopDeleteResponseSchema,
 ]);
 
 export type SessionOutboundMessage = z.infer<typeof SessionOutboundMessageSchema>;
@@ -3505,6 +3513,8 @@ export type LoopListResponse = z.infer<typeof LoopListResponseSchema>;
 export type LoopInspectResponse = z.infer<typeof LoopInspectResponseSchema>;
 export type LoopLogsResponse = z.infer<typeof LoopLogsResponseSchema>;
 export type LoopStopResponse = z.infer<typeof LoopStopResponseSchema>;
+export type LoopUpdateResponse = z.infer<typeof LoopUpdateResponseSchema>;
+export type LoopDeleteResponse = z.infer<typeof LoopDeleteResponseSchema>;
 
 // Type exports for payload types
 export type ActivityLogPayload = z.infer<typeof ActivityLogPayloadSchema>;
@@ -3562,6 +3572,8 @@ export type LoopListRequest = z.infer<typeof LoopListRequestSchema>;
 export type LoopInspectRequest = z.infer<typeof LoopInspectRequestSchema>;
 export type LoopLogsRequest = z.infer<typeof LoopLogsRequestSchema>;
 export type LoopStopRequest = z.infer<typeof LoopStopRequestSchema>;
+export type LoopUpdateRequest = z.infer<typeof LoopUpdateRequestSchema>;
+export type LoopDeleteRequest = z.infer<typeof LoopDeleteRequestSchema>;
 export type ResumeAgentRequestMessage = z.infer<typeof ResumeAgentRequestMessageSchema>;
 export type DeleteAgentRequestMessage = z.infer<typeof DeleteAgentRequestMessageSchema>;
 export type UpdateAgentRequestMessage = z.infer<typeof UpdateAgentRequestMessageSchema>;

@@ -100,8 +100,8 @@ func TestSession_BroadcastAgentAttention_WithPush(t *testing.T) {
 	}
 
 	event := agent.AgentStreamEvent{
-		AgentID: "agent1",
-		Event: protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
+		AgentID:   "agent1",
+		Event:     protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
 		Timestamp: time.Now(),
 	}
 
@@ -140,8 +140,8 @@ func TestSession_BroadcastAgentAttention_NoPushWhenFocused(t *testing.T) {
 	}
 
 	event := agent.AgentStreamEvent{
-		AgentID: "agent1",
-		Event: protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
+		AgentID:   "agent1",
+		Event:     protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
 		Timestamp: time.Now(),
 	}
 
@@ -169,8 +169,8 @@ func TestSession_BroadcastAgentAttention_NoPushWhenRecent(t *testing.T) {
 	}
 
 	event := agent.AgentStreamEvent{
-		AgentID: "agent1",
-		Event: protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
+		AgentID:   "agent1",
+		Event:     protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
 		Timestamp: time.Now(),
 	}
 
@@ -196,8 +196,8 @@ func TestSession_BroadcastAgentAttention_NoTokens(t *testing.T) {
 	}
 
 	event := agent.AgentStreamEvent{
-		AgentID: "agent1",
-		Event: protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
+		AgentID:   "agent1",
+		Event:     protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
 		Timestamp: time.Now(),
 	}
 
@@ -254,8 +254,8 @@ func TestSession_AttentionRequired_ForwardsNotificationFields(t *testing.T) {
 	session.pusher = mockPusher
 
 	event := agent.AgentStreamEvent{
-		AgentID: "agent1",
-		Event: protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
+		AgentID:   "agent1",
+		Event:     protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
 		Timestamp: time.Now(),
 	}
 
@@ -309,8 +309,8 @@ func TestSession_AttentionRequired_SetsShouldNotifyTrueWhenInAppRecipient(t *tes
 	session.pusher = mockPusher
 
 	event := agent.AgentStreamEvent{
-		AgentID: "agent1",
-		Event: protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
+		AgentID:   "agent1",
+		Event:     protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
 		Timestamp: time.Now(),
 	}
 
@@ -343,8 +343,8 @@ func TestSession_AttentionRequired_SetsShouldNotifyFalseWhenFocused(t *testing.T
 	session.pusher = mockPusher
 
 	event := agent.AgentStreamEvent{
-		AgentID: "agent1",
-		Event: protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
+		AgentID:   "agent1",
+		Event:     protocol.AttentionRequiredStreamEvent{Provider: "opencode", Reason: "finished"},
 		Timestamp: time.Now(),
 	}
 

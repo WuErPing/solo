@@ -1,3 +1,5 @@
+// Package protocol defines the WebSocket message types and protocol constants
+// shared between the Solo daemon, relay, CLI, and clients.
 package protocol
 
 import (
@@ -164,6 +166,13 @@ func init() {
 	RegisterInbound("schedule/resume", func() SessionInboundMessage { return &ScheduleResumeRequest{} })
 	RegisterInbound("schedule/delete", func() SessionInboundMessage { return &ScheduleDeleteRequest{} })
 	RegisterInbound("schedule/update", func() SessionInboundMessage { return &ScheduleUpdateRequest{} })
+	RegisterInbound("loop/run", func() SessionInboundMessage { return &LoopRunRequest{} })
+	RegisterInbound("loop/list", func() SessionInboundMessage { return &LoopListRequest{} })
+	RegisterInbound("loop/inspect", func() SessionInboundMessage { return &LoopInspectRequest{} })
+	RegisterInbound("loop/logs", func() SessionInboundMessage { return &LoopLogsRequest{} })
+	RegisterInbound("loop/stop", func() SessionInboundMessage { return &LoopStopRequest{} })
+	RegisterInbound("loop/update", func() SessionInboundMessage { return &LoopUpdateRequest{} })
+	RegisterInbound("loop/delete", func() SessionInboundMessage { return &LoopDeleteRequest{} })
 	RegisterInbound("tmux/list_agents", func() SessionInboundMessage { return &TmuxListAgentsRequest{} })
 	RegisterInbound("tmux/capture_pane", func() SessionInboundMessage { return &TmuxCapturePaneRequest{} })
 	RegisterInbound("tmux/send_keys", func() SessionInboundMessage { return &TmuxSendKeysRequest{} })
@@ -171,6 +180,5 @@ func init() {
 	RegisterInbound("tmux/kill_session", func() SessionInboundMessage { return &TmuxKillSessionRequest{} })
 	RegisterInbound("tmux/delete_command_history", func() SessionInboundMessage { return &TmuxDeleteCommandHistoryRequest{} })
 	RegisterInbound("tmux/get_theme", func() SessionInboundMessage { return &TmuxGetThemeRequest{} })
-	RegisterInbound("tmux/status_line", func() SessionInboundMessage { return &TmuxStatusLineRequest{} })
 	RegisterInbound("tmux/status_line", func() SessionInboundMessage { return &TmuxStatusLineRequest{} })
 }

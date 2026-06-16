@@ -126,6 +126,20 @@ export const LoopStopRequestSchema = z.object({
   id: z.string().trim().min(1),
 });
 
+export const LoopUpdateRequestSchema = z.object({
+  type: z.literal("loop/update"),
+  requestId: z.string(),
+  id: z.string().trim().min(1),
+  name: z.string().trim().min(1).optional(),
+  archive: z.boolean().optional(),
+});
+
+export const LoopDeleteRequestSchema = z.object({
+  type: z.literal("loop/delete"),
+  requestId: z.string(),
+  id: z.string().trim().min(1),
+});
+
 export const LoopRunResponseSchema = z.object({
   type: z.literal("loop/run/response"),
   payload: z.object({
@@ -173,6 +187,24 @@ export const LoopStopResponseSchema = z.object({
   }),
 });
 
+export const LoopUpdateResponseSchema = z.object({
+  type: z.literal("loop/update/response"),
+  payload: z.object({
+    requestId: z.string(),
+    loop: LoopRecordSchema.nullable(),
+    error: z.string().nullable(),
+  }),
+});
+
+export const LoopDeleteResponseSchema = z.object({
+  type: z.literal("loop/delete/response"),
+  payload: z.object({
+    requestId: z.string(),
+    id: z.string(),
+    error: z.string().nullable(),
+  }),
+});
+
 export type LoopLogEntry = z.infer<typeof LoopLogEntrySchema>;
 export type LoopVerifyCheckResult = z.infer<typeof LoopVerifyCheckResultSchema>;
 export type LoopVerifyPromptResult = z.infer<typeof LoopVerifyPromptResultSchema>;
@@ -189,3 +221,7 @@ export type LoopListResponse = z.infer<typeof LoopListResponseSchema>;
 export type LoopInspectResponse = z.infer<typeof LoopInspectResponseSchema>;
 export type LoopLogsResponse = z.infer<typeof LoopLogsResponseSchema>;
 export type LoopStopResponse = z.infer<typeof LoopStopResponseSchema>;
+export type LoopUpdateRequest = z.infer<typeof LoopUpdateRequestSchema>;
+export type LoopDeleteRequest = z.infer<typeof LoopDeleteRequestSchema>;
+export type LoopUpdateResponse = z.infer<typeof LoopUpdateResponseSchema>;
+export type LoopDeleteResponse = z.infer<typeof LoopDeleteResponseSchema>;

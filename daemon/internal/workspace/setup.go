@@ -148,7 +148,7 @@ func execSetupCommand(command, cwd string, env []string) (log string, exitCode i
 		if builder.Len()+len(line)+1 > maxCommandOutputBytes {
 			builder.WriteString("\n... [output truncated]\n")
 			// Drain remaining to prevent pipe stall
-			io.Copy(io.Discard, combined)
+			_, _ = io.Copy(io.Discard, combined)
 			break
 		}
 		builder.WriteString(line)

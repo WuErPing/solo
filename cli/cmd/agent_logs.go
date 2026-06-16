@@ -35,7 +35,7 @@ func runAgentLogs(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer closeDaemonClient(c)
 
 	agentID, err := fetchAndResolveAgentID(ctx, c, args[0])
 	if err != nil {
@@ -71,7 +71,9 @@ func runAgentLogs(cmd *cobra.Command, args []string) error {
 			} `json:"entries"`
 		} `json:"payload"`
 	}
-	json.Unmarshal(payload, &timeline)
+	if err := json.Unmarshal(payload, &timeline); err != nil {
+		return fmt.Errorf("parse timeline: %w", err)
+	}
 
 	if len(timeline.Payload.Entries) == 0 {
 		if err := errFprintln(cmdStdout, "No activity to display."); err != nil {
@@ -110,7 +112,7 @@ func runAgentLogs(cmd *cobra.Command, args []string) error {
 			var streamMsg struct {
 				Payload protocol.AgentStreamPayload `json:"payload"`
 			}
-			json.Unmarshal(sp, &streamMsg)
+			_ = json.Unmarshal(sp, &streamMsg)
 			stream := streamMsg.Payload
 			if stream.AgentID != agentID {
 				continue
@@ -124,7 +126,7 @@ func runAgentLogs(cmd *cobra.Command, args []string) error {
 					Name string `json:"name,omitempty"`
 				} `json:"item,omitempty"`
 			}
-			json.Unmarshal(evtData, &evt)
+			_ = json.Unmarshal(evtData, &evt)
 			if evt.Type == "timeline" && matchesLogFilter(evt.Item.Type, agentLogsFilter) {
 				if err := printLogEntry(evt.Item.Type, evt.Item.Text, evt.Item.Name); err != nil {
 					return fmt.Errorf("write log entry: %w", err)

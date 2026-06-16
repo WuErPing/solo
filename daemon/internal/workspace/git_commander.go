@@ -53,4 +53,3 @@ func (defaultGitCommander) Output(dir string, args ...string) (string, error) {
 	}
 	return string(out), nil
 }
-

@@ -1,3 +1,4 @@
+// Package server implements the daemon's HTTP/WebSocket API and session management.
 package server
 
 import (

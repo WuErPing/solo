@@ -36,7 +36,7 @@ func (s *openCodeSession) ensureMcpConfigured(ctx context.Context) error {
 	s.mcpSetupPromise = ch
 	s.mu.Unlock()
 
-	err := s.ensureMcpConfigured(ctx)
+	err := s.configureMcpServers(ctx)
 
 	s.mu.Lock()
 	s.mcpSetupErr = err

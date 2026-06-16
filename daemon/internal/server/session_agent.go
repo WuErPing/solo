@@ -455,7 +455,7 @@ func (s *Session) handleWaitForFinish(m *protocol.WaitForFinishRequest) {
 	}
 
 	done := make(chan struct{}, 1)
-	var unsubscribe func() = s.agentMgr.Subscribe(func(event agent.AgentEvent) {
+	unsubscribe := s.agentMgr.Subscribe(func(event agent.AgentEvent) {
 		if event.Type != agent.EventAgentState || event.AgentID != m.AgentID || event.Agent == nil {
 			return
 		}
@@ -548,7 +548,9 @@ func (s *Session) handleAgentPermissionResponse(m *protocol.AgentPermissionRespo
 	if sess == nil {
 		return
 	}
-	sess.RespondPermission(m.RequestID, m.Response)
+	if err := sess.RespondPermission(m.RequestID, m.Response); err != nil {
+		s.logger.Warn("failed to respond to permission request", "agentId", m.AgentID, "requestId", m.RequestID, "error", err)
+	}
 }
 
 func (s *Session) handleSetAgentMode(m *protocol.SetAgentModeRequest) {

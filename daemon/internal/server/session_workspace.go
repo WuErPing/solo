@@ -50,7 +50,7 @@ func (s *Session) projectPlacementForCwd(cwd string) *protocol.ProjectPlacementP
 		if meta := s.gitSvc.GetMetadataCached(normalizedCwd); meta != nil && meta.ProjectKind == workspace.ProjectKindGit {
 			checkout.IsGit = true
 			checkout.CurrentBranch = meta.CurrentBranch
-			checkout.RemoteURL = meta.RemoteUrl
+			checkout.RemoteURL = meta.RemoteURL
 			if meta.RepoRoot != nil && *meta.RepoRoot != "" {
 				repoRoot := normalizeProjectCwd(*meta.RepoRoot)
 				checkout.WorktreeRoot = &repoRoot
@@ -108,7 +108,7 @@ func (s *Session) projectPlacementForWorkspace(ws *workspace.PersistedWorkspaceR
 		if s.gitSvc != nil {
 			if meta := s.gitSvc.GetMetadataCached(checkout.Cwd); meta != nil {
 				checkout.CurrentBranch = meta.CurrentBranch
-				checkout.RemoteURL = meta.RemoteUrl
+				checkout.RemoteURL = meta.RemoteURL
 			}
 		}
 	}
@@ -227,7 +227,7 @@ func (s *Session) upsertWorkspaceForCwd(cwd string) (*protocol.WorkspaceDescript
 		}
 		ws.GitRuntime = &protocol.WorkspaceGitRuntime{
 			CurrentBranch:       gitMeta.CurrentBranch,
-			RemoteURL:           gitMeta.RemoteUrl,
+			RemoteURL:           gitMeta.RemoteURL,
 			IsSoloOwnedWorktree: &gitMeta.IsWorktree,
 			IsDirty:             &isDirty,
 		}
@@ -339,7 +339,7 @@ func (s *Session) handleFetchWorkspaces(m *protocol.FetchWorkspacesRequest) {
 				}
 				ws.GitRuntime = &protocol.WorkspaceGitRuntime{
 					CurrentBranch:       gitMeta.CurrentBranch,
-					RemoteURL:           gitMeta.RemoteUrl,
+					RemoteURL:           gitMeta.RemoteURL,
 					IsSoloOwnedWorktree: &gitMeta.IsWorktree,
 					IsDirty:             &isDirty,
 				}
@@ -386,7 +386,7 @@ func (s *Session) handleDirectorySuggestions(m *protocol.DirectorySuggestionsReq
 	var entries []protocol.DirectorySuggestionEntry
 
 	root := cwd
-	filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	if err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -424,7 +424,9 @@ func (s *Session) handleDirectorySuggestions(m *protocol.DirectorySuggestionsReq
 			return filepath.SkipDir
 		}
 		return nil
-	})
+	}); err != nil {
+		s.logger.Warn("directory suggestions walk failed", "cwd", root, "error", err)
+	}
 
 	s.sendMessage(protocol.NewSessionMessage(&protocol.DirectorySuggestionsResponse{
 		Type: "directory_suggestions_response",
@@ -708,7 +710,7 @@ func (s *Session) buildWorkspaceDescriptor(ws *workspace.PersistedWorkspaceRecor
 	if meta := s.gitSvc.GetMetadataCached(ws.Cwd); meta != nil {
 		desc.GitRuntime = &protocol.WorkspaceGitRuntime{
 			CurrentBranch:       meta.CurrentBranch,
-			RemoteURL:           meta.RemoteUrl,
+			RemoteURL:           meta.RemoteURL,
 			IsSoloOwnedWorktree: &meta.IsWorktree,
 		}
 		if dirtyPtr := s.gitSvc.IsDirtyCached(ws.Cwd); dirtyPtr != nil {

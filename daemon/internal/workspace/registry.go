@@ -139,7 +139,7 @@ func (r *FileBackedRegistry[T]) persist() error {
 	}
 
 	if err := os.Rename(tmpPath, r.filePath); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("rename registry: %w", err)
 	}
 

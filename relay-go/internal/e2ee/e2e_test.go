@@ -130,8 +130,8 @@ func TestE2EFullFlow(t *testing.T) {
 	_, ts := newE2ETestServer(t)
 	defer ts.Close()
 
-	serverId := "e2e-full-" + time.Now().Format("150405.000")
-	connectionId := "conn_e2e_full"
+	serverID := "e2e-full-" + time.Now().Format("150405.000")
+	connectionID := "conn_e2e_full"
 
 	// === DAEMON SIDE ===
 	// Generate daemon keypair (public key would go in QR code)
@@ -142,7 +142,7 @@ func TestE2EFullFlow(t *testing.T) {
 	daemonPubKeyB64 := e2ee.ExportPublicKey(daemonPub)
 
 	// Daemon connects as control socket
-	controlWs := dialE2E(t, ts, protocol.WSEndpoint+"?serverId="+serverId+"&role=server&v=2")
+	controlWs := dialE2E(t, ts, protocol.WSEndpoint+"?serverId="+serverID+"&role=server&v=2")
 	defer controlWs.Close()
 	readJSONE2E(t, controlWs) // consume sync
 
@@ -168,14 +168,14 @@ func TestE2EFullFlow(t *testing.T) {
 		defer connectedWg.Done()
 		for {
 			msg := readJSONE2E(t, controlWs)
-			if msg["type"] == "connected" && msg["connectionId"] == connectionId {
+			if msg["type"] == "connected" && msg["connectionId"] == connectionID {
 				return
 			}
 		}
 	}()
 
 	// Client connects to relay
-	clientWs := dialE2E(t, ts, protocol.WSEndpoint+"?serverId="+serverId+"&role=client&connectionId="+connectionId+"&v=2")
+	clientWs := dialE2E(t, ts, protocol.WSEndpoint+"?serverId="+serverID+"&role=client&connectionId="+connectionID+"&v=2")
 	defer clientWs.Close()
 
 	// Wait for daemon to see client connected
@@ -191,7 +191,7 @@ func TestE2EFullFlow(t *testing.T) {
 	}
 
 	// Daemon connects data socket
-	daemonDataWs := dialE2E(t, ts, protocol.WSEndpoint+"?serverId="+serverId+"&role=server&connectionId="+connectionId+"&v=2")
+	daemonDataWs := dialE2E(t, ts, protocol.WSEndpoint+"?serverId="+serverID+"&role=server&connectionId="+connectionID+"&v=2")
 	defer daemonDataWs.Close()
 
 	// Client sends e2ee_hello with its public key (not encrypted - it's the handshake)
@@ -318,8 +318,8 @@ func TestE2ERelayOpacity(t *testing.T) {
 	_, ts := newE2ETestServer(t)
 	defer ts.Close()
 
-	serverId := "e2e-opacity-" + time.Now().Format("150405.000")
-	connectionId := "conn_opacity"
+	serverID := "e2e-opacity-" + time.Now().Format("150405.000")
+	connectionID := "conn_opacity"
 
 	// Generate keys
 	daemonPub, daemonSec, err := e2ee.GenerateKeyPair()
@@ -336,19 +336,19 @@ func TestE2ERelayOpacity(t *testing.T) {
 	clientSharedKey := e2ee.DeriveSharedKey(clientSec, daemonPub)
 
 	// Connect control socket
-	controlWs := dialE2E(t, ts, protocol.WSEndpoint+"?serverId="+serverId+"&role=server&v=2")
+	controlWs := dialE2E(t, ts, protocol.WSEndpoint+"?serverId="+serverID+"&role=server&v=2")
 	defer controlWs.Close()
 	readJSONE2E(t, controlWs) // consume sync
 
 	// Connect client
-	clientWs := dialE2E(t, ts, protocol.WSEndpoint+"?serverId="+serverId+"&role=client&connectionId="+connectionId+"&v=2")
+	clientWs := dialE2E(t, ts, protocol.WSEndpoint+"?serverId="+serverID+"&role=client&connectionId="+connectionID+"&v=2")
 	defer clientWs.Close()
 
 	// Wait a bit for control to see client
 	time.Sleep(50 * time.Millisecond)
 
 	// Connect data socket
-	daemonDataWs := dialE2E(t, ts, protocol.WSEndpoint+"?serverId="+serverId+"&role=server&connectionId="+connectionId+"&v=2")
+	daemonDataWs := dialE2E(t, ts, protocol.WSEndpoint+"?serverId="+serverID+"&role=server&connectionId="+connectionID+"&v=2")
 	defer daemonDataWs.Close()
 
 	// Handshake (not encrypted - this is the hello/ready exchange)
@@ -442,8 +442,8 @@ func TestE2EWithEncryptedChannel(t *testing.T) {
 	_, ts := newE2ETestServer(t)
 	defer ts.Close()
 
-	serverId := "e2e-channel-" + time.Now().Format("150405.000")
-	connectionId := "conn_channel"
+	serverID := "e2e-channel-" + time.Now().Format("150405.000")
+	connectionID := "conn_channel"
 
 	// Generate daemon keypair
 	daemonPub, daemonSec, err := e2ee.GenerateKeyPair()
@@ -453,7 +453,7 @@ func TestE2EWithEncryptedChannel(t *testing.T) {
 	daemonKP := e2ee.KeyPair{PublicKey: daemonPub, SecretKey: daemonSec}
 
 	// Connect control socket
-	controlWs := dialE2E(t, ts, protocol.WSEndpoint+"?serverId="+serverId+"&role=server&v=2")
+	controlWs := dialE2E(t, ts, protocol.WSEndpoint+"?serverId="+serverID+"&role=server&v=2")
 	defer controlWs.Close()
 	readJSONE2E(t, controlWs) // consume sync
 
@@ -464,14 +464,14 @@ func TestE2EWithEncryptedChannel(t *testing.T) {
 		defer connectedWg.Done()
 		for {
 			msg := readJSONE2E(t, controlWs)
-			if msg["type"] == "connected" && msg["connectionId"] == connectionId {
+			if msg["type"] == "connected" && msg["connectionId"] == connectionID {
 				return
 			}
 		}
 	}()
 
 	// Connect client WebSocket
-	clientWs := dialE2E(t, ts, protocol.WSEndpoint+"?serverId="+serverId+"&role=client&connectionId="+connectionId+"&v=2")
+	clientWs := dialE2E(t, ts, protocol.WSEndpoint+"?serverId="+serverID+"&role=client&connectionId="+connectionID+"&v=2")
 	defer clientWs.Close()
 
 	// Wait for daemon to see client connected
@@ -487,7 +487,7 @@ func TestE2EWithEncryptedChannel(t *testing.T) {
 	}
 
 	// Connect daemon data socket
-	daemonDataWs := dialE2E(t, ts, protocol.WSEndpoint+"?serverId="+serverId+"&role=server&connectionId="+connectionId+"&v=2")
+	daemonDataWs := dialE2E(t, ts, protocol.WSEndpoint+"?serverId="+serverID+"&role=server&connectionId="+connectionID+"&v=2")
 	defer daemonDataWs.Close()
 
 	// Create EncryptedChannels

@@ -522,7 +522,7 @@ func TestHandleGetProvidersSnapshot(t *testing.T) {
 
 func TestHandlerRegistryHasHandler(t *testing.T) {
 	r := newMessageHandlerRegistry()
-	r.Register("test_msg", func(s *Session, m protocol.SessionInboundMessage) {})
+	r.Register("test_msg", func(_ *Session, _ protocol.SessionInboundMessage) {})
 	if !r.HasHandler("test_msg") {
 		t.Error("expected HasHandler to return true for registered type")
 	}

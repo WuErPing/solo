@@ -87,7 +87,7 @@ func TestTerminalProcess_OnExit(t *testing.T) {
 	}
 
 	var called bool
-	proc.OnExit(func(info ExitInfo) {
+	proc.OnExit(func(_ ExitInfo) {
 		called = true
 	})
 
@@ -127,7 +127,7 @@ func TestTerminalProcess_Done(t *testing.T) {
 	}
 }
 
-func TestTerminalProcess_Kill_AlreadyExited(t *testing.T) {
+func TestTerminalProcess_Kill_AlreadyExited(_ *testing.T) {
 	proc := &TerminalProcess{
 		ID:     "t1",
 		exited: true,

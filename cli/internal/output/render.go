@@ -37,7 +37,7 @@ func RenderError(w io.Writer, ce *CommandError, opts OutputOptions) {
 		if ce.Details != "" {
 			msg += "\n" + ce.Details
 		}
-		fmt.Fprintln(w, msg)
+		_, _ = fmt.Fprintln(w, msg)
 	}
 }
 

@@ -61,7 +61,7 @@ func TestStreamCoalescerFlushAndDiscard(t *testing.T) {
 
 func TestStreamCoalescerFlushAndDiscardNonExistent(t *testing.T) {
 	var flushed bool
-	c := NewStreamCoalescer(1000, func(p FlushPayload) {
+	c := NewStreamCoalescer(1000, func(_ FlushPayload) {
 		flushed = true
 	})
 
@@ -74,7 +74,7 @@ func TestStreamCoalescerFlushAndDiscardNonExistent(t *testing.T) {
 
 func TestStreamCoalescerFlushAllEmpty(t *testing.T) {
 	var flushed bool
-	c := NewStreamCoalescer(1000, func(p FlushPayload) {
+	c := NewStreamCoalescer(1000, func(_ FlushPayload) {
 		flushed = true
 	})
 
@@ -106,7 +106,7 @@ func TestStreamCoalescerFlushForExisting(t *testing.T) {
 
 func TestStreamCoalescerFlushForNonExistent(t *testing.T) {
 	var flushed bool
-	c := NewStreamCoalescer(1000, func(p FlushPayload) {
+	c := NewStreamCoalescer(1000, func(_ FlushPayload) {
 		flushed = true
 	})
 

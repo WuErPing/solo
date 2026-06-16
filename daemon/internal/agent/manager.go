@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -208,7 +209,7 @@ func (m *AgentManager) DroppedEventCount() int64 {
 }
 
 // Initialize loads persisted agents from storage.
-func (m *AgentManager) Initialize(ctx context.Context) error {
+func (m *AgentManager) Initialize(_ context.Context) error {
 	records := m.storage.List()
 	m.logger.Info("initializing from storage", "records", len(records))
 	for _, r := range records {
@@ -406,15 +407,16 @@ func (m *AgentManager) DeleteAgent(agentID string) error {
 
 	m.stallMonitor.UnregisterAgent(agentID)
 
+	var closeErr error
 	if sess := agent.GetSession(); sess != nil {
-		sess.Close()
+		closeErr = sess.Close()
 	}
 
 	agent.SetLifecycle(protocol.AgentClosed)
 	agent.SetSession(nil)
 
 	m.storage.BeginDelete(agentID)
-	m.storage.Remove(agentID)
+	removeErr := m.storage.Remove(agentID)
 
 	m.mu.Lock()
 	delete(m.agents, agentID)
@@ -422,7 +424,7 @@ func (m *AgentManager) DeleteAgent(agentID string) error {
 
 	m.emitState(agent)
 	m.logger.Info("agent deleted", "agentId", agentID)
-	return nil
+	return errors.Join(closeErr, removeErr)
 }
 
 // ArchiveAgent marks an agent as archived.
@@ -434,8 +436,9 @@ func (m *AgentManager) ArchiveAgent(agentID string) error {
 
 	m.stallMonitor.UnregisterAgent(agentID)
 
+	var closeErr error
 	if sess := agent.GetSession(); sess != nil {
-		sess.Close()
+		closeErr = sess.Close()
 		agent.SetSession(nil)
 	}
 
@@ -455,7 +458,7 @@ func (m *AgentManager) ArchiveAgent(agentID string) error {
 
 	m.emitState(agent)
 	m.logger.Info("agent archived", "agentId", agentID)
-	return nil
+	return closeErr
 }
 
 // CancelAgentRun interrupts the currently running turn.
@@ -499,7 +502,9 @@ func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, tex
 	agent.TouchUpdatedAt()
 
 	// Persist state change
-	m.storage.ApplySnapshot(agent)
+	if err := m.storage.ApplySnapshot(agent); err != nil {
+		m.logger.Warn("failed to persist agent running state", "agentId", agent.ID, "error", err)
+	}
 	m.emitState(agent)
 
 	m.stallMonitor.RegisterAgent(agentID)
@@ -511,7 +516,9 @@ func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, tex
 				m.logger.Error("agent run panic recovered, setting error state",
 					"agentId", agent.ID, "panic", r)
 				agent.SetError(fmt.Sprintf("internal panic: %v", r))
-				m.storage.ApplySnapshot(agent)
+				if err := m.storage.ApplySnapshot(agent); err != nil {
+					m.logger.Warn("failed to persist agent panic state", "agentId", agent.ID, "error", err)
+				}
 				m.emitState(agent)
 			}
 		}()
@@ -532,7 +539,9 @@ func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, tex
 			if result != nil && result.Canceled {
 				if agent.Lifecycle == protocol.AgentRunning {
 					agent.SetLifecycle(protocol.AgentIdle)
-					m.storage.ApplySnapshot(agent)
+					if err := m.storage.ApplySnapshot(agent); err != nil {
+						m.logger.Warn("failed to persist agent canceled state", "agentId", agent.ID, "error", err)
+					}
 					m.emitState(agent)
 				}
 				return
@@ -542,14 +551,18 @@ func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, tex
 			// racing with applyTerminalStreamState.
 			if agent.Lifecycle == protocol.AgentRunning {
 				agent.SetError(err.Error())
-				m.storage.ApplySnapshot(agent)
+				if err := m.storage.ApplySnapshot(agent); err != nil {
+					m.logger.Warn("failed to persist agent error state", "agentId", agent.ID, "error", err)
+				}
 				m.emitState(agent)
 			}
 			return
 		}
 		agent.SetLifecycle(protocol.AgentIdle)
 		agent.SetAttention(true, "finished")
-		m.storage.ApplySnapshot(agent)
+		if err := m.storage.ApplySnapshot(agent); err != nil {
+			m.logger.Warn("failed to persist agent idle state", "agentId", agent.ID, "error", err)
+		}
 		m.emitState(agent)
 	}()
 
@@ -1000,7 +1013,9 @@ func (m *AgentManager) handleStreamEvent(agent *ManagedAgent, event AgentStreamE
 
 	// Persist state changes
 	agent.TouchUpdatedAt()
-	m.storage.ApplySnapshot(agent)
+	if err := m.storage.ApplySnapshot(agent); err != nil {
+		m.logger.Warn("failed to persist agent stream state", "agentId", agent.ID, "error", err)
+	}
 	if m.applyTerminalStreamState(agent, event) {
 		return
 	}
@@ -1045,7 +1060,9 @@ func (m *AgentManager) applyTerminalStreamState(agent *ManagedAgent, event Agent
 	default:
 		return false
 	}
-	m.storage.ApplySnapshot(agent)
+	if err := m.storage.ApplySnapshot(agent); err != nil {
+		m.logger.Warn("failed to persist agent terminal state", "agentId", agent.ID, "error", err)
+	}
 	m.emitState(agent)
 	return true
 }

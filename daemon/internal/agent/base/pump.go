@@ -19,8 +19,8 @@ type EventTranslator interface {
 
 // TerminalEventDetector checks if an event is a terminal event.
 type TerminalEventDetector interface {
-	// IsTerminal returns (result, err, isTerminal) for terminal events.
-	IsTerminal(evt interface{}) (*AgentRunResult, error, bool)
+	// IsTerminal returns (result, isTerminal, err) for terminal events.
+	IsTerminal(evt interface{}) (*AgentRunResult, bool, error)
 }
 
 // AgentRunResult is the result of a blocking agent run.
@@ -100,7 +100,7 @@ func (p *EventPump) pump(
 		go func() {
 			select {
 			case <-ctx.Done():
-				rc.Close()
+				_ = rc.Close()
 			case <-pumpDone:
 			}
 		}()
@@ -142,7 +142,7 @@ func (p *EventPump) pump(
 			p.emitEvent(evt)
 
 			if detector != nil {
-				if r, err, isTerm := detector.IsTerminal(evt); isTerm {
+				if r, isTerm, err := detector.IsTerminal(evt); isTerm {
 					result = r
 					resultErr = err
 					terminalReached = true

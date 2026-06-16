@@ -91,7 +91,7 @@ func (s *Session) handleKillTerminal(m *protocol.KillTerminalRequest) {
 	}
 }
 
-func (s *Session) handleSubscribeTerminals(m *protocol.SubscribeTerminalsRequest) {
+func (s *Session) handleSubscribeTerminals(_ *protocol.SubscribeTerminalsRequest) {
 	unsub := s.terminalMgr.SubscribeTerminalsChanged(func(event terminal.TerminalsChangedEvent) {
 		terminals := s.terminalMgr.ListTerminals(event.Cwd)
 		if terminals == nil {
@@ -154,7 +154,9 @@ func (s *Session) handleTerminalInput(m *protocol.TerminalInputMessage) {
 
 	data := m.Message
 	if len(data) > 0 {
-		proc.WriteInput(data)
+		if err := proc.WriteInput(data); err != nil {
+			s.logger.Debug("terminal input write failed", "terminalId", m.TerminalID, "error", err)
+		}
 	}
 }
 
@@ -242,7 +244,9 @@ func (s *Session) handleStartWorkspaceScript(m *protocol.StartWorkspaceScriptReq
 	}
 
 	// Send the command to the terminal
-	proc.WriteInput([]byte(cmd + "\n"))
+	if err := proc.WriteInput([]byte(cmd + "\n")); err != nil {
+		s.logger.Debug("script terminal input write failed", "terminalId", proc.ID, "error", err)
+	}
 
 	// Register proxy route if service
 	if isService {
@@ -285,7 +289,9 @@ func (s *Session) handleTerminalInputBinary(slot byte, payload []byte) {
 	if proc == nil {
 		return
 	}
-	proc.WriteInput(payload)
+	if err := proc.WriteInput(payload); err != nil {
+		s.logger.Debug("binary terminal input write failed", "error", err)
+	}
 }
 
 func (s *Session) handleTerminalResizeBinary(slot byte, payload []byte) {
@@ -302,7 +308,9 @@ func (s *Session) handleTerminalResizeBinary(slot byte, payload []byte) {
 		s.logger.Warn("invalid terminal resize payload", "error", err)
 		return
 	}
-	proc.Resize(uint16(resize.Rows), uint16(resize.Cols))
+	if err := proc.Resize(uint16(resize.Rows), uint16(resize.Cols)); err != nil {
+		s.logger.Debug("terminal resize failed", "terminalId", proc.ID, "error", err)
+	}
 }
 
 func (s *Session) subscribeTerminalOutput(proc *terminal.TerminalProcess) {

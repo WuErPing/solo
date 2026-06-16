@@ -1,4 +1,5 @@
-package util
+// Package cliutil provides small helper utilities used by the Solo CLI commands.
+package cliutil
 
 import (
 	"fmt"

@@ -18,17 +18,17 @@ func init() {
 	providerCmd.AddCommand(providerLsCmd)
 }
 
-func runProviderLs(cmd *cobra.Command, args []string) error {
+func runProviderLs(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 	c, err := newClient(ctx, flagHost)
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer closeDaemonClient(c)
 
 	ps := c.ProvidersSnapshot()
 	if ps == nil || len(ps.Entries) == 0 {
-		fmt.Fprintln(cmdStdout, "No providers available")
+		_, _ = fmt.Fprintln(cmdStdout, "No providers available")
 		return nil
 	}
 

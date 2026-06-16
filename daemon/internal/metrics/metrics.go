@@ -1,4 +1,5 @@
-package metrics
+// Package daemonmetrics registers Prometheus metrics for the daemon.
+package daemonmetrics
 
 import "github.com/prometheus/client_golang/prometheus"
 
