@@ -1,7 +1,7 @@
 import { getDesktopHost } from "@/desktop/host";
 import { isWeb, isNative } from "@/constants/platform";
 
-export type DesktopPermissionKind = "notifications" | "microphone";
+export type DesktopPermissionKind = "notifications";
 
 export type DesktopPermissionState =
   | "granted"
@@ -19,7 +19,6 @@ export interface DesktopPermissionStatus {
 export interface DesktopPermissionSnapshot {
   checkedAt: number;
   notifications: DesktopPermissionStatus;
-  microphone: DesktopPermissionStatus;
 }
 
 interface NotificationConstructorLike {
@@ -154,9 +153,5 @@ export async function getDesktopPermissionSnapshot(): Promise<DesktopPermissionS
   return {
     checkedAt: Date.now(),
     notifications,
-    microphone: {
-      state: "unavailable",
-      detail: "Microphone permission is not yet implemented.",
-    },
   };
 }

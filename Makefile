@@ -5,7 +5,10 @@ RELAY_NODEJS_DIR := relay-nodejs
 DAEMON_PORT := 17612
 APP_PORT := 19000
 
-.PHONY: all darwin linux clean dev dev-web dev-daemon run-daemon stop stop-all restart $(BINS)
+GO_MODULES := protocol cli daemon relay-go
+GO_TEST_FLAGS := -short -v -race -count=1 -timeout=10m -tags external_api
+
+.PHONY: all darwin linux clean dev dev-web dev-daemon run-daemon stop stop-all restart test test-go test-app $(BINS)
 
 all: darwin linux
 
@@ -88,6 +91,25 @@ restart: darwin
 	@sleep 1
 	@$(OUTPUT)/darwin/solo > /tmp/solo-daemon.log 2>&1 & \
 	echo "Daemon started (PID: $$!), logs at /tmp/solo-daemon.log"
+
+# Test targets (mirror CI)
+
+test: test-go test-app
+
+test-go:
+	@set -e; \
+	for mod in $(GO_MODULES); do \
+		echo "=== Testing go/$$mod ==="; \
+		(cd $$mod && go test $(GO_TEST_FLAGS) -coverprofile=coverage.out ./...); \
+	done
+	@echo "=== All Go tests passed ==="
+
+test-app:
+	@echo "=== Testing app (unit) ==="
+	cd $(APP_DIR) && npm run test -- --coverage --project=unit
+	@echo "=== Testing app-bridge ==="
+	cd app-bridge && npm test -- --coverage
+	@echo "=== All app tests passed ==="
 
 clean:
 	rm -rf $(OUTPUT)/*

@@ -203,7 +203,7 @@ vi.mock("lucide-react-native", () => {
     X: createIcon("X"),
     Plus: createIcon("Plus"),
     Paperclip: createIcon("Paperclip"),
-    Github: createIcon("Github"),
+    Code: createIcon("Code"),
   };
 });
 

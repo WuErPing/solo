@@ -25,11 +25,6 @@ const EMPTY_NOTIFICATION_STATUS = {
   detail: "Notification status has not been checked yet.",
 };
 
-const EMPTY_MICROPHONE_STATUS = {
-  state: "unknown" as const,
-  detail: "Microphone status has not been checked yet.",
-};
-
 export function useDesktopPermissions(): UseDesktopPermissionsReturn {
   const isDesktopApp = shouldShowDesktopPermissionSection();
   const isMountedRef = useRef(true);
@@ -84,21 +79,12 @@ export function useDesktopPermissions(): UseDesktopPermissionsReturn {
           const base: DesktopPermissionSnapshot = previous ?? {
             checkedAt: Date.now(),
             notifications: EMPTY_NOTIFICATION_STATUS,
-            microphone: EMPTY_MICROPHONE_STATUS,
           };
-
-          if (kind === "notifications") {
-            return {
-              ...base,
-              checkedAt: Date.now(),
-              notifications: status,
-            };
-          }
 
           return {
             ...base,
             checkedAt: Date.now(),
-            microphone: status,
+            notifications: status,
           };
         });
       } catch (error) {
