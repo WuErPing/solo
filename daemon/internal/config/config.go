@@ -117,7 +117,7 @@ func DefaultConfig() *Config {
 		Hostnames:           nil,
 		AppBaseURL:          "https://solo.up2ai.top",
 		Supervised:          false,
-		Version:             "0.1.0",
+		Version:             "0.2.0",
 	}
 }
 
