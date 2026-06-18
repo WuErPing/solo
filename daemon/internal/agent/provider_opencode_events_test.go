@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -325,11 +326,11 @@ func TestConsumeSSE_HeartbeatResetExtendsTimeout(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	// Track whether the ping endpoint was hit
-	pingCount := 0
+	var pingCount atomic.Int64
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/command" {
-			pingCount++
+			pingCount.Add(1)
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprintf(w, `[]`)
 			return
@@ -388,7 +389,7 @@ func TestConsumeSSE_HeartbeatResetExtendsTimeout(t *testing.T) {
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
-	if pingCount == 0 {
+	if pingCount.Load() == 0 {
 		t.Fatal("expected at least one heartbeat ping")
 	}
 	if elapsed < 3*time.Second {
