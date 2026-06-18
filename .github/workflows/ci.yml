@@ -127,6 +127,10 @@ jobs:
             packages/highlight/coverage/
           retention-days: 14
 
+      - name: Build workspace dependencies
+        working-directory: app
+        run: npm run build:workspace-deps
+
       - name: Typecheck app
         working-directory: app
         run: npx tsc --noEmit

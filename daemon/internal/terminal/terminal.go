@@ -83,7 +83,7 @@ func (t *TerminalProcess) Start() error {
 	t.ptmx = ptmx
 	t.process = cmd.Process
 
-	go t.readLoop()
+	go t.readLoop(ptmx)
 
 	go func() {
 		err := cmd.Wait()
@@ -215,8 +215,7 @@ func (t *TerminalProcess) Cols() uint16 {
 	return t.cols
 }
 
-func (t *TerminalProcess) readLoop() {
-	ptmx := t.ptmx
+func (t *TerminalProcess) readLoop(ptmx *os.File) {
 	buf := make([]byte, 4096)
 	for {
 		n, err := ptmx.Read(buf)
