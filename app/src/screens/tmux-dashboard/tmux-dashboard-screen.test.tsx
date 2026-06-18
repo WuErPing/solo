@@ -43,7 +43,8 @@ const { mockPush, mockSetSelectedAgent, mockTheme } = vi.hoisted(() => ({
 }));
 
 vi.mock("expo-router", () => ({
-  router: { push: mockPush, back: vi.fn() },
+  router: { push: mockPush, back: vi.fn(), replace: vi.fn() },
+  useLocalSearchParams: () => ({}),
 }));
 
 vi.mock("react-native-unistyles", () => ({

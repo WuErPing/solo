@@ -91,6 +91,7 @@ vi.mock("lucide-react-native", () => {
     LayoutDashboard: createIcon("LayoutDashboard"),
     MessagesSquare: createIcon("MessagesSquare"),
     Plus: createIcon("Plus"),
+    RefreshCw: createIcon("RefreshCw"),
     Settings: createIcon("Settings"),
     Terminal: createIcon("Terminal"),
   };
@@ -136,6 +137,10 @@ vi.mock("@/hooks/use-sidebar-shortcut-model", () => ({
     shortcutIndexByWorkspaceKey: new Map<string, number>(),
     toggleProjectCollapsed: vi.fn(),
   }),
+}));
+
+vi.mock("@/hooks/use-tmux-project-counts", () => ({
+  useTmuxProjectCounts: () => new Map<string, number>(),
 }));
 
 vi.mock("@/contexts/sidebar-animation-context", () => ({

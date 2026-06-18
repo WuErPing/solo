@@ -84,6 +84,22 @@ This directory contains analysis documents for the Solo project.
 
 ---
 
+### 2026-06-18: Architecture First-Principles Review
+
+**Status:** Complete
+**Priority:** High
+
+**Summary:**
+- First-principles evaluation of all major architectural decisions
+- Daemon scope assessment (acceptable now, watch for bloat)
+- Relay + E2EE rated as the cleanest part of the architecture
+- Tmux observation rated as pragmatic but transitional
+- Identified long-term risks: daemon bloat, cross-language type drift, tmux coupling
+
+**Document:** [architecture-first-principles-review-2026-06-18.md](architecture-first-principles-review-2026-06-18.md)
+
+---
+
 ### 2026-06-12: Architecture Review
 
 **Status:** Complete

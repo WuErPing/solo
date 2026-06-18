@@ -47,7 +47,9 @@ import {
   MoreVertical,
   Plus,
   Trash2,
+  Bot,
 } from "lucide-react-native";
+import { TmuxLogo } from "@/components/icons/tmux-logo";
 import { NestableScrollContainer } from "react-native-draggable-flatlist";
 import { DraggableList, type DraggableRenderItemInfo } from "./draggable-list";
 import type { DraggableListDragHandleProps } from "./draggable-list.types";
@@ -112,6 +114,7 @@ import {
 import { WorkspaceHoverCard } from "@/components/workspace-hover-card";
 import { GitHubIcon } from "@/components/icons/github-icon";
 import { isWeb as platformIsWeb, isNative as platformIsNative } from "@/constants/platform";
+import type { ProjectPaneCounts } from "@/utils/tmux-project-matcher";
 
 function toProjectIconDataUri(icon: { mimeType: string; data: string } | null): string | null {
   if (!icon) {
@@ -178,6 +181,8 @@ interface SidebarWorkspaceListProps {
   collapsedProjectKeys: ReadonlySet<string>;
   onToggleProjectCollapsed: (projectKey: string) => void;
   shortcutIndexByWorkspaceKey: Map<string, number>;
+  paneCountMap?: Map<string, ProjectPaneCounts>;
+  onPaneBadgePress?: (projectRootPath: string) => void;
   isRefreshing?: boolean;
   onRefresh?: () => void;
   onWorkspacePress?: () => void;
@@ -197,6 +202,9 @@ interface ProjectHeaderRowProps {
   onPress: () => void;
   serverId: string | null;
   canCreateWorktree: boolean;
+  agentCount?: number;
+  paneCount?: number;
+  onPaneBadgePress?: (projectRootPath: string) => void;
   isProjectActive?: boolean;
   onWorkspacePress?: () => void;
   onWorktreeCreated?: (workspaceId: string) => void;
@@ -1150,6 +1158,9 @@ function ProjectHeaderRow({
   onPress,
   serverId,
   canCreateWorktree,
+  agentCount,
+  paneCount,
+  onPaneBadgePress,
   isProjectActive = false,
   onWorkspacePress,
   onWorktreeCreated: _onWorktreeCreated,
@@ -1220,6 +1231,22 @@ function ProjectHeaderRow({
           <Text style={styles.projectTitle} numberOfLines={1}>
             {displayName}
           </Text>
+          {agentCount != null && agentCount > 0 ? (
+            <View style={styles.agentBadge}>
+              <Bot size={10} color="#fff" />
+              <Text style={styles.agentBadgeText}>{agentCount}</Text>
+            </View>
+          ) : null}
+          {paneCount != null && paneCount > 0 ? (
+            <Pressable
+              onPress={() => onPaneBadgePress?.(project.iconWorkingDir)}
+              hitSlop={4}
+              style={styles.paneBadge}
+            >
+              <TmuxLogo size={8} />
+              <Text style={styles.paneBadgeText}>{paneCount}</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
       <ProjectRowTrailingActions
@@ -1644,6 +1671,9 @@ function NonGitProjectRowWithMenuContent({
   shortcutNumber,
   showShortcutBadge,
   drag,
+  agentCount,
+  paneCount,
+  onPaneBadgePress,
   isDragging,
   dragHandleProps,
 }: {
@@ -1656,6 +1686,9 @@ function NonGitProjectRowWithMenuContent({
   shortcutNumber: number | null;
   showShortcutBadge: boolean;
   drag: () => void;
+  agentCount?: number;
+  paneCount?: number;
+  onPaneBadgePress?: (projectRootPath: string) => void;
   isDragging: boolean;
   dragHandleProps?: DraggableListDragHandleProps;
 }) {
@@ -1729,6 +1762,9 @@ function NonGitProjectRowWithMenuContent({
         onPress={onPress}
         serverId={null}
         canCreateWorktree={false}
+        agentCount={agentCount}
+        paneCount={paneCount}
+        onPaneBadgePress={onPaneBadgePress}
         shortcutNumber={shortcutNumber}
         showShortcutBadge={showShortcutBadge}
         drag={drag}
@@ -1767,6 +1803,9 @@ function NonGitProjectRowWithMenu(props: {
   shortcutNumber: number | null;
   showShortcutBadge: boolean;
   drag: () => void;
+  agentCount?: number;
+  paneCount?: number;
+  onPaneBadgePress?: (projectRootPath: string) => void;
   isDragging: boolean;
   dragHandleProps?: DraggableListDragHandleProps;
 }) {
@@ -1795,6 +1834,9 @@ function FlattenedProjectRow({
   onRemoveProject,
   removeProjectStatus,
   selectionEnabled,
+  agentCount,
+  paneCount,
+  onPaneBadgePress,
 }: {
   project: SidebarProjectEntry;
   displayName: string;
@@ -1813,6 +1855,9 @@ function FlattenedProjectRow({
   onRemoveProject?: () => void;
   removeProjectStatus?: "idle" | "pending";
   selectionEnabled: boolean;
+  agentCount?: number;
+  paneCount?: number;
+  onPaneBadgePress?: (projectRootPath: string) => void;
 }) {
   const workspace = useSidebarWorkspaceEntry(serverId, rowModel.workspace.workspaceId);
   const selected = useIsNavigationWorkspaceSelected({
@@ -1837,6 +1882,9 @@ function FlattenedProjectRow({
         shortcutNumber={shortcutNumber}
         showShortcutBadge={showShortcutBadge}
         drag={drag}
+        agentCount={agentCount}
+        paneCount={paneCount}
+        onPaneBadgePress={onPaneBadgePress}
         isDragging={isDragging}
         dragHandleProps={dragHandleProps}
       />
@@ -1854,6 +1902,9 @@ function FlattenedProjectRow({
       onPress={onPress}
       serverId={serverId}
       canCreateWorktree={rowModel.trailingAction === "new_worktree"}
+      agentCount={agentCount}
+      paneCount={paneCount}
+      onPaneBadgePress={onPaneBadgePress}
       isProjectActive={isProjectActive}
       onWorkspacePress={onWorkspacePress}
       onWorktreeCreated={onWorktreeCreated}
@@ -1992,6 +2043,8 @@ function ProjectBlock({
   dragHandleProps,
   useNestable,
   creatingWorkspaceIds,
+  paneCountMap,
+  onPaneBadgePress,
 }: {
   project: SidebarProjectEntry;
   collapsed: boolean;
@@ -2012,7 +2065,12 @@ function ProjectBlock({
   dragHandleProps?: DraggableListDragHandleProps;
   useNestable: boolean;
   creatingWorkspaceIds: ReadonlySet<string>;
+  paneCountMap?: Map<string, ProjectPaneCounts>;
+  onPaneBadgePress?: (projectRootPath: string) => void;
 }) {
+  const counts = paneCountMap?.get(project.projectKey);
+  const agentCount = counts?.agentCount;
+  const paneCount = counts?.paneCount;
   const rowModel = useMemo(
     () =>
       buildSidebarProjectRowModel({
@@ -2177,6 +2235,9 @@ function ProjectBlock({
           onRemoveProject={handleRemoveProject}
           removeProjectStatus={isRemovingProject ? "pending" : "idle"}
           selectionEnabled={selectionEnabled}
+          agentCount={agentCount}
+          paneCount={paneCount}
+          onPaneBadgePress={onPaneBadgePress}
         />
       ) : (
         <>
@@ -2190,6 +2251,9 @@ function ProjectBlock({
             onPress={handleToggleCollapsed}
             serverId={serverId}
             canCreateWorktree={rowModel.trailingAction === "new_worktree"}
+            agentCount={agentCount}
+            paneCount={paneCount}
+            onPaneBadgePress={onPaneBadgePress}
             isProjectActive={isProjectActive}
             onWorkspacePress={onWorkspacePress}
             onWorktreeCreated={onWorktreeCreated}
@@ -2228,6 +2292,8 @@ export function SidebarWorkspaceList({
   collapsedProjectKeys,
   onToggleProjectCollapsed,
   shortcutIndexByWorkspaceKey,
+  paneCountMap,
+  onPaneBadgePress,
   isRefreshing: _isRefreshing = false,
   onRefresh: _onRefresh,
   onWorkspacePress,
@@ -2471,6 +2537,8 @@ export function SidebarWorkspaceList({
           dragHandleProps={dragHandleProps}
           useNestable={platformIsNative}
           creatingWorkspaceIds={creatingWorkspaceIds}
+          paneCountMap={paneCountMap}
+          onPaneBadgePress={onPaneBadgePress}
         />
       );
     },
@@ -2480,6 +2548,8 @@ export function SidebarWorkspaceList({
       handleWorkspaceReorder,
       onWorkspacePress,
       onToggleProjectCollapsed,
+      paneCountMap,
+      onPaneBadgePress,
       parentGestureRef,
       pathname,
       projectIconByProjectKey,
@@ -2865,6 +2935,42 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: theme.fontSize.xs,
     fontWeight: theme.fontWeight.medium,
     lineHeight: 14,
+  },
+  agentBadge: {
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 4,
+    flexDirection: "row",
+    gap: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.accent,
+    flexShrink: 0,
+  },
+  agentBadgeText: {
+    color: theme.colors.accentForeground,
+    fontSize: 10,
+    fontWeight: theme.fontWeight.medium,
+    lineHeight: 12,
+  },
+  paneBadge: {
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 4,
+    flexDirection: "row",
+    gap: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.surface2,
+    flexShrink: 0,
+  },
+  paneBadgeText: {
+    color: theme.colors.foregroundMuted,
+    fontSize: 10,
+    fontWeight: theme.fontWeight.medium,
+    lineHeight: 12,
   },
   statusDotNeedsInput: {
     backgroundColor: theme.colors.palette.amber[500],

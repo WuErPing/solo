@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { Terminal, Monitor, RefreshCw, SquareTerminal, Clock, Plus, Play, X } from "lucide-react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { BackHeader } from "@/components/headers/back-header";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useAggregatedTmuxAgents } from "@/hooks/use-tmux-agents";
@@ -22,6 +22,7 @@ import { useStoreReady } from "@/app/_layout";
 import { useTmuxAgentStore } from "@/stores/tmux-agent-store";
 import { useHosts } from "@/runtime/host-runtime";
 import { shortenPath } from "@/utils/shorten-path";
+import { matchesWorkingDir } from "@/utils/tmux-project-matcher";
 import { confirmDialog } from "@/utils/confirm-dialog";
 import { parseAnsi } from "@/utils/ansi-parser";
 import { AnsiTextContent } from "@/components/ansi-text-renderer";
@@ -327,6 +328,21 @@ function TmuxDashboardScreenInner() {
   const [showNewSessionInput, setShowNewSessionInput] = useState(false);
   const [newSessionName, setNewSessionName] = useState("");
   const setSelectedAgent = useTmuxAgentStore((s) => s.setSelectedAgent);
+  const params = useLocalSearchParams<{ dir?: string }>();
+  const filterDir = params.dir ? decodeURIComponent(params.dir) : null;
+
+  const dirFilteredAgents = useMemo(
+    () => (filterDir ? agents.filter((a) => a.workingDir && matchesWorkingDir(a.workingDir, filterDir)) : agents),
+    [agents, filterDir],
+  );
+  const dirFilteredOtherPanes = useMemo(
+    () => (filterDir ? otherPanes.filter((p) => p.workingDir && matchesWorkingDir(p.workingDir, filterDir)) : otherPanes),
+    [otherPanes, filterDir],
+  );
+
+  const handleClearFilter = useCallback(() => {
+    router.replace("/tmux-dashboard" as never);
+  }, []);
 
   // Refresh tmux agents on launch so the daemon updates ~/.solo/agent-commands.json.
   useEffect(() => {
@@ -359,9 +375,9 @@ function TmuxDashboardScreenInner() {
   }, [agents]);
 
   const filteredAgents = useMemo(() => {
-    if (!selectedName) return agents;
-    return agents.filter((a) => a.agentName === selectedName);
-  }, [agents, selectedName]);
+    if (!selectedName) return dirFilteredAgents;
+    return dirFilteredAgents.filter((a) => a.agentName === selectedName);
+  }, [dirFilteredAgents, selectedName]);
 
   const handleNamePress = (name: string) => {
     setSelectedName((prev) => (prev === name ? null : name));
@@ -436,16 +452,16 @@ function TmuxDashboardScreenInner() {
   }, [otherPanes]);
 
   const filteredOtherPanes = useMemo(() => {
-    if (!selectedCmd) return otherPanes;
-    return otherPanes.filter((p) => p.currentCmd === selectedCmd);
-  }, [otherPanes, selectedCmd]);
+    if (!selectedCmd) return dirFilteredOtherPanes;
+    return dirFilteredOtherPanes.filter((p) => p.currentCmd === selectedCmd);
+  }, [dirFilteredOtherPanes, selectedCmd]);
 
   const badgeText = activeTab === "agents"
-    ? `${agents.length} agent(s)${agents.filter((a) => a.status === "exited").length > 0
-        ? `, ${agents.filter((a) => a.status === "exited").length} exited`
+    ? `${dirFilteredAgents.length} agent(s)${dirFilteredAgents.filter((a) => a.status === "exited").length > 0
+        ? `, ${dirFilteredAgents.filter((a) => a.status === "exited").length} exited`
         : ""}`
     : activeTab === "other-panes"
-      ? `${otherPanes.length} pane(s)`
+      ? `${dirFilteredOtherPanes.length} pane(s)`
       : `${commandHistory.length} cmd(s)`;
 
   const hasData = agents.length > 0 || otherPanes.length > 0;
@@ -474,6 +490,17 @@ function TmuxDashboardScreenInner() {
           </View>
         }
       />
+
+      {filterDir ? (
+        <View style={styles.filterBanner}>
+          <Text style={styles.filterBannerText} numberOfLines={1}>
+            Filtered: {shortenPath(filterDir)}
+          </Text>
+          <Pressable onPress={handleClearFilter} hitSlop={8}>
+            <X size={14} color={theme.colors.foregroundMuted} />
+          </Pressable>
+        </View>
+      ) : null}
 
       {showNewSessionInput ? (
         <View style={[styles.newSessionRow, { backgroundColor: theme.colors.surface0 }]}>
@@ -563,7 +590,7 @@ function TmuxDashboardScreenInner() {
                   { color: activeTab === "agents" ? theme.colors.background : theme.colors.foregroundMuted },
                 ]}
               >
-                Agents ({agents.length})
+                Agents ({dirFilteredAgents.length})
               </Text>
             </Pressable>
             <Pressable
@@ -579,7 +606,7 @@ function TmuxDashboardScreenInner() {
                   { color: activeTab === "other-panes" ? theme.colors.background : theme.colors.foregroundMuted },
                 ]}
               >
-                Other Panes ({otherPanes.length})
+                Other Panes ({dirFilteredOtherPanes.length})
               </Text>
             </Pressable>
             <Pressable
@@ -1009,5 +1036,21 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     gap: 12,
     marginTop: 16,
+  },
+  filterBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: theme.colors.surface1,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  filterBannerText: {
+    color: theme.colors.foregroundMuted,
+    fontSize: 12,
+    flex: 1,
+    marginRight: 8,
   },
 }));

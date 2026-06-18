@@ -47,6 +47,8 @@ import {
   type SidebarProjectEntry,
   useSidebarWorkspacesList,
 } from "@/hooks/use-sidebar-workspaces-list";
+import { useTmuxProjectCounts } from "@/hooks/use-tmux-project-counts";
+import type { ProjectPaneCounts } from "@/utils/tmux-project-matcher";
 import { useHostRuntimeSnapshot, useHosts } from "@/runtime/host-runtime";
 import {
   MAX_SIDEBAR_WIDTH,
@@ -95,6 +97,8 @@ interface SidebarSharedProps {
   collapsedProjectKeys: SidebarShortcutModel["collapsedProjectKeys"];
   shortcutIndexByWorkspaceKey: SidebarShortcutModel["shortcutIndexByWorkspaceKey"];
   toggleProjectCollapsed: SidebarShortcutModel["toggleProjectCollapsed"];
+  paneCountMap: Map<string, ProjectPaneCounts>;
+  onPaneBadgePress: (projectRootPath: string) => void;
   handleRefresh: () => void;
   handleHostSelect: (nextServerId: string) => void;
   handleOpenProject: () => void;
@@ -201,6 +205,7 @@ export const LeftSidebar = memo(function LeftSidebar({
   });
   const { collapsedProjectKeys, shortcutIndexByWorkspaceKey, toggleProjectCollapsed } =
     useSidebarShortcutModel({ projects, isInitialLoad });
+  const paneCountMap = useTmuxProjectCounts(projects, activeServerId);
 
   const [isManualRefresh, setIsManualRefresh] = useState(false);
 
@@ -261,6 +266,10 @@ export const LeftSidebar = memo(function LeftSidebar({
     router.push(buildTmuxDashboardRoute());
   }, []);
 
+  const handlePaneBadgePress = useCallback((projectRootPath: string) => {
+    router.push((buildTmuxDashboardRoute() + "?dir=" + encodeURIComponent(projectRootPath)) as never);
+  }, []);
+
   const handleHostSelect = useCallback(
     (nextServerId: string) => {
       if (!nextServerId) {
@@ -289,6 +298,8 @@ export const LeftSidebar = memo(function LeftSidebar({
     collapsedProjectKeys,
     shortcutIndexByWorkspaceKey,
     toggleProjectCollapsed,
+    paneCountMap,
+    onPaneBadgePress: handlePaneBadgePress,
     handleRefresh,
     handleHostSelect,
     renderHostOption,
@@ -535,6 +546,8 @@ function MobileSidebar({
   collapsedProjectKeys,
   shortcutIndexByWorkspaceKey,
   toggleProjectCollapsed,
+  paneCountMap,
+  onPaneBadgePress,
   handleRefresh,
   handleHostSelect,
   renderHostOption,
@@ -787,6 +800,8 @@ function MobileSidebar({
                 collapsedProjectKeys={collapsedProjectKeys}
                 onToggleProjectCollapsed={toggleProjectCollapsed}
                 shortcutIndexByWorkspaceKey={shortcutIndexByWorkspaceKey}
+                paneCountMap={paneCountMap}
+                onPaneBadgePress={onPaneBadgePress}
                 projects={projects}
                 isRefreshing={isManualRefresh && isRevalidating}
                 onRefresh={handleRefresh}
@@ -833,6 +848,8 @@ function DesktopSidebar({
   collapsedProjectKeys,
   shortcutIndexByWorkspaceKey,
   toggleProjectCollapsed,
+  paneCountMap,
+  onPaneBadgePress,
   handleRefresh,
   handleHostSelect,
   renderHostOption,
@@ -960,6 +977,8 @@ function DesktopSidebar({
             collapsedProjectKeys={collapsedProjectKeys}
             onToggleProjectCollapsed={toggleProjectCollapsed}
             shortcutIndexByWorkspaceKey={shortcutIndexByWorkspaceKey}
+            paneCountMap={paneCountMap}
+            onPaneBadgePress={onPaneBadgePress}
             projects={projects}
             isRefreshing={isManualRefresh && isRevalidating}
             onRefresh={handleRefresh}

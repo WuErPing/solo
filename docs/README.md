@@ -35,6 +35,7 @@ docs/
     ├── agent-provider-status-unification.md # Agent/provider status unification design
     ├── app-agent-status-analysis.md         # App agent status & Copy button logic
     ├── app-bridge-schedule-module.md        # Schedule module type contract & RPC schema
+    ├── architecture-first-principles-review-2026-06-18.md # First-principles architecture review
     ├── architecture-review-2026-06-12/     # Architecture review (4+1 views, maturity, recommendations)
     ├── create-schedule-flow.md              # End-to-end schedule creation flow
     ├── demo/                              # Demo code (iterm2-agent-detection)
@@ -122,6 +123,7 @@ Deep dives into specific subsystems.
 | Document | Type | Summary |
 |----------|------|---------|
 | [Architecture Review (2026-06-12)](analysis/architecture-review-2026-06-12/) | Review | 4+1 views, maturity scoring, ATAM evaluation, improvement recommendations |
+| [Architecture First-Principles Review (2026-06-18)](analysis/architecture-first-principles-review-2026-06-18.md) | Review | First-principles evaluation of all architectural decisions, long-term risk identification |
 | [Agent/Provider Status Unification](analysis/agent-provider-status-unification.md) | Design | OCP-based proposal to unify AgentLifecycleStatus, ProviderStatus across layers |
 | [App Agent Status Analysis](analysis/app-agent-status-analysis.md) | Analysis | App agent lifecycle states and Copy button display logic |
 | [App-Bridge Schedule Module](analysis/app-bridge-schedule-module.md) | Analysis | Schedule module type contract, RPC schema, and domain models |

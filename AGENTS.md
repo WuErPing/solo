@@ -15,6 +15,7 @@ Before implementing:
 - If multiple interpretations exist, present them - don't pick silently.
 - If a simpler approach exists, say so. Push back when warranted.
 - If something is unclear, stop. Name what's confusing. Ask.
+- Please reason from first principles. Do not always assume I have full clarity on what I want and how to achieve it. Exercise prudence and start from the original requirements and core problems. If the underlying motivations and objectives remain ambiguous, pause the work and discuss them with me. If the goals are clear yet the proposed approach is suboptimal, point this out to me and offer superior alternatives.
 
 ## 2. Simplicity First
 
