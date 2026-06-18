@@ -1,4 +1,4 @@
-//go:build !short
+//go:build !short && !external_api
 
 package server
 

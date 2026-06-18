@@ -97,6 +97,10 @@ export default defineConfig({
         find: /^@getsolo\/relay$/,
         replacement: path.resolve(__dirname, "../relay/src/index.ts"),
       },
+      {
+        find: /^@getsolo\/highlight$/,
+        replacement: path.resolve(__dirname, "../packages/highlight/src/index.ts"),
+      },
       { find: "@", replacement: path.resolve(__dirname, "src") },
       { find: "@server", replacement: path.resolve(__dirname, "../app-bridge/src") },
       // Point to the ESM build so Vite can transform its imports and apply the
