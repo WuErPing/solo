@@ -8,6 +8,12 @@ APP_PORT := 19000
 GO_MODULES := protocol cli daemon relay-go
 GO_TEST_FLAGS := -short -v -race -count=1 -timeout=10m -tags external_api
 
+# Version injection: release builds use git tag, dev builds use {tag}-dev-{datetime}
+GIT_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+GIT_DIRTY := $(shell git diff --quiet 2>/dev/null && echo "" || echo "-dirty")
+VERSION ?= $(GIT_TAG)-dev-$(shell date +%Y%m%d%H%M%S)$(GIT_DIRTY)
+GO_LDFLAGS := -X github.com/WuErPing/solo/daemon/internal/config.Version=$(VERSION)
+
 .PHONY: all darwin linux clean dev dev-web dev-daemon run-daemon stop stop-all restart ci test test-go test-app typecheck lint $(BINS)
 
 all: darwin linux
@@ -17,19 +23,19 @@ darwin: solo solo-relay solo-cli
 linux: solo-linux-amd64 solo-relay-linux-amd64 solo-cli-linux-amd64
 
 solo:
-	GOOS=darwin GOARCH=arm64 go build -o $(OUTPUT)/darwin/$@ ./daemon
+	GOOS=darwin GOARCH=arm64 go build -ldflags "$(GO_LDFLAGS)" -o $(OUTPUT)/darwin/$@ ./daemon
 
 solo-relay:
-	GOOS=darwin GOARCH=arm64 go build -o $(OUTPUT)/darwin/$@ ./relay-go/cmd/relay
+	GOOS=darwin GOARCH=arm64 go build -ldflags "$(GO_LDFLAGS)" -o $(OUTPUT)/darwin/$@ ./relay-go/cmd/relay
 
 solo-cli:
-	GOOS=darwin GOARCH=arm64 go build -o $(OUTPUT)/darwin/$@ ./cli
+	GOOS=darwin GOARCH=arm64 go build -ldflags "$(GO_LDFLAGS)" -o $(OUTPUT)/darwin/$@ ./cli
 
 solo-linux-amd64:
-	GOOS=linux GOARCH=amd64 go build -o $(OUTPUT)/linux/solo ./daemon
+	GOOS=linux GOARCH=amd64 go build -ldflags "$(GO_LDFLAGS)" -o $(OUTPUT)/linux/solo ./daemon
 
 solo-relay-linux-amd64:
-	GOOS=linux GOARCH=amd64 go build -o $(OUTPUT)/linux/solo-relay ./relay-go/cmd/relay
+	GOOS=linux GOARCH=amd64 go build -ldflags "$(GO_LDFLAGS)" -o $(OUTPUT)/linux/solo-relay ./relay-go/cmd/relay
 
 # Node.js relay (self-hosted, from Solo)
 solo-relay-nodejs:
@@ -39,7 +45,7 @@ solo-relay-nodejs-docker:
 	docker build -t solo-relay:latest $(RELAY_NODEJS_DIR)
 
 solo-cli-linux-amd64:
-	GOOS=linux GOARCH=amd64 go build -o $(OUTPUT)/linux/solo-cli ./cli
+	GOOS=linux GOARCH=amd64 go build -ldflags "$(GO_LDFLAGS)" -o $(OUTPUT)/linux/solo-cli ./cli
 
 # Development targets
 

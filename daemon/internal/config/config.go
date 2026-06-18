@@ -102,6 +102,10 @@ type CustomSelectOption struct {
 	IsDefault *bool  `json:"isDefault,omitempty"`
 }
 
+// Version is the daemon version, injected at build time via -ldflags.
+// Default "dev" is overridden by Makefile builds and CI.
+var Version = "dev"
+
 // DefaultConfig returns a Config with sensible defaults.
 func DefaultConfig() *Config {
 	return &Config{
@@ -117,7 +121,7 @@ func DefaultConfig() *Config {
 		Hostnames:           nil,
 		AppBaseURL:          "https://solo.up2ai.top",
 		Supervised:          false,
-		Version:             "0.2.1",
+		Version:             Version,
 	}
 }
 

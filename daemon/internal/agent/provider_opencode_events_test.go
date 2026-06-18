@@ -31,7 +31,8 @@ func TestConsumeSSE_IdleTimeoutTriggersTurnFailed(t *testing.T) {
 		if r.URL.Path == "/global/event" {
 			flusher, ok := w.(http.Flusher)
 			if !ok {
-				t.Fatal("response writer does not support flushing")
+				t.Error("response writer does not support flushing")
+				return
 			}
 
 			w.Header().Set("Content-Type", "text/event-stream")
@@ -104,7 +105,8 @@ func TestConsumeSSE_ActiveStreamDoesNotTimeout(t *testing.T) {
 		if r.URL.Path == "/global/event" {
 			flusher, ok := w.(http.Flusher)
 			if !ok {
-				t.Fatal("response writer does not support flushing")
+				t.Error("response writer does not support flushing")
+				return
 			}
 
 			w.Header().Set("Content-Type", "text/event-stream")
@@ -263,7 +265,8 @@ func TestConsumeSSE_ContextCancelStopsWatchdog(t *testing.T) {
 		if r.URL.Path == "/global/event" {
 			flusher, ok := w.(http.Flusher)
 			if !ok {
-				t.Fatal("response writer does not support flushing")
+				t.Error("response writer does not support flushing")
+				return
 			}
 
 			w.Header().Set("Content-Type", "text/event-stream")
@@ -338,7 +341,8 @@ func TestConsumeSSE_HeartbeatResetExtendsTimeout(t *testing.T) {
 		if r.URL.Path == "/global/event" {
 			flusher, ok := w.(http.Flusher)
 			if !ok {
-				t.Fatal("response writer does not support flushing")
+				t.Error("response writer does not support flushing")
+				return
 			}
 
 			w.Header().Set("Content-Type", "text/event-stream")
@@ -411,7 +415,8 @@ func TestConsumeSSE_HeartbeatFailRespectsHardTimeout(t *testing.T) {
 		if r.URL.Path == "/global/event" {
 			flusher, ok := w.(http.Flusher)
 			if !ok {
-				t.Fatal("response writer does not support flushing")
+				t.Error("response writer does not support flushing")
+				return
 			}
 
 			w.Header().Set("Content-Type", "text/event-stream")
