@@ -168,3 +168,38 @@ A new field was added to a protocol message struct:
 3. Update `protocol/protocol.go` → increment `WSProtocolVersion` or `RelayProtocolVersion`.
 4. Update all Go module version strings and npm package versions.
 5. Run full test suite.
+
+## Changelog
+
+### v2 — 2026-06-18 (current)
+
+Updated from initial version (v1, commit `05b33fa`). No changes to skill logic or scripts — this changelog documents version state changes in the repo since the skill was created.
+
+**Version changes since v1:**
+
+| Module | v1 (05b33fa) | Current | Bump commits |
+|--------|-------------|---------|--------------|
+| app | 0.1.0 | 0.6.4 | `99e9078` → 0.2.0, `9204ee7` → 0.5.0, `9e1c11c` → 0.6.0, `daeffbd` → 0.6.3, `c7924a8` → 0.6.4 |
+| app-bridge | 0.1.0 | 0.2.1 | `99e9078` → 0.2.0, `66b1d67` → 0.2.1 |
+| highlight | 0.1.0 | 0.2.0 | bumped alongside app-bridge |
+| daemon | 0.1.0 | 0.2.0 | `66b1d67` → 0.2.0 |
+| cli | 0.1.0 | 0.1.0 | — |
+| relay-go | relay-go-v1 | relay-go-v1 | — |
+| protocol WSProtocolVersion | 1 | 1 | — |
+| protocol RelayProtocolVersion | "2" | "2" | — |
+
+**Notable changes affecting versioning workflow:**
+- `99e9078` — first coordinated multi-module bump (app + app-bridge + highlight to 0.2.0)
+- `9204ee7` — app jumped to 0.5.0 (tmux agent name customization, MIT LICENSE added)
+- `9e1c11c` — app to 0.6.0 (loop CRUD end-to-end, CLI refactor)
+- `66b1d67` — daemon bumped from 0.1.0 to 0.2.0 (workspace branch fixes, tmux agent detection, Solo-managed agent counts); app-bridge to 0.2.1 (removeProject RPC)
+- `c7924a8` — app to 0.6.4 (sidebar agent count fix, stale git branch name fix, tmux pane deduplication)
+
+### v1 — 2026-06-01 (initial)
+
+Initial skill creation at commit `05b33fa`. Included:
+- `SKILL.md` with 5-step workflow (identify → classify → apply → coordinate → verify)
+- `scripts/check-versions.sh` — print current versions and changed modules
+- `scripts/bump-version.sh` — bump a single module's version string
+- Version locations reference for all 7 modules (app, app-bridge, highlight, cli, daemon, relay-go, protocol)
+- Examples for patch release and protocol change release
