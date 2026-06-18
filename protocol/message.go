@@ -158,6 +158,7 @@ func init() {
 	RegisterInbound("write_project_config_request", func() SessionInboundMessage { return &WriteProjectConfigRequest{} })
 	RegisterInbound("create_solo_worktree_request", func() SessionInboundMessage { return &CreateSoloWorktreeRequest{} })
 	RegisterInbound("archive_workspace_request", func() SessionInboundMessage { return &ArchiveWorkspaceRequest{} })
+	RegisterInbound("remove_project_request", func() SessionInboundMessage { return &RemoveProjectRequest{} })
 	RegisterInbound("schedule/create", func() SessionInboundMessage { return &ScheduleCreateRequest{} })
 	RegisterInbound("schedule/list", func() SessionInboundMessage { return &ScheduleListRequest{} })
 	RegisterInbound("schedule/inspect", func() SessionInboundMessage { return &ScheduleInspectRequest{} })

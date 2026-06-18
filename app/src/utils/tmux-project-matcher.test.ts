@@ -160,6 +160,24 @@ describe("matchTmuxToProjects", () => {
     );
     expect(result.get("p1")).toEqual({ agentCount: 1, paneCount: 1 });
   });
+
+  it("does not double-count a pane when a project has multiple workspaces", () => {
+    // A project with 2 workspaces (e.g. main checkout + worktree) both
+    // share the same projectRootPath. buildProjectPathSources creates one
+    // ProjectPathSource per workspace, so the pane matches both entries.
+    // It must be counted only ONCE for the project.
+    const result = matchTmuxToProjects(
+      [
+        pane("host1", "/repo/src", "agent"),
+        pane("host1", "/repo/tests", "pane"),
+      ],
+      [
+        project("p1", "host1", "/repo"),
+        project("p1", "host1", "/repo"),
+      ],
+    );
+    expect(result.get("p1")).toEqual({ agentCount: 1, paneCount: 2 });
+  });
 });
 
 describe("matchesWorkingDir", () => {

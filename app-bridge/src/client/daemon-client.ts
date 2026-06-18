@@ -47,6 +47,7 @@ import type {
   OpenInEditorResponseMessage,
   OpenProjectResponseMessage,
   ArchiveWorkspaceResponseMessage,
+  RemoveProjectResponseMessage,
   WorkspaceSetupStatusResponseMessage,
   ListCommandsResponse,
   ListProviderFeaturesResponseMessage,
@@ -585,6 +586,7 @@ type ListAvailableEditorsPayload = ListAvailableEditorsResponseMessage["payload"
 type OpenInEditorPayload = OpenInEditorResponseMessage["payload"];
 type OpenProjectPayload = OpenProjectResponseMessage["payload"];
 type ArchiveWorkspacePayload = ArchiveWorkspaceResponseMessage["payload"];
+type RemoveProjectPayload = RemoveProjectResponseMessage["payload"];
 type WorkspaceSetupStatusPayload = WorkspaceSetupStatusResponseMessage["payload"];
 export type EditorTargetDescriptor = ListAvailableEditorsPayload["editors"][number];
 
@@ -1575,6 +1577,21 @@ export class DaemonClient {
       },
       responseType: "archive_workspace_response",
       timeout: 10000,
+    });
+  }
+
+  async removeProject(
+    workspaceIds: string[],
+    requestId?: string,
+  ): Promise<RemoveProjectPayload> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "remove_project_request",
+        workspaceIds,
+      },
+      responseType: "remove_project_response",
+      timeout: 15000,
     });
   }
 

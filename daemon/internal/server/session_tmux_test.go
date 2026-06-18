@@ -58,6 +58,37 @@ func TestIsTmuxAIAgentName_CustomAgent(t *testing.T) {
 	}
 }
 
+func TestMatchAgentCommand(t *testing.T) {
+	tests := []struct {
+		name string
+		cmd  string
+		want string
+	}{
+		{"exact claude", "claude", "claude"},
+		{"exact qodercli", "qodercli", "qodercli"},
+		{"version suffix hyphen", "qodercli-1.0.22", "qodercli"},
+		{"version suffix hyphen v2", "qodercli-1.0.20", "qodercli"},
+		{"version suffix no hyphen", "claude2", "claude"},
+		{"path prefix", "/usr/local/bin/claude", "claude"},
+		{"path prefix with version", "/usr/local/bin/qodercli-1.0.22", "qodercli"},
+		{"kimi-cli exact", "kimi-cli", "kimi-cli"},
+		{"not agent bash", "bash", ""},
+		{"not agent zsh", "zsh", ""},
+		{"not agent node", "node", ""},
+		{"pi-agent is not pi", "pi-agent", ""},
+		{"kimi-helper is not kimi", "kimi-helper", ""},
+		{"empty", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := matchAgentCommand(tt.cmd, testAgentNames)
+			if got != tt.want {
+				t.Errorf("matchAgentCommand(%q) = %q, want %q", tt.cmd, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestParseTmuxPaneLines(t *testing.T) {
 	tests := []struct {
 		name      string

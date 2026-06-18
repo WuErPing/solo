@@ -99,3 +99,27 @@ type ArchiveWorkspaceRequest struct {
 }
 
 func (m *ArchiveWorkspaceRequest) MsgType() string { return "archive_workspace_request" }
+
+// --- Remove project ---
+
+type RemoveProjectRequest struct {
+	Type         string   `json:"type"`
+	WorkspaceIDs []string `json:"workspaceIds"`
+	RequestID    string   `json:"requestId"`
+}
+
+func (m *RemoveProjectRequest) MsgType() string { return "remove_project_request" }
+
+type RemoveProjectResponse struct {
+	Type    string                      `json:"type"`
+	Payload RemoveProjectResponsePayload `json:"payload"`
+}
+
+type RemoveProjectResponsePayload struct {
+	RequestID    string   `json:"requestId"`
+	WorkspaceIDs []string `json:"workspaceIds"`
+	RemovedCount int      `json:"removedCount"`
+	Error        *string  `json:"error,omitempty"`
+}
+
+func (m *RemoveProjectResponse) MsgType() string { return "remove_project_response" }

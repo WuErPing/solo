@@ -114,8 +114,14 @@ func TestFileBackedRegistry_Archive(t *testing.T) {
 		t.Error("expected ArchivedAt to be set")
 	}
 
-	if err := r.Archive("missing", now); err == nil {
-		t.Error("expected error archiving missing record")
+	// Archive is idempotent: archiving a missing record succeeds silently.
+	if err := r.Archive("missing", now); err != nil {
+		t.Errorf("expected nil error archiving missing record, got: %v", err)
+	}
+
+	// Double-archive also succeeds (idempotent).
+	if err := r.Archive("r1", now); err != nil {
+		t.Errorf("expected nil error on double-archive, got: %v", err)
 	}
 }
 

@@ -1455,6 +1455,12 @@ export const ArchiveWorkspaceRequestSchema = z.object({
   requestId: z.string(),
 });
 
+export const RemoveProjectRequestSchema = z.object({
+  type: z.literal("remove_project_request"),
+  workspaceIds: z.array(z.string()),
+  requestId: z.string(),
+});
+
 // Highlighted diff token schema
 // Note: style can be a compound class name (e.g., "heading meta") from the syntax highlighter
 const HighlightTokenSchema = z.object({
@@ -1728,6 +1734,7 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   OpenInEditorRequestSchema,
   OpenProjectRequestSchema,
   ArchiveWorkspaceRequestSchema,
+  RemoveProjectRequestSchema,
   FileExplorerRequestSchema,
   ProjectIconRequestSchema,
   FileDownloadTokenRequestSchema,
@@ -2382,6 +2389,16 @@ export const ArchiveWorkspaceResponseMessageSchema = z.object({
     requestId: z.string(),
     workspaceId: z.string(),
     archivedAt: z.string().nullable(),
+    error: z.string().nullable(),
+  }),
+});
+
+export const RemoveProjectResponseMessageSchema = z.object({
+  type: z.literal("remove_project_response"),
+  payload: z.object({
+    requestId: z.string(),
+    workspaceIds: z.array(z.string()),
+    removedCount: z.number(),
     error: z.string().nullable(),
   }),
 });
@@ -3314,6 +3331,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   ListAvailableEditorsResponseMessageSchema,
   OpenInEditorResponseMessageSchema,
   ArchiveWorkspaceResponseMessageSchema,
+  RemoveProjectResponseMessageSchema,
   FetchAgentResponseMessageSchema,
   FetchAgentTimelineResponseMessageSchema,
   CancelAgentResponseMessageSchema,
@@ -3457,6 +3475,7 @@ export type ListAvailableEditorsResponseMessage = z.infer<
 >;
 export type OpenInEditorResponseMessage = z.infer<typeof OpenInEditorResponseMessageSchema>;
 export type ArchiveWorkspaceResponseMessage = z.infer<typeof ArchiveWorkspaceResponseMessageSchema>;
+export type RemoveProjectResponseMessage = z.infer<typeof RemoveProjectResponseMessageSchema>;
 export type FetchAgentResponseMessage = z.infer<typeof FetchAgentResponseMessageSchema>;
 export type FetchAgentTimelineResponseMessage = z.infer<
   typeof FetchAgentTimelineResponseMessageSchema
@@ -3635,6 +3654,7 @@ export type ListAvailableEditorsRequest = z.infer<typeof ListAvailableEditorsReq
 export type OpenInEditorRequest = z.infer<typeof OpenInEditorRequestSchema>;
 export type OpenProjectRequest = z.infer<typeof OpenProjectRequestSchema>;
 export type ArchiveWorkspaceRequest = z.infer<typeof ArchiveWorkspaceRequestSchema>;
+export type RemoveProjectRequest = z.infer<typeof RemoveProjectRequestSchema>;
 export type FileExplorerRequest = z.infer<typeof FileExplorerRequestSchema>;
 export type FileExplorerResponse = z.infer<typeof FileExplorerResponseSchema>;
 export type ProjectIconRequest = z.infer<typeof ProjectIconRequestSchema>;

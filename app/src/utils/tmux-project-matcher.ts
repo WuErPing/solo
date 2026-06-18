@@ -89,11 +89,14 @@ export function matchTmuxToProjects(
     const paneDir = normalizePath(p.workingDir);
     if (!paneDir) continue;
 
+    const matchedProjects = new Set<string>();
     for (const proj of projects) {
       if (proj.serverId !== p.serverId) continue;
       if (!proj.projectRootPath && !proj.workspaceDirectory) continue;
+      if (matchedProjects.has(proj.projectKey)) continue;
 
       if (matchesProject(paneDir, proj)) {
+        matchedProjects.add(proj.projectKey);
         const entry = counts.get(proj.projectKey) ?? { agentCount: 0, paneCount: 0 };
         entry.paneCount++;
         if (p.kind === "agent") {

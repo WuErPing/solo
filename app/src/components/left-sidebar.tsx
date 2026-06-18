@@ -48,6 +48,7 @@ import {
   useSidebarWorkspacesList,
 } from "@/hooks/use-sidebar-workspaces-list";
 import { useTmuxProjectCounts } from "@/hooks/use-tmux-project-counts";
+import { useSoloAgentCounts } from "@/hooks/use-solo-agent-counts";
 import type { ProjectPaneCounts } from "@/utils/tmux-project-matcher";
 import { useHostRuntimeSnapshot, useHosts } from "@/runtime/host-runtime";
 import {
@@ -205,7 +206,23 @@ export const LeftSidebar = memo(function LeftSidebar({
   });
   const { collapsedProjectKeys, shortcutIndexByWorkspaceKey, toggleProjectCollapsed } =
     useSidebarShortcutModel({ projects, isInitialLoad });
-  const paneCountMap = useTmuxProjectCounts(projects, activeServerId);
+  const tmuxPaneCountMap = useTmuxProjectCounts(projects, activeServerId);
+  const soloAgentCounts = useSoloAgentCounts(activeServerId);
+  const paneCountMap = useMemo(() => {
+    const merged = new Map<string, ProjectPaneCounts>();
+    for (const [key, counts] of tmuxPaneCountMap) {
+      merged.set(key, {
+        agentCount: soloAgentCounts.get(key) ?? 0,
+        paneCount: counts.paneCount,
+      });
+    }
+    for (const [key, agentCount] of soloAgentCounts) {
+      if (!merged.has(key)) {
+        merged.set(key, { agentCount, paneCount: 0 });
+      }
+    }
+    return merged;
+  }, [tmuxPaneCountMap, soloAgentCounts]);
 
   const [isManualRefresh, setIsManualRefresh] = useState(false);
 

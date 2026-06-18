@@ -71,6 +71,15 @@ func (r *WorkspaceRegistry) UpsertWorkspace(id, projectID, cwd string, kind Work
 	existing, ok := r.Get(id)
 	if ok {
 		existing.UpdatedAt = now
+		if kind != "" {
+			existing.Kind = kind
+		}
+		if projectID != "" {
+			existing.ProjectID = projectID
+		}
+		if cwd != "" {
+			existing.Cwd = cwd
+		}
 		if displayName != "" {
 			existing.DisplayName = displayName
 		}

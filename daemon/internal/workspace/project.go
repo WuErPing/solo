@@ -58,6 +58,9 @@ func (r *ProjectRegistry) UpsertProject(id, rootPath string, kind ProjectKind, d
 	existing, ok := r.Get(id)
 	if ok {
 		existing.UpdatedAt = now
+		if kind != "" {
+			existing.Kind = kind
+		}
 		if displayName != "" {
 			existing.DisplayName = displayName
 		}

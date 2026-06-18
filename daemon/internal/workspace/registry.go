@@ -86,13 +86,15 @@ func (r *FileBackedRegistry[T]) Upsert(rec T) error {
 }
 
 // Archive sets the ArchivedAt field on a record (requires the record to implement ArchivableRecord).
+// It is idempotent: archiving a record that does not exist is treated as success,
+// since the desired end state (record absent) is already achieved.
 func (r *FileBackedRegistry[T]) Archive(id string, now time.Time) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	rec, ok := r.records[id]
 	if !ok {
-		return fmt.Errorf("record %s not found", id)
+		return nil
 	}
 
 	archivable, ok := any(rec).(ArchivableRecord)

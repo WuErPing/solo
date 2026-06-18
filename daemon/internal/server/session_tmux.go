@@ -37,11 +37,35 @@ const (
 var capturePaneFlight singleflight.Group
 
 func isTmuxAIAgentName(cmd string, agentNames map[string]bool) bool {
+	return matchAgentCommand(cmd, agentNames) != ""
+}
+
+// matchAgentCommand checks if cmd matches a known AI agent name.
+// Returns the matched agent name, or "" if no match.
+// Handles version-suffixed commands like "qodercli-1.0.22" → "qodercli".
+func matchAgentCommand(cmd string, agentNames map[string]bool) string {
 	if idx := strings.LastIndex(cmd, "/"); idx >= 0 {
 		cmd = cmd[idx+1:]
 	}
-	return agentNames[cmd]
+	if agentNames[cmd] {
+		return cmd
+	}
+	for _, name := range agentNamesByLength(agentNames) {
+		if !strings.HasPrefix(cmd, name) {
+			continue
+		}
+		rest := cmd[len(name):]
+		if len(rest) == 0 {
+			return name
+		}
+		if isDigit(rest[0]) || (rest[0] == '-' && len(rest) > 1 && isDigit(rest[1])) {
+			return name
+		}
+	}
+	return ""
 }
+
+func isDigit(b byte) bool { return b >= '0' && b <= '9' }
 
 // normalizeTitleToLower strips non-alphanumeric chars and lowercases for matching.
 func normalizeTitleToLower(title string) string {
@@ -337,12 +361,9 @@ func parseTmuxPaneLines(output string, agentNames map[string]bool) ([]protocol.T
 		agentName := ""
 		status := ""
 
-		// Layer 1: Direct command match (works for claude, opencode, etc.)
-		if isTmuxAIAgentName(currentCmd, agentNames) {
-			agentName = currentCmd
-			if idx := strings.LastIndex(agentName, "/"); idx >= 0 {
-				agentName = agentName[idx+1:]
-			}
+		// Layer 1: Direct command match (works for claude, opencode, qodercli-1.0.22, etc.)
+		if matched := matchAgentCommand(currentCmd, agentNames); matched != "" {
+			agentName = matched
 		}
 
 		// Layer 2: Title match for non-shell commands (works for pi with node, etc.)

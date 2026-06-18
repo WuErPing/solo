@@ -61,6 +61,45 @@ func TestProjectRegistry_UpsertProject_UpdatesExisting(t *testing.T) {
 	}
 }
 
+func TestProjectRegistry_UpsertProject_UpdatesKind(t *testing.T) {
+	dir := t.TempDir()
+	reg := NewProjectRegistry(dir)
+	_ = reg.Initialize()
+
+	// Register as non_git (e.g. directory opened before git init).
+	_ = reg.UpsertProject("proj1", "/repo/one", ProjectKindNonGit, "One")
+
+	rec, _ := reg.Get("proj1")
+	if rec.Kind != ProjectKindNonGit {
+		t.Fatalf("precondition: Kind: got %q, want %q", rec.Kind, ProjectKindNonGit)
+	}
+
+	// Re-upsert as git (e.g. user ran git init, or daemon re-detected).
+	_ = reg.UpsertProject("proj1", "/repo/one", ProjectKindGit, "One")
+
+	rec, _ = reg.Get("proj1")
+	if rec.Kind != ProjectKindGit {
+		t.Errorf("Kind: got %q, want %q", rec.Kind, ProjectKindGit)
+	}
+}
+
+func TestProjectRegistry_UpsertProject_UpdatesKind_GitToNonGit(t *testing.T) {
+	dir := t.TempDir()
+	reg := NewProjectRegistry(dir)
+	_ = reg.Initialize()
+
+	// Register as git.
+	_ = reg.UpsertProject("proj1", "/repo/one", ProjectKindGit, "One")
+
+	// Re-upsert as non_git (e.g. user deleted .git directory).
+	_ = reg.UpsertProject("proj1", "/repo/one", ProjectKindNonGit, "One")
+
+	rec, _ := reg.Get("proj1")
+	if rec.Kind != ProjectKindNonGit {
+		t.Errorf("Kind: got %q, want %q", rec.Kind, ProjectKindNonGit)
+	}
+}
+
 func TestProjectRegistry_FilePath(t *testing.T) {
 	dir := t.TempDir()
 	reg := NewProjectRegistry(dir)

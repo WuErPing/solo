@@ -47,7 +47,11 @@ func (s *Session) projectPlacementForCwd(cwd string) *protocol.ProjectPlacementP
 		MainRepoRoot:        nil,
 	}
 	if s.gitSvc != nil {
-		if meta := s.gitSvc.GetMetadataCached(normalizedCwd); meta != nil && meta.ProjectKind == workspace.ProjectKindGit {
+		meta := s.gitSvc.GetMetadataCached(normalizedCwd)
+		if meta == nil {
+			meta, _ = s.gitSvc.GetMetadata(normalizedCwd)
+		}
+		if meta != nil && meta.ProjectKind == workspace.ProjectKindGit {
 			checkout.IsGit = true
 			checkout.CurrentBranch = meta.CurrentBranch
 			checkout.RemoteURL = meta.RemoteURL
@@ -106,7 +110,11 @@ func (s *Session) projectPlacementForWorkspace(ws *workspace.PersistedWorkspaceR
 			checkout.MainRepoRoot = projectRoot
 		}
 		if s.gitSvc != nil {
-			if meta := s.gitSvc.GetMetadataCached(checkout.Cwd); meta != nil {
+			meta := s.gitSvc.GetMetadataCached(checkout.Cwd)
+			if meta == nil {
+				meta, _ = s.gitSvc.GetMetadata(checkout.Cwd)
+			}
+			if meta != nil {
 				checkout.CurrentBranch = meta.CurrentBranch
 				checkout.RemoteURL = meta.RemoteURL
 			}
@@ -327,11 +335,24 @@ func (s *Session) handleFetchWorkspaces(m *protocol.FetchWorkspacesRequest) {
 		}
 	}
 
+	// Refresh ProjectKind from project registry to pick up changes since
+	// the workspace was first registered (e.g. git init, .git deletion).
+	s.workspacesMu.RLock()
+	wsList := make([]*protocol.WorkspaceDescriptor, 0, len(s.workspaces))
+	for _, ws := range s.workspaces {
+		wsList = append(wsList, ws)
+	}
+	s.workspacesMu.RUnlock()
+	refreshWorkspaceProjectKind(wsList, s.projectReg)
+	redetectNonGitWorkspaces(wsList, s.projectReg, s.gitSvc)
+
 	s.workspacesMu.Lock()
 	entries := make([]interface{}, 0, len(s.workspaces))
 	for _, ws := range s.workspaces {
 		if ws.GitRuntime == nil && ws.ProjectKind == string(workspace.ProjectKindGit) {
-			gitMeta := s.gitSvc.GetMetadataCached(ws.WorkspaceDirectory)
+			// Use blocking GetMetadata to handle cold cache (e.g. after daemon restart).
+			// GetMetadataCached returns nil for cache misses, leaving branch info empty.
+			gitMeta, _ := s.gitSvc.GetMetadata(ws.WorkspaceDirectory)
 			if gitMeta != nil {
 				isDirty := false
 				if dirtyPtr := s.gitSvc.IsDirtyCached(ws.WorkspaceDirectory); dirtyPtr != nil {
@@ -343,11 +364,33 @@ func (s *Session) handleFetchWorkspaces(m *protocol.FetchWorkspacesRequest) {
 					IsSoloOwnedWorktree: &gitMeta.IsWorktree,
 					IsDirty:             &isDirty,
 				}
+				// Fix stale Name (directory name → branch name) for legacy workspaces.
+				if gitMeta.WorkspaceDisplayName != "" {
+					ws.Name = gitMeta.WorkspaceDisplayName
+				}
+				if gitMeta.ProjectDisplayName != "" {
+					ws.ProjectDisplayName = gitMeta.ProjectDisplayName
+				}
 			}
 		}
 		entries = append(entries, ws)
 	}
 	s.workspacesMu.Unlock()
+
+	// Fix stale Name for git workspaces that already have GitRuntime populated
+	// (the cold-cache fix above only runs when GitRuntime == nil).
+	fixStaleWorkspaceNames(wsList)
+
+	// Persist after GitRuntime is populated so branch info is saved to disk.
+	if s.workspaceStore != nil {
+		for _, ws := range wsList {
+			_ = s.workspaceStore.Upsert(ws)
+		}
+	}
+
+	// Sync corrected workspace data to the WorkspaceRegistry so
+	// ~/.solo/projects/workspaces.json stays up to date.
+	syncWorkspacesToRegistry(wsList, s.workspaceReg)
 
 	s.sendMessage(protocol.NewSessionMessage(&protocol.FetchWorkspacesResponse{
 		Type: "fetch_workspaces_response",
@@ -568,6 +611,52 @@ func (s *Session) handleArchiveWorkspace(m *protocol.ArchiveWorkspaceRequest) {
 	}))
 }
 
+func (s *Session) handleRemoveProject(m *protocol.RemoveProjectRequest) {
+	now := time.Now()
+	projectIDs := make(map[string]bool)
+	var removedIDs []string
+
+	for _, wsID := range m.WorkspaceIDs {
+		_ = s.workspaceReg.Archive(wsID, now)
+
+		if rec, ok := s.workspaceReg.Get(wsID); ok {
+			projectIDs[rec.ProjectID] = true
+		}
+
+		s.workspacesMu.Lock()
+		delete(s.workspaces, wsID)
+		s.workspacesMu.Unlock()
+		if s.workspaceStore != nil {
+			_ = s.workspaceStore.Delete(wsID)
+		}
+
+		s.sendMessage(protocol.NewSessionMessage(&protocol.WorkspaceUpdateMessage{
+			Type: "workspace_update",
+			Payload: protocol.WorkspaceUpdatePayload{
+				Kind: "remove",
+				ID:   wsID,
+			},
+		}))
+		removedIDs = append(removedIDs, wsID)
+	}
+
+	for pid := range projectIDs {
+		remaining := s.workspaceReg.FindByProjectID(pid)
+		if len(remaining) == 0 && s.projectReg != nil {
+			_ = s.projectReg.Archive(pid, now)
+		}
+	}
+
+	s.sendMessage(protocol.NewSessionMessage(&protocol.RemoveProjectResponse{
+		Type: "remove_project_response",
+		Payload: protocol.RemoveProjectResponsePayload{
+			RequestID:    m.RequestID,
+			WorkspaceIDs: removedIDs,
+			RemovedCount: len(removedIDs),
+		},
+	}))
+}
+
 func (s *Session) handleCheckoutPrStatus(_ *protocol.CheckoutPrStatusRequest) {
 }
 
@@ -707,14 +796,24 @@ func (s *Session) buildWorkspaceDescriptor(ws *workspace.PersistedWorkspaceRecor
 		Scripts:            []protocol.WorkspaceScript{},
 	}
 
-	if meta := s.gitSvc.GetMetadataCached(ws.Cwd); meta != nil {
+	// Use blocking GetMetadata to handle cold cache (e.g. after daemon restart).
+	// GetMetadataCached returns nil for cache misses, leaving GitRuntime empty and
+	// Name stale (directory name instead of branch).
+	gitMeta, _ := s.gitSvc.GetMetadata(ws.Cwd)
+	if gitMeta != nil && gitMeta.ProjectKind == workspace.ProjectKindGit {
 		desc.GitRuntime = &protocol.WorkspaceGitRuntime{
-			CurrentBranch:       meta.CurrentBranch,
-			RemoteURL:           meta.RemoteURL,
-			IsSoloOwnedWorktree: &meta.IsWorktree,
+			CurrentBranch:       gitMeta.CurrentBranch,
+			RemoteURL:           gitMeta.RemoteURL,
+			IsSoloOwnedWorktree: &gitMeta.IsWorktree,
 		}
 		if dirtyPtr := s.gitSvc.IsDirtyCached(ws.Cwd); dirtyPtr != nil {
 			desc.GitRuntime.IsDirty = dirtyPtr
+		}
+		if gitMeta.WorkspaceDisplayName != "" {
+			desc.Name = gitMeta.WorkspaceDisplayName
+		}
+		if gitMeta.ProjectDisplayName != "" {
+			desc.ProjectDisplayName = gitMeta.ProjectDisplayName
 		}
 	}
 

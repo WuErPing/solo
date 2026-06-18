@@ -2162,7 +2162,7 @@ function ProjectBlock({
     void (async () => {
       const confirmed = await confirmDialog({
         title: "Remove project?",
-        message: `Remove "${displayName}" from the sidebar?\n\nFiles on disk will not be changed.`,
+        message: `Remove "${displayName}" and all its workspaces from Solo?\n\nFiles on disk will not be changed.`,
         confirmLabel: "Remove",
         cancelLabel: "Cancel",
         destructive: true,
@@ -2177,24 +2177,26 @@ function ProjectBlock({
         return;
       }
 
+      for (const ws of project.workspaces) {
+        redirectIfArchivingActiveWorkspace({
+          serverId,
+          workspaceId: ws.workspaceId,
+        });
+      }
+
       setIsRemovingProject(true);
 
-      const isRejected = (r: PromiseSettledResult<unknown>) => r.status === "rejected";
-      void Promise.allSettled(
-        project.workspaces.map(async (ws) => {
-          const payload = await client.archiveWorkspace(ws.workspaceId);
-          if (payload.error) {
-            throw new Error(payload.error);
-          }
-        }),
-      ).then((results) => {
-        const failed = results.filter(isRejected);
-        if (failed.length > 0) {
-          toast.error("Failed to remove some workspaces");
+      const workspaceIds = project.workspaces.map((ws) => ws.workspaceId);
+      try {
+        const payload = await client.removeProject(workspaceIds);
+        if (payload.error) {
+          toast.error(payload.error);
         }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to remove project");
+      } finally {
         setIsRemovingProject(false);
-        return;
-      });
+      }
     })();
   }, [isRemovingProject, serverId, displayName, toast, project.workspaces]);
 

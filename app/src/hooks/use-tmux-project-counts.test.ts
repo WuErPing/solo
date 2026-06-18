@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildProjectPathSources } from "./use-tmux-project-counts";
+import { buildProjectPathSources, buildPaneSources } from "./use-tmux-project-counts";
 import type { SidebarProjectEntry } from "./use-sidebar-workspaces-list";
+import type { TmuxAgent, TmuxPane } from "./use-tmux-agents";
 
 function makeProject(
   projectKey: string,
-  workspaces: Array<{ serverId: string; projectRootPath?: string; workspaceDirectory?: string }>,
+  workspaces: { serverId: string; projectRootPath?: string; workspaceDirectory?: string }[],
 ): SidebarProjectEntry {
   return {
     projectKey,
@@ -88,5 +89,75 @@ describe("buildProjectPathSources", () => {
     expect(result).toHaveLength(2);
     expect(result[0].projectKey).toBe("p1");
     expect(result[1].projectKey).toBe("p1");
+  });
+});
+
+function makeAgent(serverId: string, workingDir: string, status?: string): TmuxAgent {
+  return {
+    sessionName: "s1",
+    windowName: "w1",
+    paneId: "%1",
+    paneIndex: 0,
+    panePid: 1,
+    agentName: "kimi",
+    currentCmd: "kimi",
+    workingDir,
+    status,
+    serverId,
+    serverLabel: "local",
+  };
+}
+
+function makePane(serverId: string, workingDir: string): TmuxPane {
+  return {
+    sessionName: "s1",
+    windowName: "w1",
+    paneId: "%2",
+    paneIndex: 0,
+    panePid: 2,
+    currentCmd: "zsh",
+    workingDir,
+    serverId,
+    serverLabel: "local",
+  };
+}
+
+describe("buildPaneSources", () => {
+  it("includes active agents as agent-kind pane sources", () => {
+    const agents = [makeAgent("host1", "/repo")];
+    const result = buildPaneSources(agents, [], "host1");
+    expect(result).toEqual([
+      { serverId: "host1", workingDir: "/repo", kind: "agent" },
+    ]);
+  });
+
+  it("excludes exited agents from pane sources", () => {
+    const agents = [
+      makeAgent("host1", "/repo", "exited"),
+      makeAgent("host1", "/repo"),
+    ];
+    const result = buildPaneSources(agents, [], "host1");
+    expect(result).toHaveLength(1);
+    expect(result[0].kind).toBe("agent");
+  });
+
+  it("includes other panes as pane-kind sources", () => {
+    const panes = [makePane("host1", "/repo/src")];
+    const result = buildPaneSources([], panes, "host1");
+    expect(result).toEqual([
+      { serverId: "host1", workingDir: "/repo/src", kind: "pane" },
+    ]);
+  });
+
+  it("filters by serverId", () => {
+    const agents = [makeAgent("host2", "/repo")];
+    const result = buildPaneSources(agents, [], "host1");
+    expect(result).toEqual([]);
+  });
+
+  it("skips agents without workingDir", () => {
+    const agents = [makeAgent("host1", "")];
+    const result = buildPaneSources(agents, [], "host1");
+    expect(result).toEqual([]);
   });
 });

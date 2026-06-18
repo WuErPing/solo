@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useAggregatedTmuxAgents } from "./use-tmux-agents";
+import { useAggregatedTmuxAgents, type TmuxAgent, type TmuxPane } from "./use-tmux-agents";
 import type { SidebarProjectEntry } from "./use-sidebar-workspaces-list";
 import {
   matchTmuxToProjects,
@@ -28,6 +28,25 @@ export function buildProjectPathSources(
   return sources;
 }
 
+export function buildPaneSources(
+  agents: TmuxAgent[],
+  otherPanes: TmuxPane[],
+  serverId: string,
+): TmuxPaneSource[] {
+  const paneSources: TmuxPaneSource[] = [];
+  for (const agent of agents) {
+    if (agent.serverId === serverId && agent.workingDir && agent.status !== "exited") {
+      paneSources.push({ serverId: agent.serverId, workingDir: agent.workingDir, kind: "agent" });
+    }
+  }
+  for (const pane of otherPanes) {
+    if (pane.serverId === serverId && pane.workingDir) {
+      paneSources.push({ serverId: pane.serverId, workingDir: pane.workingDir, kind: "pane" });
+    }
+  }
+  return paneSources;
+}
+
 export function useTmuxProjectCounts(
   projects: SidebarProjectEntry[],
   serverId: string | null,
@@ -39,17 +58,7 @@ export function useTmuxProjectCounts(
       return new Map<string, ProjectPaneCounts>();
     }
 
-    const paneSources: TmuxPaneSource[] = [];
-    for (const agent of agents) {
-      if (agent.serverId === serverId && agent.workingDir) {
-        paneSources.push({ serverId: agent.serverId, workingDir: agent.workingDir, kind: "agent" });
-      }
-    }
-    for (const pane of otherPanes) {
-      if (pane.serverId === serverId && pane.workingDir) {
-        paneSources.push({ serverId: pane.serverId, workingDir: pane.workingDir, kind: "pane" });
-      }
-    }
+    const paneSources = buildPaneSources(agents, otherPanes, serverId);
 
     if (paneSources.length === 0) {
       return new Map<string, ProjectPaneCounts>();
