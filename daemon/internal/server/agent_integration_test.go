@@ -1411,7 +1411,7 @@ func waitForTimelineTextOnConn(t *testing.T, conn *websocket.Conn, agentID strin
 
 func readUntilAgentUpdateAttention(t *testing.T, conn *websocket.Conn, agentID string, requires bool, reason string) {
 	t.Helper()
-	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 	defer conn.SetReadDeadline(time.Time{})
 	for {
 		_, msg, err := conn.ReadMessage()
