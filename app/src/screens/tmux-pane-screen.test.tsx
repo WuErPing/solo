@@ -70,6 +70,8 @@ vi.mock("lucide-react-native", () => {
     Palette: icon("Palette"),
     TextSelect: icon("TextSelect"),
     Clock: icon("Clock"),
+    ChevronDown: icon("ChevronDown"),
+    ChevronUp: icon("ChevronUp"),
   };
 });
 
