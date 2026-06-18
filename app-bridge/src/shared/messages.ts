@@ -143,14 +143,10 @@ import type {
   AgentCapabilityFlags,
   AgentModelDefinition,
   AgentMode,
-  AgentPermissionRequest,
   AgentPermissionResponse,
   AgentPersistenceHandle,
   ProviderStatus,
   AgentRuntimeInfo,
-  AgentTimelineItem,
-  ToolCallDetail,
-  ToolCallTimelineItem,
   AgentUsage,
 } from "../server/agent/agent-sdk-types.js";
 
@@ -319,10 +315,7 @@ export const AgentPermissionResponseSchema: z.ZodType<AgentPermissionResponse> =
   }),
 ]);
 
-export const AgentPermissionRequestPayloadSchema: z.ZodType<
-  AgentPermissionRequest,
-  unknown
-> = z.object({
+export const AgentPermissionRequestPayloadSchema = z.object({
   id: z.string(),
   provider: AgentProviderSchema,
   name: z.string(),
@@ -372,7 +365,7 @@ const WorktreeSetupDetailPayloadSchema = z.object({
   truncated: z.boolean().optional(),
 });
 
-const ToolCallDetailPayloadSchema: z.ZodType<ToolCallDetail, unknown> =
+const ToolCallDetailPayloadSchema =
   z.discriminatedUnion("type", [
     WorktreeSetupDetailPayloadSchema,
     z.object({
@@ -493,7 +486,7 @@ const ToolCallCanceledPayloadSchema = ToolCallBasePayloadSchema.extend({
   error: z.null().optional(),
 });
 
-const ToolCallTimelineItemPayloadSchema: z.ZodType<ToolCallTimelineItem, unknown> =
+const ToolCallTimelineItemPayloadSchema =
   z.union([
     ToolCallRunningPayloadSchema,
     ToolCallCompletedPayloadSchema,
@@ -501,7 +494,7 @@ const ToolCallTimelineItemPayloadSchema: z.ZodType<ToolCallTimelineItem, unknown
     ToolCallCanceledPayloadSchema,
   ]);
 
-export const AgentTimelineItemPayloadSchema: z.ZodType<AgentTimelineItem, unknown> =
+export const AgentTimelineItemPayloadSchema =
   z.union([
     z.object({
       type: z.literal("user_message"),

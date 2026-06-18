@@ -24,7 +24,7 @@ const styles = StyleSheet.create((theme) => ({
   },
   cameraWrap: {
     flex: 1,
-    overflow: "hidden",
+    overflow: "hidden" as const,
     borderRadius: theme.borderRadius.xl,
     backgroundColor: theme.colors.surface2,
   },
@@ -41,7 +41,7 @@ const styles = StyleSheet.create((theme) => ({
     height: 260,
   },
   corner: {
-    position: "absolute",
+    position: "absolute" as const,
     width: 36,
     height: 36,
     borderColor: theme.colors.accent,
@@ -77,7 +77,7 @@ const styles = StyleSheet.create((theme) => ({
   helperText: {
     marginTop: theme.spacing[6],
     color: theme.colors.foregroundMuted,
-    textAlign: "center",
+    textAlign: "center" as const,
     fontSize: theme.fontSize.base,
   },
   permissionCard: {
@@ -97,7 +97,7 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: theme.fontSize.base,
   },
   permissionButton: {
-    alignSelf: "flex-start",
+    alignSelf: "flex-start" as const,
     paddingHorizontal: theme.spacing[6],
     paddingVertical: theme.spacing[3],
     borderRadius: theme.borderRadius.lg,

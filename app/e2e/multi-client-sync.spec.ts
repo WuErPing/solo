@@ -125,17 +125,18 @@ test.describe("Multi-client timeline synchronization", () => {
       test.skip();
       return;
     }
+    const id = agentId;
 
     // Wait a moment to ensure the first turn fully completed and agent is idle
     await new Promise((r) => setTimeout(r, 1500));
 
-    await clientA.sendMessage(agentId, "Second message from client A");
+    await clientA.sendMessage(id, "Second message from client A");
 
     // Poll until the second assistant_message appears
     await expect
       .poll(
         async () => {
-          const timeline = await clientA.fetchAgentTimeline(agentId, { direction: "tail", limit: 50 });
+          const timeline = await clientA.fetchAgentTimeline(id, { direction: "tail", limit: 50 });
           const assistantMessages = timeline.entries.filter(
             (e) => (e.item as { type?: string }).type === "assistant_message",
           );
@@ -148,8 +149,8 @@ test.describe("Multi-client timeline synchronization", () => {
     // Give buffer for propagation
     await new Promise((r) => setTimeout(r, 500));
 
-    const timelineA = await fetchAllTimelineEntries(clientA, agentId);
-    const timelineB = await fetchAllTimelineEntries(clientB, agentId);
+    const timelineA = await fetchAllTimelineEntries(clientA, id);
+    const timelineB = await fetchAllTimelineEntries(clientB, id);
 
     // Both should now have 2 user_messages and 2 assistant_messages
     const userMessagesA = timelineA.filter((e) => (e.item as { type?: string }).type === "user_message");

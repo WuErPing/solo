@@ -39,7 +39,7 @@ jobs:
 
       - name: Go test + coverage
         working-directory: ${{ matrix.module }}
-        run: go test -short -v -race -count=1 -timeout=10m -coverprofile=coverage.out ./...
+        run: go test -short -v -race -count=1 -timeout=10m -tags external_api -coverprofile=coverage.out ./...
 
       - name: Upload Go coverage to Codecov
         uses: codecov/codecov-action@v5

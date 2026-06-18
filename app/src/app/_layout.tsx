@@ -21,7 +21,7 @@ import {
   useState,
 } from "react";
 import { View } from "react-native";
-import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
+import { Gesture, GestureDetector, GestureHandlerRootView as _GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { Extrapolation, interpolate, runOnJS, useSharedValue } from "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -98,6 +98,8 @@ import {
 } from "@/utils/os-notifications";
 import { resolveWorkspaceIdByExecutionDirectory } from "@/utils/workspace-execution";
 import { prepareWorkspaceTab } from "@/utils/workspace-navigation";
+
+const GestureHandlerRootView = _GestureHandlerRootView as React.ComponentType<React.PropsWithChildren<{ style?: any }>>;
 
 polyfillCrypto();
 
