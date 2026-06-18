@@ -60,7 +60,6 @@ describe("AnsiTextContent", () => {
     // the Android Text tree is not reconciled.
     //
     // React.memo returns a component whose $$typeof is REACT_MEMO_TYPE.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const anyComp = AnsiTextContent as any;
     expect(typeof anyComp).toBe("object");
     // Detect REACT_MEMO_TYPE symbol (description is "react.memo" in React 18/19)

@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useState } from "react";
-import { View, Text, ScrollView, Pressable } from "react-native";
+import { View, Text, ScrollView } from "react-native";
 import { useIsFocused } from "@react-navigation/native";
 import { router } from "expo-router";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { ArrowLeft, CheckCircle, Loader, Pencil, Trash2, XCircle } from "lucide-react-native";
+import { ArrowLeft, Loader, Pencil, Trash2 } from "lucide-react-native";
 import { BackHeader } from "@/components/headers/back-header";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";

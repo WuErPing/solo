@@ -742,7 +742,7 @@ describe("useTmuxCapturePane — adaptive polling", () => {
       });
     mockClient.tmuxCapturePane.mockImplementation(() => makeDelayed());
 
-    const { result } = renderCapturePaneHook();
+    renderCapturePaneHook();
 
     // Initial fetch: start + resolve with "active content"
     await vi.waitFor(() => {

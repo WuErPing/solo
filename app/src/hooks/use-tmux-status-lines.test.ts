@@ -21,7 +21,7 @@ const { mockStore, mockClient, mockHosts } = vi.hoisted(() => {
   return {
     mockStore: store,
     mockClient: client,
-    mockHosts: { value: [{ serverId: "s1", label: "local" }] as Array<{ serverId: string; label: string }> },
+    mockHosts: { value: [{ serverId: "s1", label: "local" }] as { serverId: string; label: string }[] },
   };
 });
 

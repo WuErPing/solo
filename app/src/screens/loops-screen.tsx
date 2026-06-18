@@ -3,7 +3,7 @@ import { View, Text, ScrollView, RefreshControl, Pressable } from "react-native"
 import { useIsFocused } from "@react-navigation/native";
 import { router } from "expo-router";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { ArrowLeft, Loader, Plus, RefreshCw, Trash2 } from "lucide-react-native";
+import { ArrowLeft, Loader, Plus, Trash2 } from "lucide-react-native";
 import { BackHeader } from "@/components/headers/back-header";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";

@@ -3,7 +3,6 @@ import {
   View,
   Text,
   ScrollView,
-  Pressable,
 } from "react-native";
 import { useIsFocused } from "@react-navigation/native";
 import { router } from "expo-router";
@@ -15,7 +14,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useScheduleInspect } from "@/hooks/use-schedule-inspect";
 import { buildHostSchedulesRoute } from "@/utils/host-routes";
 import { cronFromUTC, describeCron, detectTimezone } from "@/utils/cron-timezone";
-import type { ScheduleCadence, ScheduleRun, ScheduleStatus, StoredSchedule } from "@server/server/schedule/types";
+import type { ScheduleCadence, ScheduleRun, ScheduleStatus } from "@server/server/schedule/types";
 
 export function ScheduleDetailScreen({
   serverId,

@@ -1,6 +1,6 @@
 import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { getHostRuntimeStore, useHosts, isHostRuntimeConnected } from "@/runtime/host-runtime";
+import { getHostRuntimeStore, isHostRuntimeConnected } from "@/runtime/host-runtime";
 import { withLiveTmuxClient } from "@/utils/tmux-rpc";
 import type { TmuxAgent } from "./use-tmux-agents";
 
@@ -17,12 +17,10 @@ export function tmuxStatusLineQueryKey(serverId: string, sessionName: string): r
 }
 
 export function useTmuxStatusLines(agents: TmuxAgent[]): TmuxStatusLineInfo[] {
-  const hosts = useHosts();
-
   // Dedupe by (serverId, sessionName)
   const uniqueSessions = useMemo(() => {
     const seen = new Set<string>();
-    const result: Array<{ serverId: string; sessionName: string }> = [];
+    const result: { serverId: string; sessionName: string }[] = [];
     for (const agent of agents) {
       const key = `${agent.serverId}:${agent.sessionName}`;
       if (!seen.has(key)) {

@@ -33,9 +33,7 @@ function buildCronFromPreset(preset: FrequencyPreset, hour: number, minute: numb
   }
 }
 
-function pad2(n: number): string {
-  return String(n).padStart(2, "0");
-}
+
 
 export function ScheduleCreateModal({ visible, onClose, serverId }: ScheduleCreateModalProps) {
   const { theme } = useUnistyles();

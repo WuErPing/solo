@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import type { LoopRecord } from "@server/server/loop/rpc-schemas";
-import type { DaemonClient } from "@server/client/daemon-client";
+
 import { useHostRuntimeClient } from "@/runtime/host-runtime";
 import { loopsQueryKey } from "./use-loops";
 

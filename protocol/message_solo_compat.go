@@ -111,7 +111,7 @@ type RemoveProjectRequest struct {
 func (m *RemoveProjectRequest) MsgType() string { return "remove_project_request" }
 
 type RemoveProjectResponse struct {
-	Type    string                      `json:"type"`
+	Type    string                       `json:"type"`
 	Payload RemoveProjectResponsePayload `json:"payload"`
 }
 

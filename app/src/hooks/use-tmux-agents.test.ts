@@ -20,7 +20,7 @@ const { mockStore, mockClient, mockHosts } = vi.hoisted(() => {
   return {
     mockStore: store,
     mockClient: client,
-    mockHosts: { value: [{ serverId: "s1", label: "local" }] as Array<{ serverId: string; label: string }> },
+    mockHosts: { value: [{ serverId: "s1", label: "local" }] as { serverId: string; label: string }[] },
   };
 });
 
@@ -79,9 +79,9 @@ describe("useAggregatedTmuxAgents", () => {
   });
 
   it("reports isInitialLoad true while first fetch is in flight", async () => {
-    let resolveFetch: (value: { agents: Array<{ agentName: string; sessionName: string; windowName: string; paneId: string; paneIndex: number; panePid: number; currentCmd: string; workingDir: string; serverId: string; serverLabel: string }>; error: null }) => void;
+    let resolveFetch: (value: { agents: { agentName: string; sessionName: string; windowName: string; paneId: string; paneIndex: number; panePid: number; currentCmd: string; workingDir: string; serverId: string; serverLabel: string }[]; error: null }) => void;
     const fetchPromise = new Promise<{
-      agents: Array<{ agentName: string; sessionName: string; windowName: string; paneId: string; paneIndex: number; panePid: number; currentCmd: string; workingDir: string; serverId: string; serverLabel: string }>;
+      agents: { agentName: string; sessionName: string; windowName: string; paneId: string; paneIndex: number; panePid: number; currentCmd: string; workingDir: string; serverId: string; serverLabel: string }[];
       error: null;
     }>((resolve) => {
       resolveFetch = resolve;

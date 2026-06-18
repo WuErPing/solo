@@ -215,6 +215,13 @@ function TmuxPaneScreenInner() {
     });
   }, [autoRefresh, setAutoRefresh]);
 
+  const handleTerminalThemeChange = useCallback(
+    (id: TerminalThemeId) => {
+      updateSettings({ terminalTheme: id });
+    },
+    [updateSettings],
+  );
+
   if (!agent) {
     return (
       <View style={styles.container}>
@@ -262,13 +269,6 @@ function TmuxPaneScreenInner() {
         />
       </View>
     </Pressable>
-  );
-
-  const handleTerminalThemeChange = useCallback(
-    (id: TerminalThemeId) => {
-      updateSettings({ terminalTheme: id });
-    },
-    [updateSettings],
   );
 
   const themePicker = (

@@ -47,6 +47,14 @@ module.exports = defineConfig([
     },
   },
   {
+    rules: {
+      "import/no-unresolved": [
+        "error",
+        { ignore: ["@getsolo/highlight"] },
+      ],
+    },
+  },
+  {
     ignores: ["dist/*"],
   },
 ]);
