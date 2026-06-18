@@ -216,9 +216,10 @@ func (t *TerminalProcess) Cols() uint16 {
 }
 
 func (t *TerminalProcess) readLoop() {
+	ptmx := t.ptmx
 	buf := make([]byte, 4096)
 	for {
-		n, err := t.ptmx.Read(buf)
+		n, err := ptmx.Read(buf)
 		if n > 0 {
 			data := make([]byte, n)
 			copy(data, buf[:n])
