@@ -102,7 +102,7 @@ jobs:
 
       - name: Test app (unit) + coverage
         working-directory: app
-        run: npm run test -- --coverage
+        run: npm run test -- --coverage --project=unit
 
       - name: Test app-bridge + coverage
         working-directory: app-bridge
