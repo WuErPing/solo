@@ -8,7 +8,7 @@ APP_PORT := 19000
 GO_MODULES := protocol cli daemon relay-go
 GO_TEST_FLAGS := -short -v -race -count=1 -timeout=10m -tags external_api
 
-.PHONY: all darwin linux clean dev dev-web dev-daemon run-daemon stop stop-all restart test test-go test-app $(BINS)
+.PHONY: all darwin linux clean dev dev-web dev-daemon run-daemon stop stop-all restart ci test test-go test-app typecheck lint $(BINS)
 
 all: darwin linux
 
@@ -92,7 +92,18 @@ restart: darwin
 	@$(OUTPUT)/darwin/solo > /tmp/solo-daemon.log 2>&1 & \
 	echo "Daemon started (PID: $$!), logs at /tmp/solo-daemon.log"
 
-# Test targets (mirror CI)
+# CI targets (mirror GitHub Actions)
+
+ci: lint test typecheck
+
+lint:
+	@echo "=== Linting packages/highlight ==="
+	cd packages/highlight && npx eslint src/
+	@echo "=== Linting app-bridge ==="
+	cd app-bridge && npx eslint src/
+	@echo "=== Linting app ==="
+	cd $(APP_DIR) && npx expo lint --max-warnings 0
+	@echo "=== All lint passed ==="
 
 test: test-go test-app
 
@@ -104,12 +115,28 @@ test-go:
 	done
 	@echo "=== All Go tests passed ==="
 
-test-app:
+test-app: build-workspace-deps
+	@echo "=== Testing packages/highlight ==="
+	cd packages/highlight && npm test
 	@echo "=== Testing app (unit) ==="
 	cd $(APP_DIR) && npm run test -- --coverage --project=unit
 	@echo "=== Testing app-bridge ==="
 	cd app-bridge && npm test -- --coverage
 	@echo "=== All app tests passed ==="
+
+build-workspace-deps:
+	@echo "=== Building workspace dependencies ==="
+	cd $(APP_DIR) && npm run build:workspace-deps
+	@echo "=== Workspace dependencies built ==="
+
+typecheck: build-workspace-deps
+	@echo "=== Typechecking packages/highlight ==="
+	cd packages/highlight && npx tsc --noEmit
+	@echo "=== Typechecking app ==="
+	cd $(APP_DIR) && npx tsc --noEmit
+	@echo "=== Typechecking app-bridge ==="
+	cd app-bridge && npx tsc --noEmit
+	@echo "=== All typecheck passed ==="
 
 clean:
 	rm -rf $(OUTPUT)/*
