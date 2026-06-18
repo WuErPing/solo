@@ -16,6 +16,7 @@ type fakeGitCommander struct {
 	wg      sync.WaitGroup // tracks all in-flight calls; drained by installFake cleanup
 	calls   []fakeGitCall
 	handler func(dir string, args []string) (string, error)
+	closed  bool // set by cleanup to prevent new wg.Add after Wait starts
 }
 
 type fakeGitCall struct {
@@ -37,11 +38,15 @@ func (f *fakeGitCommander) Output(dir string, args ...string) (string, error) {
 }
 
 func (f *fakeGitCommander) recordAndDispatch(dir string, args []string) (string, error) {
-	f.wg.Add(1)
-	defer f.wg.Done()
 	f.mu.Lock()
+	if f.closed {
+		f.mu.Unlock()
+		return "", nil
+	}
+	f.wg.Add(1)
 	f.calls = append(f.calls, fakeGitCall{Dir: dir, Args: append([]string{}, args...)})
 	f.mu.Unlock()
+	defer f.wg.Done()
 	if f.handler != nil {
 		return f.handler(dir, args)
 	}
@@ -70,7 +75,10 @@ func installFake(t *testing.T, fake *fakeGitCommander) {
 	setGitCmd(fake)
 	t.Cleanup(func() {
 		setGitCmd(orig) // stop routing new calls to fake
-		fake.wg.Wait()  // drain any goroutines already inside recordAndDispatch
+		fake.mu.Lock()
+		fake.closed = true // prevent new wg.Add after this point
+		fake.mu.Unlock()
+		fake.wg.Wait() // drain any goroutines already inside recordAndDispatch
 	})
 }
 

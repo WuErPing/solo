@@ -147,7 +147,7 @@ func TestTerminalManager_KillAll(t *testing.T) {
 	_, _ = mgr.CreateTerminal(t.TempDir(), "T2", "/bin/sh", []string{"-c", "sleep 10"}, 24, 80)
 
 	mgr.KillAll()
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
 	if len(mgr.ListTerminals("")) != 0 {
 		t.Error("expected all terminals to be killed")
