@@ -15,7 +15,7 @@ import {
   Pencil,
   CircleDot,
   GitPullRequest,
-  Github,
+  Code,
   Paperclip,
 } from "lucide-react-native";
 import Animated from "react-native-reanimated";
@@ -1246,7 +1246,7 @@ export function Composer({
       {
         id: "github",
         label: "Add issue or PR",
-        icon: <ThemedGithub size={ICON_SIZE.md} uniProps={iconForegroundMutedMapping} />,
+        icon: <ThemedCode size={ICON_SIZE.md} uniProps={iconForegroundMutedMapping} />,
         onSelect: () => {
           setIsGithubPickerOpen(true);
         },
@@ -1583,7 +1583,7 @@ const ThemedPencil = withUnistyles(Pencil);
 const ThemedGitPullRequest = withUnistyles(GitPullRequest);
 const ThemedCircleDot = withUnistyles(CircleDot);
 const ThemedPaperclip = withUnistyles(Paperclip);
-const ThemedGithub = withUnistyles(Github);
+const ThemedCode = withUnistyles(Code);
 
 const iconForegroundMapping = (theme: Theme) => ({ color: theme.colors.foreground });
 const iconForegroundMutedMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });

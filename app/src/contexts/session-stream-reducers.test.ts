@@ -273,7 +273,7 @@ describe("processTimelineResponse", () => {
       },
     });
 
-    expect(result.tail.map((item) => ({ kind: item.kind, text: item.text }))).toEqual([
+    expect(result.tail.map((item) => ({ kind: item.kind, text: "text" in item ? item.text : undefined }))).toEqual([
       { kind: "user_message", text: "hi" },
       { kind: "thought", text: "Thinking" },
       { kind: "assistant_message", text: "Hi there! What can I help you with?" },

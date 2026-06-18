@@ -146,7 +146,7 @@ vi.mock("@/utils/ansi-parser", () => ({
 const { autoRefreshRef, contentRef, terminalThemeRef } = vi.hoisted(() => ({
   autoRefreshRef: { current: true },
   contentRef: { current: "$ ls\nfile1.txt\nfile2.txt\n$ _" },
-  terminalThemeRef: { current: "light" as const },
+  terminalThemeRef: { current: "light" as string },
 }));
 
 vi.mock("@/hooks/use-tmux-capture-pane", () => ({

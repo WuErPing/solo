@@ -5,6 +5,7 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ScheduleInspectResult } from "@/hooks/use-schedule-inspect";
+import type { StoredSchedule } from "@server/server/schedule/types";
 import { ScheduleDetailScreen } from "@/screens/schedule-detail-screen";
 
 const { inspectResult } = vi.hoisted(() => ({
@@ -140,7 +141,7 @@ vi.mock("@/utils/cron-timezone", () => ({
   },
 }));
 
-function makeStoredSchedule(overrides: Record<string, unknown> = {}) {
+function makeStoredSchedule(overrides: Record<string, unknown> = {}): StoredSchedule {
   return {
     id: "schedule-1",
     name: "Daily Report",
@@ -157,7 +158,7 @@ function makeStoredSchedule(overrides: Record<string, unknown> = {}) {
     maxRuns: null,
     runs: [],
     ...overrides,
-  };
+  } as StoredSchedule;
 }
 
 function makeInspectResult(overrides: Partial<ScheduleInspectResult> = {}): ScheduleInspectResult {

@@ -30,7 +30,7 @@ export function useCreateSchedule({ serverId }: { serverId: string }): CreateSch
       const payload = await client.scheduleCreate({
         prompt: input.prompt,
         cadence: input.cadence,
-        target: input.target,
+        target: input.target as Parameters<typeof client.scheduleCreate>[0]["target"],
         ...(input.name !== undefined ? { name: input.name } : {}),
         ...(typeof input.maxRuns === "number" ? { maxRuns: input.maxRuns } : {}),
         ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),

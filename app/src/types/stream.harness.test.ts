@@ -247,7 +247,7 @@ function buildToolEvent({
     type: "timeline",
     provider: "claude",
     item,
-  };
+  } as AgentStreamEventPayload;
 }
 
 function extractHarnessSnapshots(

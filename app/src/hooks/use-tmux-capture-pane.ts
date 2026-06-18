@@ -113,8 +113,9 @@ export function useTmuxCapturePane(
       }
 
       const newContent = payload.content ?? "";
-      const newDefaultFg = payload.defaultFg ?? null;
-      const newDefaultBg = payload.defaultBg ?? null;
+      const payloadWithColors = payload as typeof payload & { defaultFg?: string | null; defaultBg?: string | null };
+      const newDefaultFg = payloadWithColors.defaultFg ?? null;
+      const newDefaultBg = payloadWithColors.defaultBg ?? null;
       if (
         prevResultRef.current &&
         prevResultRef.current.content === newContent &&

@@ -6,6 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SchedulesResult } from "@/hooks/use-schedules";
 import type { ScheduleMutationsResult } from "@/hooks/use-schedule-mutations";
+import type { ScheduleSummary } from "@server/server/schedule/types";
 import { SchedulesScreen } from "@/screens/schedules-screen";
 
 const { schedulesResult, mutationsResult } = vi.hoisted(() => ({
@@ -158,7 +159,7 @@ vi.mock("@/utils/host-routes", () => ({
   buildHostOpenProjectRoute: (serverId: string) => `/h/${serverId}/open-project`,
 }));
 
-function makeScheduleSummary(overrides: Record<string, unknown> = {}) {
+function makeScheduleSummary(overrides: Record<string, unknown> = {}): ScheduleSummary {
   return {
     id: "schedule-1",
     name: "Daily Report",
@@ -174,7 +175,7 @@ function makeScheduleSummary(overrides: Record<string, unknown> = {}) {
     expiresAt: null,
     maxRuns: null,
     ...overrides,
-  };
+  } as ScheduleSummary;
 }
 
 function makeSchedulesResult(overrides: Partial<SchedulesResult> = {}): SchedulesResult {

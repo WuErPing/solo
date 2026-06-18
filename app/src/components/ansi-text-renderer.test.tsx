@@ -32,9 +32,9 @@ vi.mock("@/utils/ansi-color-palette", () => ({
 }));
 
 import { AnsiTextContent } from "./ansi-text-renderer";
-import type { AnsiSegment } from "@/utils/ansi-parser";
+import type { AnsiSegment, AnsiStyle } from "@/utils/ansi-parser";
 
-const stableSegments: AnsiSegment[] = [{ text: "hello world", style: {} }];
+const stableSegments: AnsiSegment[] = [{ text: "hello world", style: {} as AnsiStyle }];
 const stableTerminalColors = {
   background: "#000",
   foreground: "#fff",
@@ -84,7 +84,7 @@ describe("AnsiTextContent", () => {
     );
     expect(container.textContent).toContain("hello world");
 
-    const newSegments: AnsiSegment[] = [{ text: "changed", style: {} }];
+    const newSegments: AnsiSegment[] = [{ text: "changed", style: {} as AnsiStyle }];
     rerender(<AnsiTextContent segments={newSegments} terminalColors={stableTerminalColors} />);
     expect(container.textContent).toContain("changed");
   });

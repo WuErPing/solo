@@ -217,7 +217,7 @@ function appendUserMessage(
 
   const existing =
     existingIndex >= 0 && state[existingIndex]?.kind === "user_message"
-      ? state[existingIndex]
+      ? (state[existingIndex] as UserMessageItem)
       : null;
   const preservedImages = existing?.images;
 

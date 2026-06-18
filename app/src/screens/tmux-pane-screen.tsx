@@ -78,7 +78,7 @@ function TmuxPaneScreenInner() {
       resolveTerminalColors(
         terminalThemeId,
         theme.colors.terminal,
-        TERMINAL_THEME_PRESETS[terminalThemeId as Exclude<typeof terminalThemeId, "system">],
+        TERMINAL_THEME_PRESETS[terminalThemeId as Exclude<typeof terminalThemeId, "system" | "auto">],
       ),
     [terminalThemeId, theme.colors.terminal],
   );
@@ -114,7 +114,7 @@ function TmuxPaneScreenInner() {
 
   const renderLine = useCallback(
     ({ item }: ListRenderItemInfo<AnsiSegment[]>) => (
-      <AnsiTextLine segments={item} style={[styles.contentText, { color: terminalColors.foreground }]} terminalColors={terminalColors} selectable={selectMode} />
+      <AnsiTextLine segments={item} style={{ ...styles.contentText, color: terminalColors.foreground }} terminalColors={terminalColors} selectable={selectMode} />
     ),
     [terminalColors, selectMode],
   );

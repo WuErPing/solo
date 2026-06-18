@@ -126,6 +126,7 @@ const mockExitedAgent = {
   serverId: "s1", paneId: "%2", agentName: "claude", sessionName: "dev",
   windowName: "main", paneIndex: 2, panePid: 300, currentCmd: "bash",
   workingDir: "/c", serverLabel: "local", status: "exited", lastContentChange: 0,
+  lastContentChangeHHMM: MOCK_EXPECTED_HHMM, lastContentChangeAgo: MOCK_EXPECTED_AGO,
 };
 
 type MockAgent = (typeof mockAgents)[number] & { activity?: string; status?: string };

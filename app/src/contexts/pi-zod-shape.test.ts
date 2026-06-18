@@ -24,8 +24,11 @@ describe("Pi Zod shape", () => {
     };
 
     const parsed = WSOutboundMessageSchema.parse(message);
-    const event = parsed.message.payload.event;
-    expect(event.type).toBe("turn_completed");
+    if (parsed.type !== "session") throw new Error("expected session type");
+    const { message: msg } = parsed;
+    if (msg.type !== "agent_stream") throw new Error("expected agent_stream");
+    const event = msg.payload.event;
+    if (event.type !== "turn_completed") throw new Error("expected turn_completed");
     expect(event.provider).toBe("pi");
     expect(event.usage).toBeDefined();
     expect(event.usage?.inputTokens).toBe(1);
@@ -54,9 +57,13 @@ describe("Pi Zod shape", () => {
     };
 
     const parsed = WSOutboundMessageSchema.parse(message);
-    const event = parsed.message.payload.event;
-    expect(event.type).toBe("timeline");
-    expect(event.item.type).toBe("reasoning");
-    expect(event.item.text).toBe("Let me think...");
+    if (parsed.type !== "session") throw new Error("expected session type");
+    const { message: msg } = parsed;
+    if (msg.type !== "agent_stream") throw new Error("expected agent_stream");
+    const event = msg.payload.event;
+    if (event.type !== "timeline") throw new Error("expected timeline");
+    const { item } = event;
+    if (item.type !== "reasoning") throw new Error("expected reasoning");
+    expect(item.text).toBe("Let me think...");
   });
 });

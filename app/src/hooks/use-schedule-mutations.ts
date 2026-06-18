@@ -94,7 +94,7 @@ export function useScheduleMutations({ serverId }: ScheduleMutationsInput): Sche
         id: input.scheduleId,
         prompt: input.prompt,
         cadence: input.cadence,
-        target: input.target,
+        target: input.target as Parameters<typeof client.scheduleUpdate>[0]["target"],
         ...(input.name ? { name: input.name } : {}),
       });
       if (payload.error) {

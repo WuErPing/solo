@@ -270,7 +270,7 @@ function makeFetchedAgentResult(agent: Agent): Awaited<ReturnType<DaemonClient["
       capabilities: agent.capabilities,
       currentModeId: agent.currentModeId,
       availableModes: agent.availableModes,
-      pendingPermissions: agent.pendingPermissions,
+      pendingPermissions: [] as any[],
       persistence: agent.persistence,
       title: agent.title,
       cwd: agent.cwd,

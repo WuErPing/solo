@@ -184,7 +184,7 @@ export function SchedulesDashboardScreen() {
         color: theme.colors.foregroundMuted,
         count: completedCount,
       },
-    ].filter((g) => g.count > 0);
+    ].filter((g) => g.count > 0) as StatusGroup[];
   }, [schedules, theme]);
 
   const displayedSchedules = useMemo(() => {

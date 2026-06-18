@@ -126,10 +126,10 @@ function AgentCard({
               return (
                 <AnsiTextContent
                   segments={parseAnsi(title)}
-                  style={[
-                    styles.statusLineText,
-                    { color: theme.colors.foreground },
-                  ]}
+                  style={{
+                    ...styles.statusLineText,
+                    color: theme.colors.foreground,
+                  }}
                 />
               );
             })() : null}
