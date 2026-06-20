@@ -104,7 +104,14 @@ const { contentRef, autoRefreshRef, paneColsRef, hookArgsRef, mockEmulatorHandle
   emulatorPropsRef: {
     current: {
       forceCols: undefined as number | undefined,
+      fitToWidth: false,
       allowHorizontalScroll: false,
+      dom: undefined as
+        | {
+            scrollEnabled?: boolean;
+            style?: { width?: number | string; height?: string };
+          }
+        | undefined,
     },
   },
 }));
@@ -135,24 +142,27 @@ vi.mock("@/hooks/use-tmux-capture-pane", () => ({
 
 vi.mock("@/components/terminal-emulator", () => ({
   default: function MockTerminalEmulator({
-    onResize,
     snapshotText,
     forceCols,
+    fitToWidth,
     allowHorizontalScroll,
+    dom,
   }: {
-    onResize?: (size: { rows: number; cols: number }) => void;
     snapshotText?: string;
     forceCols?: number;
+    fitToWidth?: boolean;
     allowHorizontalScroll?: boolean;
+    dom?: {
+      scrollEnabled?: boolean;
+      style?: { width?: number | string; height?: string };
+    };
   }) {
     emulatorPropsRef.current = {
       forceCols,
+      fitToWidth: fitToWidth ?? false,
       allowHorizontalScroll: allowHorizontalScroll ?? false,
+      dom,
     };
-
-    React.useEffect(() => {
-      onResize?.({ rows: 24, cols: 80 });
-    }, [onResize]);
 
     React.useEffect(() => {
       if (!snapshotText) return;
@@ -210,7 +220,7 @@ describe("TmuxPaneXtermScreen", () => {
     autoRefreshRef.current = true;
     paneColsRef.current = null;
     hookArgsRef.current.cols = undefined;
-    emulatorPropsRef.current = { forceCols: undefined, allowHorizontalScroll: false };
+    emulatorPropsRef.current = { forceCols: undefined, fitToWidth: false, allowHorizontalScroll: false, dom: undefined };
   });
 
   it("renders the xterm surface", () => {
@@ -239,9 +249,12 @@ describe("TmuxPaneXtermScreen", () => {
     expect(mockEmulatorHandle.writeOutput).toHaveBeenCalledWith(contentRef.current);
   });
 
-  it("passes measured cols to useTmuxCapturePane", () => {
+  it("always omits cols to fetch the pane's native-width content", () => {
+    paneColsRef.current = 120;
     render(<TmuxPaneXtermScreen />);
-    expect(hookArgsRef.current.cols).toBe(80);
+    expect(hookArgsRef.current.cols).toBeUndefined();
+    fireEvent.click(screen.getByTestId("tmux-xterm-width-toggle-button"));
+    expect(hookArgsRef.current.cols).toBeUndefined();
   });
 
   it("sends typed input with Enter when the send button is pressed", async () => {
@@ -313,19 +326,38 @@ describe("TmuxPaneXtermScreen", () => {
     expect(mockLoadMoreHistory).toHaveBeenCalled();
   });
 
-  it("toggles to original mode when Width button is pressed", () => {
+  it("toggles between fit (1:1) and original (Fit) labels", () => {
     render(<TmuxPaneXtermScreen />);
     const button = screen.getByTestId("tmux-xterm-width-toggle-button");
-    expect(button.textContent).toBe("Width");
+    expect(button.textContent).toBe("1:1");
     fireEvent.click(button);
     expect(button.textContent).toBe("Fit");
+    fireEvent.click(button);
+    expect(button.textContent).toBe("1:1");
   });
 
-  it("passes forceCols to TerminalEmulator in original mode", () => {
+  it("passes forceCols=paneCols in fit mode", () => {
+    paneColsRef.current = 120;
+    render(<TmuxPaneXtermScreen />);
+    expect(emulatorPropsRef.current.forceCols).toBe(120);
+  });
+
+  it("passes forceCols=paneCols in original mode", () => {
     paneColsRef.current = 120;
     render(<TmuxPaneXtermScreen />);
     fireEvent.click(screen.getByTestId("tmux-xterm-width-toggle-button"));
     expect(emulatorPropsRef.current.forceCols).toBe(120);
+  });
+
+  it("passes fitToWidth=true in fit mode", () => {
+    render(<TmuxPaneXtermScreen />);
+    expect(emulatorPropsRef.current.fitToWidth).toBe(true);
+  });
+
+  it("passes fitToWidth=false in original mode", () => {
+    render(<TmuxPaneXtermScreen />);
+    fireEvent.click(screen.getByTestId("tmux-xterm-width-toggle-button"));
+    expect(emulatorPropsRef.current.fitToWidth).toBe(false);
   });
 
   it("passes allowHorizontalScroll=true in original mode", () => {
@@ -339,18 +371,17 @@ describe("TmuxPaneXtermScreen", () => {
     expect(emulatorPropsRef.current.allowHorizontalScroll).toBe(false);
   });
 
-  it("omits cols argument in original mode", () => {
+  it("uses the same flex:1 DOM props in fit mode (root div is the scroller, not an RN ScrollView)", () => {
     render(<TmuxPaneXtermScreen />);
-    expect(hookArgsRef.current.cols).toBe(80);
-    fireEvent.click(screen.getByTestId("tmux-xterm-width-toggle-button"));
-    expect(hookArgsRef.current.cols).toBeUndefined();
+    expect(emulatorPropsRef.current.dom?.scrollEnabled).toBe(true);
+    expect(emulatorPropsRef.current.dom?.style).toEqual({ flex: 1 });
   });
 
-  it("restores cols argument when switching back to fit mode", () => {
+  it("uses the same flex:1 DOM props in 1:1 mode (root div is the horizontal scroller)", () => {
+    paneColsRef.current = 120;
     render(<TmuxPaneXtermScreen />);
     fireEvent.click(screen.getByTestId("tmux-xterm-width-toggle-button"));
-    expect(hookArgsRef.current.cols).toBeUndefined();
-    fireEvent.click(screen.getByTestId("tmux-xterm-width-toggle-button"));
-    expect(hookArgsRef.current.cols).toBe(80);
+    expect(emulatorPropsRef.current.dom?.scrollEnabled).toBe(true);
+    expect(emulatorPropsRef.current.dom?.style).toEqual({ flex: 1 });
   });
 });

@@ -25,7 +25,7 @@ export interface TerminalEmulatorRuntimeMountInput {
   theme: ITheme;
   convertEol?: boolean;
   forceCols?: number;
-  allowHorizontalScroll?: boolean;
+  fitToWidth?: boolean;
 }
 
 export interface TerminalEmulatorRuntimeCallbacks {
@@ -155,7 +155,7 @@ export class TerminalEmulatorRuntime {
   private inFlightOutputOperationTimeout: ReturnType<typeof setTimeout> | null = null;
   private suppressInput = false;
   private forceCols: number | undefined = undefined;
-  private allowHorizontalScroll = false;
+  private fitToWidth = false;
   private restoreViewportStyles: (() => void) | null = null;
 
   private handleVisibilityRestore = (): void => {
@@ -188,16 +188,11 @@ export class TerminalEmulatorRuntime {
     this.fitAndEmitResize?.(true);
   }
 
-  setAllowHorizontalScroll(input: { allowHorizontalScroll: boolean }): void {
-    if (this.allowHorizontalScroll === input.allowHorizontalScroll) {
+  setFitToWidth(input: { fitToWidth: boolean }): void {
+    if (this.fitToWidth === input.fitToWidth) {
       return;
     }
-    this.allowHorizontalScroll = input.allowHorizontalScroll;
-    this.restoreViewportStyles?.();
-    const host = this.terminal?.element?.parentElement as HTMLDivElement | null;
-    if (host) {
-      this.restoreViewportStyles = this.applyViewportTouchStyles({ host, allowHorizontalScroll: this.allowHorizontalScroll });
-    }
+    this.fitToWidth = input.fitToWidth;
     this.fitAndEmitResize?.(true);
   }
 
@@ -321,11 +316,10 @@ export class TerminalEmulatorRuntime {
     const restoreDocumentStyles = this.applyDocumentBoundsStyles({
       root: input.root,
     });
-    this.allowHorizontalScroll = input.allowHorizontalScroll ?? false;
     this.forceCols = typeof input.forceCols === "number" && input.forceCols > 0 ? input.forceCols : undefined;
+    this.fitToWidth = input.fitToWidth ?? false;
     this.restoreViewportStyles = this.applyViewportTouchStyles({
       host: input.host,
-      allowHorizontalScroll: this.allowHorizontalScroll,
     });
 
     this.terminal = terminal;
@@ -358,40 +352,95 @@ export class TerminalEmulatorRuntime {
       let nextCols = currentTerminal.cols;
       const forcedCols = this.forceCols;
       if (typeof forcedCols === "number" && forcedCols > 0) {
-        // First fit to the container so we can measure the real cell width at
-        // the current font size, then expand the host to the desired width.
+        // Fit to the container first so we can measure the real cell size at
+        // the current font size, then lay the host out at the native pane width.
         try {
           currentFitAddon.fit();
         } catch {
           return;
         }
         const fittedCols = currentTerminal.cols;
-        const fittedElementWidth = currentTerminal.element?.getBoundingClientRect().width ?? 0;
-        const cellWidth = fittedCols > 0 && fittedElementWidth > 0 ? fittedElementWidth / fittedCols : currentRootWidth / Math.max(1, fittedCols);
+        const fittedRows = currentTerminal.rows;
+        const fittedElement = currentTerminal.element;
+        // offsetWidth/offsetHeight are layout sizes and are NOT affected by the
+        // CSS transform we apply for fit-to-width. getBoundingClientRect would
+        // return the scaled rect and corrupt the cell-size measurement.
+        const fittedElementWidth = fittedElement?.offsetWidth ?? 0;
+        const fittedElementHeight = fittedElement?.offsetHeight ?? 0;
+        const cellWidth =
+          fittedCols > 0 && fittedElementWidth > 0
+            ? fittedElementWidth / fittedCols
+            : currentRootWidth / Math.max(1, fittedCols);
+        const cellHeight =
+          fittedRows > 0 && fittedElementHeight > 0
+            ? fittedElementHeight / fittedRows
+            : currentRootHeight / Math.max(1, fittedRows);
         const desiredHostWidth = Math.max(1, Math.ceil(cellWidth * forcedCols));
-        input.host.style.width = `${desiredHostWidth}px`;
-        input.host.style.flex = "0 0 auto";
-        input.root.style.minWidth = `${desiredHostWidth}px`;
-        input.root.style.width = "auto";
-        try {
-          currentTerminal.resize(forcedCols, currentTerminal.rows);
-          nextRows = currentTerminal.rows;
-          nextCols = currentTerminal.cols;
-        } catch {
-          // fall through to fit()
+
+        // fitToWidth shrinks the native-width render so the whole pane is
+        // visible without rewrapping. Never upscale: if the pane already fits,
+        // render at 1:1.
+        const scale = this.fitToWidth ? Math.min(1, currentRootWidth / desiredHostWidth) : 1;
+
+        if (scale < 1) {
+          // Each scaled row is shorter, so show more rows to fill the height.
+          const fitRows = Math.max(1, Math.floor(currentRootHeight / (cellHeight * scale)));
           try {
-            currentFitAddon.fit();
+            currentTerminal.resize(forcedCols, fitRows);
           } catch {
-            return;
+            try {
+              currentFitAddon.fit();
+            } catch {
+              return;
+            }
           }
           nextRows = currentTerminal.rows;
           nextCols = currentTerminal.cols;
+          input.host.style.width = `${desiredHostWidth}px`;
+          input.host.style.flex = "0 0 auto";
+          input.host.style.transform = `scale(${scale})`;
+          input.host.style.transformOrigin = "top left";
+          // Root stays at container size (set by the component); the scaled
+          // host visually fits within it. Clear any 1:1 width overrides.
+          input.root.style.minWidth = "";
+          input.root.style.width = "100%";
+          input.root.style.overflow = "hidden";
+        } else {
+          // 1:1 native width. The root div is the horizontal scroller: it stays
+          // at container width (100%, overflow-x: auto) and the host is laid
+          // out at the full native width so the root can pan to reveal it.
+          // The scroller must live INSIDE the DOM component (iframe/WebView)
+          // because pointer events inside it cannot reach an outer RN
+          // ScrollView.
+          const nativeRows = Math.max(1, Math.floor(currentRootHeight / cellHeight));
+          try {
+            currentTerminal.resize(forcedCols, nativeRows);
+          } catch {
+            try {
+              currentFitAddon.fit();
+            } catch {
+              return;
+            }
+          }
+          nextRows = currentTerminal.rows;
+          nextCols = currentTerminal.cols;
+          input.host.style.width = `${desiredHostWidth}px`;
+          input.host.style.flex = "0 0 auto";
+          input.host.style.transform = "";
+          input.host.style.transformOrigin = "";
+          input.root.style.minWidth = "";
+          input.root.style.width = "100%";
+          input.root.style.overflowX = "auto";
+          input.root.style.overflowY = "hidden";
         }
       } else {
         input.host.style.width = "100%";
         input.host.style.flex = "1";
+        input.host.style.transform = "";
+        input.host.style.transformOrigin = "";
         input.root.style.minWidth = "";
         input.root.style.width = "100%";
+        input.root.style.overflow = "hidden";
         try {
           currentFitAddon.fit();
         } catch {
@@ -723,7 +772,7 @@ export class TerminalEmulatorRuntime {
     this.lastSize = null;
     this.suppressInput = false;
     this.forceCols = undefined;
-    this.allowHorizontalScroll = false;
+    this.fitToWidth = false;
     this.restoreViewportStyles = null;
   }
 
@@ -880,9 +929,8 @@ export class TerminalEmulatorRuntime {
     };
   }
 
-  private applyViewportTouchStyles(input: { host: HTMLDivElement; allowHorizontalScroll?: boolean }): () => void {
+  private applyViewportTouchStyles(input: { host: HTMLDivElement }): () => void {
     const viewportElement = input.host.querySelector<HTMLElement>(".xterm-viewport");
-    const screenElement = input.host.querySelector<HTMLElement>(".xterm-screen");
 
     const previousViewportOverscroll = viewportElement?.style.overscrollBehavior ?? "";
     const previousViewportTouchAction = viewportElement?.style.touchAction ?? "";
@@ -891,21 +939,19 @@ export class TerminalEmulatorRuntime {
     const previousViewportPointerEvents = viewportElement?.style.pointerEvents ?? "";
     const previousViewportWebkitOverflowScrolling =
       viewportElement?.style.getPropertyValue("-webkit-overflow-scrolling") ?? "";
-    const previousScreenMinWidth = screenElement?.style.minWidth ?? "";
-    const allowHorizontalScroll = input.allowHorizontalScroll ?? false;
+
     if (viewportElement) {
       viewportElement.style.overscrollBehavior = "none";
-      viewportElement.style.touchAction = allowHorizontalScroll ? "pan-x pan-y" : "pan-y";
+      // overflow-x is always hidden: the viewport must never scroll
+      // horizontally (no competing inner scroller). touch-action follows the
+      // mode: 1:1 (fitToWidth false) allows pan-x so horizontal touch drags
+      // reach the outer RN ScrollView; fit (fitToWidth true) has no outer
+      // horizontal scroller, so pan-y is enough.
+      viewportElement.style.touchAction = this.fitToWidth ? "pan-y" : "pan-x pan-y";
       viewportElement.style.overflowY = "auto";
-      viewportElement.style.overflowX = allowHorizontalScroll ? "auto" : "hidden";
+      viewportElement.style.overflowX = "hidden";
       viewportElement.style.pointerEvents = "auto";
       viewportElement.style.setProperty("-webkit-overflow-scrolling", "touch");
-    }
-    if (screenElement && allowHorizontalScroll) {
-      // Prevent xterm from collapsing the screen to the viewport width when
-      // horizontal scrolling is enabled; the screen should stay at its
-      // intrinsic cols*cellWidth size.
-      screenElement.style.minWidth = "max-content";
     }
 
     return () => {
@@ -919,9 +965,6 @@ export class TerminalEmulatorRuntime {
           "-webkit-overflow-scrolling",
           previousViewportWebkitOverflowScrolling,
         );
-      }
-      if (screenElement) {
-        screenElement.style.minWidth = previousScreenMinWidth;
       }
     };
   }

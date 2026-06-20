@@ -54,21 +54,34 @@ function createTerminalHost(input: {
   width: number;
   height: number;
   forceCols?: number;
-  allowHorizontalScroll?: boolean;
+  fitToWidth?: boolean;
 }): MountedTerminal {
+  // outer: fixed-size "WebView" that constrains the layout.
+  const outer = document.createElement("div");
+  outer.style.width = `${input.width}px`;
+  outer.style.height = `${input.height}px`;
+  outer.style.position = "fixed";
+  outer.style.left = "0";
+  outer.style.top = "0";
+  outer.style.overflow = "hidden";
+
+  // rootContainer: normal-flow so 100% resolves to outer (not the viewport).
+  // The runtime treats root.parentElement as the root container.
+  const rootContainer = document.createElement("div");
+  rootContainer.style.width = "100%";
+  rootContainer.style.height = "100%";
+  outer.appendChild(rootContainer);
+
   const root = document.createElement("div");
-  root.style.width = `${input.width}px`;
-  root.style.height = `${input.height}px`;
-  root.style.position = "fixed";
-  root.style.left = "0";
-  root.style.top = "0";
-  root.style.overflow = "hidden";
+  root.style.width = "100%";
+  root.style.height = "100%";
+  rootContainer.appendChild(root);
 
   const host = document.createElement("div");
   host.style.width = "100%";
   host.style.height = "100%";
   root.appendChild(host);
-  document.body.appendChild(root);
+  document.body.appendChild(outer);
 
   const sizes: TerminalSize[] = [];
   const inputs: string[] = [];
@@ -93,7 +106,7 @@ function createTerminalHost(input: {
       cursor: "#e6e6e6",
     },
     ...(input.forceCols != null ? { forceCols: input.forceCols } : {}),
-    ...(input.allowHorizontalScroll != null ? { allowHorizontalScroll: input.allowHorizontalScroll } : {}),
+    ...(input.fitToWidth != null ? { fitToWidth: input.fitToWidth } : {}),
   });
 
   const mounted = { host, root, runtime, inputs, sizes };
@@ -120,7 +133,7 @@ function getBrowserTerminal(): BrowserTerminal {
 afterEach(() => {
   for (const mounted of mountedTerminals.splice(0)) {
     mounted.runtime.unmount();
-    mounted.root.remove();
+    mounted.root.parentElement?.parentElement?.remove();
   }
 });
 
@@ -229,38 +242,46 @@ describe("terminal emulator runtime in a real browser", () => {
     expect(reset).not.toHaveBeenCalled();
   });
 
-  it("applies horizontal scroll viewport styles when allowHorizontalScroll is true", async () => {
+  it("never lets the xterm viewport scroll horizontally, even when forceCols expands the host", async () => {
     await page.viewport(900, 600);
-    const mounted = createTerminalHost({ width: 720, height: 360, allowHorizontalScroll: true });
+    // forceCols makes the host wider than the 360px container, mirroring 1:1
+    // mode. The inner viewport must never scroll horizontally (overflow-x
+    // hidden) but must allow pan-x so horizontal touch drags reach the outer
+    // RN ScrollView that wraps the DOM component.
+    const mounted = createTerminalHost({ width: 360, height: 180, forceCols: 120 });
 
-    await waitFor({ predicate: () => mounted.sizes.length > 0 });
+    await waitFor({
+      predicate: () => {
+        const size = latestSize(mounted.sizes);
+        return size.cols === 120;
+      },
+    });
 
     const viewport = mounted.host.querySelector<HTMLElement>(".xterm-viewport");
     const screen = mounted.host.querySelector<HTMLElement>(".xterm-screen");
 
     expect(viewport).not.toBeNull();
     expect(screen).not.toBeNull();
-    expect(viewport!.style.overflowX).toBe("auto");
+    expect(viewport!.style.overflowX).toBe("hidden");
     expect(viewport!.style.touchAction).toBe("pan-x pan-y");
-    expect(screen!.style.minWidth).toBe("max-content");
+    expect(screen!.style.minWidth).toBe("");
   });
 
-  it("restores viewport styles when allowHorizontalScroll is toggled off", async () => {
+  it("uses pan-y on the viewport in fit mode (no outer horizontal scroller)", async () => {
     await page.viewport(900, 600);
-    const mounted = createTerminalHost({ width: 720, height: 360, allowHorizontalScroll: true });
+    const mounted = createTerminalHost({ width: 360, height: 180, forceCols: 120, fitToWidth: true });
 
-    await waitFor({ predicate: () => mounted.sizes.length > 0 });
+    await waitFor({
+      predicate: () => {
+        const size = latestSize(mounted.sizes);
+        return size.cols === 120;
+      },
+    });
 
     const viewport = mounted.host.querySelector<HTMLElement>(".xterm-viewport");
-    const screen = mounted.host.querySelector<HTMLElement>(".xterm-screen");
-    expect(viewport!.style.overflowX).toBe("auto");
-
-    mounted.runtime.setAllowHorizontalScroll({ allowHorizontalScroll: false });
-    await nextFrame();
-
+    expect(viewport).not.toBeNull();
     expect(viewport!.style.overflowX).toBe("hidden");
     expect(viewport!.style.touchAction).toBe("pan-y");
-    expect(screen!.style.minWidth).toBe("");
   });
 
   it("resizes terminal to forced column count", async () => {
@@ -311,6 +332,64 @@ describe("terminal emulator runtime in a real browser", () => {
     await nextFrame();
 
     expect(mounted.host.style.width).toBe("100%");
+  });
+
+  it("scales the host down to fit the container when fitToWidth is set", async () => {
+    await page.viewport(900, 600);
+    // 120 cols at the adaptive font is wider than the 360px container, so
+    // fitToWidth must shrink the native render so the whole pane is visible.
+    const mounted = createTerminalHost({ width: 360, height: 180, forceCols: 120, fitToWidth: true });
+
+    await waitFor({
+      predicate: () => {
+        const size = latestSize(mounted.sizes);
+        return size.cols === 120;
+      },
+    });
+
+    const transform = mounted.host.style.transform;
+    expect(transform).toMatch(/^scale\(0\.\d+\)$/);
+    // The terminal still renders the full native column count.
+    const terminal = window.__soloTerminal as { cols: number } | undefined;
+    expect(terminal).toBeDefined();
+    expect(terminal!.cols).toBe(120);
+  });
+
+  it("makes the root div the horizontal scroller in 1:1 mode (no outer RN ScrollView)", async () => {
+    await page.viewport(900, 600);
+    const mounted = createTerminalHost({ width: 360, height: 180, forceCols: 120, fitToWidth: false });
+
+    await waitFor({
+      predicate: () => {
+        const size = latestSize(mounted.sizes);
+        return size.cols === 120;
+      },
+    });
+
+    // Host is laid out at the full native width (> container).
+    expect(mounted.host.style.transform).toBe("");
+    const hostWidth = parseInt(mounted.host.style.width, 10);
+    expect(hostWidth).toBeGreaterThan(360);
+    // The root is the scroller: container width with overflow-x auto so it
+    // pans to reveal the wide host. This lives inside the DOM component
+    // (iframe/WebView), so pointer events reach it.
+    expect(mounted.root.style.width).toBe("100%");
+    expect(mounted.root.style.overflowX).toBe("auto");
+    expect(mounted.root.style.overflowY).toBe("hidden");
+  });
+
+  it("does not make the root scrollable in fit mode", async () => {
+    await page.viewport(900, 600);
+    const mounted = createTerminalHost({ width: 360, height: 180, forceCols: 120, fitToWidth: true });
+
+    await waitFor({
+      predicate: () => {
+        const size = latestSize(mounted.sizes);
+        return size.cols === 120;
+      },
+    });
+
+    expect(mounted.root.style.overflowX).toBe("hidden");
   });
 
 });

@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -49,70 +48,18 @@ const TERMINAL_EMULATOR_DOM_PROPS = {
   contentInsetAdjustmentBehavior: "never" as const,
 };
 
-function makeOriginalDomProps(estimatedWidth: number) {
-  return {
-    style: { width: estimatedWidth, height: "100%" },
-    matchContents: false,
-    // Let the outer horizontal scroller own horizontal gestures; the WebView
-    // still needs vertical scrolling for xterm history.
-    scrollEnabled: true,
-    nestedScrollEnabled: true,
-    overScrollMode: "never" as const,
-    bounces: false,
-    automaticallyAdjustContentInsets: false,
-    contentInsetAdjustmentBehavior: "never" as const,
-  };
-}
-
-function HorizontalTerminalScroller({
-  estimatedWidth,
-  children,
-}: {
-  estimatedWidth: number;
-  children: React.ReactNode;
-}) {
-  return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator
-      style={{ flex: 1 }}
-      contentContainerStyle={{ minWidth: estimatedWidth, alignItems: "flex-start" }}
-    >
-      {children}
-    </ScrollView>
-  );
-}
-
-function estimateInitialCols(): number {
-  const { width } = Dimensions.get("window");
-  // Mirror the adaptive font-size heuristic in TerminalEmulatorRuntime so the
-  // initial capture-pane width is close to the eventual xterm fit.
-  let fontSize: number;
-  if (width >= 900) fontSize = 14;
-  else if (width >= 600) fontSize = 13;
-  else if (width >= 400) fontSize = 11;
-  else fontSize = 10;
-  // Use a deliberately WIDER average advance than reality. This makes tmux
-  // capture fewer columns than xterm can actually render, preventing wrap
-  // that breaks ASCII box-drawing layouts. A little right-side padding is
-  // acceptable; broken tables are not.
-  const blendedAdvance = 0.78 * 0.85 + 1.15 * 0.15;
-  const cellWidth = fontSize * blendedAdvance;
-  // Reserve generous space for the native scrollbar and safety margin.
-  const usableWidth = Math.max(1, width - 32);
-  return Math.max(1, Math.floor(usableWidth / cellWidth));
-}
-
 function TmuxPaneXtermScreenInner() {
   const { theme } = useUnistyles();
   const agent = useTmuxAgentStore((s) => s.selectedAgent);
-  const [measuredCols, setMeasuredCols] = useState<number | undefined>(estimateInitialCols);
   const [inputText, setInputText] = useState("");
   const [sendError, setSendError] = useState(false);
   const [inputPanelHidden, setInputPanelHidden] = useState(false);
   const [focusRequestToken, setFocusRequestToken] = useState(0);
   const [viewMode, setViewMode] = useState<"fit" | "original">("fit");
 
+  // Always fetch the pane's native-width content (omit cols) so the full tmux
+  // grid is rendered — never a lossy rewrapped approximation. paneCols drives
+  // forceCols so xterm renders at the pane's native column count in both modes.
   const {
     content,
     isLoading,
@@ -124,17 +71,11 @@ function TmuxPaneXtermScreenInner() {
     autoRefresh,
     setAutoRefresh,
     paneCols,
-  } = useTmuxCapturePane(agent?.serverId ?? "", agent?.paneId ?? "", Boolean(agent), viewMode === "fit" ? measuredCols : undefined);
+  } = useTmuxCapturePane(agent?.serverId ?? "", agent?.paneId ?? "", Boolean(agent), undefined);
+
+  const forcedCols = paneCols ?? undefined;
 
   const xtermTheme = useMemo(() => toXtermTheme(theme.colors.terminal), [theme.colors.terminal]);
-
-  const estimatedOriginalWidth = useMemo(() => {
-    if (viewMode !== "original" || paneCols == null || measuredCols == null || measuredCols <= 0) {
-      return undefined;
-    }
-    const { width } = Dimensions.get("window");
-    return Math.max(width, Math.ceil((width / measuredCols) * paneCols));
-  }, [viewMode, paneCols, measuredCols]);
 
   const streamKey = useMemo(
     () => (agent ? `tmux-xterm:${agent.serverId}:${agent.paneId}` : "tmux-xterm:none"),
@@ -174,21 +115,6 @@ function TmuxPaneXtermScreenInner() {
     },
     [sendKeys],
   );
-
-  const handleTerminalResize = useCallback(
-    (size: { rows: number; cols: number }) => {
-      if (size.cols > 0) {
-        setMeasuredCols(size.cols);
-      }
-    },
-    [],
-  );
-
-  const handleInitialColsEstimated = useCallback((cols: number) => {
-    if (cols > 0) {
-      setMeasuredCols((prev) => (prev === undefined ? cols : Math.min(prev, cols)));
-    }
-  }, []);
 
   const title = agent && "agentName" in agent ? agent.agentName : agent?.currentCmd ?? "Tmux Pane";
 
@@ -249,7 +175,7 @@ function TmuxPaneXtermScreenInner() {
           { color: viewMode === "original" ? theme.colors.background : theme.colors.foreground },
         ]}
       >
-        {viewMode === "fit" ? "Width" : "Fit"}
+        {viewMode === "fit" ? "1:1" : "Fit"}
       </Text>
     </Pressable>
   );
@@ -301,38 +227,19 @@ function TmuxPaneXtermScreenInner() {
       />
 
       <View style={styles.terminalContainer}>
-        {viewMode === "original" ? (
-          <HorizontalTerminalScroller estimatedWidth={estimatedOriginalWidth ?? Dimensions.get("window").width}>
-            <TerminalEmulator
-              dom={makeOriginalDomProps(estimatedOriginalWidth ?? Dimensions.get("window").width)}
-              streamKey={`${streamKey}:original`}
-              testId="tmux-xterm-surface"
-              xtermTheme={xtermTheme}
-              convertEol
-              snapshotText={content}
-              onInput={handleTerminalInput}
-              onResize={handleTerminalResize}
-              onInitialColsEstimated={handleInitialColsEstimated}
-              focusRequestToken={focusRequestToken}
-              forceCols={paneCols ?? undefined}
-              allowHorizontalScroll
-            />
-          </HorizontalTerminalScroller>
-        ) : (
-          <TerminalEmulator
-            dom={TERMINAL_EMULATOR_DOM_PROPS}
-            streamKey={streamKey}
-            testId="tmux-xterm-surface"
-            xtermTheme={xtermTheme}
-            convertEol
-            snapshotText={content}
-            onInput={handleTerminalInput}
-            onResize={handleTerminalResize}
-            onInitialColsEstimated={handleInitialColsEstimated}
-            focusRequestToken={focusRequestToken}
-            allowHorizontalScroll={false}
-          />
-        )}
+        <TerminalEmulator
+          dom={TERMINAL_EMULATOR_DOM_PROPS}
+          streamKey={viewMode === "fit" ? streamKey : `${streamKey}:original`}
+          testId="tmux-xterm-surface"
+          xtermTheme={xtermTheme}
+          convertEol
+          snapshotText={content}
+          onInput={handleTerminalInput}
+          focusRequestToken={focusRequestToken}
+          forceCols={forcedCols}
+          fitToWidth={viewMode === "fit"}
+          allowHorizontalScroll={viewMode === "original"}
+        />
         {isLoading && !content ? (
           <View style={styles.loadingOverlay} pointerEvents="none">
             <ActivityIndicator size="small" color={theme.colors.foregroundMuted} />

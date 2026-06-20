@@ -134,6 +134,7 @@ interface TerminalEmulatorProps {
   snapshotText?: string;
   onInitialColsEstimated?: (cols: number) => void;
   forceCols?: number;
+  fitToWidth?: boolean;
   allowHorizontalScroll?: boolean;
 }
 
@@ -194,6 +195,7 @@ export default function TerminalEmulator({
   snapshotText,
   onInitialColsEstimated,
   forceCols,
+  fitToWidth = false,
   allowHorizontalScroll = false,
 }: TerminalEmulatorProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -227,8 +229,8 @@ export default function TerminalEmulator({
   pendingModifiersRef.current = pendingModifiers;
   const forceColsRef = useRef(forceCols);
   forceColsRef.current = forceCols;
-  const allowHorizontalScrollRef = useRef(allowHorizontalScroll);
-  allowHorizontalScrollRef.current = allowHorizontalScroll;
+  const fitToWidthRef = useRef(fitToWidth);
+  fitToWidthRef.current = fitToWidth;
   const [viewportMetrics, setViewportMetrics] = useState<ViewportMetrics>({
     offset: 0,
     viewportSize: 0,
@@ -405,7 +407,7 @@ export default function TerminalEmulator({
       theme: mountedThemeRef.current,
       convertEol,
       forceCols: forceColsRef.current,
-      allowHorizontalScroll: allowHorizontalScrollRef.current,
+      fitToWidth: fitToWidthRef.current,
     });
 
     if (onInitialColsEstimated) {
@@ -450,8 +452,8 @@ export default function TerminalEmulator({
   }, [forceCols]);
 
   useEffect(() => {
-    runtimeRef.current?.setAllowHorizontalScroll({ allowHorizontalScroll });
-  }, [allowHorizontalScroll]);
+    runtimeRef.current?.setFitToWidth({ fitToWidth });
+  }, [fitToWidth]);
 
   // Prefer prop-driven snapshots over ref calls for DOM components: the ref
   // handle may not be ready when the parent effect fires, causing
@@ -724,13 +726,20 @@ export default function TerminalEmulator({
     () => ({
       position: "relative",
       display: "flex",
-      width: allowHorizontalScroll ? "auto" : "100%",
+      width: "100%",
       height: "100%",
       minHeight: 0,
       minWidth: 0,
       backgroundColor: xtermTheme.background ?? "#0b0b0b",
-      overflow: allowHorizontalScroll ? "visible" : "hidden",
+      overflowX: allowHorizontalScroll ? "auto" : "hidden",
+      overflowY: "hidden",
       overscrollBehavior: "none",
+      // In 1:1 mode the root is the horizontal scroller (it lives inside the
+      // DOM component, so pointer events reach it — an outer RN ScrollView
+      // cannot be scrolled from inside the iframe/WebView). pan-x pan-y lets
+      // the browser pan it horizontally; the xterm viewport has overflow-x
+      // hidden so it never competes. In fit mode there is no horizontal
+      // scroller, so pan-y suffices.
       touchAction: allowHorizontalScroll ? "pan-x pan-y" : "pan-y",
     }),
     [xtermTheme.background, allowHorizontalScroll],
