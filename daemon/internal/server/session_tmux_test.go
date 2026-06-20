@@ -419,7 +419,7 @@ func TestIsShellCommand(t *testing.T) {
 }
 
 func TestCaptureTmuxPaneInvalidID(t *testing.T) {
-	_, err := captureTmuxPane("%99999", -200, 0)
+	_, _, err := captureTmuxPane("%99999", -200, 0)
 	if err == nil {
 		t.Fatal("expected error for invalid pane ID, got nil")
 	}
@@ -439,7 +439,7 @@ func TestCaptureTmuxPaneReal(t *testing.T) {
 		t.Skip("no tmux panes available")
 	}
 
-	content, err := captureTmuxPane(paneID, -200, 0)
+	content, _, err := captureTmuxPane(paneID, -200, 0)
 	if err != nil {
 		t.Fatalf("captureTmuxPane(%q) error: %v", paneID, err)
 	}
@@ -455,11 +455,11 @@ func TestHandleTmuxCapturePaneForwardsCols(t *testing.T) {
 	var gotPaneID string
 	var gotStartLine int
 	var gotCols int
-	capturePaneFunc = func(paneID string, startLine int, cols int) (string, error) {
+	capturePaneFunc = func(paneID string, startLine int, cols int) (string, int, error) {
 		gotPaneID = paneID
 		gotStartLine = startLine
 		gotCols = cols
-		return "mock content", nil
+		return "mock content", 0, nil
 	}
 
 	s := &Session{logger: slog.Default()}
@@ -498,13 +498,13 @@ func TestCaptureTmuxPaneWithStartLine(t *testing.T) {
 	}
 
 	// Default start line (-200)
-	contentDefault, err := captureTmuxPane(paneID, -200, 0)
+	contentDefault, _, err := captureTmuxPane(paneID, -200, 0)
 	if err != nil {
 		t.Fatalf("captureTmuxPane default error: %v", err)
 	}
 
 	// Larger start line (more history)
-	contentLarge, err := captureTmuxPane(paneID, -400, 0)
+	contentLarge, _, err := captureTmuxPane(paneID, -400, 0)
 	if err != nil {
 		t.Fatalf("captureTmuxPane large error: %v", err)
 	}
@@ -528,7 +528,7 @@ func TestCaptureTmuxPaneWithCols(t *testing.T) {
 		t.Skip("no tmux panes available")
 	}
 
-	content, err := captureTmuxPane(paneID, -200, 10)
+	content, _, err := captureTmuxPane(paneID, -200, 10)
 	if err != nil {
 		t.Fatalf("captureTmuxPane with cols error: %v", err)
 	}
@@ -566,7 +566,7 @@ func TestCaptureTmuxPaneJoinsWrappedLines(t *testing.T) {
 	}
 	time.Sleep(300 * time.Millisecond)
 
-	content, err := captureTmuxPane(paneID, -10, 0)
+	content, _, err := captureTmuxPane(paneID, -10, 0)
 	if err != nil {
 		t.Fatalf("captureTmuxPane error: %v", err)
 	}
@@ -993,10 +993,10 @@ func TestDetectAgentActivity(t *testing.T) {
 		"%0": "line 1\nline 2\nline 3",
 		"%1": "output A\noutput B",
 	}
-	capturePaneFunc = func(paneID string, _ int, _ int) (string, error) {
+	capturePaneFunc = func(paneID string, _ int, _ int) (string, int, error) {
 		mu.Lock()
 		defer mu.Unlock()
-		return paneContents[paneID], nil
+		return paneContents[paneID], 0, nil
 	}
 
 	s := &Session{
