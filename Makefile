@@ -103,22 +103,18 @@ restart: darwin
 ci: lint test typecheck
 
 lint:
-	@echo "=== Linting packages/highlight ==="
-	cd packages/highlight && npx eslint src/
-	@echo "=== Linting app-bridge ==="
-	cd app-bridge && npx eslint src/
-	@echo "=== Linting app ==="
-	cd $(APP_DIR) && npx expo lint --max-warnings 0
+	@printf '%s\n' \
+		'cd packages/highlight && npx eslint src/' \
+		'cd app-bridge && npx eslint src/' \
+		'cd $(APP_DIR) && npx expo lint --max-warnings 0' \
+	| xargs -P0 -I{} sh -c '{}'
 	@echo "=== All lint passed ==="
 
 test: test-go test-app
 
 test-go:
-	@set -e; \
-	for mod in $(GO_MODULES); do \
-		echo "=== Testing go/$$mod ==="; \
-		(cd $$mod && go test $(GO_TEST_FLAGS) -coverprofile=coverage.out ./...); \
-	done
+	@printf '%s\n' $(GO_MODULES) | xargs -P0 -I{} sh -c \
+		'echo "=== Testing go/{} ===" && (cd {} && go test $(GO_TEST_FLAGS) -coverprofile=coverage.out ./...)'
 	@echo "=== All Go tests passed ==="
 
 test-app: build-workspace-deps
@@ -136,12 +132,11 @@ build-workspace-deps:
 	@echo "=== Workspace dependencies built ==="
 
 typecheck: build-workspace-deps
-	@echo "=== Typechecking packages/highlight ==="
-	cd packages/highlight && npx tsc --noEmit
-	@echo "=== Typechecking app ==="
-	cd $(APP_DIR) && npx tsc --noEmit
-	@echo "=== Typechecking app-bridge ==="
-	cd app-bridge && npx tsc --noEmit
+	@printf '%s\n' \
+		'cd packages/highlight && npx tsc --noEmit' \
+		'cd $(APP_DIR) && npx tsc --noEmit' \
+		'cd app-bridge && npx tsc --noEmit' \
+	| xargs -P0 -I{} sh -c '{}'
 	@echo "=== All typecheck passed ==="
 
 clean:

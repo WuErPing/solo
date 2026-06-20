@@ -43,6 +43,7 @@ docs/
     ├── host-status-check.md                 # Host probe cycle & status machine
     ├── iterm2-agent-observation.md          # iTerm2 agent detection observation
     ├── lint-capability-plan.md              # Lint tooling roadmap (Phase 1 complete)
+    ├── makefile-benchmark.md                # Makefile sequential vs parallel CI benchmark
     ├── opencode-cross-device-sync-fix.md   # Cross-client sync bug fix record
     ├── README.md                            # Analysis directory index
     ├── test-coverage.md                     # 统一测试覆盖率报告 (Go/App/E2E/CI)
@@ -136,6 +137,7 @@ Deep dives into specific subsystems.
 | [Test Coverage](analysis/test-coverage.md) | Report | 统一测试覆盖率报告: Go 后端 + App 前端 + E2E + CI/Codecov 集成 |
 | [Tmux Agent Misidentification (kimi → kimi-code)](analysis/tmux-agent-misidentification-kimi-code-2026-06-15.md) | Analysis | `kimi --yolo` 被误识为 `kimi-code`: Bun setproctitle 污染源 + 八层防御级联失败 + 修复 |
 | [Tmux Pane Analysis](analysis/tmux-pane-analysis.md) | Analysis | Jitter 根因与修复 + 4 层架构瓶颈 + xterm.js 迁移方案 |
+| [Makefile Benchmark](analysis/makefile-benchmark.md) | Benchmark | Sequential vs parallel CI targets: test-go, lint, typecheck timing |
 | [Tmux Pane Client Emulator First Principles](analysis/tmux-pane-client-emulator-first-principles.md) | Analysis | 第一性原理分析：客户端 terminal emulator 路径 + 两阶段实施方案 |
 | [Tmux Transport Disposed Race](analysis/tmux-transport-disposed-race.md) | Analysis | `Transport not connected (status: disposed)` root cause: probe-cycle switch vs. in-flight tmux RPC |
 
