@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-06-20
+
+### Added
+
+- **Tmux pane**: render the full native-width pane content with a scale-to-fit mode and an in-DOM 1:1 horizontal scroller; Fit/1:1 zoom toggle
+- **Terminal**: `forceCols` and `fitToWidth` runtime props for native-width rendering and CSS scale-to-fit
+- **Protocol**: `paneCols` field on `TmuxCapturePaneResponsePayload`
+- **Agent**: improved provider contract and integration tests for Claude and Kimi
+- **App**: pending-create-finalize utility and improved error boundary
+- **Daemon**: inject build version at build time via ldflags
+
+### Fixed
+
+- **Terminal**: root div is the 1:1 horizontal scroller so panning works inside the DOM iframe/WebView (an outer RN ScrollView cannot be scrolled from inside the DOM component)
+- **Terminal**: eliminate snapshot flicker with an in-place repaint — no full `terminal.reset()` on every poll (fixed the "Thinking…" spinner flicker)
+
+### Changed
+
+- **Tmux pane**: stop requesting rewrapped `cols` from the daemon; render the native grid directly instead of a lossy rewrapped approximation
+
 ## [0.6.5] - 2026-06-19
 
 ### Fixed

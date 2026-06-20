@@ -1,6 +1,6 @@
 ---
-name: update-module-version
-description: Update module and package versions after code changes. Use when preparing a release, bumping versions after feature work or bug fixes, or coordinating protocol version changes across Go and TypeScript modules.
+name: update-version
+description: Update module and package versions after code changes, and update CHANGELOG.md for the target version by aggregating commit messages since the previous release. Use when preparing a release, bumping versions after feature work or bug fixes, or coordinating protocol version changes across Go and TypeScript modules.
 ---
 
 # Update Module Version
@@ -123,7 +123,75 @@ When `protocol/` constants change, **all consumers must be updated**:
    cd app && npm test
    ```
 
-## Step 5: Verify Changes
+## Step 5: Update CHANGELOG.md
+
+`CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). For every release, add a new section for the target version that aggregates all commits since the previous release. The CHANGELOG edit is part of the version-bump commit (do not commit it separately).
+
+### 5.1 Determine the target version and previous release tag
+
+The target version is the primary bumped version — the `app` version, since release tags track it as `v<app-version>` (e.g. `v0.7.0`). The previous release tag is the most recent tag reachable from `HEAD`:
+
+```bash
+PREV_TAG=$(git describe --tags --abbrev=0)        # e.g. v0.6.5
+TARGET_VERSION=$(grep '"version"' app/package.json | head -1 | sed 's/.*"\([0-9.]*\)".*/\1/')  # e.g. 0.7.0
+echo "Releasing $TARGET_VERSION (previous $PREV_TAG)"
+```
+
+### 5.2 Aggregate commits since the previous release
+
+List every commit subject since the previous tag:
+
+```bash
+git log --pretty=format:"- %s" "$PREV_TAG"..HEAD
+```
+
+### 5.3 Group into Keep a Changelog sections
+
+Map each commit's conventional-commit type to a section, and drop non-user-facing types:
+
+| Commit type | CHANGELOG section |
+|-------------|-------------------|
+| `feat` | **Added** |
+| `fix` | **Fixed** |
+| `refactor`, `perf` | **Changed** |
+| `revert`, `remove` | **Removed** |
+| `docs`, `test`, `chore`, `build`, `ci`, `style` | omit (not user-facing) |
+
+For each kept commit, format as `- **<scope>**: <subject>`, where `<scope>` is the conventional-commit scope (the part in parentheses) and `<subject>` is the message with the `type(scope): ` prefix and any leading `- ` stripped. Merge multiple bullets from one commit into a single line where sensible. Combine closely related commits into one bullet (e.g. several `test(tmux)` commits become one "Updated tmux screen and browser tests" bullet under the relevant section).
+
+### 5.4 Prepend the new section to CHANGELOG.md
+
+Insert a new section immediately after the `## [Unreleased]` line (or, if no Unreleased section exists, immediately after the header preamble), above the previous release section. Use today's date (`YYYY-MM-DD`):
+
+```markdown
+## [0.7.0] - 2026-06-20
+
+### Added
+
+- **Tmux pane**: render full native pane content with scale-to-fit and in-DOM 1:1 horizontal scroller
+- **Terminal**: `fitToWidth` runtime support for scaling the native grid to fit the screen
+
+### Fixed
+
+- **Terminal**: make the root div the horizontal scroller so panning works inside the DOM iframe/WebView
+- **Terminal**: eliminate snapshot flicker with in-place repaint (no full reset on every poll)
+
+### Changed
+
+- **Tmux pane**: stop requesting rewrapped cols from the daemon; render the native grid directly
+```
+
+Only include sections that have at least one entry. Omit empty sections.
+
+### 5.5 Stage the CHANGELOG with the version bump
+
+```bash
+git add CHANGELOG.md app/package.json app-bridge/package.json   # plus any other bumped modules
+```
+
+Then commit everything together as the release commit (see Step 6 verification, then commit/tag/push per the user's release flow).
+
+## Step 6: Verify Changes
 
 After editing, confirm the new versions:
 
