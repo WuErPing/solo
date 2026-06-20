@@ -1,6 +1,6 @@
 # Dead Code Analysis Report
 
-**Date**: 2026-06-19
+**Date**: 2026-06-19 (updated 2026-06-21)
 **Scope**: All modules — `daemon/`, `cli/`, `relay-go/`, `protocol/`, `app/`, `app-bridge/`, `packages/highlight/`
 **Method**: Grep-based reference tracing across the entire repository; every finding verified by searching for symbol references outside the defining file/package.
 
@@ -10,26 +10,26 @@
 
 | Module | High-confidence findings | Approx. LOC removable |
 |--------|-------------------------|----------------------|
-| `daemon/` | 19 | ~250 |
+| `daemon/` | 18 | ~240 |
 | `cli/` | 6 | ~50 |
 | `relay-go/` | 3 | ~30 |
-| `protocol/` | 6 (1 entire file + 5 types) | ~120 |
-| `app/` | 25 (18 unused files + 7 symbols) | ~1500 |
-| `app-bridge/` | ~65 exported symbols + 2 unused files | ~1200 |
+| `protocol/` | 4 (1 entire file + 3 types) | ~100 |
+| `app/` | 24 (17 unused files + 7 symbols) | ~1400 |
+| `app-bridge/` | ~60 exported symbols + 2 unused files | ~1100 |
 | `packages/highlight/` | 3 | ~20 |
-| **Total** | **~127 findings** | **~3200 LOC** |
+| **Total** | **~118 findings** | **~2940 LOC** |
 
 The largest clusters of dead code are:
-1. **`app-bridge/src/server/agent/agent-sdk-types.ts`** (~18 types, ~500 LOC) — remnants of a removed `@anthropic-ai/claude-agent-sdk` integration.
-2. **`app-bridge/src/client/daemon-client.ts`** (~18 methods) — voice/dictation (6) and chat (7) subsystems with zero frontend callers.
-3. **18 entirely unused files in `app/src/`** — utilities, hooks, and components never imported by production code.
+1. **`app-bridge/src/server/agent/agent-sdk-types.ts`** (~17 types, ~500 LOC) — remnants of a removed `@anthropic-ai/claude-agent-sdk` integration.
+2. **`app-bridge/src/client/daemon-client.ts`** (~15 methods) — voice/dictation (6) and chat (7) subsystems with zero frontend callers.
+3. **23 entirely unused files in `app/src/`** — utilities, hooks, and components never imported by production code.
 4. **`protocol/statemachine.go`** — entire 71-line file with zero references.
 
 ---
 
 ## Part 1: Go Modules
 
-### 1.1 `daemon/` — 19 findings
+### 1.1 `daemon/` — 18 findings (19 originally; 1 resolved)
 
 #### A. Completely Unreferenced (zero callers anywhere)
 
@@ -72,11 +72,11 @@ These are exported API surface with zero production callers — they exist solel
 
 | Path | Notes | Confidence |
 |------|-------|------------|
-| `daemon/internal/server/agents/` | Empty directory, not referenced by any Go file. | **High** |
+| ~~`daemon/internal/server/agents/`~~ | ~~Empty directory~~ — **Already deleted** as of 2026-06-21. | ~~**High**~~ |
 
 ---
 
-### 1.2 `protocol/` — 6 findings
+### 1.2 `protocol/` — 4 findings
 
 #### A. Entirely Dead File
 
@@ -88,11 +88,11 @@ These are exported API surface with zero production callers — they exist solel
 
 | File | Line | Symbol | Confidence |
 |------|------|--------|------------|
-| `protocol/message_agent.go` | — | `AgentFeatureToggle` | **High** |
-| `protocol/message_agent.go` | — | `AgentFeatureSelect` | **High** |
-| `protocol/message_agent.go` | — | `AgentPermissionAction` | **High** |
-| `protocol/message_terminal.go` | — | `TerminalCell` | **High** |
-| `protocol/message_terminal.go` | — | `TerminalCursor` | **High** |
+| `protocol/message_common.go` | 55 | `AgentFeatureToggle` | **High** |
+| `protocol/message_common.go` | 66 | `AgentFeatureSelect` | **High** |
+| `protocol/message_common.go` | 171 | `AgentPermissionAction` | **High** |
+
+> **Note**: `TerminalCell` and `TerminalCursor` (previously listed here) are actually used in `protocol/terminal.go` as fields of `TerminalSnapshot` — they are NOT dead code.
 
 ---
 
@@ -123,7 +123,7 @@ These are exported API surface with zero production callers — they exist solel
 
 ## Part 2: TypeScript Modules
 
-### 2.1 `app/` — 25 findings
+### 2.1 `app/` — 27 findings (23 unused files + 4 unused symbols)
 
 #### A. Entirely Unused Files (zero production imports)
 
@@ -164,7 +164,7 @@ These are exported API surface with zero production callers — they exist solel
 
 ---
 
-### 2.2 `app-bridge/` — ~65 findings
+### 2.2 `app-bridge/` — ~60 findings
 
 #### A. Entirely Unused Files
 
@@ -173,7 +173,7 @@ These are exported API surface with zero production callers — they exist solel
 | 1 | `app-bridge/src/shared/terminal-key-input.ts` | **High** |
 | 2 | `app-bridge/src/shared/tool-call-display.ts` | **High** |
 
-#### B. `agent-sdk-types.ts` — Dead SDK Abstraction (~18 types)
+#### B. `agent-sdk-types.ts` — Dead SDK Abstraction (~17 types)
 
 This file contains `// SOLO-TODO: @anthropic-ai/claude-agent-sdk removed` on line 1. The following types are only referenced within the file itself and have zero external consumers:
 
@@ -191,13 +191,14 @@ This file contains `// SOLO-TODO: @anthropic-ai/claude-agent-sdk removed` on lin
 | 410 | `AgentSlashCommand` | **High** |
 | 416 | `ListPersistedAgentsOptions` | **High** |
 | 420 | `PersistedAgentDescriptor` | **High** |
-| 430 | `AgentSessionConfig` | **Medium** |
 | 459 | `AgentLaunchContext` | **High** |
 | 467 | `AgentPermissionResult` | **High** |
 | 471 | `AgentSession` (interface) | **High** |
 | 498 | `ListModelsOptions` | **High** |
 | 503 | `ListModesOptions` | **High** |
 | 508 | `AgentClient` (interface) | **High** |
+
+> **Note**: `AgentSessionConfig` (previously listed here) is actually used in `daemon-client.ts` and `messages.ts` — it is NOT dead code.
 
 > **Recommendation**: This entire file appears to be a dead abstraction layer. Investigate whether any of these types are intended for future use; if not, the file can be deleted or substantially trimmed.
 
@@ -236,7 +237,7 @@ All functions and schemas are only referenced within the file. App/ only imports
 | 255 | `AGENT_PROVIDER_IDS` | **High** |
 | 259 | `isValidAgentProvider()` | **High** |
 
-#### E. `daemon-client.ts` — Unused Methods (~18 methods)
+#### E. `daemon-client.ts` — Unused Methods (~15 methods)
 
 **Voice/Dictation subsystem (6 methods — feature not implemented on frontend):**
 
@@ -261,25 +262,29 @@ All functions and schemas are only referenced within the file. App/ only imports
 | 3547 | `readChatMessages()` | **High** |
 | 3562 | `waitForChatMessages()` | **High** |
 
-**Other unused methods:**
+**Other unused methods (no production callers):**
 
 | Line | Method | Confidence |
 |------|--------|------------|
-| 1071 | `subscribeRawMessages()` | **High** |
 | 2934 | `listProviderModels()` | **High** |
 | 2951 | `listProviderModes()` | **High** |
 | 2982 | `listAvailableProviders()` | **High** |
-| 3172 | `waitForAgentUpsert()` | **High** |
-| 3269 | `waitForFinish()` | **High** |
 | 3461 | `captureTerminal()` | **High** |
 | 4168 | `setReconnectEnabled()` | **High** |
+
+**E2E test-only methods (used in `app/e2e/helpers/` but no production callers):**
+
+| Line | Method | Confidence |
+|------|--------|------------|
+| 1071 | `subscribeRawMessages()` | **Medium** — used in `app/e2e/helpers/workspace-setup.ts` |
+| 3172 | `waitForAgentUpsert()` | **Medium** — used in `app/e2e/helpers/archive-tab.ts` |
+| 3269 | `waitForFinish()` | **Medium** — used in `app/e2e/helpers/agent-bottom-anchor.ts` |
 
 #### F. Other `app-bridge/` Unused Exports
 
 | File | Line | Symbol | Confidence |
 |------|------|--------|------------|
 | `server/agent/agent-title-limits.ts` | 2 | `MAX_AUTO_AGENT_TITLE_CHARS` | **High** |
-| `client/daemon-client-transport-utils.ts` | 74 | `safeRandomId()` | **High** |
 | `utils/executable.ts` | 38 | `isWindowsCommandScript()` | **High** |
 | `utils/executable.ts` | 100 | `executableExists()` | **High** |
 | `utils/executable.ts` | 157 | `quoteWindowsCommand()` | **High** |
@@ -324,19 +329,19 @@ All functions and schemas are only referenced within the file. App/ only imports
 ### Phase 1: Safe Immediate Deletions (zero risk, zero production callers)
 
 **Estimated effort**: 1-2 hours
-**Estimated LOC removed**: ~1800
+**Estimated LOC removed**: ~1700
 
 These items have zero references anywhere in production code, tests, or other modules. They can be deleted in a single commit per module.
 
 #### Go:
 1. Delete `protocol/statemachine.go` (entire file, 71 LOC)
 2. Delete `VerifyResult` from `daemon/internal/loop/types.go:25`
-3. Delete empty directory `daemon/internal/server/agents/`
-4. Delete 5 unused types from `protocol/message_agent.go` and `protocol/message_terminal.go`
+3. ~~Delete empty directory `daemon/internal/server/agents/`~~ — **Already done** (2026-06-21)
+4. Delete 3 unused types from `protocol/message_common.go` (`AgentFeatureToggle`, `AgentFeatureSelect`, `AgentPermissionAction`)
 5. Delete 6 unused exports from `cli/cmd/`
 
 #### TypeScript (app/):
-6. Delete 18 entirely unused files (listed in §2.1.A) and their associated test files
+6. Delete 23 entirely unused files (listed in §2.1.A) and their associated test files
 7. Delete 2 unused files from `app-bridge/src/shared/` (`terminal-key-input.ts`, `tool-call-display.ts`)
 
 **Verification**: Run `go build ./...`, `go test -short -race ./...`, `npx expo lint`, `tsc --noEmit`, `npm test` after each module's deletions.
@@ -348,7 +353,7 @@ These items have zero references anywhere in production code, tests, or other mo
 **Estimated effort**: 2-3 hours
 **Estimated LOC removed**: ~700
 
-1. **`app-bridge/src/server/agent/agent-sdk-types.ts`**: This file is marked with `// SOLO-TODO: @anthropic-ai/claude-agent-sdk removed` and contains ~18 types with zero external consumers. Audit whether any type is intended for future use (e.g., `AgentSession` interface for a planned SDK integration). If not, delete the entire file or trim to only the types that have consumers.
+1. **`app-bridge/src/server/agent/agent-sdk-types.ts`**: This file is marked with `// SOLO-TODO: @anthropic-ai/claude-agent-sdk removed` and contains ~17 types with zero external consumers (`AgentSessionConfig` is actually used). Audit whether any type is intended for future use (e.g., `AgentSession` interface for a planned SDK integration). If not, delete the entire file or trim to only the types that have consumers.
 
 2. **`app-bridge/src/server/agent/provider-launch-config.ts`**: All functions are self-contained. Only `ProviderProfileModel` type is consumed externally. Consider:
    - Move `ProviderProfileModel` / `ProviderProfileModelSchema` to a smaller file.
@@ -361,15 +366,17 @@ These items have zero references anywhere in production code, tests, or other mo
 ### Phase 3: Unused DaemonClient Methods
 
 **Estimated effort**: 1-2 hours
-**Estimated LOC removed**: ~400
+**Estimated LOC removed**: ~350
 
-The `daemon-client.ts` file has ~18 methods with zero frontend callers. These fall into three categories:
+The `daemon-client.ts` file has ~15 methods with zero production callers. These fall into three categories:
 
 1. **Voice/Dictation (6 methods)**: The voice subsystem appears unimplemented on the frontend. If voice is a planned feature, document these as planned. Otherwise, remove them along with the corresponding Go-side handlers if those are also unused.
 
 2. **Chat subsystem (7 methods)**: No frontend chat UI exists. If chat is planned, document; otherwise remove.
 
-3. **Other methods (5+)**: `subscribeRawMessages`, `listProviderModels`, `listProviderModes`, `listAvailableProviders`, `waitForAgentUpsert`, `waitForFinish`, `captureTerminal`, `setReconnectEnabled` — audit each individually. Some may be used in E2E tests or planned for upcoming features.
+3. **Other methods (5)**: `listProviderModels`, `listProviderModes`, `listAvailableProviders`, `captureTerminal`, `setReconnectEnabled` — audit each individually.
+
+4. **E2E test-only methods (3)**: `subscribeRawMessages`, `waitForAgentUpsert`, `waitForFinish` are used in `app/e2e/helpers/` but have no production callers. These can be kept for E2E test infrastructure, or removed if E2E tests are refactored.
 
 **Action**: Before removing, check the Go daemon side for corresponding WebSocket handlers. If both sides are dead, remove both. If the Go side is live (e.g., voice handlers exist), keep the client methods but mark them with `// TODO: wire up when frontend lands`.
 
@@ -454,3 +461,23 @@ These items were flagged but need human judgment before removal:
 ---
 
 *Generated by automated grep-based reference analysis. All findings verified by cross-module search. Items marked "High" confidence have zero references outside their defining file; "Medium" items have references only within their own package/module.*
+
+---
+
+## Changelog
+
+### 2026-06-21 Update
+
+**Corrections based on re-verification:**
+- **Protocol types**: Fixed file paths from `message_agent.go`/`message_terminal.go` to `message_common.go`. Removed `TerminalCell` and `TerminalCursor` from dead list — they are used in `protocol/terminal.go` as fields of `TerminalSnapshot`.
+- **`AgentSessionConfig`**: Removed from dead list — it is actively used in `daemon-client.ts` and `messages.ts`.
+- **`safeRandomId()`**: Removed from dead list — it is used in `daemon-client-transport.ts`.
+- **Daemon-client E2E methods**: Reclassified `subscribeRawMessages`, `waitForAgentUpsert`, `waitForFinish` as "E2E test-only" (used in `app/e2e/helpers/`) rather than "unused".
+- **Empty directory**: Marked `daemon/internal/server/agents/` as already deleted.
+
+**Updated counts:**
+- `daemon/`: 19 → 18 findings (empty directory already deleted)
+- `protocol/`: 6 → 4 findings (2 types were incorrectly flagged)
+- `app/`: 25 → 27 findings (23 files + 4 symbols; count was misstated)
+- `app-bridge/`: ~65 → ~60 findings (removed 3 incorrectly flagged items)
+- Total: ~127 → ~118 findings
