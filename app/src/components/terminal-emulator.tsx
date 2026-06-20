@@ -465,8 +465,18 @@ export default function TerminalEmulator({
       return;
     }
     prevSnapshotTextRef.current = snapshotText;
-    runtimeRef.current?.clear();
-    runtimeRef.current?.write({ text: snapshotText });
+    // In-place repaint in a single write: clear scrollback (\x1b[3J, leaves
+    // the viewport untouched), home the cursor (\x1b[H), overwrite the content
+    // cell-by-cell, then clear any trailing cells (\x1b[J). This replaces the
+    // previous clear()+write() which ran terminal.reset() (empties the screen
+    // synchronously) as a separate operation from the async write — xterm
+    // rendered the empty buffer between them, causing a visible flicker on
+    // every poll (e.g. the "Thinking..." spinner updating each second).
+    // Overwriting in place means xterm only re-renders the cells that changed.
+    runtimeRef.current?.write({
+      text: `\x1b[3J\x1b[H${snapshotText}\x1b[J`,
+      suppressInput: true,
+    });
   }, [snapshotText]);
 
   useEffect(() => {

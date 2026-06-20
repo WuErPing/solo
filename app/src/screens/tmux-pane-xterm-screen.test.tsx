@@ -166,7 +166,8 @@ vi.mock("@/components/terminal-emulator", () => ({
 
     React.useEffect(() => {
       if (!snapshotText) return;
-      mockEmulatorHandle.clear();
+      // Mirrors the real component: a single in-place repaint write (no clear),
+      // so the screen test does not assert a clear on snapshot updates.
       mockEmulatorHandle.writeOutput(snapshotText);
     }, [snapshotText]);
 
@@ -235,17 +236,17 @@ describe("TmuxPaneXtermScreen", () => {
     agentRef.current = mockAgent;
   });
 
-  it("writes new content to the emulator when content changes", () => {
+  it("writes new content to the emulator when content changes (in-place repaint, no clear)", () => {
     const { rerender } = render(<TmuxPaneXtermScreen />);
     expect(mockEmulatorHandle.writeOutput).toHaveBeenCalledWith(contentRef.current);
-    expect(mockEmulatorHandle.clear).toHaveBeenCalled();
+    expect(mockEmulatorHandle.clear).not.toHaveBeenCalled();
 
     mockEmulatorHandle.writeOutput.mockClear();
     mockEmulatorHandle.clear.mockClear();
     contentRef.current = "$ pwd\n/home\n$ _";
     rerender(<TmuxPaneXtermScreen />);
 
-    expect(mockEmulatorHandle.clear).toHaveBeenCalled();
+    expect(mockEmulatorHandle.clear).not.toHaveBeenCalled();
     expect(mockEmulatorHandle.writeOutput).toHaveBeenCalledWith(contentRef.current);
   });
 
