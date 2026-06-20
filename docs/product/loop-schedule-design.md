@@ -4,7 +4,7 @@
 > **日期**：2026-06-13
 > **基线版本**：Solo v0.6.0
 > **目标读者**：产品、后端、前端、CLI 开发者
-> **依赖文档**：[Schedule Module Analysis](../analysis/app-bridge-schedule-module.md)、[Create Schedule Flow](../analysis/create-schedule-flow.md)
+> **依赖文档**：[Schedule Module Analysis](../analysis/app-bridge-schedule-module.md)、[Create Schedule Flow](../analysis/create-schedule-flow.md)、[Loop Schedule Implementation Spec](loop-schedule-spec.md)
 
 ---
 

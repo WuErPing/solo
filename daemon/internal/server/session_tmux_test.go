@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"log/slog"
 	"os/exec"
 	"strings"
 	"sync"
@@ -418,7 +419,7 @@ func TestIsShellCommand(t *testing.T) {
 }
 
 func TestCaptureTmuxPaneInvalidID(t *testing.T) {
-	_, err := captureTmuxPane("%99999", -200)
+	_, err := captureTmuxPane("%99999", -200, 0)
 	if err == nil {
 		t.Fatal("expected error for invalid pane ID, got nil")
 	}
@@ -438,7 +439,7 @@ func TestCaptureTmuxPaneReal(t *testing.T) {
 		t.Skip("no tmux panes available")
 	}
 
-	content, err := captureTmuxPane(paneID, -200)
+	content, err := captureTmuxPane(paneID, -200, 0)
 	if err != nil {
 		t.Fatalf("captureTmuxPane(%q) error: %v", paneID, err)
 	}
@@ -446,6 +447,42 @@ func TestCaptureTmuxPaneReal(t *testing.T) {
 		t.Error("expected non-empty content from capture-pane")
 	}
 }
+
+func TestHandleTmuxCapturePaneForwardsCols(t *testing.T) {
+	orig := capturePaneFunc
+	defer func() { capturePaneFunc = orig }()
+
+	var gotPaneID string
+	var gotStartLine int
+	var gotCols int
+	capturePaneFunc = func(paneID string, startLine int, cols int) (string, error) {
+		gotPaneID = paneID
+		gotStartLine = startLine
+		gotCols = cols
+		return "mock content", nil
+	}
+
+	s := &Session{logger: slog.Default()}
+	cols := 80
+	s.handleTmuxCapturePane(&protocol.TmuxCapturePaneRequest{
+		PaneID:    "%0",
+		StartLine: intPtr(-400),
+		Cols:      &cols,
+		RequestID: "req-1",
+	})
+
+	if gotPaneID != "%0" {
+		t.Errorf("paneID = %q, want %q", gotPaneID, "%0")
+	}
+	if gotStartLine != -400 {
+		t.Errorf("startLine = %d, want -400", gotStartLine)
+	}
+	if gotCols != 80 {
+		t.Errorf("cols = %d, want 80", gotCols)
+	}
+}
+
+func intPtr(v int) *int { return &v }
 
 func TestCaptureTmuxPaneWithStartLine(t *testing.T) {
 	if testing.Short() {
@@ -461,13 +498,13 @@ func TestCaptureTmuxPaneWithStartLine(t *testing.T) {
 	}
 
 	// Default start line (-200)
-	contentDefault, err := captureTmuxPane(paneID, -200)
+	contentDefault, err := captureTmuxPane(paneID, -200, 0)
 	if err != nil {
 		t.Fatalf("captureTmuxPane default error: %v", err)
 	}
 
 	// Larger start line (more history)
-	contentLarge, err := captureTmuxPane(paneID, -400)
+	contentLarge, err := captureTmuxPane(paneID, -400, 0)
 	if err != nil {
 		t.Fatalf("captureTmuxPane large error: %v", err)
 	}
@@ -476,6 +513,75 @@ func TestCaptureTmuxPaneWithStartLine(t *testing.T) {
 	if len(contentLarge) < len(contentDefault) {
 		t.Errorf("expected larger capture to have more content, got %d vs %d", len(contentLarge), len(contentDefault))
 	}
+}
+
+func TestCaptureTmuxPaneWithCols(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	out, err := exec.Command("tmux", "list-panes", "-a", "-F", "#{pane_id}").Output()
+	if err != nil {
+		t.Skip("tmux not available")
+	}
+	paneID := strings.TrimSpace(strings.Split(string(out), "\n")[0])
+	if paneID == "" {
+		t.Skip("no tmux panes available")
+	}
+
+	content, err := captureTmuxPane(paneID, -200, 10)
+	if err != nil {
+		t.Fatalf("captureTmuxPane with cols error: %v", err)
+	}
+	if len(content) == 0 {
+		t.Error("expected non-empty content from capture-pane with cols")
+	}
+}
+
+func TestCaptureTmuxPaneJoinsWrappedLines(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux not available")
+	}
+
+	session := fmt.Sprintf("solo-capture-join-%d", time.Now().UnixNano())
+	out, err := exec.Command("tmux", "new-session", "-d", "-s", session, "-x", "30", "-y", "10").CombinedOutput()
+	if err != nil {
+		t.Fatalf("tmux new-session: %v\n%s", err, out)
+	}
+	defer func() { _ = exec.Command("tmux", "kill-session", "-t", session).Run() }()
+
+	paneOut, err := exec.Command("tmux", "list-panes", "-t", session, "-F", "#{pane_id}").Output()
+	if err != nil {
+		t.Fatalf("list-panes: %v", err)
+	}
+	paneID := strings.TrimSpace(string(paneOut))
+
+	marker := "WRAPTEST:"
+	payload := "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	err = exec.Command("tmux", "send-keys", "-t", paneID, "printf 'WRAPTEST:%s\\n' '"+payload+"'", "Enter").Run()
+	if err != nil {
+		t.Fatalf("tmux send-keys: %v", err)
+	}
+	time.Sleep(300 * time.Millisecond)
+
+	content, err := captureTmuxPane(paneID, -10, 0)
+	if err != nil {
+		t.Fatalf("captureTmuxPane error: %v", err)
+	}
+
+	for _, line := range strings.Split(content, "\n") {
+		if strings.Contains(line, marker) {
+			got := strings.TrimSpace(line)
+			want := marker + payload
+			if got != want {
+				t.Errorf("wrapped line not joined: got %q, want %q", got, want)
+			}
+			return
+		}
+	}
+	t.Errorf("marker %q not found in captured content:\n%s", marker, content)
 }
 
 func TestSendKeysToTmuxPaneInvalidID(t *testing.T) {
@@ -887,7 +993,7 @@ func TestDetectAgentActivity(t *testing.T) {
 		"%0": "line 1\nline 2\nline 3",
 		"%1": "output A\noutput B",
 	}
-	capturePaneFunc = func(paneID string, _ int) (string, error) {
+	capturePaneFunc = func(paneID string, _ int, _ int) (string, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		return paneContents[paneID], nil
@@ -1050,6 +1156,67 @@ func TestFormatWindowActivity(t *testing.T) {
 	t.Run("zero returns empty", func(t *testing.T) {
 		if got := formatWindowActivity(0); got != "" {
 			t.Errorf("formatWindowActivity(0) = %q, want empty", got)
+		}
+	})
+}
+
+func TestWrapContentToCols(t *testing.T) {
+	t.Run("no wrap when content fits", func(t *testing.T) {
+		input := "hello world"
+		got := wrapContentToCols(input, 20)
+		if got != input {
+			t.Errorf("wrapContentToCols(%q, 20) = %q, want %q", input, got, input)
+		}
+	})
+
+	t.Run("wraps long ascii line", func(t *testing.T) {
+		input := "abcdefghij"
+		got := wrapContentToCols(input, 4)
+		want := "abcd\nefgh\nij"
+		if got != want {
+			t.Errorf("wrapContentToCols(%q, 4) = %q, want %q", input, got, want)
+		}
+	})
+
+	t.Run("preserves existing newlines", func(t *testing.T) {
+		input := "abc\ndefghi"
+		got := wrapContentToCols(input, 4)
+		want := "abc\ndefg\nhi"
+		if got != want {
+			t.Errorf("wrapContentToCols(%q, 4) = %q, want %q", input, got, want)
+		}
+	})
+
+	t.Run("carries sgr across wrapped lines", func(t *testing.T) {
+		input := "\x1b[31mabcdef\x1b[0m"
+		got := wrapContentToCols(input, 3)
+		want := "\x1b[31mabc\x1b[0m\n\x1b[31mdef\x1b[0m"
+		if got != want {
+			t.Errorf("wrapContentToCols(%q, 3) = %q, want %q", input, got, want)
+		}
+	})
+
+	t.Run("handles reset sequence", func(t *testing.T) {
+		input := "\x1b[31mabc\x1b[0mdefghi"
+		got := wrapContentToCols(input, 6)
+		want := "\x1b[31mabc\x1b[0mdef\nghi"
+		if got != want {
+			t.Errorf("wrapContentToCols(%q, 6) = %q, want %q", input, got, want)
+		}
+	})
+
+	t.Run("empty string", func(t *testing.T) {
+		got := wrapContentToCols("", 10)
+		if got != "" {
+			t.Errorf("wrapContentToCols(\"\", 10) = %q, want empty", got)
+		}
+	})
+
+	t.Run("cols zero returns original", func(t *testing.T) {
+		input := "abcdefghij"
+		got := wrapContentToCols(input, 0)
+		if got != input {
+			t.Errorf("wrapContentToCols(%q, 0) = %q, want %q", input, got, input)
 		}
 	})
 }

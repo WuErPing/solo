@@ -41,7 +41,7 @@ function createQueryClient(): QueryClient {
   });
 }
 
-function renderCapturePaneHook(opts?: { serverId?: string; paneId?: string; enabled?: boolean }) {
+function renderCapturePaneHook(opts?: { serverId?: string; paneId?: string; enabled?: boolean; cols?: number }) {
   const queryClient = createQueryClient();
   const wrapper = ({ children }: { children: React.ReactNode }) =>
     React.createElement(QueryClientProvider, { client: queryClient }, children);
@@ -52,6 +52,7 @@ function renderCapturePaneHook(opts?: { serverId?: string; paneId?: string; enab
         opts?.serverId ?? "server-1",
         opts?.paneId ?? "pane-1",
         opts?.enabled ?? true,
+        opts?.cols,
       ),
     { wrapper },
   );
@@ -77,7 +78,7 @@ describe("useTmuxCapturePane", () => {
       expect(result.current.content).toBe("$ ls\nfile.txt");
     });
 
-    expect(mockClient.tmuxCapturePane).toHaveBeenCalledWith("pane-1", -200, undefined);
+    expect(mockClient.tmuxCapturePane).toHaveBeenCalledWith("pane-1", -200, undefined, undefined);
   });
 
   it("uses default scrollback of 200 lines", async () => {
@@ -87,7 +88,17 @@ describe("useTmuxCapturePane", () => {
       expect(result.current.scrollbackLines).toBe(200);
     });
 
-    expect(mockClient.tmuxCapturePane).toHaveBeenCalledWith("pane-1", -200, undefined);
+    expect(mockClient.tmuxCapturePane).toHaveBeenCalledWith("pane-1", -200, undefined, undefined);
+  });
+
+  it("passes cols to the daemon client when provided", async () => {
+    const { result } = renderCapturePaneHook({ cols: 80 });
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ ls\nfile.txt");
+    });
+
+    expect(mockClient.tmuxCapturePane).toHaveBeenCalledWith("pane-1", -200, undefined, 80);
   });
 
   it("increases scrollback lines when loadMoreHistory is called", async () => {
@@ -111,7 +122,7 @@ describe("useTmuxCapturePane", () => {
       expect(result.current.scrollbackLines).toBe(400);
     });
 
-    expect(mockClient.tmuxCapturePane).toHaveBeenLastCalledWith("pane-1", -400, undefined);
+    expect(mockClient.tmuxCapturePane).toHaveBeenLastCalledWith("pane-1", -400, undefined, undefined);
   });
 
   it("accumulates scrollback lines across multiple loadMoreHistory calls", async () => {
@@ -619,7 +630,7 @@ describe("useTmuxCapturePane", () => {
 
     let paneId = "pane-A";
     const { result, rerender } = renderHook(
-      () => useTmuxCapturePane("server-1", paneId, true),
+      () => useTmuxCapturePane("server-1", paneId, true, undefined),
       { wrapper },
     );
 
@@ -912,7 +923,7 @@ describe("useTmuxCapturePane — incremental transfer", () => {
 
     let paneId = "pane-A";
     const { result, rerender } = renderHook(
-      () => useTmuxCapturePane("server-1", paneId, true),
+      () => useTmuxCapturePane("server-1", paneId, true, undefined),
       { wrapper },
     );
 
@@ -1020,5 +1031,36 @@ describe("useTmuxCapturePane — incremental transfer", () => {
 
     expect(result.current.defaultFg).toBeNull();
     expect(result.current.defaultBg).toBeNull();
+  });
+
+  it("exposes paneCols from the daemon payload", async () => {
+    mockClient.tmuxCapturePane.mockResolvedValue({
+      content: "$ ls\nfile.txt",
+      error: null,
+      paneCols: 120,
+    });
+
+    const { result } = renderCapturePaneHook();
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ ls\nfile.txt");
+    });
+
+    expect(result.current.paneCols).toBe(120);
+  });
+
+  it("defaults paneCols to null when the daemon does not report them", async () => {
+    mockClient.tmuxCapturePane.mockResolvedValue({
+      content: "$ ls\nfile.txt",
+      error: null,
+    });
+
+    const { result } = renderCapturePaneHook();
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("$ ls\nfile.txt");
+    });
+
+    expect(result.current.paneCols).toBeNull();
   });
 });

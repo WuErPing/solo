@@ -1176,3 +1176,162 @@ describe("createAgentStreamReducerQueue", () => {
     expect(scheduler.size).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Full flow: live stream → timeline REPLACE → turn_completed → no duplicates
+// Regression guard for the dual-delivery duplication bug where the same
+// content appears in both tail (from bootstrap REPLACE) and head (from live
+// stream after REPLACE), causing duplicate rendering.
+// ---------------------------------------------------------------------------
+
+describe("full flow: live stream + timeline REPLACE + turn_completed → no duplicates", () => {
+  it("does not duplicate assistant_message when REPLACE and live stream deliver same content", () => {
+    const epoch = "epoch-1";
+
+    // Step 1: Live stream delivers user_message (seq=0) and assistant_message (seq=1)
+    const liveUserMsg = processAgentStreamEvent({
+      event: { type: "timeline", provider: "mock", item: { type: "user_message", text: "hi", messageId: "msg-1" } } as AgentStreamEventPayload,
+      seq: 0,
+      epoch,
+      timestamp: new Date(1000),
+      currentTail: [],
+      currentHead: [],
+      currentCursor: undefined,
+      currentAgent: null,
+    });
+    // user_message goes to tail
+    expect(liveUserMsg.tail).toHaveLength(1);
+    expect(liveUserMsg.tail[0]?.kind).toBe("user_message");
+
+    const liveAssistant = processAgentStreamEvent({
+      event: makeTimelineEvent("Hello!", "assistant_message"),
+      seq: 1,
+      epoch,
+      timestamp: new Date(1001),
+      currentTail: liveUserMsg.tail,
+      currentHead: [],
+      currentCursor: { epoch, startSeq: 0, endSeq: 0 },
+      currentAgent: null,
+    });
+    // assistant_message goes to head (streamable kind)
+    expect(liveAssistant.head).toHaveLength(1);
+    expect(liveAssistant.head[0]?.kind).toBe("assistant_message");
+
+    // Step 2: Timeline response arrives with REPLACE (same content, canonical ids)
+    const replaceResult = processTimelineResponse({
+      payload: {
+        agentId: "a1",
+        direction: "tail",
+        reset: false,
+        epoch,
+        entries: [
+          { seqStart: 0, seqEnd: 0, provider: "mock", item: { type: "user_message", text: "hi", messageId: "msg-1" }, timestamp: new Date(1000).toISOString() },
+          { seqStart: 1, seqEnd: 1, provider: "mock", item: { type: "assistant_message", text: "Hello!" }, timestamp: new Date(1001).toISOString() },
+        ],
+        startCursor: { seq: 0 },
+        endCursor: { seq: 1 },
+      } as any,
+      currentTail: liveAssistant.tail,
+      currentHead: liveAssistant.head,
+      currentCursor: { epoch, startSeq: 0, endSeq: 1 },
+      isInitializing: true,
+      hasActiveInitDeferred: true,
+      initRequestDirection: "tail",
+    });
+
+    // REPLACE discards old tail and head, creates new tail from canonical
+    expect(replaceResult.tail).toHaveLength(2);
+    expect(replaceResult.head).toHaveLength(0);
+    expect(replaceResult.tail[0]?.kind).toBe("user_message");
+    expect(replaceResult.tail[1]?.kind).toBe("assistant_message");
+
+    // Step 3: turn_completed arrives → flush head to tail
+    const turnCompleted = processAgentStreamEvent({
+      event: { type: "turn_completed", provider: "mock" } as AgentStreamEventPayload,
+      seq: undefined,
+      epoch: undefined,
+      timestamp: new Date(1002),
+      currentTail: replaceResult.tail,
+      currentHead: replaceResult.head,
+      currentCursor: { epoch, startSeq: 0, endSeq: 1 },
+      currentAgent: null,
+    });
+
+    // Head is empty (cleared by REPLACE), so flushHead does nothing
+    expect(turnCompleted.head).toHaveLength(0);
+
+    // CRITICAL: tail has exactly 2 items — no duplicates
+    expect(turnCompleted.tail).toHaveLength(2);
+    const assistantCount = turnCompleted.tail.filter(
+      (item) => item.kind === "assistant_message",
+    ).length;
+    expect(assistantCount).toBe(1);
+  });
+
+  it("does not duplicate when live stream events arrive AFTER REPLACE with same content", () => {
+    const epoch = "epoch-1";
+
+    // Step 1: Timeline REPLACE arrives first (events already in timeline store)
+    const replaceResult = processTimelineResponse({
+      payload: {
+        agentId: "a1",
+        direction: "tail",
+        reset: false,
+        epoch,
+        entries: [
+          { seqStart: 0, seqEnd: 0, provider: "mock", item: { type: "user_message", text: "hi", messageId: "msg-1" }, timestamp: new Date(1000).toISOString() },
+          { seqStart: 1, seqEnd: 1, provider: "mock", item: { type: "assistant_message", text: "Hello!" }, timestamp: new Date(1001).toISOString() },
+        ],
+        startCursor: { seq: 0 },
+        endCursor: { seq: 1 },
+      } as any,
+      currentTail: [],
+      currentHead: [],
+      currentCursor: undefined,
+      isInitializing: true,
+      hasActiveInitDeferred: true,
+      initRequestDirection: "tail",
+    });
+
+    expect(replaceResult.tail).toHaveLength(2);
+    expect(replaceResult.head).toHaveLength(0);
+
+    // Step 2: Live stream delivers same events (seq ≤ cursor.endSeq → should be dropped)
+    const liveUserMsg = processAgentStreamEvent({
+      event: { type: "timeline", provider: "mock", item: { type: "user_message", text: "hi", messageId: "msg-1" } } as AgentStreamEventPayload,
+      seq: 0,
+      epoch,
+      timestamp: new Date(1000),
+      currentTail: replaceResult.tail,
+      currentHead: replaceResult.head,
+      currentCursor: { epoch, startSeq: 0, endSeq: 1 },
+      currentAgent: null,
+    });
+
+    // seq gate: seq=0 ≤ cursor.endSeq=1 → "drop_stale" → not applied
+    expect(liveUserMsg.tail).toHaveLength(2);
+    expect(liveUserMsg.changedTail).toBe(false);
+
+    const liveAssistant = processAgentStreamEvent({
+      event: makeTimelineEvent("Hello!", "assistant_message"),
+      seq: 1,
+      epoch,
+      timestamp: new Date(1001),
+      currentTail: liveUserMsg.tail,
+      currentHead: liveUserMsg.head,
+      currentCursor: { epoch, startSeq: 0, endSeq: 1 },
+      currentAgent: null,
+    });
+
+    // seq gate: seq=1 ≤ cursor.endSeq=1 → "drop_stale" → not applied
+    expect(liveAssistant.tail).toHaveLength(2);
+    expect(liveAssistant.changedTail).toBe(false);
+    expect(liveAssistant.changedHead).toBe(false);
+
+    // CRITICAL: still exactly 2 items, no duplicates
+    const assistantCount = liveAssistant.tail.filter(
+      (item) => item.kind === "assistant_message",
+    ).length;
+    expect(assistantCount).toBe(1);
+  });
+});

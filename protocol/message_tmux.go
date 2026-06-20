@@ -71,11 +71,13 @@ type TmuxListAgentsResponsePayload struct {
 // StartLine is the negative offset from the bottom of the pane (e.g. -200 = last 200 lines).
 // When nil the daemon defaults to -200.
 // LastContentHash, when set, lets the daemon skip returning content if the hash matches.
+// Cols, when set, requests the content cropped to the specified width via capture-pane -C.
 type TmuxCapturePaneRequest struct {
 	Type            string  `json:"type"`
 	PaneID          string  `json:"paneId"`
 	StartLine       *int    `json:"startLine,omitempty"`
 	LastContentHash *string `json:"lastContentHash,omitempty"`
+	Cols            *int    `json:"cols,omitempty"`
 	RequestID       string  `json:"requestId"`
 }
 
@@ -93,11 +95,14 @@ func (m TmuxCapturePaneResponse) MsgType() string { return "tmux/capture_pane/re
 // Changed indicates whether content differs from the client's lastContentHash.
 // ContentHash is the hash of the current content (always set when no error).
 // When Changed is false, Content is empty (client should keep its cached version).
+// PaneCols is the original column width of the tmux pane, useful when the
+// client wants to display content at the pane's native width.
 type TmuxCapturePaneResponsePayload struct {
 	RequestID   string  `json:"requestId"`
 	Content     string  `json:"content"`
 	Changed     *bool   `json:"changed,omitempty"`
 	ContentHash *string `json:"contentHash,omitempty"`
+	PaneCols    *int    `json:"paneCols,omitempty"`
 	Error       *string `json:"error"`
 }
 

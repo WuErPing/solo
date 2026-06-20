@@ -50,7 +50,12 @@ async function waitFor(input: { predicate: () => boolean; timeoutMs?: number }):
   }
 }
 
-function createTerminalHost(input: { width: number; height: number }): MountedTerminal {
+function createTerminalHost(input: {
+  width: number;
+  height: number;
+  forceCols?: number;
+  allowHorizontalScroll?: boolean;
+}): MountedTerminal {
   const root = document.createElement("div");
   root.style.width = `${input.width}px`;
   root.style.height = `${input.height}px`;
@@ -87,6 +92,8 @@ function createTerminalHost(input: { width: number; height: number }): MountedTe
       foreground: "#e6e6e6",
       cursor: "#e6e6e6",
     },
+    ...(input.forceCols != null ? { forceCols: input.forceCols } : {}),
+    ...(input.allowHorizontalScroll != null ? { allowHorizontalScroll: input.allowHorizontalScroll } : {}),
   });
 
   const mounted = { host, root, runtime, inputs, sizes };
@@ -221,4 +228,89 @@ describe("terminal emulator runtime in a real browser", () => {
 
     expect(reset).not.toHaveBeenCalled();
   });
+
+  it("applies horizontal scroll viewport styles when allowHorizontalScroll is true", async () => {
+    await page.viewport(900, 600);
+    const mounted = createTerminalHost({ width: 720, height: 360, allowHorizontalScroll: true });
+
+    await waitFor({ predicate: () => mounted.sizes.length > 0 });
+
+    const viewport = mounted.host.querySelector<HTMLElement>(".xterm-viewport");
+    const screen = mounted.host.querySelector<HTMLElement>(".xterm-screen");
+
+    expect(viewport).not.toBeNull();
+    expect(screen).not.toBeNull();
+    expect(viewport!.style.overflowX).toBe("auto");
+    expect(viewport!.style.touchAction).toBe("pan-x pan-y");
+    expect(screen!.style.minWidth).toBe("max-content");
+  });
+
+  it("restores viewport styles when allowHorizontalScroll is toggled off", async () => {
+    await page.viewport(900, 600);
+    const mounted = createTerminalHost({ width: 720, height: 360, allowHorizontalScroll: true });
+
+    await waitFor({ predicate: () => mounted.sizes.length > 0 });
+
+    const viewport = mounted.host.querySelector<HTMLElement>(".xterm-viewport");
+    const screen = mounted.host.querySelector<HTMLElement>(".xterm-screen");
+    expect(viewport!.style.overflowX).toBe("auto");
+
+    mounted.runtime.setAllowHorizontalScroll({ allowHorizontalScroll: false });
+    await nextFrame();
+
+    expect(viewport!.style.overflowX).toBe("hidden");
+    expect(viewport!.style.touchAction).toBe("pan-y");
+    expect(screen!.style.minWidth).toBe("");
+  });
+
+  it("resizes terminal to forced column count", async () => {
+    await page.viewport(900, 600);
+    const mounted = createTerminalHost({ width: 360, height: 180, forceCols: 120 });
+
+    await waitFor({
+      predicate: () => {
+        const size = latestSize(mounted.sizes);
+        return size.cols === 120;
+      },
+    });
+
+    const terminal = window.__soloTerminal as { cols: number } | undefined;
+    expect(terminal).toBeDefined();
+    expect(terminal!.cols).toBe(120);
+  });
+
+  it("expands host width proportionally when forceCols is set", async () => {
+    await page.viewport(900, 600);
+    const mounted = createTerminalHost({ width: 360, height: 180, forceCols: 120 });
+
+    await waitFor({
+      predicate: () => {
+        const size = latestSize(mounted.sizes);
+        return size.cols === 120;
+      },
+    });
+
+    const hostWidth = parseInt(mounted.host.style.width, 10);
+    expect(hostWidth).toBeGreaterThan(360);
+  });
+
+  it("restores normal fit when forceCols is cleared", async () => {
+    await page.viewport(900, 600);
+    const mounted = createTerminalHost({ width: 360, height: 180, forceCols: 120 });
+
+    await waitFor({
+      predicate: () => {
+        const size = latestSize(mounted.sizes);
+        return size.cols === 120;
+      },
+    });
+
+    expect(mounted.host.style.width).not.toBe("100%");
+
+    mounted.runtime.setForceCols({});
+    await nextFrame();
+
+    expect(mounted.host.style.width).toBe("100%");
+  });
+
 });

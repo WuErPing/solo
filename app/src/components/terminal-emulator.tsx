@@ -109,7 +109,7 @@ function buildXtermThemeKey(theme: ITheme): string {
 
 interface TerminalEmulatorProps {
   dom?: DOMProps;
-  ref: Ref<TerminalEmulatorHandle>;
+  ref?: Ref<TerminalEmulatorHandle>;
   streamKey: string;
   testId?: string;
   xtermTheme?: ITheme;
@@ -130,6 +130,11 @@ interface TerminalEmulatorProps {
   pendingModifiers?: PendingTerminalModifiers;
   focusRequestToken?: number;
   resizeRequestToken?: number;
+  convertEol?: boolean;
+  snapshotText?: string;
+  onInitialColsEstimated?: (cols: number) => void;
+  forceCols?: number;
+  allowHorizontalScroll?: boolean;
 }
 
 declare global {
@@ -185,6 +190,11 @@ export default function TerminalEmulator({
   pendingModifiers = { ctrl: false, shift: false, alt: false },
   focusRequestToken = 0,
   resizeRequestToken = 0,
+  convertEol = false,
+  snapshotText,
+  onInitialColsEstimated,
+  forceCols,
+  allowHorizontalScroll = false,
 }: TerminalEmulatorProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -215,6 +225,10 @@ export default function TerminalEmulator({
   initialSnapshotRef.current = initialSnapshot;
   const pendingModifiersRef = useRef(pendingModifiers);
   pendingModifiersRef.current = pendingModifiers;
+  const forceColsRef = useRef(forceCols);
+  forceColsRef.current = forceCols;
+  const allowHorizontalScrollRef = useRef(allowHorizontalScroll);
+  allowHorizontalScrollRef.current = allowHorizontalScroll;
   const [viewportMetrics, setViewportMetrics] = useState<ViewportMetrics>({
     offset: 0,
     viewportSize: 0,
@@ -389,7 +403,23 @@ export default function TerminalEmulator({
       host,
       initialSnapshot: initialSnapshotRef.current,
       theme: mountedThemeRef.current,
+      convertEol,
+      forceCols: forceColsRef.current,
+      allowHorizontalScroll: allowHorizontalScrollRef.current,
     });
+
+    if (onInitialColsEstimated) {
+      try {
+        const estimated = runtime.estimateCols({
+          containerWidthPx: root.offsetWidth || root.getBoundingClientRect().width,
+        });
+        if (estimated > 0) {
+          onInitialColsEstimated(estimated);
+        }
+      } catch {
+        // ignore
+      }
+    }
 
     return () => {
       runtime.unmount();
@@ -397,7 +427,7 @@ export default function TerminalEmulator({
         runtimeRef.current = null;
       }
     };
-  }, [streamKey]);
+  }, [streamKey, convertEol, onInitialColsEstimated]);
 
   useEffect(() => {
     runtimeRef.current?.setCallbacks({
@@ -414,6 +444,28 @@ export default function TerminalEmulator({
   useEffect(() => {
     runtimeRef.current?.setPendingModifiers({ pendingModifiers });
   }, [pendingModifiers]);
+
+  useEffect(() => {
+    runtimeRef.current?.setForceCols({ forceCols });
+  }, [forceCols]);
+
+  useEffect(() => {
+    runtimeRef.current?.setAllowHorizontalScroll({ allowHorizontalScroll });
+  }, [allowHorizontalScroll]);
+
+  // Prefer prop-driven snapshots over ref calls for DOM components: the ref
+  // handle may not be ready when the parent effect fires, causing
+  // "undefined is not a function" on the native side. Updating through a
+  // serializable prop lets the DOM component write the content itself.
+  const prevSnapshotTextRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!snapshotText || snapshotText === prevSnapshotTextRef.current) {
+      return;
+    }
+    prevSnapshotTextRef.current = snapshotText;
+    runtimeRef.current?.clear();
+    runtimeRef.current?.write({ text: snapshotText });
+  }, [snapshotText]);
 
   useEffect(() => {
     if (focusRequestToken <= 0) {
@@ -672,16 +724,16 @@ export default function TerminalEmulator({
     () => ({
       position: "relative",
       display: "flex",
-      width: "100%",
+      width: allowHorizontalScroll ? "auto" : "100%",
       height: "100%",
       minHeight: 0,
       minWidth: 0,
       backgroundColor: xtermTheme.background ?? "#0b0b0b",
-      overflow: "hidden",
+      overflow: allowHorizontalScroll ? "visible" : "hidden",
       overscrollBehavior: "none",
-      touchAction: "pan-y",
+      touchAction: allowHorizontalScroll ? "pan-x pan-y" : "pan-y",
     }),
-    [xtermTheme.background],
+    [xtermTheme.background, allowHorizontalScroll],
   );
   const handleContainerStyle = useMemo<CSSProperties>(
     () => ({

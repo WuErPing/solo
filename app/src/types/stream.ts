@@ -893,13 +893,29 @@ export function flushHeadToTail(tail: StreamItem[], head: StreamItem[]): StreamI
 
   const finalized = finalizeHeadItems(head);
   const tailIds = new Set(tail.map((item) => item.id));
-  const newItems = finalized.filter((item) => !tailIds.has(item.id));
+  const newItems = finalized.filter((item) => {
+    if (tailIds.has(item.id)) {
+      return false;
+    }
+    const text = getItemText(item);
+    if (text && tail.some((t) => t.kind === item.kind && getItemText(t) === text)) {
+      return false;
+    }
+    return true;
+  });
 
   if (newItems.length === 0) {
     return tail;
   }
 
   return [...tail, ...newItems];
+}
+
+function getItemText(item: StreamItem): string | undefined {
+  if (item.kind === "assistant_message" || item.kind === "user_message" || item.kind === "thought") {
+    return item.text;
+  }
+  return undefined;
 }
 
 /**

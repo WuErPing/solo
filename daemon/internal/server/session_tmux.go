@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"golang.org/x/sync/singleflight"
 
@@ -224,7 +225,7 @@ func (s *Session) detectAgentActivity(agents []protocol.TmuxAgentInfo) {
 			a.LastContentChange = ts
 		}
 
-		content, err := capturePaneFunc(a.PaneID, -10)
+		content, _, err := capturePaneFunc(a.PaneID, -10, 0)
 		if err != nil {
 			s.logger.Warn("tmux activity detection: capture failed", "paneID", a.PaneID, "error", err)
 			continue
@@ -311,7 +312,7 @@ func extractFirstPrompt(paneID string, paneTitle string, agentNames map[string]b
 		}
 	}
 
-	content, err := captureTmuxPane(paneID, -50)
+	content, _, err := captureTmuxPane(paneID, -50, 0)
 	if err != nil {
 		return ""
 	}
@@ -486,6 +487,7 @@ func descendantProcesses(rootPID int, nodes []processNode) []processNode {
 var processListFunc = listProcessTree
 
 // capturePaneFunc is overridable in tests to avoid real tmux invocations.
+// Returns content, pane column width, error.
 var capturePaneFunc = captureTmuxPane
 
 // argsContainsAgentName checks whether any whitespace-separated token in args
@@ -559,32 +561,41 @@ func (s *Session) handleTmuxCapturePane(m *protocol.TmuxCapturePaneRequest) {
 		startLine = *m.StartLine
 	}
 
-	// Coalesce concurrent requests for the same pane+startLine into a single tmux call.
-	key := m.PaneID + ":" + strconv.Itoa(startLine)
+	cols := 0
+	if m.Cols != nil {
+		cols = *m.Cols
+	}
+
+	// Coalesce concurrent requests for the same pane+startLine+cols into a single tmux call.
+	key := m.PaneID + ":" + strconv.Itoa(startLine) + ":" + strconv.Itoa(cols)
+	type captureResult struct {
+		content  string
+		paneCols int
+	}
 	result, err, _ := capturePaneFlight.Do(key, func() (any, error) {
-		content, err := captureTmuxPane(m.PaneID, startLine)
+		content, paneCols, err := capturePaneFunc(m.PaneID, startLine, cols)
 		if err != nil {
 			return nil, err
 		}
-		return content, nil
+		return captureResult{content: content, paneCols: paneCols}, nil
 	})
 	if err != nil {
 		errMsg := err.Error()
-		s.sendTmuxCapturePaneResponse(m.RequestID, "", nil, nil, &errMsg)
+		s.sendTmuxCapturePaneResponse(m.RequestID, "", nil, nil, nil, &errMsg)
 		return
 	}
-	content := result.(string)
-	hash := computeContentHash(content)
+	cr := result.(captureResult)
+	hash := computeContentHash(cr.content)
 	if m.LastContentHash != nil && *m.LastContentHash == hash {
 		changed := false
-		s.sendTmuxCapturePaneResponse(m.RequestID, "", &changed, &hash, nil)
+		s.sendTmuxCapturePaneResponse(m.RequestID, "", &changed, &hash, &cr.paneCols, nil)
 		return
 	}
 	changed := true
-	s.sendTmuxCapturePaneResponse(m.RequestID, content, &changed, &hash, nil)
+	s.sendTmuxCapturePaneResponse(m.RequestID, cr.content, &changed, &hash, &cr.paneCols, nil)
 }
 
-func (s *Session) sendTmuxCapturePaneResponse(requestID string, content string, changed *bool, contentHash *string, errMsg *string) {
+func (s *Session) sendTmuxCapturePaneResponse(requestID string, content string, changed *bool, contentHash *string, paneCols *int, errMsg *string) {
 	s.sendMessage(protocol.NewSessionMessage(&protocol.TmuxCapturePaneResponse{
 		Type: "tmux/capture_pane/response",
 		Payload: protocol.TmuxCapturePaneResponsePayload{
@@ -592,6 +603,7 @@ func (s *Session) sendTmuxCapturePaneResponse(requestID string, content string, 
 			Content:     content,
 			Changed:     changed,
 			ContentHash: contentHash,
+			PaneCols:    paneCols,
 			Error:       errMsg,
 		},
 	}))
@@ -633,14 +645,139 @@ func computeContentHash(content string) string {
 	return hex.EncodeToString(h[:8])
 }
 
-func captureTmuxPane(paneID string, startLine int) (string, error) {
+func captureTmuxPane(paneID string, startLine int, cols int) (string, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), tmuxCommandTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "tmux", "capture-pane", "-t", paneID, "-p", "-e", "-S", strconv.Itoa(startLine)).Output()
+	// Use -J to rejoin lines that tmux wrapped because of the host pane width.
+	// This lets the server's width-aware rewrapper produce clean breaks at the
+	// client's column count, instead of inheriting hard line breaks from a pane
+	// that is almost certainly a different width.
+	out, err := exec.CommandContext(ctx, "tmux", "capture-pane", "-t", paneID, "-p", "-e", "-J", "-S", strconv.Itoa(startLine)).Output()
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
-	return string(out), nil
+	content := string(out)
+	if cols > 0 {
+		content = wrapContentToCols(content, cols)
+	}
+	paneCols := getTmuxPaneCols(paneID)
+	return content, paneCols, nil
+}
+
+func getTmuxPaneCols(paneID string) int {
+	ctx, cancel := context.WithTimeout(context.Background(), tmuxCommandTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "tmux", "display-message", "-p", "-t", paneID, "#{pane_width}").Output()
+	if err != nil {
+		return 0
+	}
+	w, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	if err != nil {
+		return 0
+	}
+	return w
+}
+
+const tabWidth = 8
+
+// wrapContentToCols rewraps a terminal capture to a target column count.
+// It is ANSI-aware: CSI SGR escape sequences are preserved and carried across
+// wrapped lines so that colors/styles stay correct. Wide characters (CJK,
+// box drawing) are approximated as single columns, which is sufficient for
+// preventing xterm.js from wrapping already-wrapped ASCII box-drawing tables.
+func wrapContentToCols(content string, cols int) string {
+	if cols <= 0 {
+		return content
+	}
+
+	var result strings.Builder
+	lines := strings.Split(content, "\n")
+	for lineIdx, line := range lines {
+		if lineIdx > 0 {
+			result.WriteByte('\n')
+		}
+		if len(line) == 0 {
+			continue
+		}
+
+		var lineOut strings.Builder
+		visible := 0
+		var activeSGR strings.Builder
+
+		for i := 0; i < len(line); {
+			// CSI escape sequence: \x1b[...<final byte>
+			if line[i] == '\x1b' && i+1 < len(line) && line[i+1] == '[' {
+				end := i + 2
+				for end < len(line) {
+					c := line[end]
+					if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '~' {
+						end++
+						break
+					}
+					end++
+				}
+				seq := line[i:end]
+				if len(seq) >= 3 && seq[len(seq)-1] == 'm' {
+					paramStart := 2 // skip "\x1b["
+					paramEnd := len(seq) - 1
+					params := seq[paramStart:paramEnd]
+					if params == "" || params == "0" {
+						activeSGR.Reset()
+					} else {
+						if activeSGR.Len() > 0 {
+							activeSGR.WriteByte(';')
+						}
+						activeSGR.WriteString(params)
+					}
+				}
+				lineOut.WriteString(seq)
+				i = end
+				continue
+			}
+
+			// Plain character.
+			r, size := utf8.DecodeRuneInString(line[i:])
+			if r == utf8.RuneError && size == 1 {
+				// Invalid UTF-8: treat as a single replacement column.
+				size = 1
+			}
+
+			var width int
+			switch {
+			case r == '\t':
+				width = tabWidth - (visible % tabWidth)
+			case r >= 0x1100 && (r <= 0x115f || r == 0x2329 || r == 0x232a || (r >= 0x2e80 && r <= 0xa4cf) || (r >= 0xac00 && r <= 0xd7a3) || (r >= 0xf900 && r <= 0xfaff) || (r >= 0xfe30 && r <= 0xfe6f) || (r >= 0xff00 && r <= 0xff60) || (r >= 0xffe0 && r <= 0xffe6) || (r >= 0x1f300 && r <= 0x1f64f) || (r >= 0x1f900 && r <= 0x1f9ff)):
+				width = 2
+			default:
+				width = 1
+			}
+
+			if visible+width > cols && visible > 0 {
+				// Wrap before this character. Close active styles on the
+				// current line and reopen them on the next line.
+				if activeSGR.Len() > 0 {
+					lineOut.WriteString("\x1b[0m")
+				}
+				result.WriteString(lineOut.String())
+				result.WriteByte('\n')
+				lineOut.Reset()
+				visible = 0
+				if activeSGR.Len() > 0 {
+					lineOut.WriteString("\x1b[")
+					lineOut.WriteString(activeSGR.String())
+					lineOut.WriteByte('m')
+				}
+			}
+
+			lineOut.WriteRune(r)
+			visible += width
+			i += size
+		}
+
+		result.WriteString(lineOut.String())
+	}
+
+	return result.String()
 }
 
 func (s *Session) handleTmuxSendKeys(m *protocol.TmuxSendKeysRequest) {

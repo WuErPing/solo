@@ -248,6 +248,8 @@ func (s *openCodeSession) finishForegroundTurn(evt AgentStreamEvent, turnID stri
 
 	evtType := ""
 	switch e := evt.Event.(type) {
+	case protocol.TurnCompletedStreamEvent:
+		evtType = e.StreamEventType()
 	case protocol.TurnCanceledStreamEvent:
 		evtType = e.StreamEventType()
 	case protocol.TurnFailedStreamEvent:
@@ -413,10 +415,15 @@ func (s *openCodeSession) translateSessionCreatedOrUpdated(raw map[string]json.R
 		sid = props.SessionID
 	}
 	if sid == s.base.SessionID() {
-		emit(protocol.ThreadStartedStreamEvent{
-			Provider:  opencodeProviderName,
-			SessionID: s.base.SessionID(),
-		})
+		s.mu.Lock()
+		alreadyEmitted := s.threadStartedEmitted
+		s.mu.Unlock()
+		if !alreadyEmitted {
+			emit(protocol.ThreadStartedStreamEvent{
+				Provider:  opencodeProviderName,
+				SessionID: s.base.SessionID(),
+			})
+		}
 	}
 }
 

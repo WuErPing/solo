@@ -220,7 +220,7 @@ func newKimiSession(binaryPath string, config *protocol.AgentSessionConfig, logg
 	}
 }
 
-func (s *kimiSession) Run(ctx context.Context, text string, _ []protocol.ImageAttachment, _ []protocol.AgentAttachment, _ string) (*AgentRunResult, error) {
+func (s *kimiSession) Run(ctx context.Context, text string, _ []protocol.ImageAttachment, _ []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 
 	if _, err := s.turnGuard.Acquire(); err != nil {
@@ -244,9 +244,30 @@ func (s *kimiSession) Run(ctx context.Context, text string, _ []protocol.ImageAt
 		cancel()
 	}()
 
+	// Proactively emit thread_started and user_message so all connected
+	// clients see the turn start and prompt immediately. The Kimi Wire
+	// protocol does not echo the user prompt back.
+	now := time.Now()
+	s.dispatcher.Emit(AgentStreamEvent{
+		Event: protocol.ThreadStartedStreamEvent{
+			Provider:  kimiProviderName,
+			SessionID: s.base.SessionID(),
+		},
+		Timestamp: now,
+	})
+	if text != "" {
+		s.dispatcher.Emit(AgentStreamEvent{
+			Event: protocol.TimelineStreamEvent{
+				Item:     protocol.TimelineItem{Type: "user_message", Text: text, MessageID: messageID},
+				Provider: kimiProviderName,
+			},
+			Timestamp: now,
+		})
+	}
+
 	pump := base.NewEventPump(s.base.Logger(), s.dispatcher)
 	pump.SetProvider(kimiProviderName)
-	translator := &kimiWireTranslator{session: s}
+	translator := &kimiWireTranslator{session: s, threadStartedEmitted: true}
 	detector := &kimiWireTerminalDetector{session: s}
 
 	result, err := pump.RunBlocking(runCtx, stdoutPipe, translator, detector)
@@ -542,7 +563,8 @@ func (s *kimiSession) StreamHistory(_ context.Context) ([]AgentStreamEvent, erro
 // --- Wire Translator ---
 
 type kimiWireTranslator struct {
-	session *kimiSession
+	session              *kimiSession
+	threadStartedEmitted bool
 }
 
 func (t *kimiWireTranslator) Translate(raw []byte, timestamp time.Time) ([]interface{}, bool, error) {
@@ -571,13 +593,15 @@ func (t *kimiWireTranslator) Translate(raw []byte, timestamp time.Time) ([]inter
 
 	switch msg.Params.Type {
 	case "TurnBegin":
-		events = append(events, AgentStreamEvent{
-			Event: protocol.ThreadStartedStreamEvent{
-				Provider:  kimiProviderName,
-				SessionID: t.session.base.SessionID(),
-			},
-			Timestamp: timestamp,
-		})
+		if !t.threadStartedEmitted {
+			events = append(events, AgentStreamEvent{
+				Event: protocol.ThreadStartedStreamEvent{
+					Provider:  kimiProviderName,
+					SessionID: t.session.base.SessionID(),
+				},
+				Timestamp: timestamp,
+			})
+		}
 
 	case "ContentPart":
 		var payload struct {

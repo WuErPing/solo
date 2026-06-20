@@ -179,6 +179,156 @@ func TestCreateAgentViaWebSocket(t *testing.T) {
 	}
 }
 
+// TestCreateAgentPropagatesClientMessageID verifies that when a createAgent
+// request includes a clientMessageId and an initialPrompt, the daemon
+// propagates the clientMessageId as the MessageID of the user_message stream
+// event. Without this, the app's optimistic user_message can't be matched
+// and deduped, causing prompt duplication and a stuck loading animation.
+func TestCreateAgentPropagatesClientMessageID(t *testing.T) {
+	_, ts := newTestWSServer(t)
+	conn := dialAndHello(t, ts.URL, "test-client-msg-id")
+	defer conn.Close()
+	readInitialMessages(t, conn)
+
+	createReq := protocol.WSInboundMessage{
+		Type: "session",
+		Message: mustMarshal(map[string]interface{}{
+			"type":            "create_agent_request",
+			"requestId":       "req-create-msg-id",
+			"initialPrompt":   "hello world",
+			"clientMessageId": "msg-test-123",
+			"config": map[string]interface{}{
+				"provider": "mock",
+				"cwd":      "/tmp/test-project",
+			},
+			"labels": map[string]string{},
+		}),
+	}
+	if err := conn.WriteJSON(createReq); err != nil {
+		t.Fatalf("write create_agent: %v", err)
+	}
+
+	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	var foundUserMessage, foundTurnCompleted bool
+	for !foundUserMessage || !foundTurnCompleted {
+		_, msg, err := conn.ReadMessage()
+		if err != nil {
+			t.Fatalf("read: %v", err)
+		}
+		var resp protocol.WSOutboundMessage
+		if err := json.Unmarshal(msg, &resp); err != nil {
+			continue
+		}
+		msgBytes, _ := json.Marshal(resp.Message)
+		var peek struct {
+			Type    string `json:"type"`
+			Payload struct {
+				Event struct {
+					Type string `json:"type"`
+					Item struct {
+						Type      string `json:"type"`
+						MessageID string `json:"messageId"`
+					} `json:"item"`
+				} `json:"event"`
+			} `json:"payload"`
+		}
+		if json.Unmarshal(msgBytes, &peek) != nil {
+			continue
+		}
+		if peek.Type == "agent_stream" && peek.Payload.Event.Item.Type == "user_message" {
+			foundUserMessage = true
+			if peek.Payload.Event.Item.MessageID != "msg-test-123" {
+				t.Errorf("user_message messageId: got %q, want %q",
+					peek.Payload.Event.Item.MessageID, "msg-test-123")
+			}
+		}
+		if peek.Type == "agent_stream" && peek.Payload.Event.Type == "turn_completed" {
+			foundTurnCompleted = true
+		}
+	}
+}
+
+// TestCreateAgentNoDuplicateStreamEvents verifies that creating an agent with
+// an initialPrompt delivers exactly one user_message and one assistant_message
+// via the live stream — no duplicates from the coalescer's dual-delivery design
+// (timeline store + live stream).
+func TestCreateAgentNoDuplicateStreamEvents(t *testing.T) {
+	_, ts := newTestWSServer(t)
+	conn := dialAndHello(t, ts.URL, "test-no-dup-events")
+	defer conn.Close()
+	readInitialMessages(t, conn)
+
+	createReq := protocol.WSInboundMessage{
+		Type: "session",
+		Message: mustMarshal(map[string]interface{}{
+			"type":           "create_agent_request",
+			"requestId":      "req-no-dup",
+			"initialPrompt":  "hello",
+			"clientMessageId": "msg-no-dup-001",
+			"config": map[string]interface{}{
+				"provider": "mock",
+				"cwd":      "/tmp/test-project",
+			},
+			"labels": map[string]string{},
+		}),
+	}
+	if err := conn.WriteJSON(createReq); err != nil {
+		t.Fatalf("write create_agent: %v", err)
+	}
+
+	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	var userMsgCount, assistantMsgCount, turnCompletedCount int
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		_, msg, err := conn.ReadMessage()
+		if err != nil {
+			break
+		}
+		var resp protocol.WSOutboundMessage
+		if err := json.Unmarshal(msg, &resp); err != nil {
+			continue
+		}
+		msgBytes, _ := json.Marshal(resp.Message)
+		var peek struct {
+			Type    string `json:"type"`
+			Payload struct {
+				Event struct {
+					Type string `json:"type"`
+					Item struct {
+						Type string `json:"type"`
+					} `json:"item"`
+				} `json:"event"`
+			} `json:"payload"`
+		}
+		if json.Unmarshal(msgBytes, &peek) != nil {
+			continue
+		}
+		if peek.Type != "agent_stream" {
+			continue
+		}
+		if peek.Payload.Event.Item.Type == "user_message" {
+			userMsgCount++
+		}
+		if peek.Payload.Event.Item.Type == "assistant_message" {
+			assistantMsgCount++
+		}
+		if peek.Payload.Event.Type == "turn_completed" {
+			turnCompletedCount++
+			break
+		}
+	}
+
+	if userMsgCount != 1 {
+		t.Errorf("user_message count: got %d, want 1", userMsgCount)
+	}
+	if assistantMsgCount != 1 {
+		t.Errorf("assistant_message count: got %d, want 1", assistantMsgCount)
+	}
+	if turnCompletedCount != 1 {
+		t.Errorf("turn_completed count: got %d, want 1", turnCompletedCount)
+	}
+}
+
 func TestCreateAgentRegistersWorkspaceForCwd(t *testing.T) {
 	_, ts := newTestWSServer(t)
 	conn := dialAndHello(t, ts.URL, "test-create-agent-workspace")

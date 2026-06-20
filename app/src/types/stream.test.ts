@@ -6,6 +6,7 @@ import {
   hydrateStreamState,
   mergeToolCallDetail,
   reduceStreamUpdate,
+  flushHeadToTail,
   type AgentToolCallItem,
   type StreamItem,
   isAgentToolCallItem,
@@ -799,5 +800,48 @@ describe("stream reducer canonical tool calls", () => {
       next[0]?.kind === "assistant_message" ? next[0].text : null,
       "Saved that preference. Right. And it probably isn't.",
     );
+  });
+});
+
+describe("flushHeadToTail", () => {
+  it("returns tail unchanged when head is empty", () => {
+    const tail: StreamItem[] = [
+      { kind: "user_message", id: "u1", text: "hi", timestamp: new Date() },
+    ];
+    assert.strictEqual(flushHeadToTail(tail, []), tail);
+  });
+
+  it("appends head items with different ids", () => {
+    const tail: StreamItem[] = [
+      { kind: "user_message", id: "u1", text: "hi", timestamp: new Date() },
+    ];
+    const head: StreamItem[] = [
+      { kind: "assistant_message", id: "a1", text: "hello", timestamp: new Date() },
+    ];
+    const result = flushHeadToTail(tail, head);
+    assert.strictEqual(result.length, 2);
+    assert.strictEqual(result[1]?.id, "a1");
+  });
+
+  it("drops head items whose id already exists in tail", () => {
+    const tail: StreamItem[] = [
+      { kind: "assistant_message", id: "a1", text: "hello", timestamp: new Date() },
+    ];
+    const head: StreamItem[] = [
+      { kind: "assistant_message", id: "a1", text: "hello", timestamp: new Date() },
+    ];
+    const result = flushHeadToTail(tail, head);
+    assert.strictEqual(result.length, 1);
+  });
+
+  it("deduplicates head items with different ids but same kind+text (bootstrap replace scenario)", () => {
+    const tail: StreamItem[] = [
+      { kind: "assistant_message", id: "a_canonical_0", text: "Hello world", timestamp: new Date() },
+    ];
+    const head: StreamItem[] = [
+      { kind: "assistant_message", id: "a_live_0", text: "Hello world", timestamp: new Date() },
+    ];
+    const result = flushHeadToTail(tail, head);
+    assert.strictEqual(result.length, 1, "same kind+text → deduplicated");
   });
 });

@@ -3,7 +3,7 @@
 > **文档类型**：技术深度分析
 > **日期**：2026-06-13
 > **基线版本**：Solo v0.6.0
-> **关联文档**：[Loop Schedule Design](loop-schedule-design.md)
+> **关联文档**：[Loop Schedule Design](loop-schedule-design.md)、[Loop Schedule Implementation Spec](loop-schedule-spec.md)
 > **目标读者**：后端/架构/核心开发者
 
 ---

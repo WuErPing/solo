@@ -48,11 +48,13 @@ function AgentCard({
   statusLine,
   onPress,
   onClose,
+  onOpenXterm,
 }: {
   agent: TmuxAgent;
   statusLine?: TmuxStatusLineInfo;
   onPress: () => void;
   onClose: () => void;
+  onOpenXterm: () => void;
 }) {
   const { theme } = useUnistyles();
   const isExited = agent.status === "exited";
@@ -90,6 +92,15 @@ function AgentCard({
         </Pressable>
         <View style={styles.headerRightRow}>
           <Text style={styles.serverLabel}>{agent.serverLabel}</Text>
+          <Pressable
+            onPress={onOpenXterm}
+            hitSlop={8}
+            testID="open-xterm-button"
+            accessibilityLabel="Open in xterm pane"
+            style={{ padding: 4 }}
+          >
+            <Monitor size={16} color={theme.colors.primary} />
+          </Pressable>
           <Pressable
             onPress={onClose}
             hitSlop={8}
@@ -187,10 +198,12 @@ function PaneCard({
   pane,
   onPress,
   onClose,
+  onOpenXterm,
 }: {
   pane: TmuxPane;
   onPress: () => void;
   onClose: () => void;
+  onOpenXterm: () => void;
 }) {
   const { theme } = useUnistyles();
 
@@ -203,6 +216,15 @@ function PaneCard({
         </Pressable>
         <View style={styles.headerRightRow}>
           <Text style={styles.serverLabel}>{pane.serverLabel}</Text>
+          <Pressable
+            onPress={onOpenXterm}
+            hitSlop={8}
+            testID="open-xterm-button"
+            accessibilityLabel="Open in xterm pane"
+            style={{ padding: 4 }}
+          >
+            <Monitor size={16} color={theme.colors.primary} />
+          </Pressable>
           <Pressable
             onPress={onClose}
             hitSlop={8}
@@ -391,6 +413,11 @@ function TmuxDashboardScreenInner() {
   const handlePanePress = (pane: TmuxPane) => {
     setSelectedAgent(pane);
     router.push("/tmux-pane");
+  };
+
+  const handleOpenXterm = (agentOrPane: TmuxAgent | TmuxPane) => {
+    setSelectedAgent(agentOrPane);
+    router.push("/tmux-pane-xterm");
   };
 
   const handleRunCommand = useCallback(async (entry: AgentCommandEntry) => {
@@ -659,6 +686,7 @@ function TmuxDashboardScreenInner() {
                     )}
                     onPress={() => handleAgentPress(agent)}
                     onClose={() => handleCloseSession(agent.sessionName)}
+                    onOpenXterm={() => handleOpenXterm(agent)}
                   />
                 ))}
               </View>
@@ -692,6 +720,7 @@ function TmuxDashboardScreenInner() {
                     pane={pane}
                     onPress={() => handlePanePress(pane)}
                     onClose={() => handleCloseSession(pane.sessionName)}
+                    onOpenXterm={() => handleOpenXterm(pane)}
                   />
                 ))}
               </View>

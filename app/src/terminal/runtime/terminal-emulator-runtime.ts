@@ -23,6 +23,9 @@ export interface TerminalEmulatorRuntimeMountInput {
   host: HTMLDivElement;
   initialSnapshot: TerminalState | null;
   theme: ITheme;
+  convertEol?: boolean;
+  forceCols?: number;
+  allowHorizontalScroll?: boolean;
 }
 
 export interface TerminalEmulatorRuntimeCallbacks {
@@ -102,6 +105,32 @@ const DEFAULT_TERMINAL_FONT_FAMILY = [
   "monospace",
 ].join(", ");
 
+// Approximate average glyph advance widths used to pre-fit the terminal on
+// mobile before xterm has measured its actual cell size. Values are in px for
+// a 1px font-size and must stay conservative (slightly wider than real glyphs)
+// so that capture-pane width does not exceed the visible columns.
+const AVG_GLYPH_ADVANCE_X = 0.78;
+const AVG_CJK_GLYPH_ADVANCE_X = 1.15;
+
+function computeAdaptiveFontSize(containerWidthPx: number): number {
+  // Keep the terminal readable on tablets/desktop, but shrink on phones so
+  // that ASCII box-drawing tables fit within the viewport.
+  if (containerWidthPx >= 900) return 14;
+  if (containerWidthPx >= 600) return 13;
+  if (containerWidthPx >= 400) return 11;
+  return 10;
+}
+
+function estimateCols(containerWidthPx: number, fontSize: number): number {
+  // Blend average advances: assume ~15% wide glyphs (CJK/box) and the rest
+  // latin/monospace. Reserve generous space for the scrollbar and safety
+  // margin so the captured width never exceeds the visible columns.
+  const blendedAdvance = AVG_GLYPH_ADVANCE_X * 0.85 + AVG_CJK_GLYPH_ADVANCE_X * 0.15;
+  const cellWidth = fontSize * blendedAdvance;
+  const usableWidth = Math.max(1, containerWidthPx - 32);
+  return Math.max(1, Math.floor(usableWidth / cellWidth));
+}
+
 function withOverviewRulerBorderHidden(theme: ITheme): ITheme {
   return {
     ...theme,
@@ -125,6 +154,9 @@ export class TerminalEmulatorRuntime {
   private inFlightOutputOperation: TerminalOutputOperation | null = null;
   private inFlightOutputOperationTimeout: ReturnType<typeof setTimeout> | null = null;
   private suppressInput = false;
+  private forceCols: number | undefined = undefined;
+  private allowHorizontalScroll = false;
+  private restoreViewportStyles: (() => void) | null = null;
 
   private handleVisibilityRestore = (): void => {
     if (typeof document !== "undefined" && document.visibilityState !== "visible") {
@@ -147,20 +179,44 @@ export class TerminalEmulatorRuntime {
     this.pendingModifiers = input.pendingModifiers;
   }
 
+  setForceCols(input: { forceCols?: number }): void {
+    const next = typeof input.forceCols === "number" && input.forceCols > 0 ? input.forceCols : undefined;
+    if (this.forceCols === next) {
+      return;
+    }
+    this.forceCols = next;
+    this.fitAndEmitResize?.(true);
+  }
+
+  setAllowHorizontalScroll(input: { allowHorizontalScroll: boolean }): void {
+    if (this.allowHorizontalScroll === input.allowHorizontalScroll) {
+      return;
+    }
+    this.allowHorizontalScroll = input.allowHorizontalScroll;
+    this.restoreViewportStyles?.();
+    const host = this.terminal?.element?.parentElement as HTMLDivElement | null;
+    if (host) {
+      this.restoreViewportStyles = this.applyViewportTouchStyles({ host, allowHorizontalScroll: this.allowHorizontalScroll });
+    }
+    this.fitAndEmitResize?.(true);
+  }
+
   mount(input: TerminalEmulatorRuntimeMountInput): void {
     this.unmount();
 
     input.host.innerHTML = "";
     this.lastSize = null;
 
+    const rootWidth = input.root.offsetWidth;
+    const initialFontSize = computeAdaptiveFontSize(rootWidth);
     const terminal = new Terminal({
       allowProposedApi: true,
-      convertEol: false,
+      convertEol: input.convertEol ?? false,
       cursorBlink: true,
       cursorStyle: "bar",
       customGlyphs: true,
       fontFamily: DEFAULT_TERMINAL_FONT_FAMILY,
-      fontSize: 13,
+      fontSize: initialFontSize,
       lineHeight: 1.0,
       macOptionIsMeta: true,
       minimumContrastRatio: 1,
@@ -240,29 +296,36 @@ export class TerminalEmulatorRuntime {
     };
     registerProtocolQuerySuppression();
 
-    let webglAddonRaf: number | null = requestAnimationFrame(() => {
-      webglAddonRaf = null;
-      try {
-        disposeWebglRenderer();
-        webglAddon = new WebglAddon();
-        webglAddon.onContextLoss(() => {
+    const isLikelyMobile = input.root.offsetWidth > 0 && input.root.offsetWidth < 600;
+    let webglAddonRaf: number | null = null;
+    if (!isLikelyMobile) {
+      webglAddonRaf = requestAnimationFrame(() => {
+        webglAddonRaf = null;
+        try {
           disposeWebglRenderer();
-        });
-        terminal.loadAddon(webglAddon);
-        imageAddon = new ImageAddon();
-        terminal.loadAddon(imageAddon);
-        registerProtocolQuerySuppression();
-        this.fitAndEmitResize?.(true);
-      } catch {
-        disposeWebglRenderer();
-      }
-    });
+          webglAddon = new WebglAddon();
+          webglAddon.onContextLoss(() => {
+            disposeWebglRenderer();
+          });
+          terminal.loadAddon(webglAddon);
+          imageAddon = new ImageAddon();
+          terminal.loadAddon(imageAddon);
+          registerProtocolQuerySuppression();
+          this.fitAndEmitResize?.(true);
+        } catch {
+          disposeWebglRenderer();
+        }
+      });
+    }
 
     const restoreDocumentStyles = this.applyDocumentBoundsStyles({
       root: input.root,
     });
-    const restoreViewportStyles = this.applyViewportTouchStyles({
+    this.allowHorizontalScroll = input.allowHorizontalScroll ?? false;
+    this.forceCols = typeof input.forceCols === "number" && input.forceCols > 0 ? input.forceCols : undefined;
+    this.restoreViewportStyles = this.applyViewportTouchStyles({
       host: input.host,
+      allowHorizontalScroll: this.allowHorizontalScroll,
     });
 
     this.terminal = terminal;
@@ -276,18 +339,68 @@ export class TerminalEmulatorRuntime {
         return;
       }
 
-      if (input.root.offsetWidth === 0 || input.root.offsetHeight === 0) {
+      const currentRootWidth = input.root.offsetWidth;
+      const currentRootHeight = input.root.offsetHeight;
+      if (currentRootWidth === 0 || currentRootHeight === 0) {
         return;
       }
 
-      try {
-        currentFitAddon.fit();
-      } catch {
-        return;
+      const nextFontSize = computeAdaptiveFontSize(currentRootWidth);
+      if (currentTerminal.options.fontSize !== nextFontSize) {
+        try {
+          currentTerminal.options.fontSize = nextFontSize;
+        } catch {
+          // ignore
+        }
       }
 
-      const nextRows = currentTerminal.rows;
-      const nextCols = currentTerminal.cols;
+      let nextRows = currentTerminal.rows;
+      let nextCols = currentTerminal.cols;
+      const forcedCols = this.forceCols;
+      if (typeof forcedCols === "number" && forcedCols > 0) {
+        // First fit to the container so we can measure the real cell width at
+        // the current font size, then expand the host to the desired width.
+        try {
+          currentFitAddon.fit();
+        } catch {
+          return;
+        }
+        const fittedCols = currentTerminal.cols;
+        const fittedElementWidth = currentTerminal.element?.getBoundingClientRect().width ?? 0;
+        const cellWidth = fittedCols > 0 && fittedElementWidth > 0 ? fittedElementWidth / fittedCols : currentRootWidth / Math.max(1, fittedCols);
+        const desiredHostWidth = Math.max(1, Math.ceil(cellWidth * forcedCols));
+        input.host.style.width = `${desiredHostWidth}px`;
+        input.host.style.flex = "0 0 auto";
+        input.root.style.minWidth = `${desiredHostWidth}px`;
+        input.root.style.width = "auto";
+        try {
+          currentTerminal.resize(forcedCols, currentTerminal.rows);
+          nextRows = currentTerminal.rows;
+          nextCols = currentTerminal.cols;
+        } catch {
+          // fall through to fit()
+          try {
+            currentFitAddon.fit();
+          } catch {
+            return;
+          }
+          nextRows = currentTerminal.rows;
+          nextCols = currentTerminal.cols;
+        }
+      } else {
+        input.host.style.width = "100%";
+        input.host.style.flex = "1";
+        input.root.style.minWidth = "";
+        input.root.style.width = "100%";
+        try {
+          currentFitAddon.fit();
+        } catch {
+          return;
+        }
+        nextRows = currentTerminal.rows;
+        nextCols = currentTerminal.cols;
+      }
+
       const previous = this.lastSize;
       if (!force && previous && previous.rows === nextRows && previous.cols === nextCols) {
         return;
@@ -471,7 +584,10 @@ export class TerminalEmulatorRuntime {
       },
       removeTouchListeners,
       restoreDocumentStyles,
-      restoreViewportStyles,
+      restoreViewportStyles: () => {
+        this.restoreViewportStyles?.();
+        this.restoreViewportStyles = null;
+      },
       disposeFitAddon: () => {
         fitAddon.dispose();
       },
@@ -606,6 +722,9 @@ export class TerminalEmulatorRuntime {
     this.fitAndEmitResize = null;
     this.lastSize = null;
     this.suppressInput = false;
+    this.forceCols = undefined;
+    this.allowHorizontalScroll = false;
+    this.restoreViewportStyles = null;
   }
 
   private processOutputQueue(): void {
@@ -682,6 +801,11 @@ export class TerminalEmulatorRuntime {
     this.inFlightOutputOperationTimeout = null;
   }
 
+  estimateCols(input: { containerWidthPx: number }): number {
+    const fontSize = computeAdaptiveFontSize(input.containerWidthPx);
+    return estimateCols(input.containerWidthPx, fontSize);
+  }
+
   private applyDocumentBoundsStyles(input: { root: HTMLDivElement }): () => void {
     const documentElement = document.documentElement;
     const body = document.body;
@@ -756,8 +880,9 @@ export class TerminalEmulatorRuntime {
     };
   }
 
-  private applyViewportTouchStyles(input: { host: HTMLDivElement }): () => void {
+  private applyViewportTouchStyles(input: { host: HTMLDivElement; allowHorizontalScroll?: boolean }): () => void {
     const viewportElement = input.host.querySelector<HTMLElement>(".xterm-viewport");
+    const screenElement = input.host.querySelector<HTMLElement>(".xterm-screen");
 
     const previousViewportOverscroll = viewportElement?.style.overscrollBehavior ?? "";
     const previousViewportTouchAction = viewportElement?.style.touchAction ?? "";
@@ -766,13 +891,21 @@ export class TerminalEmulatorRuntime {
     const previousViewportPointerEvents = viewportElement?.style.pointerEvents ?? "";
     const previousViewportWebkitOverflowScrolling =
       viewportElement?.style.getPropertyValue("-webkit-overflow-scrolling") ?? "";
+    const previousScreenMinWidth = screenElement?.style.minWidth ?? "";
+    const allowHorizontalScroll = input.allowHorizontalScroll ?? false;
     if (viewportElement) {
       viewportElement.style.overscrollBehavior = "none";
-      viewportElement.style.touchAction = "pan-y";
+      viewportElement.style.touchAction = allowHorizontalScroll ? "pan-x pan-y" : "pan-y";
       viewportElement.style.overflowY = "auto";
-      viewportElement.style.overflowX = "hidden";
+      viewportElement.style.overflowX = allowHorizontalScroll ? "auto" : "hidden";
       viewportElement.style.pointerEvents = "auto";
       viewportElement.style.setProperty("-webkit-overflow-scrolling", "touch");
+    }
+    if (screenElement && allowHorizontalScroll) {
+      // Prevent xterm from collapsing the screen to the viewport width when
+      // horizontal scrolling is enabled; the screen should stay at its
+      // intrinsic cols*cellWidth size.
+      screenElement.style.minWidth = "max-content";
     }
 
     return () => {
@@ -786,6 +919,9 @@ export class TerminalEmulatorRuntime {
           "-webkit-overflow-scrolling",
           previousViewportWebkitOverflowScrolling,
         );
+      }
+      if (screenElement) {
+        screenElement.style.minWidth = previousScreenMinWidth;
       }
     };
   }
@@ -858,14 +994,20 @@ export class TerminalEmulatorRuntime {
         }
       }
 
-      const deltaY = touch.clientY - activeTouch.lastY;
       activeTouch.lastX = touch.clientX;
       activeTouch.lastY = touch.clientY;
+
+      if (activeTouch.mode === "horizontal") {
+        // In original-width mode let the browser/xterm viewport handle
+        // horizontal panning natively.
+        return;
+      }
 
       if (activeTouch.mode !== "vertical") {
         return;
       }
 
+      const deltaY = touch.clientY - activeTouch.lastY;
       touchScrollRemainderPx += deltaY;
       const lineDelta = Math.trunc(touchScrollRemainderPx / touchScrollLineHeightPx);
       if (lineDelta !== 0) {

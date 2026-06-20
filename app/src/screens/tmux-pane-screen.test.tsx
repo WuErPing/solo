@@ -380,8 +380,15 @@ describe("TmuxPaneScreen", () => {
 
     it("renders a Select toggle button in the header", () => {
       render(<TmuxPaneScreen />);
-      const headerRight = screen.getByTestId("header-right");
-      expect(headerRight.querySelector('[data-icon="TextSelect"]')).not.toBeNull();
+      const selectButton = screen.getByTestId("tmux-select-button");
+      expect(selectButton.querySelector('[data-icon="TextSelect"]')).not.toBeNull();
+    });
+
+    it("select button is icon-only and has no visible text", () => {
+      render(<TmuxPaneScreen />);
+      const selectButton = screen.getByTestId("tmux-select-button");
+      expect(selectButton.textContent).toBe("");
+      expect(screen.queryByText("Select")).toBeNull();
     });
 
     it("select mode is off by default — AnsiTextContent is not selectable", () => {
@@ -391,16 +398,16 @@ describe("TmuxPaneScreen", () => {
 
     it("toggling select ON makes AnsiTextContent selectable and pauses autoRefresh", () => {
       render(<TmuxPaneScreen />);
-      fireEvent.click(screen.getByText("Select"));
+      fireEvent.click(screen.getByTestId("tmux-select-button"));
       expect(getSelectableAttr()).toBe("true");
       expect(mockSetAutoRefresh).toHaveBeenCalledWith(false);
     });
 
     it("toggling select OFF makes AnsiTextContent not selectable and restores autoRefresh", () => {
       render(<TmuxPaneScreen />);
-      fireEvent.click(screen.getByText("Select"));
+      fireEvent.click(screen.getByTestId("tmux-select-button"));
       mockSetAutoRefresh.mockClear();
-      fireEvent.click(screen.getByText("Select"));
+      fireEvent.click(screen.getByTestId("tmux-select-button"));
       expect(getSelectableAttr()).toBe("false");
       expect(mockSetAutoRefresh).toHaveBeenCalledWith(true);
     });
@@ -408,15 +415,15 @@ describe("TmuxPaneScreen", () => {
     it("exiting select mode restores autoRefresh=false when it was off before", () => {
       autoRefreshRef.current = false;
       render(<TmuxPaneScreen />);
-      fireEvent.click(screen.getByText("Select"));
+      fireEvent.click(screen.getByTestId("tmux-select-button"));
       mockSetAutoRefresh.mockClear();
-      fireEvent.click(screen.getByText("Select"));
+      fireEvent.click(screen.getByTestId("tmux-select-button"));
       expect(mockSetAutoRefresh).toHaveBeenCalledWith(false);
     });
 
     it("scroll events do not trigger loadMoreHistory in select mode", () => {
       render(<TmuxPaneScreen />);
-      fireEvent.click(screen.getByText("Select"));
+      fireEvent.click(screen.getByTestId("tmux-select-button"));
       const scrollView = screen.getByTestId("tmux-pane-scroll");
       fireEvent.scroll(scrollView, {
         nativeEvent: {
@@ -439,6 +446,37 @@ describe("TmuxPaneScreen", () => {
         },
       });
       expect(mockLoadMoreHistory).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("input panel hide toggle", () => {
+    it("renders a hide input panel button in the header", () => {
+      render(<TmuxPaneScreen />);
+      const hideButton = screen.getByTestId("tmux-hide-input-button");
+      expect(hideButton.querySelector('[data-icon="ChevronDown"]')).not.toBeNull();
+    });
+
+    it("hide input panel button is icon-only and has no visible text", () => {
+      render(<TmuxPaneScreen />);
+      const hideButton = screen.getByTestId("tmux-hide-input-button");
+      expect(hideButton.textContent).toBe("");
+      expect(screen.queryByText("Hide")).toBeNull();
+      expect(screen.queryByText("Show")).toBeNull();
+    });
+
+    it("hides the input panel when the hide button is pressed", () => {
+      render(<TmuxPaneScreen />);
+      expect(screen.getByPlaceholderText(/type a command/i)).toBeDefined();
+      fireEvent.click(screen.getByTestId("tmux-hide-input-button"));
+      expect(screen.queryByPlaceholderText(/type a command/i)).toBeNull();
+    });
+
+    it("shows the input panel when the floating show button is pressed", () => {
+      render(<TmuxPaneScreen />);
+      fireEvent.click(screen.getByTestId("tmux-hide-input-button"));
+      expect(screen.queryByPlaceholderText(/type a command/i)).toBeNull();
+      fireEvent.click(screen.getByTestId("tmux-show-input-button"));
+      expect(screen.getByPlaceholderText(/type a command/i)).toBeDefined();
     });
   });
 

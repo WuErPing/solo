@@ -312,6 +312,7 @@ function TmuxPaneScreenInner() {
             {autoRefreshToggle}
             {themePicker}
             <Pressable
+              testID="tmux-hide-input-button"
               onPress={() => setInputPanelHidden((prev) => !prev)}
               style={({ pressed }) => [
                 styles.selectToggleButton,
@@ -324,16 +325,9 @@ function TmuxPaneScreenInner() {
               ) : (
                 <ChevronDown size={16} color={theme.colors.foregroundMuted} />
               )}
-              <Text
-                style={[
-                  styles.selectToggleText,
-                  { color: inputPanelHidden ? theme.colors.primary : theme.colors.foregroundMuted },
-                ]}
-              >
-                {inputPanelHidden ? "Show" : "Hide"}
-              </Text>
             </Pressable>
             <Pressable
+              testID="tmux-select-button"
               onPress={toggleSelectMode}
               style={({ pressed }) => [
                 styles.selectToggleButton,
@@ -345,14 +339,6 @@ function TmuxPaneScreenInner() {
                 size={16}
                 color={selectMode ? theme.colors.background : theme.colors.foregroundMuted}
               />
-              <Text
-                style={[
-                  styles.selectToggleText,
-                  { color: selectMode ? theme.colors.primary : theme.colors.foregroundMuted },
-                ]}
-              >
-                Select
-              </Text>
             </Pressable>
           </View>
         }
@@ -593,6 +579,7 @@ function TmuxPaneScreenInner() {
       )}
       {inputPanelHidden && (
         <Pressable
+          testID="tmux-show-input-button"
           onPress={() => setInputPanelHidden(false)}
           style={({ pressed }) => [
             styles.floatingShowButton,
@@ -812,14 +799,10 @@ const styles = StyleSheet.create((theme) => ({
   selectToggleButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    justifyContent: "center",
     paddingHorizontal: 6,
     paddingVertical: 4,
     borderRadius: 6,
-  },
-  selectToggleText: {
-    fontSize: 12,
-    fontWeight: "500",
   },
   floatingShowButton: {
     position: "absolute",

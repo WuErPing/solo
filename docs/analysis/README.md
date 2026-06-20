@@ -4,6 +4,21 @@ This directory contains analysis documents for the Solo project.
 
 ## Recent Analyses
 
+### 2026-06-20: Tmux Pane 客户端终端模拟器路径分析（第一性原理）
+
+**Status:** Analysis Complete
+**Priority:** High (UX / Architecture)
+
+**Summary:**
+- 从第一性原理重新审视 tmux pane 渲染：tmux server 输出的是 cell grid + 增量 VT 流，React Native `<Text>` 树不适合做这件事
+- 明确“在 app/web 端用 tmux 模拟器”应理解为“客户端 terminal emulator（xterm.js）”，而非替代 tmux server
+- 推荐两阶段路线：Phase 1 复用现有 `TerminalEmulator` + `capture-pane` 快照；Phase 2 按需引入 `tmux -C` Control Mode 流
+- 列出具体实施改动点、风险与验证清单
+
+**Document:** [tmux-pane-client-emulator-first-principles.md](tmux-pane-client-emulator-first-principles.md)
+
+---
+
 ### 2026-06-09: Tmux Pane 子系统分析（合并）
 
 **Status:** Analysis Complete
@@ -81,6 +96,21 @@ This directory contains analysis documents for the Solo project.
 - CI/Codecov 完整集成, 识别 4 个覆盖率差距根因
 
 **Document:** [test-coverage.md](test-coverage.md)
+
+---
+
+### 2026-06-20: Solo Roadmap Architecture Mapping
+
+**Status:** Analysis Complete
+**Priority:** High
+
+**Summary:**
+- Maps existing Solo features (v0.6.3) to the 2026 roadmap pillars
+- Identifies gaps between current implementation and roadmap goals
+- Proposes layered architecture: Provider Hub on ProviderRegistry, Loop as schedule type, Project Memory on memory.Bridge, Chat on existing RPC
+- Provides phased implementation plan and risk mitigations
+
+**Document:** [solo-roadmap-architecture-mapping.md](solo-roadmap-architecture-mapping.md)
 
 ---
 

@@ -56,6 +56,13 @@ const splitHistoryCache = new WeakMap<
   Map<string, Pick<AgentStreamRenderModel, "history" | "segments">>
 >();
 
+function getItemTextForDedup(item: StreamItem): string {
+  if (item.kind === "assistant_message" || item.kind === "user_message" || item.kind === "thought") {
+    return item.text;
+  }
+  return "";
+}
+
 function getOrderedItems(params: {
   cache: WeakMap<StreamItem[], Map<string, StreamItem[]>>;
   source: StreamItem[];
@@ -155,6 +162,17 @@ export function buildAgentStreamRenderModel(
         streamHead: items,
       }),
   });
+  const tailContentSet = new Set(
+    orderedTail.map((item) => `${item.kind}:${getItemTextForDedup(item)}`),
+  );
+  const hasDuplicates = orderedHead.some(
+    (item) => tailContentSet.has(`${item.kind}:${getItemTextForDedup(item)}`),
+  );
+  const dedupedHead = hasDuplicates
+    ? orderedHead.filter(
+        (item) => !tailContentSet.has(`${item.kind}:${getItemTextForDedup(item)}`),
+      )
+    : orderedHead;
   const splitHistory = splitOrderedTail({
     orderedTail,
     platform: input.platform,
@@ -165,12 +183,12 @@ export function buildAgentStreamRenderModel(
     history: splitHistory.history,
     segments: {
       ...splitHistory.segments,
-      liveHead: orderedHead,
+      liveHead: dedupedHead,
     },
     boundary: {
       hasVirtualizedHistory: splitHistory.segments.historyVirtualized.length > 0,
       hasMountedHistory: splitHistory.segments.historyMounted.length > 0,
-      hasLiveHead: orderedHead.length > 0,
+      hasLiveHead: dedupedHead.length > 0,
       historyToHeadGap: 0,
     },
     auxiliary: EMPTY_AUXILIARY,

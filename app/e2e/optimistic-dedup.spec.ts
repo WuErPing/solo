@@ -64,6 +64,7 @@ test.describe("Optimistic message deduplication", () => {
         title: "Optimistic dedup",
       },
       initialPrompt: "Initial prompt for optimistic dedup test",
+      clientMessageId: "e2e-optimistic-dedup-init",
       labels: { "solo.e2e": "optimistic-dedup" },
     });
     agentId = agent.id;
@@ -126,6 +127,64 @@ test.describe("Optimistic message deduplication", () => {
     // Note: in some layout configurations there may be multiple matching nodes
     // (e.g. hidden copies for measurement), so we assert on the visible count.
     const visibleCount = await userMessageInstances.evaluateAll((elements) =>
+      elements.filter((el) => {
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      }).length,
+    );
+
+    expect(visibleCount).toBe(1);
+  });
+
+  test("initial prompt from createAgent appears exactly once", async ({ page }) => {
+    if (!agentId || !workspaceId) {
+      throw new Error("agentId or workspaceId was not initialized in beforeAll.");
+    }
+
+    const serverId = getServerId();
+    await gotoAppShell(page);
+    await page.goto(buildHostAgentDetailRoute(serverId, agentId, workspaceId));
+    await expect(page.getByTestId(`workspace-tab-agent_${agentId}`).first()).toBeVisible({
+      timeout: 30_000,
+    });
+
+    // Wait for the mock response to appear (turn has completed)
+    await expect(
+      page.getByText("Mock response to: Initial prompt for optimistic dedup test", { exact: true }).first(),
+    ).toBeVisible({ timeout: 30_000 });
+
+    // Count visible instances of the initial prompt text
+    const initialPromptText = "Initial prompt for optimistic dedup test";
+    const instances = page.getByText(initialPromptText, { exact: true });
+    const visibleCount = await instances.evaluateAll((elements) =>
+      elements.filter((el) => {
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      }).length,
+    );
+
+    expect(visibleCount).toBe(1);
+  });
+
+  test("initial response from createAgent appears exactly once (no dual-delivery duplication)", async ({ page }) => {
+    if (!agentId || !workspaceId) {
+      throw new Error("agentId or workspaceId was not initialized in beforeAll.");
+    }
+
+    const serverId = getServerId();
+    await gotoAppShell(page);
+    await page.goto(buildHostAgentDetailRoute(serverId, agentId, workspaceId));
+    await expect(page.getByTestId(`workspace-tab-agent_${agentId}`).first()).toBeVisible({
+      timeout: 30_000,
+    });
+
+    const responseText = "Mock response to: Initial prompt for optimistic dedup test";
+    await expect(
+      page.getByText(responseText, { exact: true }).first(),
+    ).toBeVisible({ timeout: 30_000 });
+
+    const instances = page.getByText(responseText, { exact: true });
+    const visibleCount = await instances.evaluateAll((elements) =>
       elements.filter((el) => {
         const rect = el.getBoundingClientRect();
         return rect.width > 0 && rect.height > 0;

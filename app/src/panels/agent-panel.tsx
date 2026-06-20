@@ -50,6 +50,7 @@ import type { StreamItem } from "@/types/stream";
 import { getInitDeferred, getInitKey } from "@/utils/agent-initialization";
 import { derivePendingPermissionKey, normalizeAgentSnapshot } from "@/utils/agent-snapshots";
 import { mergePendingCreateImages } from "@/utils/pending-create-images";
+import { shouldFinalizePendingCreate } from "@/utils/pending-create-finalize";
 import { deriveSidebarStateBucket } from "@/utils/sidebar-agent-state";
 
 interface ChatAgentStateShape {
@@ -1102,10 +1103,11 @@ function AgentStreamSection({
     if (!shouldUseOptimisticStream || !pendingCreate) {
       return;
     }
-    const hasUserMessage = streamItems.some(
-      (item) => item.kind === "user_message" && item.id === pendingCreate.clientMessageId,
-    );
-    if (!hasUserMessage || !canFinalizePendingCreate) {
+    if (!shouldFinalizePendingCreate({
+      streamItems,
+      clientMessageId: pendingCreate.clientMessageId,
+      canFinalize: canFinalizePendingCreate,
+    })) {
       return;
     }
 

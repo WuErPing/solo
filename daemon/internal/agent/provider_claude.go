@@ -201,9 +201,36 @@ func (s *claudeSession) Run(ctx context.Context, text string, _ []protocol.Image
 		cancel()
 	}()
 
+	// Proactively emit thread_started and user_message so all connected
+	// clients see the turn start and prompt immediately, even if the CLI
+	// doesn't echo them back. The translator skips its own emission via flags.
+	now := time.Now()
+	s.dispatcher.Emit(AgentStreamEvent{
+		Event: protocol.ThreadStartedStreamEvent{
+			Provider:  claudeProviderName,
+			SessionID: s.base.SessionID(),
+		},
+		Timestamp: now,
+	})
+	if text != "" {
+		s.dispatcher.Emit(AgentStreamEvent{
+			Event: protocol.TimelineStreamEvent{
+				Item:     protocol.TimelineItem{Type: "user_message", Text: text, MessageID: messageID},
+				Provider: claudeProviderName,
+			},
+			Timestamp: now,
+		})
+	}
+
 	pump := base.NewEventPump(s.base.Logger(), s.dispatcher)
 	pump.SetProvider(claudeProviderName)
-	translator := &claudeTranslator{session: s, streamedContentBlocks: make(map[int]int), messageID: messageID}
+	translator := &claudeTranslator{
+		session:               s,
+		streamedContentBlocks: make(map[int]int),
+		messageID:             messageID,
+		threadStartedEmitted:  true,
+		userMessageEmitted:    text != "",
+	}
 	detector := &claudeTerminalDetector{session: s}
 
 	result, err := pump.RunBlocking(runCtx, stdoutPipe, translator, detector)
@@ -496,6 +523,13 @@ type claudeTranslator struct {
 	// the remaining difference is emitted as a recovery. If the content is
 	// the same (or shorter), the block is skipped to avoid duplication.
 	streamedContentBlocks map[int]int
+	// threadStartedEmitted is set when Run() proactively emits
+	// ThreadStartedStreamEvent so the translator skips its own emission
+	// on the "init" system message.
+	threadStartedEmitted bool
+	// userMessageEmitted is set when Run() proactively emits user_message
+	// so the translator skips its own emission if the CLI echoes it back.
+	userMessageEmitted bool
 }
 
 func (t *claudeTranslator) Translate(raw []byte, timestamp time.Time) ([]interface{}, bool, error) {
@@ -556,13 +590,15 @@ func (t *claudeTranslator) translateSystemMessage(msg sdkMessage, now time.Time)
 		t.session.base.SetCurrentModel(msg.Model)
 		t.session.base.SetCurrentMode(msg.PermissionMode)
 
-		events = append(events, AgentStreamEvent{
-			Event: protocol.ThreadStartedStreamEvent{
-				SessionID: msg.SessionID,
-				Provider:  claudeProviderName,
-			},
-			Timestamp: now,
-		})
+		if !t.threadStartedEmitted {
+			events = append(events, AgentStreamEvent{
+				Event: protocol.ThreadStartedStreamEvent{
+					SessionID: msg.SessionID,
+					Provider:  claudeProviderName,
+				},
+				Timestamp: now,
+			})
+		}
 
 	case "status":
 		if msg.Status == "compacting" {
@@ -618,6 +654,9 @@ func (t *claudeTranslator) translateSystemMessage(msg sdkMessage, now time.Time)
 }
 
 func (t *claudeTranslator) translateUserMessage(msg sdkMessage, now time.Time, messageID string) []interface{} {
+	if t.userMessageEmitted {
+		return nil
+	}
 	if msg.Message == nil {
 		return nil
 	}

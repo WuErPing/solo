@@ -90,6 +90,7 @@ Feature inventory and UI/UX analysis.
 | [Provider Hub / CC-Switch Migration Design](product/agent-profile-switch-export-design.md) | Design | Migrate farion1231/cc-switch into Solo: Provider Hub, Local API Proxy, MCP/Skills/Prompts management, and multi-agent config exporter |
 | [Loop Schedule Design](product/loop-schedule-design.md) | Design | LLM-driven Loop Schedule: evolve schedule into autonomous iteration loops using existing providers |
 | [Loop Schedule Deep Dive](product/loop-schedule-deep-dive.md) | Analysis | Deep-dive into Loop Controller, Step Executor, state machine, persistence, security, and observability |
+| [Loop Schedule Implementation Spec](product/loop-schedule-spec.md) | Spec | Implementation-ready spec for merging Loop into Schedule: protocol changes, daemon modules, step executors, migration plan |
 | [Agent Send Presets Design](product/agent-send-presets-design.md) | Design | Agent-specific tmux send button presets |
 | [Session Memory Spec](product/session-memory-spec.md) | Spec | Phase-1 implementation spec: TurnRecorder interface, FileTurnRecorder, hooks, redaction, tests |
 
@@ -124,6 +125,7 @@ Deep dives into specific subsystems.
 |----------|------|---------|
 | [Architecture Review (2026-06-12)](analysis/architecture-review-2026-06-12/) | Review | 4+1 views, maturity scoring, ATAM evaluation, improvement recommendations |
 | [Architecture First-Principles Review (2026-06-18)](analysis/architecture-first-principles-review-2026-06-18.md) | Review | First-principles evaluation of all architectural decisions, long-term risk identification |
+| [Solo Roadmap Architecture Mapping (2026-06-20)](analysis/solo-roadmap-architecture-mapping.md) | Design | Maps existing Solo features to 2026 roadmap pillars; layered architecture and phased implementation plan |
 | [Agent/Provider Status Unification](analysis/agent-provider-status-unification.md) | Design | OCP-based proposal to unify AgentLifecycleStatus, ProviderStatus across layers |
 | [App Agent Status Analysis](analysis/app-agent-status-analysis.md) | Analysis | App agent lifecycle states and Copy button display logic |
 | [App-Bridge Schedule Module](analysis/app-bridge-schedule-module.md) | Analysis | Schedule module type contract, RPC schema, and domain models |
@@ -134,6 +136,7 @@ Deep dives into specific subsystems.
 | [Test Coverage](analysis/test-coverage.md) | Report | 统一测试覆盖率报告: Go 后端 + App 前端 + E2E + CI/Codecov 集成 |
 | [Tmux Agent Misidentification (kimi → kimi-code)](analysis/tmux-agent-misidentification-kimi-code-2026-06-15.md) | Analysis | `kimi --yolo` 被误识为 `kimi-code`: Bun setproctitle 污染源 + 八层防御级联失败 + 修复 |
 | [Tmux Pane Analysis](analysis/tmux-pane-analysis.md) | Analysis | Jitter 根因与修复 + 4 层架构瓶颈 + xterm.js 迁移方案 |
+| [Tmux Pane Client Emulator First Principles](analysis/tmux-pane-client-emulator-first-principles.md) | Analysis | 第一性原理分析：客户端 terminal emulator 路径 + 两阶段实施方案 |
 | [Tmux Transport Disposed Race](analysis/tmux-transport-disposed-race.md) | Analysis | `Transport not connected (status: disposed)` root cause: probe-cycle switch vs. in-flight tmux RPC |
 
 ---

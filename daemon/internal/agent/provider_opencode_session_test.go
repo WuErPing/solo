@@ -493,3 +493,32 @@ func TestFinishForegroundTurn_ClearsRunningTools(t *testing.T) {
 		t.Fatalf("expected runningToolCalls to be cleared after turn_completed, got %d remaining", remaining)
 	}
 }
+
+// TestFinishForegroundTurn_EmitsTurnCompleted verifies that finishForegroundTurn
+// emits TurnCompletedStreamEvent through the dispatcher. Previously, the type
+// switch in finishForegroundTurn was missing the TurnCompletedStreamEvent case,
+// causing the event to be silently dropped.
+func TestFinishForegroundTurn_EmitsTurnCompleted(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	config := &protocol.AgentSessionConfig{Provider: "opencode"}
+	session := newOpenCodeSession("http://127.0.0.1:0", "test-session", config, logger, func() {}, nil)
+
+	ch := session.Subscribe()
+
+	session.mu.Lock()
+	session.activeForegroundTurnID = "turn-1"
+	session.mu.Unlock()
+
+	session.finishForegroundTurn(AgentStreamEvent{
+		Event: protocol.TurnCompletedStreamEvent{Provider: "opencode"},
+	}, "turn-1")
+
+	select {
+	case evt := <-ch:
+		if _, ok := evt.Event.(protocol.TurnCompletedStreamEvent); !ok {
+			t.Fatalf("expected TurnCompletedStreamEvent, got %T", evt.Event)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for TurnCompletedStreamEvent from dispatcher")
+	}
+}

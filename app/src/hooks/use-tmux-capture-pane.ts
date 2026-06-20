@@ -40,20 +40,23 @@ export interface TmuxCapturePaneResult {
   setAutoRefresh: (value: boolean) => void;
   defaultFg: string | null;
   defaultBg: string | null;
+  paneCols: number | null;
 }
 
 export function tmuxCapturePaneQueryKey(
   serverId: string,
   paneId: string,
   scrollbackLines: number,
+  cols?: number,
 ): readonly (string | number)[] {
-  return ["tmux-capture-pane", serverId, paneId, scrollbackLines];
+  return ["tmux-capture-pane", serverId, paneId, scrollbackLines, cols ?? "auto"];
 }
 
 export function useTmuxCapturePane(
   serverId: string,
   paneId: string,
   enabled: boolean,
+  cols?: number,
 ): TmuxCapturePaneResult {
   const [scrollbackLines, setScrollbackLines] = useState(DEFAULT_SCROLLBACK_LINES);
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -68,6 +71,7 @@ export function useTmuxCapturePane(
     error: string | null;
     defaultFg: string | null;
     defaultBg: string | null;
+    paneCols: number | null;
   } | null>(null);
   const lastContentHashRef = useRef<string | null>(null);
 
@@ -78,13 +82,13 @@ export function useTmuxCapturePane(
     lastContentHashRef.current = null;
   }, [paneId]);
 
-  // Reset hash when scrollback depth changes (different range = different content)
+  // Reset hash when scrollback depth or width changes (different range = different content)
   useEffect(() => {
     lastContentHashRef.current = null;
-  }, [scrollbackLines]);
+  }, [scrollbackLines, cols]);
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: tmuxCapturePaneQueryKey(serverId, paneId, scrollbackLines),
+    queryKey: tmuxCapturePaneQueryKey(serverId, paneId, scrollbackLines, cols),
     enabled: enabled && Boolean(client) && isConnected,
     staleTime: 5_000,
     refetchInterval:
@@ -95,7 +99,7 @@ export function useTmuxCapturePane(
     retry: 1,
     queryFn: async () => {
       const payload = await withLiveTmuxClient(serverId, (c) =>
-        c.tmuxCapturePane(paneId, -scrollbackLines, lastContentHashRef.current ?? undefined),
+        c.tmuxCapturePane(paneId, -scrollbackLines, lastContentHashRef.current ?? undefined, cols),
       );
 
       // Daemon says content unchanged — return cached result (same object ref)
@@ -104,7 +108,7 @@ export function useTmuxCapturePane(
           lastContentHashRef.current = payload.contentHash;
         }
         if (prevResultRef.current) return prevResultRef.current;
-        return { content: "", error: null, defaultFg: null, defaultBg: null };
+        return { content: "", error: null, defaultFg: null, defaultBg: null, paneCols: null };
       }
 
       // Update hash from daemon response
@@ -116,11 +120,13 @@ export function useTmuxCapturePane(
       const payloadWithColors = payload as typeof payload & { defaultFg?: string | null; defaultBg?: string | null };
       const newDefaultFg = payloadWithColors.defaultFg ?? null;
       const newDefaultBg = payloadWithColors.defaultBg ?? null;
+      const newPaneCols = payload.paneCols ?? null;
       if (
         prevResultRef.current &&
         prevResultRef.current.content === newContent &&
         prevResultRef.current.defaultFg === newDefaultFg &&
-        prevResultRef.current.defaultBg === newDefaultBg
+        prevResultRef.current.defaultBg === newDefaultBg &&
+        prevResultRef.current.paneCols === newPaneCols
       ) {
         return prevResultRef.current;
       }
@@ -129,6 +135,7 @@ export function useTmuxCapturePane(
         error: payload.error ?? null,
         defaultFg: newDefaultFg,
         defaultBg: newDefaultBg,
+        paneCols: newPaneCols,
       };
       prevResultRef.current = result;
       return result;
@@ -194,6 +201,7 @@ export function useTmuxCapturePane(
       setAutoRefresh,
       defaultFg: data?.defaultFg ?? null,
       defaultBg: data?.defaultBg ?? null,
+      paneCols: data?.paneCols ?? null,
     }),
     [data, isLoading, isLoadingMore, error, refetch, scrollbackLines, loadMoreHistory, hasMoreHistory, autoRefresh],
   );

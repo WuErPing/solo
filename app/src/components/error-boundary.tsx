@@ -9,6 +9,7 @@ interface Props {
 
 interface State {
   hasError: boolean;
+  error?: Error;
 }
 
 export class ErrorBoundary extends React.Component<Props, State> {
@@ -20,15 +21,22 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, info: React.ErrorInfo): void {
     console.error("[ErrorBoundary]", error, info.componentStack);
+    this.setState({ error });
   }
 
   private handleRetry = () => {
-    this.setState({ hasError: false });
+    this.setState({ hasError: false, error: undefined });
   };
 
   render() {
     if (this.state.hasError) {
-      return <ErrorFallback label={this.props.fallbackLabel} onRetry={this.handleRetry} />;
+      return (
+        <ErrorFallback
+          label={this.props.fallbackLabel}
+          error={this.state.error}
+          onRetry={this.handleRetry}
+        />
+      );
     }
     return this.props.children;
   }
@@ -36,9 +44,11 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
 function ErrorFallback({
   label,
+  error,
   onRetry,
 }: {
   label?: string;
+  error?: Error;
   onRetry: () => void;
 }) {
   const { theme } = useUnistyles();
@@ -48,6 +58,11 @@ function ErrorFallback({
       <Text style={[styles.text, { color: theme.colors.foregroundMuted }]}>
         {label ?? "Something went wrong"}
       </Text>
+      {error ? (
+        <Text style={[styles.errorText, { color: theme.colors.destructive }]}>
+          {error.message}
+        </Text>
+      ) : null}
       <Pressable
         onPress={onRetry}
         style={[styles.button, { backgroundColor: theme.colors.surface0 }]}
@@ -78,5 +93,10 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 14,
     fontWeight: "500",
+  },
+  errorText: {
+    fontSize: 12,
+    textAlign: "center",
+    paddingHorizontal: 12,
   },
 });

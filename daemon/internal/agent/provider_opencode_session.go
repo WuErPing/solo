@@ -29,6 +29,7 @@ type openCodeSession struct {
 	// Turn ID tracking (matches Solo)
 	nextTurnID             int
 	activeForegroundTurnID string
+	threadStartedEmitted   bool
 
 	// Permission tracking
 	pendingPerms map[string]pendingPermission
@@ -201,6 +202,7 @@ func (s *openCodeSession) Run(ctx context.Context, text string, images []protoco
 	s.mu.Lock()
 	s.base.SetCancelFn(cancel)
 	s.activeForegroundTurnID = turnID
+	s.threadStartedEmitted = false
 	// Initialize usage with context window max tokens (matches Solo)
 	s.accumulatedUsage = &opencodeUsage{}
 	if s.selectedModelContextWindowMaxTokens > 0 {
@@ -209,6 +211,21 @@ func (s *openCodeSession) Run(ctx context.Context, text string, images []protoco
 	}
 	s.mu.Unlock()
 	defer cancel()
+
+	// Proactively emit thread_started before user_message so the event
+	// ordering matches the provider contract (thread_started → user_message).
+	// The SSE translator skips its own emission when this flag is set.
+	now := time.Now()
+	s.notifySubscribers(AgentStreamEvent{
+		Event: protocol.ThreadStartedStreamEvent{
+			Provider:  opencodeProviderName,
+			SessionID: s.base.SessionID(),
+		},
+		Timestamp: now,
+	})
+	s.mu.Lock()
+	s.threadStartedEmitted = true
+	s.mu.Unlock()
 
 	// Emit the user_message immediately so all connected clients see the prompt
 	// in real time. OpenCode's SSE stream does not echo the user prompt back,

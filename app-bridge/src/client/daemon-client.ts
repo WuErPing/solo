@@ -3690,7 +3690,13 @@ export class DaemonClient {
     });
   }
 
-  async tmuxCapturePane(paneId: string, startLine?: number, lastContentHash?: string, requestId?: string): Promise<TmuxCapturePanePayload> {
+  async tmuxCapturePane(
+    paneId: string,
+    startLine?: number,
+    lastContentHash?: string,
+    cols?: number,
+    requestId?: string,
+  ): Promise<TmuxCapturePanePayload> {
     return this.sendCorrelatedSessionRequest({
       requestId,
       message: {
@@ -3698,6 +3704,7 @@ export class DaemonClient {
         paneId,
         ...(startLine === undefined ? {} : { startLine }),
         ...(lastContentHash === undefined ? {} : { lastContentHash }),
+        ...(cols === undefined ? {} : { cols }),
       },
       responseType: "tmux/capture_pane/response",
       timeout: 10000,

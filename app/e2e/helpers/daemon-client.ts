@@ -21,6 +21,7 @@ export interface CoreDaemonClient {
       title?: string;
     };
     initialPrompt?: string;
+    clientMessageId?: string;
     labels?: Record<string, string>;
   }): Promise<{ id: string; cwd: string; title?: string | null }>;
   sendMessage(agentId: string, text: string): Promise<void>;

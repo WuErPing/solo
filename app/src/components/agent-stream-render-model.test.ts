@@ -85,4 +85,43 @@ describe("buildAgentStreamRenderModel", () => {
     expect(first.segments.historyMounted).toBe(second.segments.historyMounted);
     expect(second.segments.liveHead.map((item) => item.id)).toEqual(["live-b"]);
   });
+
+  it("filters out head items that duplicate tail content by kind+text (bootstrap replace scenario)", () => {
+    const tail: StreamItem[] = [
+      { kind: "user_message", id: "canonical-u", text: "hi", timestamp: createTimestamp(1) },
+      { kind: "thought", id: "canonical-t", text: "thinking about hi", status: "ready", timestamp: createTimestamp(2) },
+      { kind: "assistant_message", id: "canonical-a", text: "Hello!", timestamp: createTimestamp(3) },
+    ];
+    const head: StreamItem[] = [
+      { kind: "thought", id: "live-t", text: "thinking about hi", status: "ready", timestamp: createTimestamp(4) },
+      { kind: "assistant_message", id: "live-a", text: "Hello!", timestamp: createTimestamp(5) },
+    ];
+
+    const model = buildAgentStreamRenderModel({
+      tail,
+      head,
+      platform: "web",
+      isMobileBreakpoint: false,
+    });
+
+    expect(model.segments.liveHead).toHaveLength(0);
+  });
+
+  it("keeps head items with genuinely new content", () => {
+    const tail: StreamItem[] = [
+      { kind: "user_message", id: "u1", text: "hi", timestamp: createTimestamp(1) },
+    ];
+    const head: StreamItem[] = [
+      { kind: "assistant_message", id: "live-a", text: "Hello!", timestamp: createTimestamp(2) },
+    ];
+
+    const model = buildAgentStreamRenderModel({
+      tail,
+      head,
+      platform: "web",
+      isMobileBreakpoint: false,
+    });
+
+    expect(model.segments.liveHead.map((item) => item.id)).toEqual(["live-a"]);
+  });
 });

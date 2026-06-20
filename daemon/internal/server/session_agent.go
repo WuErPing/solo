@@ -67,7 +67,8 @@ func (s *Session) handleCreateAgent(m *protocol.CreateAgentRequest) {
 
 	// Handle initial prompt if provided
 	if m.InitialPrompt != nil && *m.InitialPrompt != "" {
-		if err := s.agentMgr.SendAgentMessage(context.Background(), ag.ID, *m.InitialPrompt, nil, nil, ""); err != nil {
+		messageID := stringPtrValue(m.ClientMessageID)
+		if err := s.agentMgr.SendAgentMessage(context.Background(), ag.ID, *m.InitialPrompt, nil, nil, messageID); err != nil {
 			s.logger.Warn("failed to send initial prompt", "agentId", ag.ID, "error", err)
 		}
 	}

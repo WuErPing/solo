@@ -237,6 +237,30 @@ describe("TmuxDashboardScreen", () => {
     expect(mockPush).toHaveBeenCalledWith("/tmux-pane");
   });
 
+  it("opens the xterm pane entry for an agent card", () => {
+    agentsOverride = mockAgents;
+    render(<TmuxDashboardScreen />);
+
+    const xtermButtons = screen.getAllByLabelText("Open in xterm pane");
+    fireEvent.click(xtermButtons[0]);
+
+    expect(mockSetSelectedAgent).toHaveBeenCalledWith(mockAgents[0]);
+    expect(mockPush).toHaveBeenCalledWith("/tmux-pane-xterm");
+  });
+
+  it("opens the xterm pane entry for a non-agent pane card", () => {
+    agentsOverride = [];
+    otherPanesOverride = [mockOtherPanes[0]];
+    render(<TmuxDashboardScreen />);
+
+    fireEvent.click(screen.getByText(/Other Panes/));
+    const xtermButton = screen.getByLabelText("Open in xterm pane");
+    fireEvent.click(xtermButton);
+
+    expect(mockSetSelectedAgent).toHaveBeenCalledWith(mockOtherPanes[0]);
+    expect(mockPush).toHaveBeenCalledWith("/tmux-pane-xterm");
+  });
+
   it("renders agent session name badge and detail line", () => {
     agentsOverride = mockAgents;
     render(<TmuxDashboardScreen />);
