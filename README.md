@@ -147,23 +147,56 @@ make restart
 
 # Stop all dev processes
 make stop
+
+# Start web app in relay mode
+make dev-web-relay
+
+# Build and run daemon in background
+make run-daemon
+
+# Stop all dev processes and delete all agent sessions
+make stop-all
 ```
 
 - **Daemon** listens on `127.0.0.1:17612`
 - **Web app** runs on `http://localhost:19000`
 
-### Run Tests
+### Deployment
 
 ```bash
-# Go tests (all modules)
+# Deploy relay to remote server (cross-compile, SCP, restart systemd)
+make deploy-solo-relay
+
+# Configure local daemon to use the relay server
+make use-solo-relay
+
+# Check relay and daemon config status
+make relay-status
+```
+
+### Test, Lint, Typecheck
+
+```bash
+# Full CI pipeline (lint + test + typecheck)
+make ci
+
+# Go tests (all modules, with race detector)
+make test-go
+
+# JavaScript / TypeScript tests (app + app-bridge + highlight)
+make test-app
+
+# Lint all JS/TS packages
+make lint
+
+# TypeScript type checking
+make typecheck
+
+# Individual Go module tests
 cd protocol && go test -short -race ./...
 cd cli && go test -short -race ./...
 cd daemon && go test -short -race ./...
 cd relay-go && go test -short -race ./...
-
-# JavaScript / TypeScript tests
-npm run lint
-npm run test --workspaces --if-present
 ```
 
 ---
@@ -195,8 +228,8 @@ For detailed documentation, see [`docs/README.md`](docs/README.md).
 - **Kimi** — Wire mode (JSON-RPC 2.0 over stdio)
 - **OpenCode** — SSE mode
 - **Pi** — JSON stream mode (stdio)
-- **Codex** — definition only
-- **Mock** — for testing
+- **Codex** — auto / full-access modes
+- **Mock** — development/testing only (opt-in via `SOLO_ENABLE_MOCK_PROVIDER=1`)
 
 **Planned**: Cursor-Agent (Print mode). See [`docs/providers/`](docs/providers/) for provider integration research and planned additions.
 
@@ -263,6 +296,7 @@ Three-layer detection identifies agents even when `pane_current_command` reports
 | opencode | command / title |
 | qodercli | command |
 | cursor | command |
+| codex | command |
 
 ---
 
@@ -291,6 +325,20 @@ Solo includes an LLM-driven loop system that evolves scheduled tasks into autono
 
 ---
 
+## CLI Reference
+
+Solo includes a comprehensive CLI (`solo-cli`) with the following command groups:
+
+| Group | Commands | Description |
+|-------|----------|-------------|
+| **agent** | `ls`, `run`, `attach`, `send`, `stop`, `inspect`, `logs`, `mode`, `wait`, `archive`, `delete` | Agent lifecycle and interaction |
+| **daemon** | `start`, `stop`, `restart`, `status`, `pair` | Daemon service management |
+| **loop** | `ls`, `run`, `stop`, `status`, `update`, `delete` | Loop automation management |
+| **provider** | `ls`, `models` | Provider and model discovery |
+| | `onboard`, `shortcuts` | Setup and keyboard shortcuts |
+
+---
+
 ## Security
 
 - **End-to-End Encryption**: All communication between client and daemon is encrypted using X25519 key exchange + XSalsa20-Poly1305.
@@ -306,12 +354,13 @@ The project uses GitHub Actions (`.github/workflows/ci.yml`) with the following 
 |-----|---------|-------|
 | **Go** (matrix: protocol, cli, daemon, relay-go) | push/PR to main | `go mod verify` → `go build` → `go test -short -race -coverprofile` → `golangci-lint v2` → Codecov upload |
 | **JS** | push/PR to main | `npm ci` → lint (app, app-bridge, highlight) → typecheck → test (app 1663 tests, app-bridge 32 tests) → Codecov upload |
-| **E2E** (nightly) | daily 02:00 UTC + manual | Playwright E2E (35 specs) with daemon/relay/Metro globalSetup |
+| **E2E** (nightly) | daily 02:00 UTC + manual | Playwright E2E (38 specs) with daemon/relay/Metro globalSetup |
 
 ---
 
 ## Documentation
 
+- [Documentation Index](docs/README.md) — master index of all docs
 - [Architecture Overview](docs/architecture/README.md)
 - [Component Specifications](docs/architecture/components.md)
 - [Data Flow & Session Lifecycle](docs/architecture/data-flow.md)
@@ -321,7 +370,9 @@ The project uses GitHub Actions (`.github/workflows/ci.yml`) with the following 
 - [Push Notifications](docs/architecture/push-notifications.md)
 - [Deployment Guide](docs/architecture/deployment.md)
 - [Product Features](docs/product/features.md)
+- [2026 Roadmap](docs/product/roadmap-2026.md)
 - [Session Memory Spec](docs/product/session-memory-spec.md)
+- [Technical Analysis](docs/analysis/README.md)
 
 ---
 
