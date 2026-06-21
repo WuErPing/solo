@@ -17,8 +17,12 @@ const (
 
 // UpdateInput contains the mutable fields for Update.
 type UpdateInput struct {
-	Name    *string
-	Archive *bool
+	Name          *string
+	Archive       *bool
+	Prompt        *string
+	Cwd           *string
+	VerifyChecks  *[]string
+	MaxIterations *int
 }
 
 // VerifyResult is the parsed outcome of a verifier prompt.

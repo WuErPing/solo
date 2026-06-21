@@ -202,6 +202,40 @@ func TestStore_Update(t *testing.T) {
 	}
 }
 
+func TestStore_Update_FullFields(t *testing.T) {
+	t.Parallel()
+
+	s := NewStore()
+	created, _ := s.Create(protocol.LoopRunRequest{Prompt: "original", Cwd: "/tmp"}, func() (string, error) { return "mock", nil })
+
+	newPrompt := "updated prompt"
+	newCwd := "/home/user/project"
+	newChecks := []string{"go test ./...", "go vet ./..."}
+	newMaxIter := 25
+
+	updated, err := s.Update(created.ID, UpdateInput{
+		Prompt:        &newPrompt,
+		Cwd:           &newCwd,
+		VerifyChecks:  &newChecks,
+		MaxIterations: &newMaxIter,
+	})
+	if err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
+	if updated.Prompt != newPrompt {
+		t.Errorf("prompt = %q, want %q", updated.Prompt, newPrompt)
+	}
+	if updated.Cwd != newCwd {
+		t.Errorf("cwd = %q, want %q", updated.Cwd, newCwd)
+	}
+	if len(updated.VerifyChecks) != 2 || updated.VerifyChecks[0] != "go test ./..." || updated.VerifyChecks[1] != "go vet ./..." {
+		t.Errorf("verifyChecks = %v, want [go test ./... go vet ./...]", updated.VerifyChecks)
+	}
+	if updated.MaxIterations == nil || *updated.MaxIterations != newMaxIter {
+		t.Errorf("maxIterations = %v, want %d", updated.MaxIterations, newMaxIter)
+	}
+}
+
 func TestStore_Delete(t *testing.T) {
 	t.Parallel()
 

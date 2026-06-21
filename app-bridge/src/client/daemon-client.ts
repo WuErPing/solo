@@ -511,6 +511,10 @@ export interface UpdateLoopOptions {
   id: string;
   name?: string | null;
   archive?: boolean | null;
+  prompt?: string | null;
+  cwd?: string | null;
+  verifyChecks?: string[] | null;
+  maxIterations?: number | null;
   requestId?: string;
 }
 export interface DeleteLoopOptions {
@@ -3857,6 +3861,10 @@ export class DaemonClient {
         id: options.id,
         ...(options.name ? { name: options.name } : {}),
         ...(typeof options.archive === "boolean" ? { archive: options.archive } : {}),
+        ...(options.prompt ? { prompt: options.prompt } : {}),
+        ...(options.cwd ? { cwd: options.cwd } : {}),
+        ...(options.verifyChecks ? { verifyChecks: options.verifyChecks } : {}),
+        ...(options.maxIterations != null ? { maxIterations: options.maxIterations } : {}),
       },
       responseType: "loop/update/response",
       timeout: 10000,

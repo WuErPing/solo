@@ -103,8 +103,12 @@ func (s *Session) handleLoopUpdate(m *protocol.LoopUpdateRequest) {
 		return
 	}
 	record, err := s.loopStore.Update(m.ID, loop.UpdateInput{
-		Name:    m.Name,
-		Archive: m.Archive,
+		Name:          m.Name,
+		Archive:       m.Archive,
+		Prompt:        m.Prompt,
+		Cwd:           m.Cwd,
+		VerifyChecks:  m.VerifyChecks,
+		MaxIterations: m.MaxIterations,
 	})
 	if err != nil {
 		s.sendLoopUpdateResponse(m.RequestID, nil, err.Error())
