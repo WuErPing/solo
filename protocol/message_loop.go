@@ -140,11 +140,15 @@ type LoopStopRequest struct {
 func (m LoopStopRequest) MsgType() string { return "loop/stop" }
 
 type LoopUpdateRequest struct {
-	Type      string  `json:"type"`
-	RequestID string  `json:"requestId"`
-	ID        string  `json:"id"`
-	Name      *string `json:"name,omitempty"`
-	Archive   *bool   `json:"archive,omitempty"`
+	Type          string   `json:"type"`
+	RequestID     string   `json:"requestId"`
+	ID            string   `json:"id"`
+	Name          *string  `json:"name,omitempty"`
+	Archive       *bool    `json:"archive,omitempty"`
+	Prompt        *string  `json:"prompt,omitempty"`
+	Cwd           *string  `json:"cwd,omitempty"`
+	VerifyChecks  *[]string `json:"verifyChecks,omitempty"`
+	MaxIterations *int     `json:"maxIterations,omitempty"`
 }
 
 func (m LoopUpdateRequest) MsgType() string { return "loop/update" }

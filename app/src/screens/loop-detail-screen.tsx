@@ -58,6 +58,10 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
 
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editName, setEditName] = useState("");
+  const [editPrompt, setEditPrompt] = useState("");
+  const [editCwd, setEditCwd] = useState("");
+  const [editVerifyChecks, setEditVerifyChecks] = useState("");
+  const [editMaxIterations, setEditMaxIterations] = useState("");
   const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -67,9 +71,13 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
 
   const handleOpenEdit = useCallback(() => {
     setEditName(loop?.name ?? "");
+    setEditPrompt(loop?.prompt ?? "");
+    setEditCwd(loop?.cwd ?? "");
+    setEditVerifyChecks(loop?.verifyChecks?.join("\n") ?? "");
+    setEditMaxIterations(loop?.maxIterations?.toString() ?? "");
     setEditError(null);
     setIsEditModalVisible(true);
-  }, [loop?.name]);
+  }, [loop?.name, loop?.prompt, loop?.cwd, loop?.verifyChecks, loop?.maxIterations]);
 
   const handleCloseEdit = useCallback(() => {
     setIsEditModalVisible(false);
@@ -77,13 +85,42 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
 
   const handleSaveEdit = useCallback(async () => {
     setEditError(null);
+
+    const trimmedPrompt = editPrompt.trim();
+    const trimmedCwd = editCwd.trim();
+    const checks = editVerifyChecks
+      .split("\n")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    const maxIter = editMaxIterations.trim() ? parseInt(editMaxIterations.trim(), 10) : null;
+
+    if (!trimmedPrompt) {
+      setEditError("Prompt is required");
+      return;
+    }
+    if (!trimmedCwd) {
+      setEditError("Working directory is required");
+      return;
+    }
+    if (editMaxIterations.trim() && (Number.isNaN(maxIter!) || maxIter! <= 0)) {
+      setEditError("Max iterations must be a positive number");
+      return;
+    }
+
     try {
-      await updateLoop({ loopId, name: editName.trim() || null });
+      await updateLoop({
+        loopId,
+        name: editName.trim() || null,
+        prompt: trimmedPrompt,
+        cwd: trimmedCwd,
+        verifyChecks: checks.length > 0 ? checks : null,
+        maxIterations: maxIter,
+      });
       setIsEditModalVisible(false);
     } catch (e) {
       setEditError(e instanceof Error ? e.message : "Failed to update loop");
     }
-  }, [updateLoop, loopId, editName]);
+  }, [updateLoop, loopId, editName, editPrompt, editCwd, editVerifyChecks, editMaxIterations]);
 
   const handleOpenDelete = useCallback(() => {
     setIsDeleteModalVisible(true);
@@ -238,6 +275,51 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
               placeholder="Loop name"
               value={editName}
               onChangeText={setEditName}
+              placeholderTextColor={theme.colors.foregroundMuted}
+            />
+          </View>
+          <View style={styles.field}>
+            <Text style={styles.label}>Prompt *</Text>
+            <AdaptiveTextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="e.g. Fix all test failures until CI passes"
+              value={editPrompt}
+              onChangeText={setEditPrompt}
+              multiline
+              numberOfLines={3}
+              placeholderTextColor={theme.colors.foregroundMuted}
+            />
+          </View>
+          <View style={styles.field}>
+            <Text style={styles.label}>Working Directory *</Text>
+            <AdaptiveTextInput
+              style={styles.input}
+              placeholder="e.g. /Users/me/project"
+              value={editCwd}
+              onChangeText={setEditCwd}
+              placeholderTextColor={theme.colors.foregroundMuted}
+            />
+          </View>
+          <View style={styles.field}>
+            <Text style={styles.label}>Verify Checks</Text>
+            <AdaptiveTextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="One command per line, e.g. go test ./..."
+              value={editVerifyChecks}
+              onChangeText={setEditVerifyChecks}
+              multiline
+              numberOfLines={3}
+              placeholderTextColor={theme.colors.foregroundMuted}
+            />
+          </View>
+          <View style={styles.field}>
+            <Text style={styles.label}>Max Iterations</Text>
+            <AdaptiveTextInput
+              style={styles.input}
+              placeholder="e.g. 10"
+              value={editMaxIterations}
+              onChangeText={setEditMaxIterations}
+              keyboardType="numeric"
               placeholderTextColor={theme.colors.foregroundMuted}
             />
           </View>
@@ -397,6 +479,10 @@ const styles = StyleSheet.create((theme) => ({
     padding: theme.spacing[3],
     color: theme.colors.foreground,
     fontSize: theme.fontSize.base,
+  },
+  textArea: {
+    minHeight: 80,
+    textAlignVertical: "top",
   },
   confirmText: {
     color: theme.colors.foreground,

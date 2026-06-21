@@ -13,6 +13,10 @@ export interface UpdateLoopInput {
   loopId: string;
   name?: string | null;
   archive?: boolean | null;
+  prompt?: string | null;
+  cwd?: string | null;
+  verifyChecks?: string[] | null;
+  maxIterations?: number | null;
 }
 
 export interface LoopMutationsResult {
@@ -37,6 +41,10 @@ export function useLoopMutations({ serverId }: LoopMutationsInput): LoopMutation
         id: input.loopId,
         ...(input.name ? { name: input.name } : {}),
         ...(input.archive != null ? { archive: input.archive } : {}),
+        ...(input.prompt ? { prompt: input.prompt } : {}),
+        ...(input.cwd ? { cwd: input.cwd } : {}),
+        ...(input.verifyChecks ? { verifyChecks: input.verifyChecks } : {}),
+        ...(input.maxIterations != null ? { maxIterations: input.maxIterations } : {}),
       });
       if (payload.error) {
         throw new Error(payload.error);

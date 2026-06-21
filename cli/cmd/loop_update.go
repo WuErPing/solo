@@ -10,9 +10,13 @@ import (
 )
 
 var (
-	loopUpdateName      string
-	loopUpdateArchive   bool
-	loopUpdateUnarchive bool
+	loopUpdateName          string
+	loopUpdatePrompt        string
+	loopUpdateCwd           string
+	loopUpdateVerifyChecks  []string
+	loopUpdateMaxIterations int
+	loopUpdateArchive       bool
+	loopUpdateUnarchive     bool
 )
 
 var loopUpdateCmd = &cobra.Command{
@@ -24,6 +28,10 @@ var loopUpdateCmd = &cobra.Command{
 
 func init() {
 	loopUpdateCmd.Flags().StringVar(&loopUpdateName, "name", "", "New loop name")
+	loopUpdateCmd.Flags().StringVar(&loopUpdatePrompt, "prompt", "", "New prompt")
+	loopUpdateCmd.Flags().StringVar(&loopUpdateCwd, "cwd", "", "New working directory")
+	loopUpdateCmd.Flags().StringSliceVar(&loopUpdateVerifyChecks, "verify-checks", nil, "Verify checks (comma-separated)")
+	loopUpdateCmd.Flags().IntVar(&loopUpdateMaxIterations, "max-iterations", 0, "Max iterations (0 = no change)")
 	loopUpdateCmd.Flags().BoolVar(&loopUpdateArchive, "archive", false, "Archive the loop")
 	loopUpdateCmd.Flags().BoolVar(&loopUpdateUnarchive, "unarchive", false, "Unarchive the loop")
 	loopCmd.AddCommand(loopUpdateCmd)
@@ -49,6 +57,20 @@ func runLoopUpdate(cmd *cobra.Command, args []string) error {
 	if loopUpdateName != "" {
 		name := loopUpdateName
 		req.Name = &name
+	}
+	if loopUpdatePrompt != "" {
+		prompt := loopUpdatePrompt
+		req.Prompt = &prompt
+	}
+	if loopUpdateCwd != "" {
+		cwd := loopUpdateCwd
+		req.Cwd = &cwd
+	}
+	if len(loopUpdateVerifyChecks) > 0 {
+		req.VerifyChecks = &loopUpdateVerifyChecks
+	}
+	if loopUpdateMaxIterations > 0 {
+		req.MaxIterations = &loopUpdateMaxIterations
 	}
 	if loopUpdateArchive && loopUpdateUnarchive {
 		return &output.CommandError{Code: "INVALID_FLAGS", Message: "Cannot use both --archive and --unarchive"}

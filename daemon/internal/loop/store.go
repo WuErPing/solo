@@ -178,9 +178,13 @@ func (s *Store) Update(id string, input UpdateInput) (*protocol.LoopRecord, erro
 		s.mu.Unlock()
 		return nil, fmt.Errorf("loop not found")
 	}
-	if r.Status == string(StatusRunning) && (input.Name == nil && input.Archive == nil) {
+
+	hasAnyField := input.Name != nil || input.Archive != nil ||
+		input.Prompt != nil || input.Cwd != nil ||
+		input.VerifyChecks != nil || input.MaxIterations != nil
+	if !hasAnyField {
 		s.mu.Unlock()
-		return nil, fmt.Errorf("only name and archive can be updated on a running loop")
+		return nil, fmt.Errorf("no fields to update")
 	}
 
 	if input.Name != nil {
@@ -188,6 +192,18 @@ func (s *Store) Update(id string, input UpdateInput) (*protocol.LoopRecord, erro
 	}
 	if input.Archive != nil {
 		r.Archive = *input.Archive
+	}
+	if input.Prompt != nil {
+		r.Prompt = *input.Prompt
+	}
+	if input.Cwd != nil {
+		r.Cwd = *input.Cwd
+	}
+	if input.VerifyChecks != nil {
+		r.VerifyChecks = *input.VerifyChecks
+	}
+	if input.MaxIterations != nil {
+		r.MaxIterations = input.MaxIterations
 	}
 	r.UpdatedAt = nowISO()
 	err := s.saveLocked()

@@ -132,6 +132,10 @@ export const LoopUpdateRequestSchema = z.object({
   id: z.string().trim().min(1),
   name: z.string().trim().min(1).optional(),
   archive: z.boolean().optional(),
+  prompt: z.string().trim().min(1).optional(),
+  cwd: z.string().trim().min(1).optional(),
+  verifyChecks: z.array(z.string().trim().min(1)).optional(),
+  maxIterations: z.number().int().positive().optional(),
 });
 
 export const LoopDeleteRequestSchema = z.object({
