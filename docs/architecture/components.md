@@ -13,13 +13,19 @@
 
 **Key Directories**:
 - `src/screens/` - Page components
+  - `src/screens/agent/` - Agent detail and interaction screens
+  - `src/screens/dashboard/` - Main dashboard
   - `src/screens/schedules/` - Schedule automation dashboard
   - `src/screens/settings/*-section.tsx` - Settings sections (operations, tmux agents, providers, keyboard shortcuts)
   - `src/screens/tmux-dashboard/` - Tmux agent discovery dashboard
+  - `src/screens/workspace/` - Workspace management screens
 - `src/components/` - Reusable components
 - `src/app/` - Expo Router routes
-  - `src/app/h/[serverId]/schedules.tsx` - Per-host schedule list
+  - `src/app/h/[serverId]/` - Per-host routes (agent, loops, schedules, sessions, settings, workspace, new, open-project)
   - `src/app/schedules.tsx` - Schedule entry point
+  - `src/app/tmux-dashboard.tsx` - Tmux dashboard entry
+  - `src/app/tmux-pane.tsx` / `tmux-pane-xterm.tsx` - Tmux pane views
+  - `src/app/welcome.tsx` - Onboarding
 - `src/hooks/` - Custom hooks
 - `src/stores/` - Zustand state stores
   - `src/stores/tmux-agent-store.ts` - Selected tmux agent state
@@ -83,6 +89,13 @@
 | `schedule/` | Scheduler |
 | `tmux/` | Tmux RPC schemas and types |
 
+### 2.4 Shared & Utils
+
+| Directory | Responsibility |
+|-----------|---------------|
+| `src/shared/` | Shared types and constants |
+| `src/utils/` | Utility functions |
+
 ## 3. Daemon
 
 **Directory**: `daemon/`
@@ -103,6 +116,7 @@ daemon/
 └── internal/
     ├── agent/           # Agent management
     ├── config/          # Configuration (includes MemoryConfig)
+    ├── loop/            # Loop automation engine (engine, store, types)
     ├── memory/          # Session memory: TurnRecorder / bridge / filebackend / redact
     ├── memorysetup/     # Assembles recorder+redactor+bridge from MemoryConfig
     ├── metrics/         # Metrics
@@ -194,7 +208,7 @@ Features:
 - **Pane capture**: `tmux capture-pane -p -e -S {startLine}` with configurable scrollback
 - **Key injection**: `tmux send-keys -t {paneId} {keys} [Enter]`
 - **Status line**: `tmux display-message -p` for status-left, status-right, and window list
-- Supported agents: claude, pi, kimi, kimi-cli, opencode, qoder, cursor
+- Supported agents: claude, pi, kimi, kimi-cli, opencode, qodercli, cursor, codex
 
 ### 3.7 App-Bridge Tmux Modules
 
@@ -304,7 +318,38 @@ Features:
 **Core Files**:
 - `protocol.go` - Protocol constants
 - `message.go` - Message types
-- `message_*.go` - Various message definitions
+- `message_agent_inbound.go` - Inbound agent messages
+- `message_agent_outbound.go` - Outbound agent messages
+- `message_common.go` - Shared message types
+- `message_editor.go` - Editor-related messages
+- `message_loop.go` - Loop automation messages
+- `message_schedule.go` - Schedule messages
+- `message_solo_compat.go` - Solo compatibility messages
+- `message_terminal_msg.go` - Terminal messages
+- `message_tmux.go` - Tmux-related messages
+- `message_worktree.go` - Worktree messages
+- `statemachine.go` - State machine logic
+- `stream_event.go` - Streaming event types
+- `terminal.go` - Terminal type definitions
+- `tool_call_detail.go` - Tool call detail structures
+
+## 7. Highlight (Shared Syntax Highlighting)
+
+**Directory**: `packages/highlight/`
+
+**Tech Stack**: TypeScript
+
+**Responsibilities**:
+- Shared syntax highlighting library used by the app
+- Lezer-based parser support for 14+ languages
+- Color theme management
+
+**Key Files**:
+- `src/highlighter.ts` - Core highlighting logic
+- `src/parsers.ts` - Lezer parser definitions
+- `src/colors.ts` - Color palette
+- `src/types.ts` - Type definitions
+- `src/__tests__/` - Unit tests
 
 ## Component Interaction
 

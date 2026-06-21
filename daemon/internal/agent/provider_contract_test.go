@@ -270,3 +270,12 @@ func TestPiProviderContract(t *testing.T) {
 	client := NewPiAgentClient("", logger)
 	RunProviderContractSuite(t, "pi", client)
 }
+
+func TestCodexProviderContract(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Codex contract test in short mode")
+	}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	client := NewCodexAgentClient("", logger)
+	RunProviderContractSuite(t, "codex", client)
+}

@@ -4,6 +4,32 @@ This directory contains analysis documents for the Solo project.
 
 ## Recent Analyses
 
+### 2026-06-20: Tmux Pane First-Principles Analysis
+
+**Status:** Analysis Complete
+**Priority:** High (UX / Architecture)
+
+**Summary:**
+- First-principles analysis of the tmux pane subsystem
+- Evaluates rendering approaches and architectural trade-offs
+
+**Document:** [tmux-pane-first-principles-2026-06-20.md](tmux-pane-first-principles-2026-06-20.md)
+
+---
+
+### 2026-06-20: First Turn Completion Signal Loss
+
+**Status:** Analysis Complete
+**Priority:** High
+
+**Summary:**
+- Root cause analysis of first-turn completion signal loss
+- Identifies signal propagation issues in the agent lifecycle
+
+**Document:** [first-turn-completion-signal-loss-2026-06-20.md](first-turn-completion-signal-loss-2026-06-20.md)
+
+---
+
 ### 2026-06-20: Tmux Pane 客户端终端模拟器路径分析（第一性原理）
 
 **Status:** Analysis Complete
@@ -11,11 +37,24 @@ This directory contains analysis documents for the Solo project.
 
 **Summary:**
 - 从第一性原理重新审视 tmux pane 渲染：tmux server 输出的是 cell grid + 增量 VT 流，React Native `<Text>` 树不适合做这件事
-- 明确“在 app/web 端用 tmux 模拟器”应理解为“客户端 terminal emulator（xterm.js）”，而非替代 tmux server
+- 明确”在 app/web 端用 tmux 模拟器”应理解为”客户端 terminal emulator（xterm.js）”，而非替代 tmux server
 - 推荐两阶段路线：Phase 1 复用现有 `TerminalEmulator` + `capture-pane` 快照；Phase 2 按需引入 `tmux -C` Control Mode 流
 - 列出具体实施改动点、风险与验证清单
 
 **Document:** [tmux-pane-client-emulator-first-principles.md](tmux-pane-client-emulator-first-principles.md)
+
+---
+
+### 2026-06-19: Dead Code Analysis
+
+**Status:** Analysis Complete
+**Priority:** Medium
+
+**Summary:**
+- Dead code identification and analysis across the codebase
+- Verification of unused code paths and dependencies
+
+**Document:** [dead-code-analysis-2026-06-19.md](dead-code-analysis-2026-06-19.md)
 
 ---
 
@@ -92,7 +131,7 @@ This directory contains analysis documents for the Solo project.
 
 **Summary:**
 - 合并 5 个覆盖率文档为统一报告
-- Go 后端 ~75% (加权), App 前端 35.5%, E2E 35 specs
+- Go 后端 ~75% (加权), App 前端 35.5%, E2E 38 specs
 - CI/Codecov 完整集成, 识别 4 个覆盖率差距根因
 
 **Document:** [test-coverage.md](test-coverage.md)
@@ -166,14 +205,22 @@ This directory contains analysis documents for the Solo project.
 - [Network Architecture](../architecture/network-architecture.md)
 - [Session Memory Persistence](../architecture/session-memory-persistence.md)
 - [Timeline Design](../architecture/timeline-design.md)
+- [Tmux Pane Content Loading](../architecture/tmux-pane-content-loading.md)
+- [Push Notifications](../architecture/push-notifications.md)
 
 ### Product
 - [Features](../product/features.md)
+- [2026 Roadmap](../product/roadmap-2026.md)
+- [Loop Schedule Design](../product/loop-schedule-design.md)
 - [Session Memory Spec](../product/session-memory-spec.md)
 
 ### Providers
 - [Kimi Cursor Integration](../providers/kimi-cursor-integration.md)
 - [Kimi Wire vs ACP](../providers/kimi-wire-vs-acp.md)
+
+### Tmux Project Matching
+- [Tmux Project Matcher Plan](plan-tmux-project-matcher.md)
+- [Tmux Project Matcher Spec](spec-tmux-project-matcher.md)
 
 ---
 

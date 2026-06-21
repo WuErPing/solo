@@ -77,6 +77,7 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 	registry.Register(agent.NewOpenCodeAgentClient("", logger))
 	registry.Register(agent.NewKimiAgentClient("", logger))
 	registry.Register(agent.NewPiAgentClient("", logger))
+	registry.Register(agent.NewCodexAgentClient("", logger))
 	if os.Getenv("SOLO_ENABLE_MOCK_PROVIDER") == "1" {
 		registry.Register(agent.NewMockAgentClient())
 	}
