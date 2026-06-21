@@ -48,6 +48,8 @@ import {
   Plus,
   Trash2,
   Bot,
+  Repeat,
+  Calendar,
 } from "lucide-react-native";
 import { TmuxLogo } from "@/components/icons/tmux-logo";
 import { NestableScrollContainer } from "react-native-draggable-flatlist";
@@ -183,6 +185,8 @@ interface SidebarWorkspaceListProps {
   shortcutIndexByWorkspaceKey: Map<string, number>;
   paneCountMap?: Map<string, ProjectPaneCounts>;
   onPaneBadgePress?: (projectRootPath: string) => void;
+  onLoopBadgePress?: () => void;
+  onScheduleBadgePress?: () => void;
   isRefreshing?: boolean;
   onRefresh?: () => void;
   onWorkspacePress?: () => void;
@@ -204,7 +208,11 @@ interface ProjectHeaderRowProps {
   canCreateWorktree: boolean;
   agentCount?: number;
   paneCount?: number;
+  loopCount?: number;
+  scheduleCount?: number;
   onPaneBadgePress?: (projectRootPath: string) => void;
+  onLoopBadgePress?: () => void;
+  onScheduleBadgePress?: () => void;
   isProjectActive?: boolean;
   onWorkspacePress?: () => void;
   onWorktreeCreated?: (workspaceId: string) => void;
@@ -1160,7 +1168,11 @@ function ProjectHeaderRow({
   canCreateWorktree,
   agentCount,
   paneCount,
+  loopCount,
+  scheduleCount,
   onPaneBadgePress,
+  onLoopBadgePress,
+  onScheduleBadgePress,
   isProjectActive = false,
   onWorkspacePress,
   onWorktreeCreated: _onWorktreeCreated,
@@ -1245,6 +1257,28 @@ function ProjectHeaderRow({
             >
               <TmuxLogo size={8} />
               <Text style={styles.paneBadgeText}>{paneCount}</Text>
+            </Pressable>
+          ) : null}
+          {loopCount != null && loopCount > 0 ? (
+            <Pressable
+              onPress={onLoopBadgePress}
+              hitSlop={4}
+              style={styles.loopBadge}
+              testID="loop-badge"
+            >
+              <Repeat size={8} color="#fff" />
+              <Text style={styles.loopBadgeText}>{loopCount}</Text>
+            </Pressable>
+          ) : null}
+          {scheduleCount != null && scheduleCount > 0 ? (
+            <Pressable
+              onPress={onScheduleBadgePress}
+              hitSlop={4}
+              style={styles.scheduleBadge}
+              testID="schedule-badge"
+            >
+              <Calendar size={8} color="#fff" />
+              <Text style={styles.scheduleBadgeText}>{scheduleCount}</Text>
             </Pressable>
           ) : null}
         </View>
@@ -1673,7 +1707,11 @@ function NonGitProjectRowWithMenuContent({
   drag,
   agentCount,
   paneCount,
+  loopCount,
+  scheduleCount,
   onPaneBadgePress,
+  onLoopBadgePress,
+  onScheduleBadgePress,
   isDragging,
   dragHandleProps,
 }: {
@@ -1688,7 +1726,11 @@ function NonGitProjectRowWithMenuContent({
   drag: () => void;
   agentCount?: number;
   paneCount?: number;
+  loopCount?: number;
+  scheduleCount?: number;
   onPaneBadgePress?: (projectRootPath: string) => void;
+  onLoopBadgePress?: () => void;
+  onScheduleBadgePress?: () => void;
   isDragging: boolean;
   dragHandleProps?: DraggableListDragHandleProps;
 }) {
@@ -1764,7 +1806,11 @@ function NonGitProjectRowWithMenuContent({
         canCreateWorktree={false}
         agentCount={agentCount}
         paneCount={paneCount}
+        loopCount={loopCount}
+        scheduleCount={scheduleCount}
         onPaneBadgePress={onPaneBadgePress}
+        onLoopBadgePress={onLoopBadgePress}
+        onScheduleBadgePress={onScheduleBadgePress}
         shortcutNumber={shortcutNumber}
         showShortcutBadge={showShortcutBadge}
         drag={drag}
@@ -1805,7 +1851,11 @@ function NonGitProjectRowWithMenu(props: {
   drag: () => void;
   agentCount?: number;
   paneCount?: number;
+  loopCount?: number;
+  scheduleCount?: number;
   onPaneBadgePress?: (projectRootPath: string) => void;
+  onLoopBadgePress?: () => void;
+  onScheduleBadgePress?: () => void;
   isDragging: boolean;
   dragHandleProps?: DraggableListDragHandleProps;
 }) {
@@ -1836,7 +1886,11 @@ function FlattenedProjectRow({
   selectionEnabled,
   agentCount,
   paneCount,
+  loopCount,
+  scheduleCount,
   onPaneBadgePress,
+  onLoopBadgePress,
+  onScheduleBadgePress,
 }: {
   project: SidebarProjectEntry;
   displayName: string;
@@ -1857,7 +1911,11 @@ function FlattenedProjectRow({
   selectionEnabled: boolean;
   agentCount?: number;
   paneCount?: number;
+  loopCount?: number;
+  scheduleCount?: number;
   onPaneBadgePress?: (projectRootPath: string) => void;
+  onLoopBadgePress?: () => void;
+  onScheduleBadgePress?: () => void;
 }) {
   const workspace = useSidebarWorkspaceEntry(serverId, rowModel.workspace.workspaceId);
   const selected = useIsNavigationWorkspaceSelected({
@@ -1884,7 +1942,11 @@ function FlattenedProjectRow({
         drag={drag}
         agentCount={agentCount}
         paneCount={paneCount}
+        loopCount={loopCount}
+        scheduleCount={scheduleCount}
         onPaneBadgePress={onPaneBadgePress}
+        onLoopBadgePress={onLoopBadgePress}
+        onScheduleBadgePress={onScheduleBadgePress}
         isDragging={isDragging}
         dragHandleProps={dragHandleProps}
       />
@@ -1904,7 +1966,11 @@ function FlattenedProjectRow({
       canCreateWorktree={rowModel.trailingAction === "new_worktree"}
       agentCount={agentCount}
       paneCount={paneCount}
+      loopCount={loopCount}
+      scheduleCount={scheduleCount}
       onPaneBadgePress={onPaneBadgePress}
+      onLoopBadgePress={onLoopBadgePress}
+      onScheduleBadgePress={onScheduleBadgePress}
       isProjectActive={isProjectActive}
       onWorkspacePress={onWorkspacePress}
       onWorktreeCreated={onWorktreeCreated}
@@ -2045,6 +2111,8 @@ function ProjectBlock({
   creatingWorkspaceIds,
   paneCountMap,
   onPaneBadgePress,
+  onLoopBadgePress,
+  onScheduleBadgePress,
 }: {
   project: SidebarProjectEntry;
   collapsed: boolean;
@@ -2067,10 +2135,14 @@ function ProjectBlock({
   creatingWorkspaceIds: ReadonlySet<string>;
   paneCountMap?: Map<string, ProjectPaneCounts>;
   onPaneBadgePress?: (projectRootPath: string) => void;
+  onLoopBadgePress?: () => void;
+  onScheduleBadgePress?: () => void;
 }) {
   const counts = paneCountMap?.get(project.projectKey);
   const agentCount = counts?.agentCount;
   const paneCount = counts?.paneCount;
+  const loopCount = counts?.loopCount;
+  const scheduleCount = counts?.scheduleCount;
   const rowModel = useMemo(
     () =>
       buildSidebarProjectRowModel({
@@ -2239,7 +2311,11 @@ function ProjectBlock({
           selectionEnabled={selectionEnabled}
           agentCount={agentCount}
           paneCount={paneCount}
+          loopCount={loopCount}
+          scheduleCount={scheduleCount}
           onPaneBadgePress={onPaneBadgePress}
+          onLoopBadgePress={onLoopBadgePress}
+          onScheduleBadgePress={onScheduleBadgePress}
         />
       ) : (
         <>
@@ -2255,7 +2331,11 @@ function ProjectBlock({
             canCreateWorktree={rowModel.trailingAction === "new_worktree"}
             agentCount={agentCount}
             paneCount={paneCount}
+            loopCount={loopCount}
+            scheduleCount={scheduleCount}
             onPaneBadgePress={onPaneBadgePress}
+            onLoopBadgePress={onLoopBadgePress}
+            onScheduleBadgePress={onScheduleBadgePress}
             isProjectActive={isProjectActive}
             onWorkspacePress={onWorkspacePress}
             onWorktreeCreated={onWorktreeCreated}
@@ -2296,6 +2376,8 @@ export function SidebarWorkspaceList({
   shortcutIndexByWorkspaceKey,
   paneCountMap,
   onPaneBadgePress,
+  onLoopBadgePress,
+  onScheduleBadgePress,
   isRefreshing: _isRefreshing = false,
   onRefresh: _onRefresh,
   onWorkspacePress,
@@ -2541,6 +2623,8 @@ export function SidebarWorkspaceList({
           creatingWorkspaceIds={creatingWorkspaceIds}
           paneCountMap={paneCountMap}
           onPaneBadgePress={onPaneBadgePress}
+          onLoopBadgePress={onLoopBadgePress}
+          onScheduleBadgePress={onScheduleBadgePress}
         />
       );
     },
@@ -2552,6 +2636,8 @@ export function SidebarWorkspaceList({
       onToggleProjectCollapsed,
       paneCountMap,
       onPaneBadgePress,
+      onLoopBadgePress,
+      onScheduleBadgePress,
       parentGestureRef,
       pathname,
       projectIconByProjectKey,
@@ -2970,6 +3056,42 @@ const styles = StyleSheet.create((theme) => ({
   },
   paneBadgeText: {
     color: theme.colors.foregroundMuted,
+    fontSize: 10,
+    fontWeight: theme.fontWeight.medium,
+    lineHeight: 12,
+  },
+  loopBadge: {
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 4,
+    flexDirection: "row",
+    gap: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.palette.purple[600],
+    flexShrink: 0,
+  },
+  loopBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: theme.fontWeight.medium,
+    lineHeight: 12,
+  },
+  scheduleBadge: {
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 4,
+    flexDirection: "row",
+    gap: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.palette.blue[600],
+    flexShrink: 0,
+  },
+  scheduleBadgeText: {
+    color: "#fff",
     fontSize: 10,
     fontWeight: theme.fontWeight.medium,
     lineHeight: 12,

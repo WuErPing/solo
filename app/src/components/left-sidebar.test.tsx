@@ -143,6 +143,14 @@ vi.mock("@/hooks/use-tmux-project-counts", () => ({
   useTmuxProjectCounts: () => new Map<string, number>(),
 }));
 
+vi.mock("@/hooks/use-loop-project-counts", () => ({
+  useLoopProjectCounts: () => new Map<string, number>(),
+}));
+
+vi.mock("@/hooks/use-schedule-project-counts", () => ({
+  useScheduleProjectCounts: () => new Map<string, number>(),
+}));
+
 vi.mock("@/contexts/sidebar-animation-context", () => ({
   useSidebarAnimation: () => ({
     translateX: { value: 0 },

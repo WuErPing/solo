@@ -52,6 +52,33 @@ interface WorkspaceSetupDaemonClient {
     error?: string | null;
   }>;
   subscribeRawMessages(handler: (message: SessionOutboundMessage) => void): () => void;
+  loopRun(options: {
+    prompt: string;
+    cwd: string;
+    name?: string | null;
+    maxIterations?: number;
+    sleepMs?: number;
+    requestId?: string;
+  }): Promise<{ loop: { id: string } | null; error: string | null }>;
+  loopStop(id: string): Promise<{ error: string | null }>;
+  scheduleCreate(options: {
+    prompt: string;
+    name?: string | null;
+    cadence: { type: "every"; everyMs: number } | { type: "cron"; expression: string };
+    target:
+      | { type: "agent"; agentId: string }
+      | {
+          type: "new-agent";
+          config: {
+            provider: string;
+            cwd: string;
+            [key: string]: unknown;
+          };
+        };
+    maxRuns?: number;
+    requestId?: string;
+  }): Promise<{ schedule: { id: string } | null; error: string | null }>;
+  scheduleDelete(options: { id: string; requestId?: string }): Promise<{ error: string | null }>;
 }
 
 export type WorkspaceSetupProgressPayload = Extract<

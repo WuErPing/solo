@@ -49,6 +49,8 @@ import {
 } from "@/hooks/use-sidebar-workspaces-list";
 import { useTmuxProjectCounts } from "@/hooks/use-tmux-project-counts";
 import { useSoloAgentCounts } from "@/hooks/use-solo-agent-counts";
+import { useLoopProjectCounts } from "@/hooks/use-loop-project-counts";
+import { useScheduleProjectCounts } from "@/hooks/use-schedule-project-counts";
 import type { ProjectPaneCounts } from "@/utils/tmux-project-matcher";
 import { useHostRuntimeSnapshot, useHosts } from "@/runtime/host-runtime";
 import {
@@ -100,6 +102,8 @@ interface SidebarSharedProps {
   toggleProjectCollapsed: SidebarShortcutModel["toggleProjectCollapsed"];
   paneCountMap: Map<string, ProjectPaneCounts>;
   onPaneBadgePress: (projectRootPath: string) => void;
+  onLoopBadgePress: () => void;
+  onScheduleBadgePress: () => void;
   handleRefresh: () => void;
   handleHostSelect: (nextServerId: string) => void;
   handleOpenProject: () => void;
@@ -208,21 +212,27 @@ export const LeftSidebar = memo(function LeftSidebar({
     useSidebarShortcutModel({ projects, isInitialLoad });
   const tmuxPaneCountMap = useTmuxProjectCounts(projects, activeServerId);
   const soloAgentCounts = useSoloAgentCounts(activeServerId);
+  const loopCounts = useLoopProjectCounts(projects, activeServerId);
+  const scheduleCounts = useScheduleProjectCounts(projects, activeServerId);
   const paneCountMap = useMemo(() => {
     const merged = new Map<string, ProjectPaneCounts>();
-    for (const [key, counts] of tmuxPaneCountMap) {
+    const allKeys = new Set<string>([
+      ...tmuxPaneCountMap.keys(),
+      ...soloAgentCounts.keys(),
+      ...loopCounts.keys(),
+      ...scheduleCounts.keys(),
+    ]);
+    for (const key of allKeys) {
+      const tmux = tmuxPaneCountMap.get(key);
       merged.set(key, {
         agentCount: soloAgentCounts.get(key) ?? 0,
-        paneCount: counts.paneCount,
+        paneCount: tmux?.paneCount ?? 0,
+        loopCount: loopCounts.get(key) ?? 0,
+        scheduleCount: scheduleCounts.get(key) ?? 0,
       });
     }
-    for (const [key, agentCount] of soloAgentCounts) {
-      if (!merged.has(key)) {
-        merged.set(key, { agentCount, paneCount: 0 });
-      }
-    }
     return merged;
-  }, [tmuxPaneCountMap, soloAgentCounts]);
+  }, [tmuxPaneCountMap, soloAgentCounts, loopCounts, scheduleCounts]);
 
   const [isManualRefresh, setIsManualRefresh] = useState(false);
 
@@ -287,6 +297,16 @@ export const LeftSidebar = memo(function LeftSidebar({
     router.push((buildTmuxDashboardRoute() + "?dir=" + encodeURIComponent(projectRootPath)) as never);
   }, []);
 
+  const handleLoopBadgePress = useCallback(() => {
+    if (activeServerId) {
+      router.push(buildHostLoopsRoute(activeServerId));
+    }
+  }, [activeServerId]);
+
+  const handleScheduleBadgePress = useCallback(() => {
+    router.push(buildSchedulesRoute());
+  }, []);
+
   const handleHostSelect = useCallback(
     (nextServerId: string) => {
       if (!nextServerId) {
@@ -317,6 +337,8 @@ export const LeftSidebar = memo(function LeftSidebar({
     toggleProjectCollapsed,
     paneCountMap,
     onPaneBadgePress: handlePaneBadgePress,
+    onLoopBadgePress: handleLoopBadgePress,
+    onScheduleBadgePress: handleScheduleBadgePress,
     handleRefresh,
     handleHostSelect,
     renderHostOption,
@@ -565,6 +587,8 @@ function MobileSidebar({
   toggleProjectCollapsed,
   paneCountMap,
   onPaneBadgePress,
+  onLoopBadgePress,
+  onScheduleBadgePress,
   handleRefresh,
   handleHostSelect,
   renderHostOption,
@@ -819,6 +843,8 @@ function MobileSidebar({
                 shortcutIndexByWorkspaceKey={shortcutIndexByWorkspaceKey}
                 paneCountMap={paneCountMap}
                 onPaneBadgePress={onPaneBadgePress}
+                onLoopBadgePress={onLoopBadgePress}
+                onScheduleBadgePress={onScheduleBadgePress}
                 projects={projects}
                 isRefreshing={isManualRefresh && isRevalidating}
                 onRefresh={handleRefresh}
@@ -867,6 +893,8 @@ function DesktopSidebar({
   toggleProjectCollapsed,
   paneCountMap,
   onPaneBadgePress,
+  onLoopBadgePress,
+  onScheduleBadgePress,
   handleRefresh,
   handleHostSelect,
   renderHostOption,
@@ -996,6 +1024,8 @@ function DesktopSidebar({
             shortcutIndexByWorkspaceKey={shortcutIndexByWorkspaceKey}
             paneCountMap={paneCountMap}
             onPaneBadgePress={onPaneBadgePress}
+            onLoopBadgePress={onLoopBadgePress}
+            onScheduleBadgePress={onScheduleBadgePress}
             projects={projects}
             isRefreshing={isManualRefresh && isRevalidating}
             onRefresh={handleRefresh}

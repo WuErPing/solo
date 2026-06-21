@@ -7,6 +7,8 @@ export interface TmuxPaneSource {
 export interface ProjectPaneCounts {
   agentCount: number;
   paneCount: number;
+  loopCount: number;
+  scheduleCount: number;
 }
 
 export interface ProjectPathSource {
@@ -97,7 +99,7 @@ export function matchTmuxToProjects(
 
       if (matchesProject(paneDir, proj)) {
         matchedProjects.add(proj.projectKey);
-        const entry = counts.get(proj.projectKey) ?? { agentCount: 0, paneCount: 0 };
+        const entry = counts.get(proj.projectKey) ?? { agentCount: 0, paneCount: 0, loopCount: 0, scheduleCount: 0 };
         entry.paneCount++;
         if (p.kind === "agent") {
           entry.agentCount++;
