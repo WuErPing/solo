@@ -6,6 +6,7 @@ import { HEADER_INNER_HEIGHT, HEADER_INNER_HEIGHT_MOBILE } from "@/constants/lay
 
 interface SidebarHeaderRowProps {
   icon: LucideIcon;
+  iconColor?: string;
   label: string;
   onPress: () => void;
   isActive?: boolean;
@@ -22,6 +23,7 @@ interface SidebarHeaderRowProps {
  */
 export function SidebarHeaderRow({
   icon: Icon,
+  iconColor,
   label,
   onPress,
   isActive = false,
@@ -42,16 +44,17 @@ export function SidebarHeaderRow({
   const renderChildren = useCallback(
     (state: PressableStateCallbackType & { hovered?: boolean }) => {
       const isHighlighted = Boolean(state.hovered) || isActive;
-      const iconColor = isHighlighted ? theme.colors.foreground : theme.colors.foregroundMuted;
+      const resolvedIconColor = iconColor ?? (isHighlighted ? theme.colors.foreground : theme.colors.foregroundMuted);
       return (
         <>
-          <Icon size={theme.iconSize.md} color={iconColor} />
+          <Icon size={theme.iconSize.md} color={resolvedIconColor} />
           <SidebarHeaderRowLabel label={label} isHighlighted={isHighlighted} />
         </>
       );
     },
     [
       Icon,
+      iconColor,
       isActive,
       label,
       theme.colors.foreground,

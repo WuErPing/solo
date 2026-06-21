@@ -50,8 +50,8 @@ import {
   Bot,
   Repeat,
   Calendar,
+  Terminal,
 } from "lucide-react-native";
-import { TmuxLogo } from "@/components/icons/tmux-logo";
 import { NestableScrollContainer } from "react-native-draggable-flatlist";
 import { DraggableList, type DraggableRenderItemInfo } from "./draggable-list";
 import type { DraggableListDragHandleProps } from "./draggable-list.types";
@@ -1255,7 +1255,7 @@ function ProjectHeaderRow({
               hitSlop={4}
               style={styles.paneBadge}
             >
-              <TmuxLogo size={8} />
+              <Terminal size={8} color="#fff" />
               <Text style={styles.paneBadgeText}>{paneCount}</Text>
             </Pressable>
           ) : null}
@@ -3051,11 +3051,11 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.palette.orange[500],
     flexShrink: 0,
   },
   paneBadgeText: {
-    color: theme.colors.foregroundMuted,
+    color: "#fff",
     fontSize: 10,
     fontWeight: theme.fontWeight.medium,
     lineHeight: 12,
@@ -3069,7 +3069,7 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.palette.purple[600],
+    backgroundColor: theme.colors.palette.purple[500],
     flexShrink: 0,
   },
   loopBadgeText: {
@@ -3087,7 +3087,7 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.palette.blue[600],
+    backgroundColor: theme.colors.palette.blue[500],
     flexShrink: 0,
   },
   scheduleBadgeText: {

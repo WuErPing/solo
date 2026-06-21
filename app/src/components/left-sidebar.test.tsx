@@ -35,9 +35,12 @@ const { panelState, useSidebarWorkspacesListMock, theme } = vi.hoisted(() => {
         accent: "#0a84ff",
         accentForeground: "#fff",
         palette: {
-          green: { 400: "#30d158" },
+          green: { 400: "#30d158", 500: "#34c759" },
           amber: { 500: "#ffd60a" },
           red: { 500: "#ff453a" },
+          blue: { 500: "#0a84ff" },
+          purple: { 500: "#bf5af2" },
+          orange: { 500: "#ff9f0a" },
         },
       },
     },
@@ -92,6 +95,7 @@ vi.mock("lucide-react-native", () => {
     MessagesSquare: createIcon("MessagesSquare"),
     Plus: createIcon("Plus"),
     RefreshCw: createIcon("RefreshCw"),
+    Repeat: createIcon("Repeat"),
     Settings: createIcon("Settings"),
     Terminal: createIcon("Terminal"),
   };

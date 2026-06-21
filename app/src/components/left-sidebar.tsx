@@ -1,5 +1,5 @@
 import { router, usePathname } from "expo-router";
-import { Calendar, FolderPlus, LayoutDashboard, MessagesSquare, RefreshCw, Settings, Terminal } from "lucide-react-native";
+import { Calendar, FolderPlus, LayoutDashboard, MessagesSquare, Repeat, Settings, Terminal } from "lucide-react-native";
 import {
   type Dispatch,
   memo,
@@ -799,6 +799,7 @@ function MobileSidebar({
           <View style={styles.sidebarContent} pointerEvents="auto">
             <SidebarHeaderRow
               icon={MessagesSquare}
+              iconColor={theme.colors.palette.green[500]}
               label="Sessions"
               onPress={handleViewMore}
               isActive={isSessionsActive}
@@ -806,6 +807,7 @@ function MobileSidebar({
             />
             <SidebarHeaderRow
               icon={LayoutDashboard}
+              iconColor={theme.colors.palette.amber[500]}
               label="Dashboard"
               onPress={handleDashboardNavigate}
               isActive={pathname === "/dashboard"}
@@ -813,13 +815,15 @@ function MobileSidebar({
             />
             <SidebarHeaderRow
               icon={Calendar}
+              iconColor={theme.colors.palette.blue[500]}
               label="Schedules"
               onPress={handleSchedules}
               isActive={isSchedulesActive}
               testID="sidebar-schedules"
             />
             <SidebarHeaderRow
-              icon={RefreshCw}
+              icon={Repeat}
+              iconColor={theme.colors.palette.purple[500]}
               label="Loops"
               onPress={handleLoops}
               isActive={isLoopsActive}
@@ -827,6 +831,7 @@ function MobileSidebar({
             />
             <SidebarHeaderRow
               icon={Terminal}
+              iconColor={theme.colors.palette.orange[500]}
               label="Tmux Dashboard"
               onPress={handleTmuxDashboardNavigate}
               isActive={pathname === "/tmux-dashboard"}
@@ -983,6 +988,7 @@ function DesktopSidebar({
             onPress={handleViewMore}
             isActive={isSessionsActive}
             testID="sidebar-sessions"
+            iconColor={theme.colors.palette.green[500]}
           />
           <SidebarHeaderRow
             icon={LayoutDashboard}
@@ -990,6 +996,7 @@ function DesktopSidebar({
             onPress={handleDashboardNavigate}
             isActive={pathname === "/dashboard"}
             testID="sidebar-dashboard"
+            iconColor={theme.colors.palette.amber[500]}
           />
           <SidebarHeaderRow
             icon={Calendar}
@@ -997,13 +1004,15 @@ function DesktopSidebar({
             onPress={handleSchedulesNavigate}
             isActive={isSchedulesActive}
             testID="sidebar-schedules"
+            iconColor={theme.colors.palette.blue[500]}
           />
           <SidebarHeaderRow
-            icon={RefreshCw}
+            icon={Repeat}
             label="Loops"
             onPress={handleLoopsNavigate}
             isActive={isLoopsActive}
             testID="sidebar-loops"
+            iconColor={theme.colors.palette.purple[500]}
           />
           <SidebarHeaderRow
             icon={Terminal}
@@ -1011,6 +1020,7 @@ function DesktopSidebar({
             onPress={handleTmuxDashboardNavigate}
             isActive={pathname === "/tmux-dashboard"}
             testID="sidebar-tmux-dashboard"
+            iconColor={theme.colors.palette.orange[500]}
           />
         </View>
 
