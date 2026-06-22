@@ -1,9 +1,6 @@
 import type { z } from "zod";
 import {
-  AgentCreateFailedStatusPayloadSchema,
-  AgentCreatedStatusPayloadSchema,
   AgentRefreshedStatusPayloadSchema,
-  AgentResumedStatusPayloadSchema,
   parseServerInfoStatusPayload,
   RestartRequestedStatusPayloadSchema,
   ShutdownRequestedStatusPayloadSchema,
@@ -81,15 +78,7 @@ import type {
 } from "../server/agent/agent-sdk-types.js";
 import type { MutableDaemonConfig, MutableDaemonConfigPatch } from "../shared/messages.js";
 import { isRelayClientWebSocketUrl } from "../shared/daemon-endpoints.js";
-import {
-  asUint8Array,
-  decodeTerminalSnapshotPayload,
-  decodeTerminalStreamFrame,
-  encodeTerminalResizePayload,
-  encodeTerminalStreamFrame,
-  TerminalStreamOpcode,
-  type TerminalStreamFrame,
-} from "../shared/terminal-stream-protocol.js";
+import { asUint8Array } from "../shared/terminal-stream-protocol.js";
 import {
   createRelayE2eeTransportFactory,
   createWebSocketTransportFactory,
@@ -97,12 +86,17 @@ import {
   defaultWebSocketFactory,
   describeTransportClose,
   describeTransportError,
-  encodeUtf8String,
   type DaemonTransport,
   type DaemonTransportFactory,
   type WebSocketFactory,
 } from "./daemon-client-transport.js";
 import { DaemonClientRuntimeMetrics } from "./daemon-client-runtime-metrics.js";
+import { AgentRpc } from "./agent-rpc.js";
+import { ScheduleRpc } from "./schedule-rpc.js";
+import { ChatRpc } from "./chat-rpc.js";
+import { WorkspaceRpc } from "./workspace-rpc.js";
+import { GitRpc } from "./git-rpc.js";
+import { TerminalRpc } from "./terminal-rpc.js";
 
 export interface Logger {
   debug(obj: object, msg?: string): void;
@@ -303,10 +297,6 @@ interface ListCommandsOptions {
 type SetVoiceModePayload = Extract<
   SessionOutboundMessage,
   { type: "set_voice_mode_response" }
->["payload"];
-type DictationFinishAcceptedPayload = Extract<
-  SessionOutboundMessage,
-  { type: "dictation_stream_finish_accepted" }
 >["payload"];
 type AgentPermissionResolvedPayload = AgentPermissionResolvedMessage["payload"];
 type ListTerminalsPayload = ListTerminalsResponse["payload"];
@@ -662,13 +652,6 @@ const DEFAULT_CONNECT_TIMEOUT_MS = 15000;
 
 /** Default timeout for waiting for connection before sending queued messages */
 const DEFAULT_SEND_QUEUE_TIMEOUT_MS = 10000;
-const DEFAULT_DICTATION_FINISH_ACCEPT_TIMEOUT_MS = 15000;
-const DEFAULT_DICTATION_FINISH_FALLBACK_TIMEOUT_MS = 5 * 60 * 1000;
-const DEFAULT_DICTATION_FINISH_TIMEOUT_GRACE_MS = 5000;
-
-function isWaiterTimeoutError(error: unknown): boolean {
-  return error instanceof Error && error.message.startsWith("Timeout waiting for message");
-}
 
 function normalizeClientId(value: unknown): string | null {
   if (typeof value !== "string") {
@@ -726,7 +709,6 @@ export class DaemonClient {
   > = new Map();
   private eventListeners: Set<DaemonEventHandler> = new Set();
   private waiters: Set<Waiter<unknown>> = new Set();
-  private checkoutStatusInFlight: Map<string, Promise<CheckoutStatusPayload>> = new Map();
   private connectionListeners: Set<(status: ConnectionState) => void> = new Set();
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private connectTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -738,17 +720,6 @@ export class DaemonClient {
   private connectReject: ((error: Error) => void) | null = null;
   private lastErrorValue: string | null = null;
   private connectionState: ConnectionState = { status: "idle" };
-  private checkoutDiffSubscriptions = new Map<
-    string,
-    {
-      cwd: string;
-      compare: { mode: "uncommitted" | "base"; baseRef?: string; ignoreWhitespace?: boolean };
-    }
-  >();
-  private terminalDirectorySubscriptions = new Set<string>();
-  private terminalSlots = new Map<string, number>();
-  private slotTerminals = new Map<number, string>();
-  private readonly terminalStreamListeners = new Set<(event: TerminalStreamEvent) => void>();
   private logger: Logger;
   private pendingSendQueue: PendingSend[] = [];
   private readonly logConnectionPath: "direct" | "relay";
@@ -758,6 +729,12 @@ export class DaemonClient {
   private lastServerInfoMessage: ServerInfoStatusPayload | null = null;
   private runtimeMetricsInterval: ReturnType<typeof setInterval> | null = null;
   private runtimeMetrics: DaemonClientRuntimeMetrics | null = null;
+  private readonly agentRpc = new AgentRpc(this);
+  private readonly scheduleRpc = new ScheduleRpc(this);
+  private readonly chatRpc = new ChatRpc(this);
+  private readonly workspaceRpc = new WorkspaceRpc(this);
+  private readonly gitRpc = new GitRpc(this);
+  private readonly terminalRpc = new TerminalRpc(this);
 
   constructor(private config: DaemonClientConfig) {
     this.logger = config.logger ?? consoleLogger;
@@ -1011,7 +988,7 @@ export class DaemonClient {
     this.disposeTransport(1000, "Client closed");
     this.clearWaiters(new Error("Daemon client closed"));
     this.rejectPendingSendQueue(new Error("Daemon client closed"));
-    this.clearTerminalSlots();
+    this.terminalRpc.clearSlots();
     this.lastServerInfoMessage = null;
     if (this.runtimeMetricsInterval) {
       clearInterval(this.runtimeMetricsInterval);
@@ -1123,7 +1100,8 @@ export class DaemonClient {
    * failures are suppressed if `suppressSendErrors` is configured.
    * For RPC methods that wait for responses, use `sendSessionMessageOrThrow` instead.
    */
-  private sendSessionMessage(message: SessionInboundMessage): void {
+  /** @internal */
+  sendSessionMessage(message: SessionInboundMessage): void {
     if (!this.transport || this.connectionState.status !== "connected") {
       if (this.config.suppressSendErrors) {
         return;
@@ -1141,7 +1119,8 @@ export class DaemonClient {
     }
   }
 
-  private sendBinaryFrame(frame: Uint8Array): void {
+  /** @internal */
+  sendBinaryFrame(frame: Uint8Array): void {
     if (!this.transport || this.connectionState.status !== "connected") {
       if (this.config.suppressSendErrors) {
         return;
@@ -1156,6 +1135,11 @@ export class DaemonClient {
       }
       throw error instanceof Error ? error : new Error(String(error));
     }
+  }
+
+  /** @internal */
+  recordBinaryFrame(kind: string, bytes: number, handlerMs: number): void {
+    this.runtimeMetrics?.recordBinaryFrame(kind, bytes, handlerMs);
   }
 
   /**
@@ -1230,7 +1214,8 @@ export class DaemonClient {
     }
   }
 
-  private async sendRequest<T>(params: {
+  /** @internal */
+  async sendRequest<T>(params: {
     requestId: string;
     message: SessionInboundMessage;
     timeout: number;
@@ -1276,7 +1261,8 @@ export class DaemonClient {
     return result.value;
   }
 
-  private async sendCorrelatedRequest<
+  /** @internal */
+  async sendCorrelatedRequest<
     TResponseType extends CorrelatedResponseType,
     TResult = CorrelatedResponsePayload<TResponseType>,
   >(params: {
@@ -1309,7 +1295,8 @@ export class DaemonClient {
     });
   }
 
-  private sendCorrelatedSessionRequest<
+  /** @internal */
+  sendCorrelatedSessionRequest<
     TResponseType extends CorrelatedResponseType,
     TResult = CorrelatedResponsePayload<TResponseType>,
   >(params: {
@@ -1334,7 +1321,8 @@ export class DaemonClient {
     });
   }
 
-  private sendSessionMessageStrict(message: SessionInboundMessage): void {
+  /** @internal */
+  sendSessionMessageStrict(message: SessionInboundMessage): void {
     if (!this.transport || this.connectionState.status !== "connected") {
       throw new Error("Transport not connected");
     }
@@ -1347,27 +1335,7 @@ export class DaemonClient {
   }
 
   async clearAgentAttention(agentId: string | string[]): Promise<void> {
-    const requestId = this.createRequestId();
-    const message = SessionInboundMessageSchema.parse({
-      type: "clear_agent_attention",
-      agentId,
-      requestId,
-    });
-    await this.sendRequest({
-      requestId,
-      message,
-      timeout: 15000,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "clear_agent_attention_response") {
-          return null;
-        }
-        if (msg.payload.requestId !== requestId) {
-          return null;
-        }
-        return msg.payload;
-      },
-    });
+    return this.agentRpc.clearAgentAttention(agentId);
   }
 
   sendHeartbeat(params: {
@@ -1377,21 +1345,11 @@ export class DaemonClient {
     appVisible: boolean;
     appVisibilityChangedAt?: string;
   }): void {
-    this.sendSessionMessage({
-      type: "client_heartbeat",
-      deviceType: params.deviceType,
-      focusedAgentId: params.focusedAgentId,
-      lastActivityAt: params.lastActivityAt,
-      appVisible: params.appVisible,
-      appVisibilityChangedAt: params.appVisibilityChangedAt,
-    });
+    this.agentRpc.sendHeartbeat(params);
   }
 
   registerPushToken(token: string): void {
-    this.sendSessionMessage({
-      type: "register_push_token",
-      token,
-    });
+    this.agentRpc.registerPushToken(token);
   }
 
   async ping(params?: { requestId?: string; timeoutMs?: number }): Promise<{
@@ -1401,30 +1359,7 @@ export class DaemonClient {
     serverSentAt: number;
     rttMs: number;
   }> {
-    const requestId =
-      params?.requestId ?? `ping-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const clientSentAt = Date.now();
-
-    const payload = await this.sendRequest({
-      requestId,
-      message: { type: "ping", requestId, clientSentAt },
-      timeout: params?.timeoutMs ?? 5000,
-      select: (msg) => {
-        if (msg.type !== "pong") return null;
-        if (msg.payload.requestId !== requestId) return null;
-        if (typeof msg.payload.serverReceivedAt !== "number") return null;
-        if (typeof msg.payload.serverSentAt !== "number") return null;
-        return msg.payload;
-      },
-    });
-
-    return {
-      requestId,
-      clientSentAt,
-      serverReceivedAt: payload.serverReceivedAt,
-      serverSentAt: payload.serverSentAt,
-      rttMs: Date.now() - clientSentAt,
-    };
+    return this.agentRpc.ping(params);
   }
 
   // ============================================================================
@@ -1432,96 +1367,19 @@ export class DaemonClient {
   // ============================================================================
 
   async fetchAgents(options?: FetchAgentsOptions): Promise<FetchAgentsPayload> {
-    const resolvedRequestId = this.createRequestId(options?.requestId);
-    const message = SessionInboundMessageSchema.parse({
-      type: "fetch_agents_request",
-      requestId: resolvedRequestId,
-      ...(options?.scope ? { scope: options.scope } : {}),
-      ...(options?.filter ? { filter: options.filter } : {}),
-      ...(options?.sort ? { sort: options.sort } : {}),
-      ...(options?.page ? { page: options.page } : {}),
-      ...(options?.subscribe ? { subscribe: options.subscribe } : {}),
-    });
-    return this.sendRequest({
-      requestId: resolvedRequestId,
-      message,
-      timeout: 10000,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "fetch_agents_response") {
-          return null;
-        }
-        if (msg.payload.requestId !== resolvedRequestId) {
-          return null;
-        }
-        return msg.payload;
-      },
-    });
+    return this.agentRpc.fetchAgents(options);
   }
 
   async fetchAgentHistory(options?: FetchAgentHistoryOptions): Promise<FetchAgentHistoryPayload> {
-    const resolvedRequestId = this.createRequestId(options?.requestId);
-    const message = SessionInboundMessageSchema.parse({
-      type: "fetch_agent_history_request",
-      requestId: resolvedRequestId,
-      ...(options?.filter ? { filter: options.filter } : {}),
-      ...(options?.sort ? { sort: options.sort } : {}),
-      ...(options?.page ? { page: options.page } : {}),
-    });
-    return this.sendRequest({
-      requestId: resolvedRequestId,
-      message,
-      timeout: 10000,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "fetch_agent_history_response") {
-          return null;
-        }
-        if (msg.payload.requestId !== resolvedRequestId) {
-          return null;
-        }
-        return msg.payload;
-      },
-    });
+    return this.agentRpc.fetchAgentHistory(options);
   }
 
   async fetchWorkspaces(options?: FetchWorkspacesOptions): Promise<FetchWorkspacesPayload> {
-    const resolvedRequestId = this.createRequestId(options?.requestId);
-    const message = SessionInboundMessageSchema.parse({
-      type: "fetch_workspaces_request",
-      requestId: resolvedRequestId,
-      ...(options?.filter ? { filter: options.filter } : {}),
-      ...(options?.sort ? { sort: options.sort } : {}),
-      ...(options?.page ? { page: options.page } : {}),
-      ...(options?.subscribe ? { subscribe: options.subscribe } : {}),
-    });
-    return this.sendRequest({
-      requestId: resolvedRequestId,
-      message,
-      timeout: 10000,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "fetch_workspaces_response") {
-          return null;
-        }
-        if (msg.payload.requestId !== resolvedRequestId) {
-          return null;
-        }
-        return msg.payload;
-      },
-    });
+    return this.workspaceRpc.fetchWorkspaces(options);
   }
 
   async openProject(cwd: string, requestId?: string): Promise<OpenProjectPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "open_project_request",
-        cwd,
-      },
-      responseType: "open_project_response",
-      timeout: 10000,
-    });
+    return this.workspaceRpc.openProject(cwd, requestId);
   }
 
   async startWorkspaceScript(
@@ -1531,27 +1389,11 @@ export class DaemonClient {
   ): Promise<
     Extract<SessionOutboundMessage, { type: "start_workspace_script_response" }>["payload"]
   > {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "start_workspace_script_request",
-        workspaceId,
-        scriptName,
-      },
-      responseType: "start_workspace_script_response",
-      timeout: 10000,
-    });
+    return this.workspaceRpc.startWorkspaceScript(workspaceId, scriptName, requestId);
   }
 
   async listAvailableEditors(requestId?: string): Promise<ListAvailableEditorsPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "list_available_editors_request",
-      },
-      responseType: "list_available_editors_response",
-      timeout: 10000,
-    });
+    return this.workspaceRpc.listAvailableEditors(requestId);
   }
 
   async openInEditor(
@@ -1559,120 +1401,32 @@ export class DaemonClient {
     editorId: EditorTargetId,
     requestId?: string,
   ): Promise<OpenInEditorPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "open_in_editor_request",
-        path,
-        editorId,
-      },
-      responseType: "open_in_editor_response",
-      timeout: 10000,
-    });
+    return this.workspaceRpc.openInEditor(path, editorId, requestId);
   }
 
   async archiveWorkspace(
     workspaceId: string,
     requestId?: string,
   ): Promise<ArchiveWorkspacePayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "archive_workspace_request",
-        workspaceId,
-      },
-      responseType: "archive_workspace_response",
-      timeout: 10000,
-    });
+    return this.workspaceRpc.archiveWorkspace(workspaceId, requestId);
   }
 
   async removeProject(
     workspaceIds: string[],
     requestId?: string,
   ): Promise<RemoveProjectPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "remove_project_request",
-        workspaceIds,
-      },
-      responseType: "remove_project_response",
-      timeout: 15000,
-    });
+    return this.workspaceRpc.removeProject(workspaceIds, requestId);
   }
 
   async fetchWorkspaceSetupStatus(
     workspaceId: string,
     requestId?: string,
   ): Promise<WorkspaceSetupStatusPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "workspace_setup_status_request",
-        workspaceId,
-      },
-      responseType: "workspace_setup_status_response",
-      timeout: 10000,
-    });
+    return this.workspaceRpc.fetchWorkspaceSetupStatus(workspaceId, requestId);
   }
 
   async fetchAgent(agentId: string, requestId?: string): Promise<FetchAgentResult | null> {
-    const resolvedRequestId = this.createRequestId(requestId);
-    const message = SessionInboundMessageSchema.parse({
-      type: "fetch_agent_request",
-      requestId: resolvedRequestId,
-      agentId,
-    });
-    const payload = await this.sendRequest({
-      requestId: resolvedRequestId,
-      message,
-      timeout: 10000,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "fetch_agent_response") {
-          return null;
-        }
-        if (msg.payload.requestId !== resolvedRequestId) {
-          return null;
-        }
-        return msg.payload;
-      },
-    });
-    if (payload.error) {
-      throw new Error(payload.error);
-    }
-    if (!payload.agent) {
-      return null;
-    }
-    return { agent: payload.agent, project: payload.project ?? null };
-  }
-
-  private resubscribeCheckoutDiffSubscriptions(): void {
-    if (this.checkoutDiffSubscriptions.size === 0) {
-      return;
-    }
-    for (const [subscriptionId, subscription] of this.checkoutDiffSubscriptions) {
-      const message = SessionInboundMessageSchema.parse({
-        type: "subscribe_checkout_diff_request",
-        subscriptionId,
-        cwd: subscription.cwd,
-        compare: subscription.compare,
-        requestId: this.createRequestId(),
-      });
-      this.sendSessionMessage(message);
-    }
-  }
-
-  private resubscribeTerminalDirectorySubscriptions(): void {
-    if (this.terminalDirectorySubscriptions.size === 0) {
-      return;
-    }
-    for (const cwd of this.terminalDirectorySubscriptions) {
-      this.sendSessionMessage({
-        type: "subscribe_terminals_request",
-        cwd,
-      });
-    }
+    return this.agentRpc.fetchAgent(agentId, requestId);
   }
 
   // ============================================================================
@@ -1680,231 +1434,40 @@ export class DaemonClient {
   // ============================================================================
 
   async createAgent(options: CreateAgentRequestOptions): Promise<AgentSnapshotPayload> {
-    const requestId = this.createRequestId(options.requestId);
-    const config = resolveAgentConfig(options);
-
-    const message = SessionInboundMessageSchema.parse({
-      type: "create_agent_request",
-      requestId,
-      config,
-      ...(options.workspaceId !== undefined ? { workspaceId: options.workspaceId } : {}),
-      ...(options.initialPrompt ? { initialPrompt: options.initialPrompt } : {}),
-      ...(options.clientMessageId ? { clientMessageId: options.clientMessageId } : {}),
-      ...(options.outputSchema ? { outputSchema: options.outputSchema } : {}),
-      ...(options.images && options.images.length > 0 ? { images: options.images } : {}),
-      ...(options.attachments && options.attachments.length > 0
-        ? { attachments: options.attachments }
-        : {}),
-      ...(options.git ? { git: options.git } : {}),
-      ...(options.worktreeName ? { worktreeName: options.worktreeName } : {}),
-      ...(options.labels && Object.keys(options.labels).length > 0
-        ? { labels: options.labels }
-        : {}),
-    });
-
-    const status = await this.sendRequest({
-      requestId,
-      message,
-      timeout: 60000,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "status") {
-          return null;
-        }
-        const created = AgentCreatedStatusPayloadSchema.safeParse(msg.payload);
-        if (created.success && created.data.requestId === requestId) {
-          return created.data;
-        }
-        const failed = AgentCreateFailedStatusPayloadSchema.safeParse(msg.payload);
-        if (failed.success && failed.data.requestId === requestId) {
-          return failed.data;
-        }
-        return null;
-      },
-    });
-    if (status.status === "agent_create_failed") {
-      throw new Error(status.error);
-    }
-
-    return status.agent;
+    return this.agentRpc.createAgent(options);
   }
 
   async deleteAgent(agentId: string): Promise<void> {
-    const requestId = this.createRequestId();
-    const message = SessionInboundMessageSchema.parse({
-      type: "delete_agent_request",
-      agentId,
-      requestId,
-    });
-    await this.sendRequest({
-      requestId,
-      message,
-      timeout: 10000,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "agent_deleted") {
-          return null;
-        }
-        if (msg.payload.requestId !== requestId) {
-          return null;
-        }
-        return msg.payload;
-      },
-    });
+    return this.agentRpc.deleteAgent(agentId);
   }
 
   async archiveAgent(agentId: string): Promise<{ archivedAt: string }> {
-    const requestId = this.createRequestId();
-    const message = SessionInboundMessageSchema.parse({
-      type: "archive_agent_request",
-      agentId,
-      requestId,
-    });
-    const result = await this.sendRequest({
-      requestId,
-      message,
-      timeout: 10000,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "agent_archived") {
-          return null;
-        }
-        if (msg.payload.requestId !== requestId) {
-          return null;
-        }
-        return msg.payload;
-      },
-    });
-    return { archivedAt: result.archivedAt };
+    return this.agentRpc.archiveAgent(agentId);
   }
 
   async updateAgent(
     agentId: string,
     updates: { name?: string; labels?: Record<string, string> },
   ): Promise<void> {
-    const requestId = this.createRequestId();
-    const message = SessionInboundMessageSchema.parse({
-      type: "update_agent_request",
-      agentId,
-      ...(updates.name !== undefined ? { name: updates.name } : {}),
-      ...(updates.labels && Object.keys(updates.labels).length > 0
-        ? { labels: updates.labels }
-        : {}),
-      requestId,
-    });
-    const payload = await this.sendRequest({
-      requestId,
-      message,
-      timeout: 10000,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "update_agent_response") {
-          return null;
-        }
-        if (msg.payload.requestId !== requestId) {
-          return null;
-        }
-        return msg.payload;
-      },
-    });
-    if (!payload.accepted) {
-      throw new Error(payload.error ?? "updateAgent rejected");
-    }
+    return this.agentRpc.updateAgent(agentId, updates);
   }
 
   async resumeAgent(
     handle: AgentPersistenceHandle,
     overrides?: Partial<AgentSessionConfig>,
   ): Promise<AgentSnapshotPayload> {
-    const requestId = this.createRequestId();
-    const message = SessionInboundMessageSchema.parse({
-      type: "resume_agent_request",
-      requestId,
-      handle,
-      ...(overrides ? { overrides } : {}),
-    });
-
-    const status = await this.sendRequest({
-      requestId,
-      message,
-      timeout: 15000,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "status") {
-          return null;
-        }
-        const resumed = AgentResumedStatusPayloadSchema.safeParse(msg.payload);
-        if (resumed.success && resumed.data.requestId === requestId) {
-          return resumed.data;
-        }
-        return null;
-      },
-    });
-
-    return status.agent;
+    return this.agentRpc.resumeAgent(handle, overrides);
   }
 
   async refreshAgent(agentId: string, requestId?: string): Promise<AgentRefreshedStatusPayload> {
-    const resolvedRequestId = this.createRequestId(requestId);
-    const message = SessionInboundMessageSchema.parse({
-      type: "refresh_agent_request",
-      agentId,
-      requestId: resolvedRequestId,
-    });
-    return this.sendRequest({
-      requestId: resolvedRequestId,
-      message,
-      timeout: 15000,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "status") {
-          return null;
-        }
-        const refreshed = AgentRefreshedStatusPayloadSchema.safeParse(msg.payload);
-        if (refreshed.success && refreshed.data.requestId === resolvedRequestId) {
-          return refreshed.data;
-        }
-        return null;
-      },
-    });
+    return this.agentRpc.refreshAgent(agentId, requestId);
   }
 
   async fetchAgentTimeline(
     agentId: string,
     options: FetchAgentTimelineOptions = {},
   ): Promise<FetchAgentTimelinePayload> {
-    const resolvedRequestId = this.createRequestId(options.requestId);
-    const message = SessionInboundMessageSchema.parse({
-      type: "fetch_agent_timeline_request",
-      agentId,
-      requestId: resolvedRequestId,
-      ...(options.direction ? { direction: options.direction } : {}),
-      ...(options.cursor ? { cursor: options.cursor } : {}),
-      ...(typeof options.limit === "number" ? { limit: options.limit } : {}),
-      ...(options.projection ? { projection: options.projection } : {}),
-    });
-
-    const payload = await this.sendRequest({
-      requestId: resolvedRequestId,
-      message,
-      timeout: 15000,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "fetch_agent_timeline_response") {
-          return null;
-        }
-        if (msg.payload.requestId !== resolvedRequestId) {
-          return null;
-        }
-        return msg.payload;
-      },
-    });
-
-    if (payload.error) {
-      throw new Error(payload.error);
-    }
-
-    return payload;
+    return this.agentRpc.fetchAgentTimeline(agentId, options);
   }
 
   // ============================================================================
@@ -1916,231 +1479,39 @@ export class DaemonClient {
     text: string,
     options?: SendMessageOptions,
   ): Promise<void> {
-    const requestId = this.createRequestId();
-    const messageId = options?.messageId ?? crypto.randomUUID();
-    const message = SessionInboundMessageSchema.parse({
-      type: "send_agent_message_request",
-      requestId,
-      agentId,
-      text,
-      ...(messageId ? { messageId } : {}),
-      ...(options?.images ? { images: options.images } : {}),
-      ...(options?.attachments ? { attachments: options.attachments } : {}),
-    });
-    const payload = await this.sendRequest({
-      requestId,
-      message,
-      timeout: 15000,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "send_agent_message_response") {
-          return null;
-        }
-        if (msg.payload.requestId !== requestId) {
-          return null;
-        }
-        return msg.payload;
-      },
-    });
-    if (!payload.accepted) {
-      throw new Error(payload.error ?? "sendAgentMessage rejected");
-    }
+    return this.agentRpc.sendAgentMessage(agentId, text, options);
   }
 
   async sendMessage(agentId: string, text: string, options?: SendMessageOptions): Promise<void> {
-    await this.sendAgentMessage(agentId, text, options);
+    return this.agentRpc.sendMessage(agentId, text, options);
   }
 
   async cancelAgent(agentId: string): Promise<void> {
-    const requestId = this.createRequestId();
-    const message = SessionInboundMessageSchema.parse({
-      type: "cancel_agent_request",
-      agentId,
-      requestId,
-    });
-    await this.sendRequest({
-      requestId,
-      message,
-      timeout: 15000,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "cancel_agent_response") {
-          return null;
-        }
-        if (msg.payload.requestId !== requestId) {
-          return null;
-        }
-        return msg.payload;
-      },
-    });
+    return this.agentRpc.cancelAgent(agentId);
   }
 
   async setAgentMode(agentId: string, modeId: string): Promise<void> {
-    const requestId = this.createRequestId();
-    const message = SessionInboundMessageSchema.parse({
-      type: "set_agent_mode_request",
-      agentId,
-      modeId,
-      requestId,
-    });
-    const payload = await this.sendRequest({
-      requestId,
-      message,
-      timeout: 15000,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "set_agent_mode_response") {
-          return null;
-        }
-        if (msg.payload.requestId !== requestId) {
-          return null;
-        }
-        return msg.payload;
-      },
-    });
-    if (!payload.accepted) {
-      throw new Error(payload.error ?? "setAgentMode rejected");
-    }
+    return this.agentRpc.setAgentMode(agentId, modeId);
   }
 
   async setAgentModel(agentId: string, modelId: string | null): Promise<void> {
-    const requestId = this.createRequestId();
-    const message = SessionInboundMessageSchema.parse({
-      type: "set_agent_model_request",
-      agentId,
-      modelId,
-      requestId,
-    });
-    const payload = await this.sendRequest({
-      requestId,
-      message,
-      timeout: 15000,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "set_agent_model_response") {
-          return null;
-        }
-        if (msg.payload.requestId !== requestId) {
-          return null;
-        }
-        return msg.payload;
-      },
-    });
-    if (!payload.accepted) {
-      throw new Error(payload.error ?? "setAgentModel rejected");
-    }
+    return this.agentRpc.setAgentModel(agentId, modelId);
   }
 
   async setAgentFeature(agentId: string, featureId: string, value: unknown): Promise<void> {
-    const requestId = this.createRequestId();
-    const message = SessionInboundMessageSchema.parse({
-      type: "set_agent_feature_request",
-      agentId,
-      featureId,
-      value,
-      requestId,
-    });
-    const payload = await this.sendRequest({
-      requestId,
-      message,
-      timeout: 15000,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "set_agent_feature_response") {
-          return null;
-        }
-        if (msg.payload.requestId !== requestId) {
-          return null;
-        }
-        return msg.payload;
-      },
-    });
-    if (!payload.accepted) {
-      throw new Error(payload.error ?? "setAgentFeature rejected");
-    }
+    return this.agentRpc.setAgentFeature(agentId, featureId, value);
   }
 
   async setAgentThinkingOption(agentId: string, thinkingOptionId: string | null): Promise<void> {
-    const requestId = this.createRequestId();
-    const message = SessionInboundMessageSchema.parse({
-      type: "set_agent_thinking_request",
-      agentId,
-      thinkingOptionId,
-      requestId,
-    });
-    const payload = await this.sendRequest({
-      requestId,
-      message,
-      timeout: 15000,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "set_agent_thinking_response") {
-          return null;
-        }
-        if (msg.payload.requestId !== requestId) {
-          return null;
-        }
-        return msg.payload;
-      },
-    });
-    if (!payload.accepted) {
-      throw new Error(payload.error ?? "setAgentThinkingOption rejected");
-    }
+    return this.agentRpc.setAgentThinkingOption(agentId, thinkingOptionId);
   }
 
   async restartServer(reason?: string, requestId?: string): Promise<RestartRequestedStatusPayload> {
-    const resolvedRequestId = this.createRequestId(requestId);
-    const message = SessionInboundMessageSchema.parse({
-      type: "restart_server_request",
-      ...(reason && reason.trim().length > 0 ? { reason } : {}),
-      requestId: resolvedRequestId,
-    });
-    return this.sendRequest({
-      requestId: resolvedRequestId,
-      message,
-      timeout: 10000,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "status") {
-          return null;
-        }
-        const restarted = RestartRequestedStatusPayloadSchema.safeParse(msg.payload);
-        if (!restarted.success) {
-          return null;
-        }
-        if (restarted.data.requestId !== resolvedRequestId) {
-          return null;
-        }
-        return restarted.data;
-      },
-    });
+    return this.agentRpc.restartServer(reason, requestId);
   }
 
   async shutdownServer(requestId?: string): Promise<ShutdownRequestedStatusPayload> {
-    const resolvedRequestId = this.createRequestId(requestId);
-    const message = SessionInboundMessageSchema.parse({
-      type: "shutdown_server_request",
-      requestId: resolvedRequestId,
-    });
-    return this.sendRequest({
-      requestId: resolvedRequestId,
-      message,
-      timeout: 10000,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "status") {
-          return null;
-        }
-        const shutdown = ShutdownRequestedStatusPayloadSchema.safeParse(msg.payload);
-        if (!shutdown.success) {
-          return null;
-        }
-        if (shutdown.data.requestId !== resolvedRequestId) {
-          return null;
-        }
-        return shutdown.data;
-      },
-    });
+    return this.agentRpc.shutdownServer(requestId);
   }
 
   // ============================================================================
@@ -2148,256 +1519,38 @@ export class DaemonClient {
   // ============================================================================
 
   async setVoiceMode(enabled: boolean, agentId?: string): Promise<SetVoiceModePayload> {
-    const requestId = this.createRequestId();
-    const message = SessionInboundMessageSchema.parse({
-      type: "set_voice_mode",
-      enabled,
-      ...(agentId ? { agentId } : {}),
-      requestId,
-    });
-    const response = await this.sendRequest({
-      requestId,
-      message,
-      timeout: 10000,
-      select: (msg) => {
-        if (msg.type !== "set_voice_mode_response") {
-          return null;
-        }
-        if (msg.payload.requestId !== requestId) {
-          return null;
-        }
-        return msg.payload;
-      },
-    });
-    if (!response.accepted) {
-      const codeSuffix =
-        typeof response.reasonCode === "string" && response.reasonCode.trim().length > 0
-          ? ` (${response.reasonCode})`
-          : "";
-      throw new Error((response.error ?? "Failed to set voice mode") + codeSuffix);
-    }
-    return response;
+    return this.terminalRpc.setVoiceMode(enabled, agentId);
   }
 
   async sendVoiceAudioChunk(audio: string, format: string, isLast = false): Promise<void> {
-    this.sendSessionMessage({ type: "voice_audio_chunk", audio, format, isLast });
+    return this.terminalRpc.sendVoiceAudioChunk(audio, format, isLast);
   }
 
   async startDictationStream(dictationId: string, format: string): Promise<void> {
-    const ack = this.waitForWithCancel(
-      (msg) => {
-        if (msg.type !== "dictation_stream_ack") {
-          return null;
-        }
-        if (msg.payload.dictationId !== dictationId) {
-          return null;
-        }
-        if (msg.payload.ackSeq !== -1) {
-          return null;
-        }
-        return msg.payload;
-      },
-      30000,
-      { skipQueue: true },
-    );
-    const ackPromise = ack.promise.then(() => undefined);
-
-    const streamError = this.waitForWithCancel(
-      (msg) => {
-        if (msg.type !== "dictation_stream_error") {
-          return null;
-        }
-        if (msg.payload.dictationId !== dictationId) {
-          return null;
-        }
-        return msg.payload;
-      },
-      30000,
-      { skipQueue: true },
-    );
-    const errorPromise = streamError.promise.then((payload) => {
-      throw new Error(payload.error);
-    });
-
-    const cleanupError = new Error("Cancelled dictation start waiter");
-    try {
-      this.sendSessionMessageStrict({ type: "dictation_stream_start", dictationId, format });
-      await Promise.race([ackPromise, errorPromise]);
-    } finally {
-      ack.cancel(cleanupError);
-      streamError.cancel(cleanupError);
-      void ackPromise.catch(() => undefined);
-      void errorPromise.catch(() => undefined);
-    }
+    return this.terminalRpc.startDictationStream(dictationId, format);
   }
 
   sendDictationStreamChunk(dictationId: string, seq: number, audio: string, format: string): void {
-    this.sendSessionMessageStrict({
-      type: "dictation_stream_chunk",
-      dictationId,
-      seq,
-      audio,
-      format,
-    });
+    return this.terminalRpc.sendDictationStreamChunk(dictationId, seq, audio, format);
   }
 
   async finishDictationStream(
     dictationId: string,
     finalSeq: number,
   ): Promise<{ dictationId: string; text: string }> {
-    const final = this.waitForWithCancel(
-      (msg) => {
-        if (msg.type !== "dictation_stream_final") {
-          return null;
-        }
-        if (msg.payload.dictationId !== dictationId) {
-          return null;
-        }
-        return msg.payload;
-      },
-      0,
-      { skipQueue: true },
-    );
-
-    const streamError = this.waitForWithCancel(
-      (msg) => {
-        if (msg.type !== "dictation_stream_error") {
-          return null;
-        }
-        if (msg.payload.dictationId !== dictationId) {
-          return null;
-        }
-        return msg.payload;
-      },
-      0,
-      { skipQueue: true },
-    );
-
-    const finishAccepted = this.waitForWithCancel<DictationFinishAcceptedPayload>(
-      (msg) => {
-        if (msg.type !== "dictation_stream_finish_accepted") {
-          return null;
-        }
-        if (msg.payload.dictationId !== dictationId) {
-          return null;
-        }
-        return msg.payload;
-      },
-      DEFAULT_DICTATION_FINISH_ACCEPT_TIMEOUT_MS,
-      { skipQueue: true },
-    );
-
-    const finalPromise = final.promise;
-    const errorPromise = streamError.promise.then((payload) => {
-      throw new Error(payload.error);
-    });
-    const finishAcceptedPromise = finishAccepted.promise;
-
-    const finalOutcomePromise = finalPromise.then((payload) => ({
-      kind: "final" as const,
-      payload,
-    }));
-    const errorOutcomePromise = errorPromise.then(
-      () => ({
-        kind: "error" as const,
-        error: new Error("Unexpected dictation stream error state"),
-      }),
-      (error) => ({
-        kind: "error" as const,
-        error: error instanceof Error ? error : new Error(String(error)),
-      }),
-    );
-    const finishAcceptedOutcomePromise = finishAcceptedPromise.then(
-      (payload) => ({ kind: "accepted" as const, payload }),
-      (error) => {
-        if (isWaiterTimeoutError(error)) {
-          return { kind: "accepted_timeout" as const };
-        }
-        return {
-          kind: "accepted_error" as const,
-          error: error instanceof Error ? error : new Error(String(error)),
-        };
-      },
-    );
-
-    const waitForFinalResult = async (
-      timeoutMs: number,
-    ): Promise<{ dictationId: string; text: string }> => {
-      if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-        const outcome = await Promise.race([finalOutcomePromise, errorOutcomePromise]);
-        if (outcome.kind === "error") {
-          throw outcome.error;
-        }
-        return outcome.payload;
-      }
-
-      let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
-      const timeoutPromise = new Promise<{ kind: "timeout" }>((resolve) => {
-        timeoutHandle = setTimeout(() => resolve({ kind: "timeout" }), timeoutMs);
-      });
-
-      const outcome = await Promise.race([
-        finalOutcomePromise,
-        errorOutcomePromise,
-        timeoutPromise,
-      ]);
-
-      if (timeoutHandle) {
-        clearTimeout(timeoutHandle);
-      }
-
-      if (outcome.kind === "timeout") {
-        throw new Error(`Timeout waiting for dictation finalization (${timeoutMs}ms)`);
-      }
-      if (outcome.kind === "error") {
-        throw outcome.error;
-      }
-      return outcome.payload;
-    };
-
-    const cleanupError = new Error("Cancelled dictation finish waiter");
-    try {
-      this.sendSessionMessageStrict({ type: "dictation_stream_finish", dictationId, finalSeq });
-      const firstOutcome = await Promise.race([
-        finalOutcomePromise,
-        errorOutcomePromise,
-        finishAcceptedOutcomePromise,
-      ]);
-
-      if (firstOutcome.kind === "final") {
-        return firstOutcome.payload;
-      }
-      if (firstOutcome.kind === "error") {
-        throw firstOutcome.error;
-      }
-
-      if (firstOutcome.kind === "accepted") {
-        return await waitForFinalResult(
-          firstOutcome.payload.timeoutMs + DEFAULT_DICTATION_FINISH_TIMEOUT_GRACE_MS,
-        );
-      }
-
-      return await waitForFinalResult(DEFAULT_DICTATION_FINISH_FALLBACK_TIMEOUT_MS);
-    } finally {
-      final.cancel(cleanupError);
-      streamError.cancel(cleanupError);
-      finishAccepted.cancel(cleanupError);
-      void finalPromise.catch(() => undefined);
-      void errorPromise.catch(() => undefined);
-      void finishAcceptedPromise.catch(() => undefined);
-    }
+    return this.terminalRpc.finishDictationStream(dictationId, finalSeq);
   }
 
   cancelDictationStream(dictationId: string): void {
-    this.sendSessionMessageStrict({ type: "dictation_stream_cancel", dictationId });
+    return this.terminalRpc.cancelDictationStream(dictationId);
   }
 
   async abortRequest(): Promise<void> {
-    this.sendSessionMessage({ type: "abort_request" });
+    return this.terminalRpc.abortRequest();
   }
 
   async audioPlayed(id: string): Promise<void> {
-    this.sendSessionMessage({ type: "audio_played", id });
+    return this.terminalRpc.audioPlayed(id);
   }
 
   // ============================================================================
@@ -2408,71 +1561,7 @@ export class DaemonClient {
     cwd: string,
     options?: { requestId?: string },
   ): Promise<CheckoutStatusPayload> {
-    const requestId = options?.requestId;
-
-    if (!requestId) {
-      const existing = this.checkoutStatusInFlight.get(cwd);
-      if (existing) {
-        return existing;
-      }
-    }
-
-    const resolvedRequestId = this.createRequestId(requestId);
-    const message = SessionInboundMessageSchema.parse({
-      type: "checkout_status_request",
-      cwd,
-      requestId: resolvedRequestId,
-    });
-
-    const responsePromise = this.sendRequest({
-      requestId: resolvedRequestId,
-      message,
-      timeout: 60000,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "checkout_status_response") {
-          return null;
-        }
-        if (msg.payload.requestId !== resolvedRequestId) {
-          return null;
-        }
-        return msg.payload;
-      },
-    });
-
-    if (!requestId) {
-      this.checkoutStatusInFlight.set(cwd, responsePromise);
-      void responsePromise
-        .finally(() => {
-          if (this.checkoutStatusInFlight.get(cwd) === responsePromise) {
-            this.checkoutStatusInFlight.delete(cwd);
-          }
-        })
-        .catch(() => undefined);
-    }
-
-    return responsePromise;
-  }
-
-  private normalizeCheckoutDiffCompare(compare: {
-    mode: "uncommitted" | "base";
-    baseRef?: string;
-    ignoreWhitespace?: boolean;
-  }): { mode: "uncommitted" | "base"; baseRef?: string; ignoreWhitespace?: boolean } {
-    if (compare.mode === "uncommitted") {
-      return compare.ignoreWhitespace === true
-        ? { mode: "uncommitted", ignoreWhitespace: true }
-        : { mode: "uncommitted" };
-    }
-    const trimmedBaseRef = compare.baseRef?.trim();
-    if (!trimmedBaseRef) {
-      return compare.ignoreWhitespace === true
-        ? { mode: "base", ignoreWhitespace: true }
-        : { mode: "base" };
-    }
-    return compare.ignoreWhitespace === true
-      ? { mode: "base", baseRef: trimmedBaseRef, ignoreWhitespace: true }
-      : { mode: "base", baseRef: trimmedBaseRef };
+    return this.gitRpc.getCheckoutStatus(cwd, options);
   }
 
   async getCheckoutDiff(
@@ -2480,25 +1569,7 @@ export class DaemonClient {
     compare: { mode: "uncommitted" | "base"; baseRef?: string; ignoreWhitespace?: boolean },
     requestId?: string,
   ): Promise<CheckoutDiffPayload> {
-    const oneShotSubscriptionId = `oneshot-checkout-diff:${crypto.randomUUID()}`;
-    try {
-      const payload = await this.subscribeCheckoutDiff(cwd, compare, {
-        subscriptionId: oneShotSubscriptionId,
-        requestId,
-      });
-      return {
-        cwd: payload.cwd,
-        files: payload.files,
-        error: payload.error,
-        requestId: payload.requestId,
-      };
-    } finally {
-      try {
-        this.unsubscribeCheckoutDiff(oneShotSubscriptionId);
-      } catch {
-        // Ignore disconnect races during one-shot cleanup.
-      }
-    }
+    return this.gitRpc.getCheckoutDiff(cwd, compare, requestId);
   }
 
   async subscribeCheckoutDiff(
@@ -2506,53 +1577,11 @@ export class DaemonClient {
     compare: { mode: "uncommitted" | "base"; baseRef?: string; ignoreWhitespace?: boolean },
     options?: { subscriptionId?: string; requestId?: string },
   ): Promise<SubscribeCheckoutDiffPayload> {
-    const subscriptionId = options?.subscriptionId ?? crypto.randomUUID();
-    const normalizedCompare = this.normalizeCheckoutDiffCompare(compare);
-    const previousSubscription = this.checkoutDiffSubscriptions.get(subscriptionId) ?? null;
-    this.checkoutDiffSubscriptions.set(subscriptionId, {
-      cwd,
-      compare: normalizedCompare,
-    });
-
-    const resolvedRequestId = this.createRequestId(options?.requestId);
-    const message = SessionInboundMessageSchema.parse({
-      type: "subscribe_checkout_diff_request",
-      subscriptionId,
-      cwd,
-      compare: normalizedCompare,
-      requestId: resolvedRequestId,
-    });
-
-    try {
-      return await this.sendCorrelatedRequest({
-        requestId: resolvedRequestId,
-        message,
-        responseType: "subscribe_checkout_diff_response",
-        timeout: 60000,
-        options: { skipQueue: true },
-        selectPayload: (payload) => {
-          if (payload.subscriptionId !== subscriptionId) {
-            return null;
-          }
-          return payload;
-        },
-      });
-    } catch (error) {
-      if (previousSubscription) {
-        this.checkoutDiffSubscriptions.set(subscriptionId, previousSubscription);
-      } else {
-        this.checkoutDiffSubscriptions.delete(subscriptionId);
-      }
-      throw error;
-    }
+    return this.gitRpc.subscribeCheckoutDiff(cwd, compare, options);
   }
 
   unsubscribeCheckoutDiff(subscriptionId: string): void {
-    this.checkoutDiffSubscriptions.delete(subscriptionId);
-    this.sendSessionMessage({
-      type: "unsubscribe_checkout_diff_request",
-      subscriptionId,
-    });
+    return this.gitRpc.unsubscribeCheckoutDiff(subscriptionId);
   }
 
   async checkoutCommit(
@@ -2560,17 +1589,7 @@ export class DaemonClient {
     input: { message?: string; addAll?: boolean },
     requestId?: string,
   ): Promise<CheckoutCommitPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "checkout_commit_request",
-        cwd,
-        message: input.message,
-        addAll: input.addAll,
-      },
-      responseType: "checkout_commit_response",
-      timeout: 60000,
-    });
+    return this.gitRpc.checkoutCommit(cwd, input, requestId);
   }
 
   async checkoutMerge(
@@ -2578,18 +1597,7 @@ export class DaemonClient {
     input: { baseRef?: string; strategy?: "merge" | "squash"; requireCleanTarget?: boolean },
     requestId?: string,
   ): Promise<CheckoutMergePayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "checkout_merge_request",
-        cwd,
-        baseRef: input.baseRef,
-        strategy: input.strategy,
-        requireCleanTarget: input.requireCleanTarget,
-      },
-      responseType: "checkout_merge_response",
-      timeout: 60000,
-    });
+    return this.gitRpc.checkoutMerge(cwd, input, requestId);
   }
 
   async checkoutMergeFromBase(
@@ -2597,41 +1605,15 @@ export class DaemonClient {
     input: { baseRef?: string; requireCleanTarget?: boolean },
     requestId?: string,
   ): Promise<CheckoutMergeFromBasePayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "checkout_merge_from_base_request",
-        cwd,
-        baseRef: input.baseRef,
-        requireCleanTarget: input.requireCleanTarget,
-      },
-      responseType: "checkout_merge_from_base_response",
-      timeout: 60000,
-    });
+    return this.gitRpc.checkoutMergeFromBase(cwd, input, requestId);
   }
 
   async checkoutPull(cwd: string, requestId?: string): Promise<CheckoutPullPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "checkout_pull_request",
-        cwd,
-      },
-      responseType: "checkout_pull_response",
-      timeout: 60000,
-    });
+    return this.gitRpc.checkoutPull(cwd, requestId);
   }
 
   async checkoutPush(cwd: string, requestId?: string): Promise<CheckoutPushPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "checkout_push_request",
-        cwd,
-      },
-      responseType: "checkout_push_response",
-      timeout: 60000,
-    });
+    return this.gitRpc.checkoutPush(cwd, requestId);
   }
 
   async checkoutPrCreate(
@@ -2639,48 +1621,18 @@ export class DaemonClient {
     input: { title?: string; body?: string; baseRef?: string },
     requestId?: string,
   ): Promise<CheckoutPrCreatePayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "checkout_pr_create_request",
-        cwd,
-        title: input.title,
-        body: input.body,
-        baseRef: input.baseRef,
-      },
-      responseType: "checkout_pr_create_response",
-      timeout: 60000,
-    });
+    return this.gitRpc.checkoutPrCreate(cwd, input, requestId);
   }
 
   async checkoutPrStatus(cwd: string, requestId?: string): Promise<CheckoutPrStatusPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "checkout_pr_status_request",
-        cwd,
-      },
-      responseType: "checkout_pr_status_response",
-      timeout: 60000,
-    });
+    return this.gitRpc.checkoutPrStatus(cwd, requestId);
   }
 
   async pullRequestTimeline(
     input: { cwd: string; prNumber: number; repoOwner: string; repoName: string },
     requestId?: string,
   ): Promise<PullRequestTimelinePayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "pull_request_timeline_request",
-        cwd: input.cwd,
-        prNumber: input.prNumber,
-        repoOwner: input.repoOwner,
-        repoName: input.repoName,
-      },
-      responseType: "pull_request_timeline_response",
-      timeout: 60000,
-    });
+    return this.gitRpc.pullRequestTimeline(input, requestId);
   }
 
   async checkoutSwitchBranch(
@@ -2688,16 +1640,7 @@ export class DaemonClient {
     branch: string,
     requestId?: string,
   ): Promise<CheckoutSwitchBranchPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "checkout_switch_branch_request",
-        cwd,
-        branch,
-      },
-      responseType: "checkout_switch_branch_response",
-      timeout: 30000,
-    });
+    return this.gitRpc.checkoutSwitchBranch(cwd, branch, requestId);
   }
 
   async stashSave(
@@ -2705,29 +1648,11 @@ export class DaemonClient {
     options?: { branch?: string },
     requestId?: string,
   ): Promise<StashSavePayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "stash_save_request",
-        cwd,
-        branch: options?.branch,
-      },
-      responseType: "stash_save_response",
-      timeout: 30000,
-    });
+    return this.gitRpc.stashSave(cwd, options, requestId);
   }
 
   async stashPop(cwd: string, stashIndex: number, requestId?: string): Promise<StashPopPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "stash_pop_request",
-        cwd,
-        stashIndex,
-      },
-      responseType: "stash_pop_response",
-      timeout: 30000,
-    });
+    return this.gitRpc.stashPop(cwd, stashIndex, requestId);
   }
 
   async stashList(
@@ -2735,122 +1660,49 @@ export class DaemonClient {
     options?: { soloOnly?: boolean },
     requestId?: string,
   ): Promise<StashListPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "stash_list_request",
-        cwd,
-        soloOnly: options?.soloOnly,
-      },
-      responseType: "stash_list_response",
-      timeout: 10000,
-    });
+    return this.gitRpc.stashList(cwd, options, requestId);
   }
 
   async getSoloWorktreeList(
     input: { cwd?: string; repoRoot?: string },
     requestId?: string,
   ): Promise<SoloWorktreeListPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "solo_worktree_list_request",
-        cwd: input.cwd,
-        repoRoot: input.repoRoot,
-      },
-      responseType: "solo_worktree_list_response",
-      timeout: 60000,
-    });
+    return this.gitRpc.getSoloWorktreeList(input, requestId);
   }
 
   async archiveSoloWorktree(
     input: { worktreePath?: string; repoRoot?: string; branchName?: string },
     requestId?: string,
   ): Promise<SoloWorktreeArchivePayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "solo_worktree_archive_request",
-        worktreePath: input.worktreePath,
-        repoRoot: input.repoRoot,
-        branchName: input.branchName,
-      },
-      responseType: "solo_worktree_archive_response",
-      timeout: 20000,
-    });
+    return this.gitRpc.archiveSoloWorktree(input, requestId);
   }
 
   async createSoloWorktree(
     input: CreateSoloWorktreeInput,
     requestId?: string,
   ): Promise<CreateSoloWorktreePayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "create_solo_worktree_request",
-        cwd: input.cwd,
-        worktreeSlug: input.worktreeSlug,
-        ...(input.attachments && input.attachments.length > 0
-          ? { attachments: input.attachments }
-          : {}),
-        ...(input.refName !== undefined ? { refName: input.refName } : {}),
-        ...(input.action !== undefined ? { action: input.action } : {}),
-        ...(input.githubPrNumber !== undefined ? { githubPrNumber: input.githubPrNumber } : {}),
-      },
-      responseType: "create_solo_worktree_response",
-      timeout: 60000,
-    });
+    return this.gitRpc.createSoloWorktree(input, requestId);
   }
 
   async validateBranch(
     options: { cwd: string; branchName: string },
     requestId?: string,
   ): Promise<ValidateBranchPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "validate_branch_request",
-        cwd: options.cwd,
-        branchName: options.branchName,
-      },
-      responseType: "validate_branch_response",
-      timeout: 10000,
-    });
+    return this.gitRpc.validateBranch(options, requestId);
   }
 
   async getBranchSuggestions(
     options: { cwd: string; query?: string; limit?: number },
     requestId?: string,
   ): Promise<BranchSuggestionsPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "branch_suggestions_request",
-        cwd: options.cwd,
-        query: options.query,
-        limit: options.limit,
-      },
-      responseType: "branch_suggestions_response",
-      timeout: 10000,
-    });
+    return this.gitRpc.getBranchSuggestions(options, requestId);
   }
 
   async searchGitHub(
     options: { cwd: string; query: string; limit?: number; kinds?: GitHubSearchRequest["kinds"] },
     requestId?: string,
   ): Promise<GitHubSearchPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "github_search_request",
-        cwd: options.cwd,
-        query: options.query,
-        limit: options.limit,
-        kinds: options.kinds,
-      },
-      responseType: "github_search_response",
-      timeout: 15000,
-    });
+    return this.gitRpc.searchGitHub(options, requestId);
   }
 
   async getDirectorySuggestions(
@@ -2863,19 +1715,7 @@ export class DaemonClient {
     },
     requestId?: string,
   ): Promise<DirectorySuggestionsPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "directory_suggestions_request",
-        query: options.query,
-        cwd: options.cwd,
-        includeFiles: options.includeFiles,
-        includeDirectories: options.includeDirectories,
-        limit: options.limit,
-      },
-      responseType: "directory_suggestions_response",
-      timeout: 10000,
-    });
+    return this.gitRpc.getDirectorySuggestions(options, requestId);
   }
 
   // ============================================================================
@@ -2888,17 +1728,7 @@ export class DaemonClient {
     mode: "list" | "file" = "list",
     requestId?: string,
   ): Promise<FileExplorerPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "file_explorer_request",
-        cwd,
-        path,
-        mode,
-      },
-      responseType: "file_explorer_response",
-      timeout: 10000,
-    });
+    return this.workspaceRpc.exploreFileSystem(cwd, path, mode, requestId);
   }
 
   async requestDownloadToken(
@@ -2906,31 +1736,14 @@ export class DaemonClient {
     path: string,
     requestId?: string,
   ): Promise<FileDownloadTokenPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "file_download_token_request",
-        cwd,
-        path,
-      },
-      responseType: "file_download_token_response",
-      timeout: 10000,
-    });
+    return this.workspaceRpc.requestDownloadToken(cwd, path, requestId);
   }
 
   async requestProjectIcon(
     cwd: string,
     requestId?: string,
   ): Promise<ProjectIconResponse["payload"]> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "project_icon_request",
-        cwd,
-      },
-      responseType: "project_icon_response",
-      timeout: 10000,
-    });
+    return this.workspaceRpc.requestProjectIcon(cwd, requestId);
   }
 
   // ============================================================================
@@ -2941,130 +1754,55 @@ export class DaemonClient {
     provider: AgentProvider,
     options?: { cwd?: string; requestId?: string },
   ): Promise<ListProviderModelsPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options?.requestId,
-      message: {
-        type: "list_provider_models_request",
-        provider,
-        cwd: options?.cwd,
-      },
-      responseType: "list_provider_models_response",
-      // Provider SDK cold starts (especially model discovery) can exceed 30s.
-      timeout: 45000,
-    });
+    return this.workspaceRpc.listProviderModels(provider, options);
   }
 
   async listProviderModes(
     provider: AgentProvider,
     options?: { cwd?: string; requestId?: string },
   ): Promise<ListProviderModesPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options?.requestId,
-      message: {
-        type: "list_provider_modes_request",
-        provider,
-        cwd: options?.cwd,
-      },
-      responseType: "list_provider_modes_response",
-      timeout: 45000,
-    });
+    return this.workspaceRpc.listProviderModes(provider, options);
   }
 
   async listProviderFeatures(
     draftConfig: ListCommandsDraftConfig,
     options?: { requestId?: string },
   ): Promise<ListProviderFeaturesPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options?.requestId,
-      message: {
-        type: "list_provider_features_request",
-        draftConfig,
-      },
-      responseType: "list_provider_features_response",
-      timeout: 45000,
-    });
+    return this.workspaceRpc.listProviderFeatures(draftConfig, options);
   }
 
   async listAvailableProviders(options?: {
     requestId?: string;
   }): Promise<ListAvailableProvidersPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options?.requestId,
-      message: {
-        type: "list_available_providers_request",
-      },
-      responseType: "list_available_providers_response",
-      timeout: 30000,
-    });
+    return this.workspaceRpc.listAvailableProviders(options);
   }
 
   async getProvidersSnapshot(options?: {
     cwd?: string;
     requestId?: string;
   }): Promise<GetProvidersSnapshotPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options?.requestId,
-      message: {
-        type: "get_providers_snapshot_request",
-        cwd: options?.cwd,
-      },
-      responseType: "get_providers_snapshot_response",
-      timeout: 10000,
-    });
+    return this.workspaceRpc.getProvidersSnapshot(options);
   }
 
   async getDaemonConfig(
     requestId?: string,
   ): Promise<{ requestId: string; config: MutableDaemonConfig }> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "get_daemon_config_request",
-      },
-      responseType: "get_daemon_config_response",
-      timeout: 10000,
-    });
+    return this.workspaceRpc.getDaemonConfig(requestId);
   }
 
   async patchDaemonConfig(
     config: MutableDaemonConfigPatch,
     requestId?: string,
   ): Promise<{ requestId: string; config: MutableDaemonConfig }> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "set_daemon_config_request",
-        config,
-      },
-      responseType: "set_daemon_config_response",
-      timeout: 10000,
-    });
+    return this.workspaceRpc.patchDaemonConfig(config, requestId);
   }
 
   async readProjectConfig(repoRoot: string, requestId?: string): Promise<ReadProjectConfigPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "read_project_config_request",
-        repoRoot,
-      },
-      responseType: "read_project_config_response",
-      timeout: 10000,
-    });
+    return this.workspaceRpc.readProjectConfig(repoRoot, requestId);
   }
 
   async writeProjectConfig(input: WriteProjectConfigInput): Promise<WriteProjectConfigPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: input.requestId,
-      message: {
-        type: "write_project_config_request",
-        repoRoot: input.repoRoot,
-        config: input.config,
-        expectedRevision: input.expectedRevision,
-      },
-      responseType: "write_project_config_response",
-      timeout: 10000,
-    });
+    return this.workspaceRpc.writeProjectConfig(input);
   }
 
   async refreshProvidersSnapshot(options?: {
@@ -3072,31 +1810,14 @@ export class DaemonClient {
     providers?: AgentProvider[];
     requestId?: string;
   }): Promise<RefreshProvidersSnapshotPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options?.requestId,
-      message: {
-        type: "refresh_providers_snapshot_request",
-        cwd: options?.cwd,
-        providers: options?.providers,
-      },
-      responseType: "refresh_providers_snapshot_response",
-      timeout: 60000,
-    });
+    return this.workspaceRpc.refreshProvidersSnapshot(options);
   }
 
   async getProviderDiagnostic(
     provider: AgentProvider,
     options?: { requestId?: string },
   ): Promise<ProviderDiagnosticPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options?.requestId,
-      message: {
-        type: "provider_diagnostic_request",
-        provider,
-      },
-      responseType: "provider_diagnostic_response",
-      timeout: 30000,
-    });
+    return this.workspaceRpc.getProviderDiagnostic(provider, options);
   }
 
   async listCommands(agentId: string, requestId?: string): Promise<ListCommandsPayload>;
@@ -3105,21 +1826,10 @@ export class DaemonClient {
     agentId: string,
     requestIdOrOptions?: string | ListCommandsOptions,
   ): Promise<ListCommandsPayload> {
-    const requestId =
-      typeof requestIdOrOptions === "string" ? requestIdOrOptions : requestIdOrOptions?.requestId;
-    const draftConfig =
-      typeof requestIdOrOptions === "string" ? undefined : requestIdOrOptions?.draftConfig;
-
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "list_commands_request",
-        agentId,
-        ...(draftConfig ? { draftConfig } : {}),
-      },
-      responseType: "list_commands_response",
-      timeout: 30000,
-    });
+    if (typeof requestIdOrOptions === "string") {
+      return this.workspaceRpc.listCommands(agentId, requestIdOrOptions);
+    }
+    return this.workspaceRpc.listCommands(agentId, requestIdOrOptions);
   }
 
   // ============================================================================
@@ -3131,12 +1841,7 @@ export class DaemonClient {
     requestId: string,
     response: AgentPermissionResponse,
   ): Promise<void> {
-    this.sendSessionMessage({
-      type: "agent_permission_response",
-      agentId,
-      requestId,
-      response,
-    });
+    return this.agentRpc.respondToPermission(agentId, requestId, response);
   }
 
   async respondToPermissionAndWait(
@@ -3145,30 +1850,7 @@ export class DaemonClient {
     response: AgentPermissionResponse,
     timeout = 15000,
   ): Promise<AgentPermissionResolvedPayload> {
-    const message = SessionInboundMessageSchema.parse({
-      type: "agent_permission_response",
-      agentId,
-      requestId,
-      response,
-    });
-    return this.sendRequest({
-      requestId,
-      message,
-      timeout,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "agent_permission_resolved") {
-          return null;
-        }
-        if (msg.payload.requestId !== requestId) {
-          return null;
-        }
-        if (msg.payload.agentId !== agentId) {
-          return null;
-        }
-        return msg.payload;
-      },
-    });
+    return this.agentRpc.respondToPermissionAndWait(agentId, requestId, response, timeout);
   }
 
   // ============================================================================
@@ -3180,120 +1862,11 @@ export class DaemonClient {
     predicate: (snapshot: AgentSnapshotPayload) => boolean,
     timeout = 60000,
   ): Promise<AgentSnapshotPayload> {
-    const initialResult = await this.fetchAgent(agentId).catch(() => null);
-    if (initialResult && predicate(initialResult.agent)) {
-      return initialResult.agent;
-    }
-
-    const deadline = Date.now() + timeout;
-    return await new Promise<AgentSnapshotPayload>((resolve, reject) => {
-      let settled = false;
-      let pollInFlight = false;
-      let pollTimer: ReturnType<typeof setInterval> | null = null;
-      let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
-      let unsubscribe: (() => void) | null = null;
-
-      const finish = (
-        result: { kind: "ok"; snapshot: AgentSnapshotPayload } | { kind: "error"; error: Error },
-      ) => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        if (timeoutTimer) {
-          clearTimeout(timeoutTimer);
-          timeoutTimer = null;
-        }
-        if (pollTimer) {
-          clearInterval(pollTimer);
-          pollTimer = null;
-        }
-        if (unsubscribe) {
-          unsubscribe();
-          unsubscribe = null;
-        }
-        if (result.kind === "ok") {
-          resolve(result.snapshot);
-          return;
-        }
-        reject(result.error);
-      };
-
-      const maybeResolve = (snapshot: AgentSnapshotPayload | null) => {
-        if (!snapshot) {
-          return false;
-        }
-        if (!predicate(snapshot)) {
-          return false;
-        }
-        finish({ kind: "ok", snapshot });
-        return true;
-      };
-
-      const poll = async () => {
-        if (settled || pollInFlight) {
-          return;
-        }
-        pollInFlight = true;
-        try {
-          const result = await this.fetchAgent(agentId).catch(() => null);
-          maybeResolve(result?.agent ?? null);
-        } finally {
-          pollInFlight = false;
-        }
-      };
-
-      unsubscribe = this.on("agent_update", (message) => {
-        if (settled) {
-          return;
-        }
-        if (message.payload.kind !== "upsert") {
-          return;
-        }
-        const snapshot = message.payload.agent;
-        if (snapshot.id !== agentId) {
-          return;
-        }
-        maybeResolve(snapshot);
-      });
-
-      const remaining = Math.max(1, deadline - Date.now());
-      timeoutTimer = setTimeout(() => {
-        finish({
-          kind: "error",
-          error: new Error(`Timed out waiting for agent ${agentId}`),
-        });
-      }, remaining);
-
-      pollTimer = setInterval(() => {
-        void poll();
-      }, 250);
-      void poll();
-    });
+    return this.agentRpc.waitForAgentUpsert(agentId, predicate, timeout);
   }
 
   async waitForFinish(agentId: string, timeout = 60000): Promise<WaitForFinishResult> {
-    const requestId = this.createRequestId();
-    const hasTimeout = Number.isFinite(timeout) && timeout > 0;
-    const message = SessionInboundMessageSchema.parse({
-      type: "wait_for_finish_request",
-      requestId,
-      agentId,
-      ...(hasTimeout ? { timeoutMs: timeout } : {}),
-    });
-    const payload = await this.sendCorrelatedRequest({
-      requestId,
-      message,
-      responseType: "wait_for_finish_response",
-      timeout: hasTimeout ? timeout + 5000 : 0,
-      options: { skipQueue: true },
-    });
-    return {
-      status: payload.status,
-      final: payload.final,
-      error: payload.error,
-      lastMessage: payload.lastMessage,
-    };
+    return this.agentRpc.waitForFinish(agentId, timeout);
   }
 
   // ============================================================================
@@ -3301,41 +1874,15 @@ export class DaemonClient {
   // ============================================================================
 
   subscribeTerminals(input: { cwd: string }): void {
-    this.terminalDirectorySubscriptions.add(input.cwd);
-    if (!this.transport || this.connectionState.status !== "connected") {
-      return;
-    }
-    this.sendSessionMessage({
-      type: "subscribe_terminals_request",
-      cwd: input.cwd,
-    });
+    return this.terminalRpc.subscribeTerminals(input);
   }
 
   unsubscribeTerminals(input: { cwd: string }): void {
-    this.terminalDirectorySubscriptions.delete(input.cwd);
-    if (!this.transport || this.connectionState.status !== "connected") {
-      return;
-    }
-    this.sendSessionMessage({
-      type: "unsubscribe_terminals_request",
-      cwd: input.cwd,
-    });
+    return this.terminalRpc.unsubscribeTerminals(input);
   }
 
   async listTerminals(cwd?: string, requestId?: string): Promise<ListTerminalsPayload> {
-    const resolvedRequestId = this.createRequestId(requestId);
-    const message = SessionInboundMessageSchema.parse({
-      type: "list_terminals_request",
-      ...(cwd === undefined ? {} : { cwd }),
-      requestId: resolvedRequestId,
-    });
-    return this.sendCorrelatedRequest({
-      requestId: resolvedRequestId,
-      message,
-      responseType: "list_terminals_response",
-      timeout: 10000,
-      options: { skipQueue: true },
-    });
+    return this.terminalRpc.listTerminals(cwd, requestId);
   }
 
   async createTerminal(
@@ -3344,124 +1891,33 @@ export class DaemonClient {
     requestId?: string,
     options?: { agentId?: string; command?: string; args?: string[] },
   ): Promise<CreateTerminalPayload> {
-    const resolvedRequestId = this.createRequestId(requestId);
-    const message = SessionInboundMessageSchema.parse({
-      type: "create_terminal_request",
-      cwd,
-      name,
-      agentId: options?.agentId,
-      command: options?.command,
-      args: options?.args,
-      requestId: resolvedRequestId,
-    });
-    return this.sendCorrelatedRequest({
-      requestId: resolvedRequestId,
-      message,
-      responseType: "create_terminal_response",
-      timeout: 10000,
-      options: { skipQueue: true },
-    });
+    return this.terminalRpc.createTerminal(cwd, name, requestId, options);
   }
 
   async subscribeTerminal(
     terminalId: string,
     requestId?: string,
   ): Promise<SubscribeTerminalPayload> {
-    const resolvedRequestId = this.createRequestId(requestId);
-    const message = SessionInboundMessageSchema.parse({
-      type: "subscribe_terminal_request",
-      terminalId,
-      requestId: resolvedRequestId,
-    });
-    const payload = await this.sendCorrelatedRequest({
-      requestId: resolvedRequestId,
-      message,
-      responseType: "subscribe_terminal_response",
-      timeout: 10000,
-      options: { skipQueue: true },
-    });
-    if (payload.error === null) {
-      this.setTerminalSlot(terminalId, payload.slot);
-    }
-    return payload;
+    return this.terminalRpc.subscribeTerminal(terminalId, requestId);
   }
 
   unsubscribeTerminal(terminalId: string): void {
-    this.removeTerminalSlot(terminalId);
-    this.sendSessionMessage({
-      type: "unsubscribe_terminal_request",
-      terminalId,
-    });
+    return this.terminalRpc.unsubscribeTerminal(terminalId);
   }
 
   sendTerminalInput(terminalId: string, message: TerminalInput["message"]): void {
-    const slot = this.terminalSlots.get(terminalId);
-    if (typeof slot === "number") {
-      if (message.type === "input") {
-        this.sendBinaryFrame(
-          encodeTerminalStreamFrame({
-            opcode: TerminalStreamOpcode.Input,
-            slot,
-            payload: encodeUtf8String(message.data),
-          }),
-        );
-        return;
-      }
-      if (message.type === "resize") {
-        this.sendBinaryFrame(
-          encodeTerminalStreamFrame({
-            opcode: TerminalStreamOpcode.Resize,
-            slot,
-            payload: encodeTerminalResizePayload({
-              rows: message.rows,
-              cols: message.cols,
-            }),
-          }),
-        );
-        return;
-      }
-    }
-    this.sendSessionMessage({
-      type: "terminal_input",
-      terminalId,
-      message,
-    });
+    return this.terminalRpc.sendTerminalInput(terminalId, message);
   }
 
   async killTerminal(terminalId: string, requestId?: string): Promise<KillTerminalPayload> {
-    const resolvedRequestId = this.createRequestId(requestId);
-    const message = SessionInboundMessageSchema.parse({
-      type: "kill_terminal_request",
-      terminalId,
-      requestId: resolvedRequestId,
-    });
-    return this.sendCorrelatedRequest({
-      requestId: resolvedRequestId,
-      message,
-      responseType: "kill_terminal_response",
-      timeout: 10000,
-      options: { skipQueue: true },
-    });
+    return this.terminalRpc.killTerminal(terminalId, requestId);
   }
 
   async closeItems(
     input: { agentIds?: string[]; terminalIds?: string[] },
     requestId?: string,
   ): Promise<CloseItemsPayload> {
-    const resolvedRequestId = this.createRequestId(requestId);
-    const message = SessionInboundMessageSchema.parse({
-      type: "close_items_request",
-      agentIds: input.agentIds ?? [],
-      terminalIds: input.terminalIds ?? [],
-      requestId: resolvedRequestId,
-    });
-    return this.sendCorrelatedRequest({
-      requestId: resolvedRequestId,
-      message,
-      responseType: "close_items_response",
-      timeout: 10000,
-      options: { skipQueue: true },
-    });
+    return this.terminalRpc.closeItems(input, requestId);
   }
 
   async captureTerminal(
@@ -3469,233 +1925,71 @@ export class DaemonClient {
     options?: { start?: number; end?: number; stripAnsi?: boolean },
     requestId?: string,
   ): Promise<CaptureTerminalPayload> {
-    const resolvedRequestId = this.createRequestId(requestId);
-    const message = SessionInboundMessageSchema.parse({
-      type: "capture_terminal_request",
-      terminalId,
-      ...(options?.start === undefined ? {} : { start: options.start }),
-      ...(options?.end === undefined ? {} : { end: options.end }),
-      ...(options?.stripAnsi === undefined ? {} : { stripAnsi: options.stripAnsi }),
-      requestId: resolvedRequestId,
-    });
-    return this.sendCorrelatedRequest({
-      requestId: resolvedRequestId,
-      message,
-      responseType: "capture_terminal_response",
-      timeout: 10000,
-      options: { skipQueue: true },
-    });
+    return this.terminalRpc.captureTerminal(terminalId, options, requestId);
   }
 
   async createChatRoom(options: CreateChatRoomOptions): Promise<ChatCreatePayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options.requestId,
-      message: {
-        type: "chat/create",
-        name: options.name,
-        ...(options.purpose ? { purpose: options.purpose } : {}),
-      },
-      responseType: "chat/create/response",
-      timeout: 10000,
-    });
+    return this.chatRpc.createChatRoom(options);
   }
 
   async listChatRooms(requestId?: string): Promise<ChatListPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "chat/list",
-      },
-      responseType: "chat/list/response",
-      timeout: 10000,
-    });
+    return this.chatRpc.listChatRooms(requestId);
   }
 
   async inspectChatRoom(options: InspectChatRoomOptions): Promise<ChatInspectPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options.requestId,
-      message: {
-        type: "chat/inspect",
-        room: options.room,
-      },
-      responseType: "chat/inspect/response",
-      timeout: 10000,
-    });
+    return this.chatRpc.inspectChatRoom(options);
   }
 
   async deleteChatRoom(options: DeleteChatRoomOptions): Promise<ChatDeletePayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options.requestId,
-      message: {
-        type: "chat/delete",
-        room: options.room,
-      },
-      responseType: "chat/delete/response",
-      timeout: 10000,
-    });
+    return this.chatRpc.deleteChatRoom(options);
   }
 
   async postChatMessage(options: PostChatMessageOptions): Promise<ChatPostPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options.requestId,
-      message: {
-        type: "chat/post",
-        room: options.room,
-        body: options.body,
-        ...(options.authorAgentId ? { authorAgentId: options.authorAgentId } : {}),
-        ...(options.replyToMessageId ? { replyToMessageId: options.replyToMessageId } : {}),
-      },
-      responseType: "chat/post/response",
-      timeout: 10000,
-    });
+    return this.chatRpc.postChatMessage(options);
   }
 
   async readChatMessages(options: ReadChatMessagesOptions): Promise<ChatReadPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options.requestId,
-      message: {
-        type: "chat/read",
-        room: options.room,
-        ...(typeof options.limit === "number" ? { limit: options.limit } : {}),
-        ...(options.since ? { since: options.since } : {}),
-        ...(options.authorAgentId ? { authorAgentId: options.authorAgentId } : {}),
-      },
-      responseType: "chat/read/response",
-      timeout: 10000,
-    });
+    return this.chatRpc.readChatMessages(options);
   }
 
   async waitForChatMessages(options: WaitForChatMessagesOptions): Promise<ChatWaitPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options.requestId,
-      message: {
-        type: "chat/wait",
-        room: options.room,
-        ...(options.afterMessageId ? { afterMessageId: options.afterMessageId } : {}),
-        ...(typeof options.timeoutMs === "number" ? { timeoutMs: options.timeoutMs } : {}),
-      },
-      responseType: "chat/wait/response",
-      timeout: (options.timeoutMs ?? 0) + 10000,
-    });
+    return this.chatRpc.waitForChatMessages(options);
   }
 
   async scheduleCreate(options: CreateScheduleOptions): Promise<ScheduleCreatePayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options.requestId,
-      message: {
-        type: "schedule/create",
-        prompt: options.prompt,
-        cadence: options.cadence,
-        target: options.target,
-        ...(options.name ? { name: options.name } : {}),
-        ...(options.cwd !== undefined && options.cwd !== null ? { cwd: options.cwd } : {}),
-        ...(typeof options.maxRuns === "number" ? { maxRuns: options.maxRuns } : {}),
-        ...(options.expiresAt ? { expiresAt: options.expiresAt } : {}),
-      },
-      responseType: "schedule/create/response",
-      timeout: 10000,
-    });
+    return this.scheduleRpc.scheduleCreate(options);
   }
 
   async scheduleList(requestId?: string): Promise<ScheduleListPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "schedule/list",
-      },
-      responseType: "schedule/list/response",
-      timeout: 10000,
-    });
+    return this.scheduleRpc.scheduleList(requestId);
   }
 
   async scheduleInspect(options: InspectScheduleOptions): Promise<ScheduleInspectPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options.requestId,
-      message: {
-        type: "schedule/inspect",
-        scheduleId: options.id,
-      },
-      responseType: "schedule/inspect/response",
-      timeout: 10000,
-    });
+    return this.scheduleRpc.scheduleInspect(options);
   }
 
   async scheduleLogs(options: InspectScheduleOptions): Promise<ScheduleLogsPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options.requestId,
-      message: {
-        type: "schedule/logs",
-        scheduleId: options.id,
-      },
-      responseType: "schedule/logs/response",
-      timeout: 10000,
-    });
+    return this.scheduleRpc.scheduleLogs(options);
   }
 
   async schedulePause(options: InspectScheduleOptions): Promise<SchedulePausePayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options.requestId,
-      message: {
-        type: "schedule/pause",
-        scheduleId: options.id,
-      },
-      responseType: "schedule/pause/response",
-      timeout: 10000,
-    });
+    return this.scheduleRpc.schedulePause(options);
   }
 
   async scheduleResume(options: InspectScheduleOptions): Promise<ScheduleResumePayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options.requestId,
-      message: {
-        type: "schedule/resume",
-        scheduleId: options.id,
-      },
-      responseType: "schedule/resume/response",
-      timeout: 10000,
-    });
+    return this.scheduleRpc.scheduleResume(options);
   }
 
   async scheduleDelete(options: InspectScheduleOptions): Promise<ScheduleDeletePayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options.requestId,
-      message: {
-        type: "schedule/delete",
-        scheduleId: options.id,
-      },
-      responseType: "schedule/delete/response",
-      timeout: 10000,
-    });
+    return this.scheduleRpc.scheduleDelete(options);
   }
 
   async scheduleUpdate(options: UpdateScheduleOptions): Promise<ScheduleUpdatePayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options.requestId,
-      message: {
-        type: "schedule/update",
-        scheduleId: options.id,
-        prompt: options.prompt,
-        cadence: options.cadence,
-        target: options.target,
-        ...(options.name ? { name: options.name } : {}),
-        ...(options.cwd !== undefined && options.cwd !== null ? { cwd: options.cwd } : {}),
-        ...(typeof options.maxRuns === "number" ? { maxRuns: options.maxRuns } : {}),
-        ...(options.expiresAt ? { expiresAt: options.expiresAt } : {}),
-      },
-      responseType: "schedule/update/response",
-      timeout: 10000,
-    });
+    return this.scheduleRpc.scheduleUpdate(options);
   }
 
   async tmuxListAgents(requestId?: string): Promise<TmuxListAgentsPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "tmux/list_agents",
-      },
-      responseType: "tmux/list_agents/response",
-      timeout: 10000,
-    });
+    return this.terminalRpc.tmuxListAgents(requestId);
   }
 
   async tmuxCapturePane(
@@ -3705,254 +1999,75 @@ export class DaemonClient {
     cols?: number,
     requestId?: string,
   ): Promise<TmuxCapturePanePayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "tmux/capture_pane",
-        paneId,
-        ...(startLine === undefined ? {} : { startLine }),
-        ...(lastContentHash === undefined ? {} : { lastContentHash }),
-        ...(cols === undefined ? {} : { cols }),
-      },
-      responseType: "tmux/capture_pane/response",
-      timeout: 10000,
-    });
+    return this.terminalRpc.tmuxCapturePane(paneId, startLine, lastContentHash, cols, requestId);
   }
 
   async tmuxSendKeys(paneId: string, keys: string, sendEnter?: boolean, requestId?: string): Promise<TmuxSendKeysPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "tmux/send_keys",
-        paneId,
-        keys,
-        ...(sendEnter === undefined ? {} : { sendEnter }),
-      },
-      responseType: "tmux/send_keys/response",
-      timeout: 10000,
-    });
+    return this.terminalRpc.tmuxSendKeys(paneId, keys, sendEnter, requestId);
   }
 
   async tmuxStatusLine(sessionId: string, requestId?: string): Promise<TmuxStatusLinePayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "tmux/status_line",
-        sessionId,
-      },
-      responseType: "tmux/status_line/response",
-      timeout: 10000,
-    });
+    return this.terminalRpc.tmuxStatusLine(sessionId, requestId);
   }
 
   async tmuxNewSession(name: string, options?: { workingDir?: string; command?: string }, requestId?: string): Promise<TmuxNewSessionPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "tmux/new_session",
-        name,
-        ...(options?.workingDir ? { workingDir: options.workingDir } : {}),
-        ...(options?.command ? { command: options.command } : {}),
-      },
-      responseType: "tmux/new_session/response",
-      timeout: 10000,
-    });
+    return this.terminalRpc.tmuxNewSession(name, options, requestId);
   }
 
   async tmuxKillSession(sessionName: string, requestId?: string): Promise<TmuxKillSessionPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "tmux/kill_session",
-        sessionName,
-      },
-      responseType: "tmux/kill_session/response",
-      timeout: 10000,
-    });
+    return this.terminalRpc.tmuxKillSession(sessionName, requestId);
   }
 
   async tmuxDeleteCommandHistory(launchCmd: string, requestId?: string): Promise<TmuxDeleteCommandHistoryPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "tmux/delete_command_history",
-        launchCmd,
-      },
-      responseType: "tmux/delete_command_history/response",
-      timeout: 10000,
-    });
+    return this.terminalRpc.tmuxDeleteCommandHistory(launchCmd, requestId);
   }
 
   async loopRun(options: RunLoopOptions): Promise<LoopRunPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options.requestId,
-      message: {
-        type: "loop/run",
-        prompt: options.prompt,
-        cwd: options.cwd,
-        ...(options.verifyPrompt ? { verifyPrompt: options.verifyPrompt } : {}),
-        ...(options.verifyChecks && options.verifyChecks.length > 0
-          ? { verifyChecks: options.verifyChecks }
-          : {}),
-        ...(options.name ? { name: options.name } : {}),
-        ...(typeof options.sleepMs === "number" ? { sleepMs: options.sleepMs } : {}),
-        ...(typeof options.maxIterations === "number"
-          ? { maxIterations: options.maxIterations }
-          : {}),
-        ...(typeof options.maxTimeMs === "number" ? { maxTimeMs: options.maxTimeMs } : {}),
-      },
-      responseType: "loop/run/response",
-      timeout: 15000,
-    });
+    return this.scheduleRpc.loopRun(options);
   }
 
   async loopList(requestId?: string): Promise<LoopListPayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId,
-      message: {
-        type: "loop/list",
-      },
-      responseType: "loop/list/response",
-      timeout: 10000,
-    });
+    return this.scheduleRpc.loopList(requestId);
   }
 
   async loopInspect(options: string | InspectLoopOptions): Promise<LoopInspectPayload> {
-    const normalized = typeof options === "string" ? { id: options } : options;
-    return this.sendCorrelatedSessionRequest({
-      requestId: normalized.requestId,
-      message: {
-        type: "loop/inspect",
-        id: normalized.id,
-      },
-      responseType: "loop/inspect/response",
-      timeout: 10000,
-    });
+    return this.scheduleRpc.loopInspect(options);
   }
 
   async loopLogs(options: string | LoopLogsOptions, afterSeq?: number): Promise<LoopLogsPayload> {
-    const normalized = typeof options === "string" ? { id: options, afterSeq } : options;
-    return this.sendCorrelatedSessionRequest({
-      requestId: normalized.requestId,
-      message: {
-        type: "loop/logs",
-        id: normalized.id,
-        ...(typeof normalized.afterSeq === "number" ? { afterSeq: normalized.afterSeq } : {}),
-      },
-      responseType: "loop/logs/response",
-      timeout: 10000,
-    });
+    return this.scheduleRpc.loopLogs(options, afterSeq);
   }
 
   async loopStop(options: string | StopLoopOptions): Promise<LoopStopPayload> {
-    const normalized = typeof options === "string" ? { id: options } : options;
-    return this.sendCorrelatedSessionRequest({
-      requestId: normalized.requestId,
-      message: {
-        type: "loop/stop",
-        id: normalized.id,
-      },
-      responseType: "loop/stop/response",
-      timeout: 10000,
-    });
+    return this.scheduleRpc.loopStop(options);
   }
 
   async loopUpdate(options: UpdateLoopOptions): Promise<LoopUpdatePayload> {
-    return this.sendCorrelatedSessionRequest({
-      requestId: options.requestId,
-      message: {
-        type: "loop/update",
-        id: options.id,
-        ...(options.name ? { name: options.name } : {}),
-        ...(typeof options.archive === "boolean" ? { archive: options.archive } : {}),
-        ...(options.prompt ? { prompt: options.prompt } : {}),
-        ...(options.cwd ? { cwd: options.cwd } : {}),
-        ...(options.verifyChecks ? { verifyChecks: options.verifyChecks } : {}),
-        ...(options.maxIterations != null ? { maxIterations: options.maxIterations } : {}),
-      },
-      responseType: "loop/update/response",
-      timeout: 10000,
-    });
+    return this.scheduleRpc.loopUpdate(options);
   }
 
   async loopDelete(options: string | DeleteLoopOptions): Promise<LoopDeletePayload> {
-    const normalized = typeof options === "string" ? { id: options } : options;
-    return this.sendCorrelatedSessionRequest({
-      requestId: normalized.requestId,
-      message: {
-        type: "loop/delete",
-        id: normalized.id,
-      },
-      responseType: "loop/delete/response",
-      timeout: 10000,
-    });
+    return this.scheduleRpc.loopDelete(options);
   }
 
   onTerminalStreamEvent(handler: (event: TerminalStreamEvent) => void): () => void {
-    this.terminalStreamListeners.add(handler);
-    return () => {
-      this.terminalStreamListeners.delete(handler);
-    };
+    return this.terminalRpc.onTerminalStreamEvent(handler);
   }
 
   async waitForTerminalStreamEvent(
     predicate: (event: TerminalStreamEvent) => boolean,
     timeout = 5000,
   ): Promise<TerminalStreamEvent> {
-    return new Promise<TerminalStreamEvent>((resolve, reject) => {
-      const timeoutHandle = setTimeout(() => {
-        unsubscribe();
-        reject(new Error(`Timeout waiting for terminal stream event (${timeout}ms)`));
-      }, timeout);
-
-      const unsubscribe = this.onTerminalStreamEvent((event) => {
-        if (!predicate(event)) {
-          return;
-        }
-        clearTimeout(timeoutHandle);
-        unsubscribe();
-        resolve(event);
-      });
-    });
+    return this.terminalRpc.waitForTerminalStreamEvent(predicate, timeout);
   }
 
   // ============================================================================
   // Internals
   // ============================================================================
 
-  private createRequestId(requestId?: string): string {
+  /** @internal */
+  createRequestId(requestId?: string): string {
     return requestId ?? crypto.randomUUID();
-  }
-
-  private setTerminalSlot(terminalId: string, slot: number): void {
-    const existingTerminalId = this.slotTerminals.get(slot);
-    if (existingTerminalId && existingTerminalId !== terminalId) {
-      this.terminalSlots.delete(existingTerminalId);
-    }
-
-    const existingSlot = this.terminalSlots.get(terminalId);
-    if (typeof existingSlot === "number" && existingSlot !== slot) {
-      this.slotTerminals.delete(existingSlot);
-    }
-
-    this.terminalSlots.set(terminalId, slot);
-    this.slotTerminals.set(slot, terminalId);
-  }
-
-  private removeTerminalSlot(terminalId: string): void {
-    const slot = this.terminalSlots.get(terminalId);
-    if (typeof slot !== "number") {
-      return;
-    }
-    this.terminalSlots.delete(terminalId);
-    if (this.slotTerminals.get(slot) === terminalId) {
-      this.slotTerminals.delete(slot);
-    }
-  }
-
-  private clearTerminalSlots(): void {
-    this.terminalSlots.clear();
-    this.slotTerminals.clear();
   }
 
   getLastServerInfoMessage(): ServerInfoStatusPayload | null {
@@ -4052,7 +2167,7 @@ export class DaemonClient {
     }
 
     const rawBytes = asUint8Array(rawData);
-    if (rawBytes && this.tryHandleBinaryFrame(rawBytes)) {
+    if (rawBytes && this.terminalRpc.tryHandleBinaryFrame(rawBytes)) {
       return;
     }
     const payload = decodeMessageData(rawData);
@@ -4089,65 +2204,6 @@ export class DaemonClient {
     this.runtimeMetrics?.recordMessage(msgType, bytes, perfNow() - startMs);
     if (parsed.data.message.type === "agent_stream") {
       this.runtimeMetrics?.recordAgentStream(parsed.data.message.payload);
-    }
-  }
-
-  private tryHandleBinaryFrame(rawBytes: Uint8Array): boolean {
-    const frame = decodeTerminalStreamFrame(rawBytes);
-    if (!frame) {
-      return false;
-    }
-    const binaryStartMs = perfNow();
-    this.handleBinaryFrame(frame);
-    let frameKind: "output" | "snapshot" | "other" = "other";
-    if (frame.opcode === TerminalStreamOpcode.Output) {
-      frameKind = "output";
-    } else if (frame.opcode === TerminalStreamOpcode.Snapshot) {
-      frameKind = "snapshot";
-    }
-    this.runtimeMetrics?.recordBinaryFrame(
-      frameKind,
-      rawBytes.byteLength,
-      perfNow() - binaryStartMs,
-    );
-    return true;
-  }
-
-  private handleBinaryFrame(frame: TerminalStreamFrame): void {
-    const terminalId = this.slotTerminals.get(frame.slot);
-    if (!terminalId) {
-      return;
-    }
-
-    if (frame.opcode === TerminalStreamOpcode.Output) {
-      this.emitTerminalStreamEvent({
-        terminalId,
-        type: "output",
-        data: frame.payload,
-      });
-      return;
-    }
-
-    if (frame.opcode === TerminalStreamOpcode.Snapshot) {
-      const state = decodeTerminalSnapshotPayload(frame.payload);
-      if (!state) {
-        return;
-      }
-      this.emitTerminalStreamEvent({
-        terminalId,
-        type: "snapshot",
-        state,
-      });
-    }
-  }
-
-  private emitTerminalStreamEvent(event: TerminalStreamEvent): void {
-    for (const listener of this.terminalStreamListeners) {
-      try {
-        listener(event);
-      } catch {
-        // no-op
-      }
     }
   }
 
@@ -4208,7 +2264,7 @@ export class DaemonClient {
     // and responses from the previous connection will never arrive.
     this.clearWaiters(new Error(reason ?? "Connection lost"));
     this.rejectPendingSendQueue(new Error(reason ?? "Connection lost"));
-    this.clearTerminalSlots();
+    this.terminalRpc.clearSlots();
     this.lastServerInfoMessage = null;
 
     if (wasDisposed) {
@@ -4265,8 +2321,8 @@ export class DaemonClient {
           this.resetConnectTimeout();
           this.reconnectAttempt = 0;
           this.updateConnectionState({ status: "connected" }, { event: "HELLO_SERVER_INFO" });
-          this.resubscribeCheckoutDiffSubscriptions();
-          this.resubscribeTerminalDirectorySubscriptions();
+          this.gitRpc.resubscribe();
+          this.terminalRpc.resubscribe();
           this.flushPendingSendQueue();
           this.resolveConnect();
         }
@@ -4274,7 +2330,7 @@ export class DaemonClient {
     }
 
     if (msg.type === "terminal_stream_exit") {
-      this.removeTerminalSlot(msg.payload.terminalId);
+      this.terminalRpc.removeSlot(msg.payload.terminalId);
     }
 
     if (this.rawMessageListeners.size > 0) {
@@ -4387,7 +2443,8 @@ export class DaemonClient {
     }
   }
 
-  private waitForWithCancel<T>(
+  /** @internal */
+  waitForWithCancel<T>(
     predicate: (msg: SessionOutboundMessage) => T | null,
     timeout = 30000,
     _options?: { skipQueue?: boolean },
@@ -4458,38 +2515,4 @@ export class DaemonClient {
 
     return { promise, cancel };
   }
-}
-
-function resolveAgentConfig(options: CreateAgentRequestOptions): AgentSessionConfig {
-  const {
-    config,
-    provider,
-    cwd,
-    workspaceId: _workspaceId,
-    initialPrompt: _initialPrompt,
-    images: _images,
-    git: _git,
-    worktreeName: _worktreeName,
-    requestId: _requestId,
-    labels: _labels,
-    ...overrides
-  } = options;
-
-  const baseConfig: Partial<AgentSessionConfig> = {
-    ...(provider ? { provider } : {}),
-    ...(cwd ? { cwd } : {}),
-    ...overrides,
-  };
-
-  const merged = config ? { ...baseConfig, ...config } : baseConfig;
-
-  if (!merged.provider || !merged.cwd) {
-    throw new Error("createAgent requires provider and cwd");
-  }
-
-  return {
-    ...merged,
-    provider: merged.provider,
-    cwd: merged.cwd,
-  };
 }
