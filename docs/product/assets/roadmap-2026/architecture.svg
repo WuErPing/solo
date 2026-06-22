@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 640" width="960" height="640" role="img" aria-label="Solo 2026 以项目为中心的四层架构">
+  <rect width="100%" height="100%" fill="#ffffff"/>
+  <rect x="320" y="50" width="320" height="80" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="480" y="76" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">项目工作目录（Project CWD）</text>
+  <text x="334" y="98" font-size="12" fill="#374151">例如：~/work/solo</text>
+  <rect x="320" y="170" width="320" height="80" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="480" y="196" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">项目上下文层</text>
+  <text x="334" y="218" font-size="12" fill="#374151">AGENTS.md / CLAUDE.md / .kimi-code/</text>
+  <line x1="480" y1="130" x2="480" y2="170" stroke="#2563eb" stroke-width="2"/>
+  <polygon points="480,170 484.2,160.9 475.8,160.9" fill="#2563eb"/>
+  <rect x="320" y="290" width="320" height="80" rx="8" fill="#faf5ff" stroke="#9333ea" stroke-width="2"/>
+  <text x="480" y="316" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">运行时与工具层</text>
+  <text x="334" y="338" font-size="12" fill="#374151">solo-cli / solo-daemon / app-bridge</text>
+  <line x1="480" y1="250" x2="480" y2="290" stroke="#2563eb" stroke-width="2"/>
+  <polygon points="480,290 484.2,280.9 475.8,280.9" fill="#2563eb"/>
+  <rect x="320" y="410" width="320" height="80" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+  <text x="480" y="436" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">外部 Agent 与协议层</text>
+  <text x="334" y="458" font-size="12" fill="#374151">Editor / Claude Code / MCP / Protocol</text>
+  <line x1="480" y1="370" x2="480" y2="410" stroke="#2563eb" stroke-width="2"/>
+  <polygon points="480,410 484.2,400.9 475.8,400.9" fill="#2563eb"/>
+  <rect x="60" y="185" width="180" height="70" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="150" y="211" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">规则注入</text>
+  <text x="74" y="233" font-size="11" fill="#374151">每个项目独立配置</text>
+  <line x1="260" y1="220" x2="320" y2="220" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="320,220 310.9,215.8 310.9,224.2" fill="#9ca3af"/>
+  <rect x="700" y="185" width="180" height="70" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="790" y="211" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">动态发现</text>
+  <text x="714" y="233" font-size="11" fill="#374151">进入目录自动加载</text>
+  <line x1="640" y1="220" x2="700" y2="220" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="700,220 690.9,215.8 690.9,224.2" fill="#9ca3af"/>
+  <rect x="60" y="305" width="180" height="70" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="150" y="331" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">统一命令</text>
+  <text x="74" y="353" font-size="11" fill="#374151">CLI 编排 Daemon 与 Bridge</text>
+  <line x1="260" y1="340" x2="320" y2="340" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="320,340 310.9,335.8 310.9,344.2" fill="#9ca3af"/>
+  <rect x="700" y="305" width="180" height="70" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="790" y="331" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">状态同步</text>
+  <text x="714" y="353" font-size="11" fill="#374151">WebSocket / gRPC 实时同步</text>
+  <line x1="640" y1="340" x2="700" y2="340" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="700,340 690.9,335.8 690.9,344.2" fill="#9ca3af"/>
+  <rect x="60" y="425" width="180" height="70" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="150" y="451" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">多 Agent 接入</text>
+  <text x="74" y="473" font-size="11" fill="#374151">Editor/Claude/MCP</text>
+  <line x1="260" y1="460" x2="320" y2="460" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="320,460 310.9,455.8 310.9,464.2" fill="#9ca3af"/>
+  <rect x="700" y="425" width="180" height="70" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="790" y="451" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">协议互操作</text>
+  <text x="714" y="473" font-size="11" fill="#374151">JSON-RPC + Solo Protocol</text>
+  <line x1="640" y1="460" x2="700" y2="460" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="700,460 690.9,455.8 690.9,464.2" fill="#9ca3af"/>
+</svg>

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 360" width="900" height="360" role="img" aria-label="Solo 2026 产品支柱">
+  <rect width="100%" height="100%" fill="#ffffff"/>
+  <rect x="80" y="100" width="220" height="160" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="190" y="126" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">项目级上下文</text>
+  <text x="94" y="148" font-size="13" fill="#374151">AGENTS.md 规则</text>
+  <text x="94" y="166" font-size="13" fill="#374151">CLAUDE.md 模板</text>
+  <text x="94" y="184" font-size="13" fill="#374151">.kimi-code/ 注入</text>
+  <rect x="360" y="100" width="220" height="160" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="470" y="126" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">统一工具链</text>
+  <text x="374" y="148" font-size="13" fill="#374151">CLI 入口</text>
+  <text x="374" y="166" font-size="13" fill="#374151">Daemon 服务</text>
+  <text x="374" y="184" font-size="13" fill="#374151">App Bridge UI</text>
+  <rect x="640" y="100" width="220" height="160" rx="8" fill="#faf5ff" stroke="#9333ea" stroke-width="2"/>
+  <text x="750" y="126" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">可观测与复用</text>
+  <text x="654" y="148" font-size="13" fill="#374151">覆盖率 / Lint</text>
+  <text x="654" y="166" font-size="13" fill="#374151">Handoff / Metrics</text>
+  <text x="654" y="184" font-size="13" fill="#374151">模板化最佳实践</text>
+  <rect x="150" y="300" width="600" height="44" rx="8" fill="#f3f4f6" stroke="#6b7280" stroke-width="2"/>
+  <text x="450" y="328" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">项目工作目录（Project CWD）作为统一锚点</text>
+  <line x1="190" y1="260" x2="190" y2="300" stroke="#6b7280" stroke-width="2"/>
+  <polygon points="190,300 194.2,290.9 185.8,290.9" fill="#6b7280"/>
+  <line x1="470" y1="260" x2="470" y2="300" stroke="#6b7280" stroke-width="2"/>
+  <polygon points="470,300 474.2,290.9 465.8,290.9" fill="#6b7280"/>
+  <line x1="750" y1="260" x2="750" y2="300" stroke="#6b7280" stroke-width="2"/>
+  <polygon points="750,300 754.2,290.9 745.8,290.9" fill="#6b7280"/>
+</svg>

@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 680" width="960" height="680" role="img" aria-label="Solo 2026 技术依赖树">
+  <rect width="100%" height="100%" fill="#ffffff"/>
+  <rect x="380" y="30" width="200" height="60" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="480" y="56" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">项目工作目录</text>
+  <text x="394" y="78" font-size="12" fill="#374151">Project CWD</text>
+  <rect x="80" y="180" width="200" height="100" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="180" y="206" text-anchor="middle" font-size="14" font-weight="600" fill="#111827">上下文（Context）</text>
+  <text x="94" y="228" font-size="12" fill="#374151">AGENTS.md</text>
+  <text x="94" y="246" font-size="12" fill="#374151">CLAUDE.md</text>
+  <text x="94" y="264" font-size="12" fill="#374151">.kimi-code/</text>
+  <line x1="480" y1="90" x2="180" y2="180" stroke="#2563eb" stroke-width="2"/>
+  <polygon points="180,180 189.9,181.4 187.5,173.3" fill="#2563eb"/>
+  <rect x="380" y="180" width="200" height="100" rx="8" fill="#faf5ff" stroke="#9333ea" stroke-width="2"/>
+  <text x="480" y="206" text-anchor="middle" font-size="14" font-weight="600" fill="#111827">运行时（Runtime）</text>
+  <text x="394" y="228" font-size="12" fill="#374151">solo-cli</text>
+  <text x="394" y="246" font-size="12" fill="#374151">solo-daemon</text>
+  <text x="394" y="264" font-size="12" fill="#374151">app-bridge</text>
+  <line x1="480" y1="90" x2="480" y2="180" stroke="#2563eb" stroke-width="2"/>
+  <polygon points="480,180 484.2,170.9 475.8,170.9" fill="#2563eb"/>
+  <rect x="680" y="180" width="200" height="100" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+  <text x="780" y="206" text-anchor="middle" font-size="14" font-weight="600" fill="#111827">协议（Protocol）</text>
+  <text x="694" y="228" font-size="12" fill="#374151">Solo Protocol</text>
+  <text x="694" y="246" font-size="12" fill="#374151">JSON-RPC</text>
+  <text x="694" y="264" font-size="12" fill="#374151">gRPC</text>
+  <line x1="480" y1="90" x2="780" y2="180" stroke="#2563eb" stroke-width="2"/>
+  <polygon points="780,180 772.5,173.3 770.1,181.4" fill="#2563eb"/>
+  <rect x="30" y="340" width="150" height="90" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="105" y="366" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">规则注入</text>
+  <text x="44" y="388" font-size="11" fill="#374151">进入目录加载</text>
+  <text x="44" y="406" font-size="11" fill="#374151">按项目隔离</text>
+  <rect x="190" y="340" width="150" height="90" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="265" y="366" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">模板复用</text>
+  <text x="204" y="388" font-size="11" fill="#374151">Handoff 模板</text>
+  <text x="204" y="406" font-size="11" fill="#374151">Agent 模板库</text>
+  <rect x="300" y="340" width="150" height="90" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="375" y="366" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">CLI 编排</text>
+  <text x="314" y="388" font-size="11" fill="#374151">命令统一入口</text>
+  <text x="314" y="406" font-size="11" fill="#374151">本地与远程</text>
+  <rect x="440" y="340" width="150" height="90" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="515" y="366" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">Daemon 服务</text>
+  <text x="454" y="388" font-size="11" fill="#374151">常驻进程</text>
+  <text x="454" y="406" font-size="11" fill="#374151">状态同步</text>
+  <rect x="620" y="340" width="150" height="90" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="695" y="366" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">MCP 兼容</text>
+  <text x="634" y="388" font-size="11" fill="#374151">模型上下文协议</text>
+  <text x="634" y="406" font-size="11" fill="#374151">Tool/Resource</text>
+  <rect x="780" y="340" width="150" height="90" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="855" y="366" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">Editor 集成</text>
+  <text x="794" y="388" font-size="11" fill="#374151">VS Code / Cursor</text>
+  <text x="794" y="406" font-size="11" fill="#374151">LSP 风格</text>
+  <line x1="180" y1="280" x2="105" y2="340" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="105,340 114.7,337.6 109.4,331.0" fill="#9ca3af"/>
+  <line x1="180" y1="280" x2="265" y2="340" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="265,340 260.0,331.3 255.2,338.2" fill="#9ca3af"/>
+  <line x1="480" y1="280" x2="375" y2="340" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="375,340 385.0,339.2 380.8,331.8" fill="#9ca3af"/>
+  <line x1="480" y1="280" x2="515" y2="340" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="515,340 514.1,330.0 506.8,334.3" fill="#9ca3af"/>
+  <line x1="780" y1="280" x2="695" y2="340" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="695,340 704.8,338.2 700.0,331.3" fill="#9ca3af"/>
+  <line x1="780" y1="280" x2="855" y2="340" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="855,340 850.6,331.0 845.3,337.6" fill="#9ca3af"/>
+  <rect x="280" y="520" width="400" height="100" rx="8" fill="#f3f4f6" stroke="#6b7280" stroke-width="2"/>
+  <text x="480" y="546" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">可观测层（Observability）</text>
+  <text x="294" y="568" font-size="12" fill="#374151">Test Coverage · Lint · Build Metrics · Handoff Quality</text>
+  <text x="294" y="586" font-size="12" fill="#374151">项目级 Dashboard · 自动复盘</text>
+  <line x1="180" y1="280" x2="480" y2="520" stroke="#6b7280" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="480,520 475.6,511.0 470.3,517.6" fill="#6b7280"/>
+  <line x1="480" y1="280" x2="480" y2="520" stroke="#6b7280" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="480,520 484.2,510.9 475.8,510.9" fill="#6b7280"/>
+  <line x1="780" y1="280" x2="480" y2="520" stroke="#6b7280" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="480,520 489.7,517.6 484.4,511.0" fill="#6b7280"/>
+</svg>

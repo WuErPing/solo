@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" width="900" height="520" role="img" aria-label="项目驱动效率飞轮">
+  <rect width="100%" height="100%" fill="#ffffff"/>
+  <defs>
+    <marker id="arrowhead-2563eb" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#2563eb"/>
+    </marker>
+  </defs>
+  <path d="M 190.0 259.9999994974289 Q 276.0 166.3 450.00000046667316 120.0" fill="none" stroke="#2563eb" stroke-width="3" marker-end="url(#arrowhead-2563eb)"/>
+  <path d="M 450.00000046667316 120.0 Q 624.0 166.3 710.0 260.0" fill="none" stroke="#2563eb" stroke-width="3" marker-end="url(#arrowhead-2563eb)"/>
+  <path d="M 710.0 260.0 Q 624.0 353.7 449.99999859998076 400.0" fill="none" stroke="#2563eb" stroke-width="3" marker-end="url(#arrowhead-2563eb)"/>
+  <path d="M 449.99999859998076 400.0 Q 276.0 353.7 190.0 259.9999994974289" fill="none" stroke="#2563eb" stroke-width="3" marker-end="url(#arrowhead-2563eb)"/>
+  <rect x="95" y="214" width="190" height="90" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="190" y="240" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">项目工作目录</text>
+  <text x="109" y="262" font-size="12" fill="#374151">CWD 作为统一入口</text>
+  <rect x="355" y="75" width="190" height="90" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="450" y="101" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">跨文件上下文</text>
+  <text x="369" y="123" font-size="12" fill="#374151">AGENTS.md / CLAUDE.md</text>
+  <rect x="615" y="215" width="190" height="90" rx="8" fill="#faf5ff" stroke="#9333ea" stroke-width="2"/>
+  <text x="710" y="241" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">工具链统一</text>
+  <text x="629" y="263" font-size="12" fill="#374151">CLI + Daemon + Bridge</text>
+  <rect x="354" y="355" width="190" height="90" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+  <text x="449" y="381" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">可观测复盘</text>
+  <text x="368" y="403" font-size="12" fill="#374151">Metrics + Coverage + Handoff</text>
+  <rect x="340" y="222" width="220" height="76" rx="8" fill="#f3f4f6" stroke="#374151" stroke-width="2"/>
+  <text x="450" y="248" text-anchor="middle" font-size="14" font-weight="600" fill="#111827">项目为锚点的效率飞轮</text>
+  <text x="354" y="270" font-size="11" fill="#374151">每个项目自带上下文、工具链与度量</text>
+</svg>
