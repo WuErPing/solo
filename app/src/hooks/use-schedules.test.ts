@@ -46,6 +46,7 @@ function makeScheduleSummary(overrides: Partial<ScheduleSummary> = {}): Schedule
     prompt: "Generate daily report",
     cadence: { type: "cron", expression: "0 9 * * *" },
     target: { type: "agent", agentId: "agent-1" },
+    cwd: null,
     status: "active",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",

@@ -11,12 +11,19 @@ import (
 	"github.com/WuErPing/solo/protocol"
 )
 
+type scheduleAgentManager interface {
+	GetAgent(agentID string) *agent.ManagedAgent
+	SendAgentMessage(ctx context.Context, agentID, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) error
+	CreateAgent(ctx context.Context, config *protocol.AgentSessionConfig, labels map[string]string) (*agent.ManagedAgent, error)
+	Subscribe(handler agent.AgentEventFunc) func()
+}
+
 type daemonRunner struct {
-	agentMgr *agent.AgentManager
+	agentMgr scheduleAgentManager
 	logger   *slog.Logger
 }
 
-func newDaemonRunner(agentMgr *agent.AgentManager, logger *slog.Logger) *daemonRunner {
+func newDaemonRunner(agentMgr scheduleAgentManager, logger *slog.Logger) *daemonRunner {
 	return &daemonRunner{
 		agentMgr: agentMgr,
 		logger:   logger.With("component", "schedule-runner"),
@@ -47,9 +54,13 @@ func (r *daemonRunner) Run(sched protocol.StoredSchedule) schedule.RunResult {
 			errMsg := "new-agent target requires config"
 			return schedule.RunResult{Error: &errMsg}
 		}
+		cwd := sched.Target.Config.Cwd
+		if sched.Cwd != nil && *sched.Cwd != "" {
+			cwd = *sched.Cwd
+		}
 		config := &protocol.AgentSessionConfig{
 			Provider: sched.Target.Config.Provider,
-			Cwd:      sched.Target.Config.Cwd,
+			Cwd:      cwd,
 		}
 		ag, err := r.agentMgr.CreateAgent(ctx, config, map[string]string{
 			"source":     "schedule",

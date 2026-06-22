@@ -236,6 +236,13 @@ function ScheduleDetailScreenContent({
             <Text style={styles.detailValue}>{schedule.prompt}</Text>
           </View>
 
+          {schedule.cwd ? (
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Working Directory</Text>
+              <Text style={[styles.detailValue, styles.monoValue]}>{schedule.cwd}</Text>
+            </View>
+          ) : null}
+
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Cadence</Text>
             <Text style={styles.detailValue}>{cadenceInfo.text}</Text>
@@ -351,6 +358,9 @@ const styles = StyleSheet.create((theme) => ({
   detailValue: {
     color: theme.colors.foreground,
     fontSize: theme.fontSize.base,
+  },
+  monoValue: {
+    fontFamily: "monospace",
   },
   timezoneRow: {
     flexDirection: "row",

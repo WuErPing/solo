@@ -21,7 +21,7 @@ export type ScheduleCadence = z.infer<typeof ScheduleCadenceSchema>;
 export const ScheduleTargetSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("agent"),
-    agentId: z.string().uuid(),
+    agentId: z.string().min(1),
   }),
   z.object({
     type: z.literal("new-agent"),
@@ -56,7 +56,7 @@ export const ScheduleRunSchema = z.object({
   startedAt: z.string(),
   endedAt: z.string().nullable(),
   status: z.enum(["running", "succeeded", "failed"]),
-  agentId: z.string().uuid().nullable(),
+  agentId: z.string().min(1).nullable(),
   output: z.string().nullable(),
   error: z.string().nullable(),
 });
@@ -68,6 +68,7 @@ export const StoredScheduleSchema = z.object({
   prompt: z.string().min(1),
   cadence: ScheduleCadenceSchema,
   target: ScheduleTargetSchema,
+  cwd: z.string().nullable().optional(),
   status: ScheduleStatusSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -90,6 +91,7 @@ export interface CreateScheduleInput {
   prompt: string;
   cadence: ScheduleCadence;
   target: ScheduleTarget;
+  cwd?: string | null;
   maxRuns?: number | null;
   expiresAt?: string | null;
 }

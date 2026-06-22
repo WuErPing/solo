@@ -1,0 +1,394 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 2200">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#64748b"/>
+    </marker>
+    <marker id="arrow-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#0ea5e9"/>
+    </marker>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#000000" flood-opacity="0.08"/>
+    </filter>
+  </defs>
+
+  <style>
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .title { font-size: 22px; font-weight: 700; fill: #1e293b; }
+    .layer-label { font-size: 12px; font-weight: 700; fill: #64748b; text-anchor: end; letter-spacing: 1px; }
+    .group-title { font-size: 11px; font-weight: 600; fill: #475569; }
+    .group-title-sm { font-size: 10px; font-weight: 600; fill: #64748b; }
+    .node-label { font-size: 12px; font-weight: 500; fill: #334155; text-anchor: middle; }
+    .node-label-sm { font-size: 10px; font-weight: 500; fill: #475569; text-anchor: middle; }
+    .node-label-xs { font-size: 9px; font-weight: 400; fill: #64748b; text-anchor: middle; }
+    .sub-label { font-size: 9px; fill: #94a3b8; text-anchor: middle; }
+    .bullet { font-size: 9px; fill: #64748b; }
+    .section-bg { fill: #f8fafc; stroke: #e2e8f0; stroke-width: 1.5; }
+    .group-bg { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1; }
+    .node-bg { fill: #f1f5f9; stroke: #cbd5e1; stroke-width: 1; }
+    .accent-bg { fill: #e0f2fe; stroke: #0ea5e9; stroke-width: 1.5; }
+    .green-bg { fill: #ecfdf5; stroke: #10b981; stroke-width: 1; }
+    .purple-bg { fill: #f5f3ff; stroke: #8b5cf6; stroke-width: 1; }
+    .amber-bg { fill: #fffbeb; stroke: #f59e0b; stroke-width: 1; }
+    .rose-bg { fill: #fff1f2; stroke: #f43f5e; stroke-width: 1; }
+  </style>
+
+  <!-- Background -->
+  <rect width="1200" height="2200" fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="600" y="38" class="title" text-anchor="middle">Solo System Architecture</text>
+  <text x="600" y="58" class="sub-label" text-anchor="middle">Detailed Component View</text>
+
+  <!-- ==================== CLIENT LAYER ==================== -->
+  <rect x="60" y="75" width="1080" height="290" rx="10" class="section-bg"/>
+  <text x="48" y="180" class="layer-label">CLIENT</text>
+
+  <!-- Web App -->
+  <rect x="90" y="100" width="300" height="130" rx="8" class="group-bg" filter="url(#shadow)"/>
+  <text x="240" y="120" class="node-label" font-weight="600" fill="#0369a1">Web App</text>
+  <text x="240" y="134" class="sub-label">Expo Router</text>
+  <text x="105" y="152" class="bullet">Dashboard</text>
+  <text x="105" y="164" class="bullet">Agent Detail</text>
+  <text x="105" y="176" class="bullet">Sessions</text>
+  <text x="105" y="188" class="bullet">Schedules</text>
+  <text x="105" y="200" class="bullet">Loops</text>
+  <text x="215" y="152" class="bullet">Tmux Dashboard</text>
+  <text x="215" y="164" class="bullet">Tmux Pane</text>
+  <text x="215" y="176" class="bullet">Projects</text>
+  <text x="215" y="188" class="bullet">Workspace</text>
+  <text x="215" y="200" class="bullet">Settings</text>
+
+  <!-- Mobile App -->
+  <rect x="410" y="100" width="300" height="130" rx="8" class="group-bg" filter="url(#shadow)"/>
+  <text x="560" y="120" class="node-label" font-weight="600" fill="#0369a1">Mobile App</text>
+  <text x="560" y="134" class="sub-label">iOS / Android</text>
+  <text x="425" y="152" class="bullet">Dashboard</text>
+  <text x="425" y="164" class="bullet">Agent Detail</text>
+  <text x="425" y="176" class="bullet">Sessions</text>
+  <text x="425" y="188" class="bullet">Schedules</text>
+  <text x="425" y="200" class="bullet">Loops</text>
+  <text x="535" y="152" class="bullet">Tmux Dashboard</text>
+  <text x="535" y="164" class="bullet">Tmux Pane</text>
+  <text x="535" y="176" class="bullet">Projects</text>
+  <text x="535" y="188" class="bullet">Workspace</text>
+  <text x="535" y="200" class="bullet">Settings</text>
+
+  <!-- CLI -->
+  <rect x="730" y="100" width="200" height="130" rx="8" class="group-bg" filter="url(#shadow)"/>
+  <text x="830" y="120" class="node-label" font-weight="600" fill="#0369a1">CLI (solo-cli)</text>
+  <text x="745" y="152" class="bullet">agent ls / run / attach</text>
+  <text x="745" y="164" class="bullet">daemon start / stop</text>
+  <text x="745" y="176" class="bullet">loop ls / run / stop</text>
+  <text x="745" y="188" class="bullet">provider ls / models</text>
+  <text x="745" y="200" class="bullet">onboard</text>
+
+  <!-- Arrows from clients down -->
+  <line x1="240" y1="230" x2="240" y2="248" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <line x1="560" y1="230" x2="560" y2="248" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <line x1="830" y1="230" x2="830" y2="248" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+
+  <!-- App-Bridge -->
+  <rect x="200" y="252" width="800" height="100" rx="10" class="accent-bg" filter="url(#shadow)"/>
+  <text x="600" y="272" class="node-label" font-weight="600" fill="#0369a1">App-Bridge (TypeScript)</text>
+
+  <!-- DaemonClient -->
+  <rect x="220" y="282" width="200" height="55" rx="6" fill="#ffffff" stroke="#0ea5e9" stroke-width="1"/>
+  <text x="320" y="298" class="node-label-sm" font-weight="600">DaemonClient</text>
+  <text x="320" y="310" class="sub-label">WebSocket transport</text>
+  <text x="320" y="322" class="sub-label">Relay E2EE transport</text>
+  <text x="320" y="334" class="sub-label">Runtime metrics</text>
+
+  <!-- RPC Modules -->
+  <rect x="440" y="282" width="160" height="55" rx="6" fill="#ffffff" stroke="#0ea5e9" stroke-width="1"/>
+  <text x="520" y="298" class="node-label-sm" font-weight="600">RPC Modules</text>
+  <text x="520" y="310" class="sub-label">Agent / Schedule / Loop</text>
+  <text x="520" y="322" class="sub-label">Tmux / Chat</text>
+
+  <!-- E2EE -->
+  <rect x="620" y="282" width="180" height="55" rx="6" fill="#ffffff" stroke="#0ea5e9" stroke-width="1"/>
+  <text x="710" y="298" class="node-label-sm" font-weight="600">Relay / E2EE</text>
+  <text x="710" y="310" class="sub-label">X25519 key exchange</text>
+  <text x="710" y="322" class="sub-label">XSalsa20-Poly1305</text>
+  <text x="710" y="334" class="sub-label">EncryptedChannel</text>
+
+  <!-- Arrow down to network -->
+  <line x1="600" y1="352" x2="600" y2="375" stroke="#0ea5e9" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+
+  <!-- ==================== NETWORK LAYER ==================== -->
+  <rect x="60" y="380" width="1080" height="170" rx="10" class="section-bg"/>
+  <text x="48" y="470" class="layer-label">NETWORK</text>
+
+  <!-- Nginx -->
+  <rect x="150" y="405" width="220" height="65" rx="8" class="group-bg" filter="url(#shadow)"/>
+  <text x="260" y="432" class="node-label" font-weight="600">Nginx (optional)</text>
+  <text x="260" y="458" class="sub-label">TLS termination + reverse proxy</text>
+
+  <!-- Arrow -->
+  <line x1="370" y1="437" x2="440" y2="437" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Relay Server -->
+  <rect x="445" y="395" width="530" height="130" rx="8" class="group-bg" filter="url(#shadow)"/>
+  <text x="710" y="418" class="node-label" font-weight="600" fill="#0369a1">Relay Server (relay-go)</text>
+
+  <rect x="465" y="428" width="120" height="42" rx="6" class="node-bg"/>
+  <text x="525" y="447" class="node-label-xs" font-weight="600">Control Channel</text>
+  <text x="525" y="460" class="sub-label">signaling</text>
+
+  <rect x="600" y="428" width="120" height="42" rx="6" class="node-bg"/>
+  <text x="660" y="447" class="node-label-xs" font-weight="600">Data Channel</text>
+  <text x="660" y="460" class="sub-label">payload relay</text>
+
+  <rect x="735" y="428" width="120" height="42" rx="6" class="node-bg"/>
+  <text x="795" y="447" class="node-label-xs" font-weight="600">Session Manager</text>
+  <text x="795" y="460" class="sub-label">connection routing</text>
+
+  <rect x="540" y="478" width="100" height="35" rx="6" class="purple-bg"/>
+  <text x="590" y="496" class="node-label-xs" font-weight="600">Crypto</text>
+  <text x="590" y="508" class="sub-label">X25519 + XSalsa</text>
+
+  <rect x="660" y="478" width="100" height="35" rx="6" class="green-bg"/>
+  <text x="710" y="496" class="node-label-xs" font-weight="600">Metrics</text>
+  <text x="710" y="508" class="sub-label">Prometheus</text>
+
+  <!-- Arrow down to daemon -->
+  <line x1="600" y1="550" x2="600" y2="575" stroke="#0ea5e9" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+
+  <!-- ==================== SERVICE LAYER (DAEMON) ==================== -->
+  <rect x="60" y="580" width="1080" height="1600" rx="10" class="section-bg"/>
+  <text x="48" y="1380" class="layer-label">DAEMON</text>
+  <text x="600" y="608" class="group-title" text-anchor="middle" font-size="13px" fill="#1e293b">Daemon Core Service (daemon/internal)</text>
+
+  <!-- ===== HTTP / WebSocket Server Group ===== -->
+  <rect x="85" y="625" width="1030" height="330" rx="8" class="group-bg"/>
+  <text x="100" y="648" class="group-title" font-size="11px">HTTP / WebSocket Server</text>
+  <text x="100" y="662" class="sub-label">server/daemon.go — service orchestration, handler registry</text>
+
+  <!-- Session sub-group -->
+  <rect x="100" y="675" width="310" height="170" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="115" y="693" class="group-title-sm">session/</text>
+  <text x="115" y="710" class="bullet">agent — agent session lifecycle</text>
+  <text x="115" y="722" class="bullet">terminal — terminal session binding</text>
+  <text x="115" y="734" class="bullet">tmux — agent detection, pane capture</text>
+  <text x="115" y="746" class="bullet">schedule — schedule message handlers</text>
+  <text x="115" y="758" class="bullet">loop — loop message handlers</text>
+  <text x="115" y="770" class="bullet">workspace — workspace message handlers</text>
+  <text x="115" y="782" class="bullet">send — message send logic</text>
+  <text x="115" y="794" class="bullet">multi-socket — multi-client sync</text>
+  <text x="115" y="806" class="bullet">write — WS write helpers</text>
+  <text x="115" y="818" class="bullet">fileexplorer — file browsing</text>
+  <text x="115" y="830" class="bullet">util — shared session utilities</text>
+
+  <!-- Terminal sub-group -->
+  <rect x="425" y="675" width="180" height="80" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="440" y="693" class="group-title-sm">terminal/</text>
+  <text x="440" y="710" class="bullet">PTY management</text>
+  <text x="440" y="722" class="bullet">Terminal resize</text>
+  <text x="440" y="734" class="bullet">Process lifecycle</text>
+
+  <!-- Workspace sub-group -->
+  <rect x="425" y="770" width="180" height="75" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="440" y="788" class="group-title-sm">workspace/</text>
+  <text x="440" y="805" class="bullet">ProjectRegistry</text>
+  <text x="440" y="817" class="bullet">WorkspaceRegistry</text>
+  <text x="440" y="829" class="bullet">GitService</text>
+
+  <!-- Workspace extras -->
+  <rect x="620" y="675" width="180" height="75" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="635" y="693" class="group-title-sm">workspace/ (cont.)</text>
+  <text x="635" y="710" class="bullet">ScriptManager</text>
+  <text x="635" y="722" class="bullet">ScriptProxy</text>
+  <text x="635" y="734" class="bullet">FileExplorer</text>
+
+  <!-- Supporting session modules -->
+  <rect x="620" y="770" width="180" height="75" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="635" y="788" class="group-title-sm">Cross-cutting</text>
+  <text x="635" y="805" class="bullet">attention/ — policy + broadcast</text>
+  <text x="635" y="817" class="bullet">sendqueue/ — async msg buffering</text>
+  <text x="635" y="829" class="bullet">activity/ — tracker + heartbeat</text>
+
+  <!-- Wiring files -->
+  <rect x="815" y="675" width="180" height="75" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="830" y="693" class="group-title-sm">Wiring</text>
+  <text x="830" y="710" class="bullet">handler_registry.go</text>
+  <text x="830" y="722" class="bullet">schedule_runner.go</text>
+  <text x="830" y="734" class="bullet">memory_wiring.go</text>
+
+  <!-- Daemon struct fields -->
+  <rect x="815" y="770" width="180" height="75" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="830" y="788" class="group-title-sm">Daemon struct</text>
+  <text x="830" y="805" class="bullet">WSServer</text>
+  <text x="830" y="817" class="bullet">HTTP Server + Listener</text>
+  <text x="830" y="829" class="bullet">WorkspaceStore</text>
+
+  <!-- ===== Agent Manager Group ===== -->
+  <rect x="85" y="970" width="500" height="260" rx="8" class="group-bg"/>
+  <text x="100" y="993" class="group-title" font-size="11px">agent/ (Agent Manager)</text>
+
+  <!-- Providers row -->
+  <rect x="105" y="1005" width="80" height="48" rx="6" class="node-bg"/>
+  <text x="145" y="1027" class="node-label-xs" font-weight="600">Claude</text>
+  <text x="145" y="1040" class="sub-label">print / stream</text>
+
+  <rect x="195" y="1005" width="80" height="48" rx="6" class="node-bg"/>
+  <text x="235" y="1027" class="node-label-xs" font-weight="600">Kimi</text>
+  <text x="235" y="1040" class="sub-label">Wire / JSONRPC</text>
+
+  <rect x="285" y="1005" width="80" height="48" rx="6" class="node-bg"/>
+  <text x="325" y="1027" class="node-label-xs" font-weight="600">OpenCode</text>
+  <text x="325" y="1040" class="sub-label">SSE</text>
+
+  <rect x="375" y="1005" width="60" height="48" rx="6" class="node-bg"/>
+  <text x="405" y="1027" class="node-label-xs" font-weight="600">Pi</text>
+  <text x="405" y="1040" class="sub-label">JSON stdio</text>
+
+  <rect x="445" y="1005" width="70" height="48" rx="6" class="node-bg"/>
+  <text x="480" y="1027" class="node-label-xs" font-weight="600">Codex</text>
+  <text x="480" y="1040" class="sub-label">auto / full</text>
+
+  <!-- Internal modules -->
+  <rect x="105" y="1065" width="140" height="55" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="175" y="1083" class="node-label-xs" font-weight="600">ProviderRegistry</text>
+  <text x="175" y="1096" class="sub-label">provider discovery</text>
+  <text x="175" y="1108" class="sub-label">model registration</text>
+
+  <rect x="260" y="1065" width="120" height="55" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="320" y="1083" class="node-label-xs" font-weight="600">AgentStorage</text>
+  <text x="320" y="1096" class="sub-label">disk persistence</text>
+  <text x="320" y="1108" class="sub-label">agent configs</text>
+
+  <rect x="395" y="1065" width="120" height="55" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="455" y="1083" class="node-label-xs" font-weight="600">TurnGuard</text>
+  <text x="455" y="1096" class="sub-label">duplicate turn</text>
+  <text x="455" y="1108" class="sub-label">prevention</text>
+
+  <!-- Bottom row -->
+  <rect x="105" y="1135" width="140" height="48" rx="6" fill="#fff1f2" stroke="#f43f5e" stroke-width="1"/>
+  <text x="175" y="1155" class="node-label-xs" font-weight="600">StallMonitor</text>
+  <text x="175" y="1168" class="sub-label">inactivity + repetition</text>
+  <text x="175" y="1180" class="sub-label">detection</text>
+
+  <rect x="260" y="1135" width="120" height="48" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="320" y="1155" class="node-label-xs" font-weight="600">CustomModels</text>
+  <text x="320" y="1168" class="sub-label">user-defined model</text>
+  <text x="320" y="1180" class="sub-label">definitions</text>
+
+  <rect x="395" y="1135" width="120" height="48" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="455" y="1155" class="node-label-xs" font-weight="600">AgentCommandStore</text>
+  <text x="455" y="1168" class="sub-label">slash command</text>
+  <text x="455" y="1180" class="sub-label">definitions</text>
+
+  <!-- ===== Loop Engine Group ===== -->
+  <rect x="600" y="970" width="250" height="110" rx="8" class="group-bg"/>
+  <text x="615" y="993" class="group-title" font-size="11px">loop/ (Loop Engine)</text>
+
+  <rect x="615" y="1008" width="100" height="50" rx="6" class="amber-bg"/>
+  <text x="665" y="1030" class="node-label-xs" font-weight="600">Engine</text>
+  <text x="665" y="1044" class="sub-label">iteration control</text>
+
+  <rect x="730" y="1008" width="100" height="50" rx="6" class="amber-bg"/>
+  <text x="780" y="1030" class="node-label-xs" font-weight="600">Store</text>
+  <text x="780" y="1044" class="sub-label">persistence</text>
+
+  <!-- ===== Schedule Engine Group ===== -->
+  <rect x="600" y="1095" width="250" height="110" rx="8" class="group-bg"/>
+  <text x="615" y="1118" class="group-title" font-size="11px">schedule/ (Schedule Engine)</text>
+
+  <rect x="615" y="1133" width="70" height="48" rx="6" class="green-bg"/>
+  <text x="650" y="1153" class="node-label-xs" font-weight="600">Store</text>
+  <text x="650" y="1167" class="sub-label">cron state</text>
+
+  <rect x="700" y="1133" width="70" height="48" rx="6" class="green-bg"/>
+  <text x="735" y="1153" class="node-label-xs" font-weight="600">Executor</text>
+  <text x="735" y="1167" class="sub-label">agent exec</text>
+
+  <rect x="785" y="1133" width="55" height="48" rx="6" class="green-bg"/>
+  <text x="812" y="1153" class="node-label-xs" font-weight="600">Runner</text>
+  <text x="812" y="1167" class="sub-label">cron loop</text>
+
+  <!-- ===== Supporting Services ===== -->
+  <rect x="85" y="1250" width="1030" height="410" rx="8" class="group-bg"/>
+  <text x="100" y="1273" class="group-title" font-size="11px">Supporting Services</text>
+
+  <!-- Row 1 -->
+  <rect x="105" y="1290" width="220" height="120" rx="6" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1"/>
+  <text x="215" y="1310" class="node-label-sm" font-weight="600" fill="#6d28d9">memory/</text>
+  <text x="120" y="1328" class="bullet">TurnRecorder — stable interface</text>
+  <text x="120" y="1340" class="bullet">filebackend/ — async channel writer</text>
+  <text x="120" y="1352" class="bullet">redact/ — pre-write redaction</text>
+  <text x="120" y="1364" class="bullet">bridge/ — session→turn bridge</text>
+  <text x="120" y="1376" class="bullet">SafeBridge — panic recovery</text>
+  <text x="120" y="1388" class="bullet">+ circuit breaker</text>
+  <text x="120" y="1402" class="sub-label">~/.solo/memory/sessions/</text>
+
+  <rect x="340" y="1290" width="200" height="120" rx="6" fill="#ecfdf5" stroke="#10b981" stroke-width="1"/>
+  <text x="440" y="1310" class="node-label-sm" font-weight="600" fill="#047857">push/</text>
+  <text x="355" y="1328" class="bullet">PushNotifier</text>
+  <text x="355" y="1340" class="bullet">FCM (Android)</text>
+  <text x="355" y="1352" class="bullet">APNs (iOS)</text>
+  <text x="355" y="1364" class="bullet">Web Push</text>
+  <text x="355" y="1376" class="bullet">Device token mgmt</text>
+  <text x="355" y="1388" class="bullet">Notification dispatch</text>
+
+  <rect x="555" y="1290" width="200" height="120" rx="6" fill="#e0f2fe" stroke="#0ea5e9" stroke-width="1"/>
+  <text x="655" y="1310" class="node-label-sm" font-weight="600" fill="#0369a1">relayclient/</text>
+  <text x="570" y="1328" class="bullet">Control connection</text>
+  <text x="570" y="1340" class="bullet">Data connection</text>
+  <text x="570" y="1352" class="bullet">E2EE encryption</text>
+  <text x="570" y="1364" class="bullet">Keepalive heartbeat</text>
+  <text x="570" y="1376" class="bullet">Auto-reconnect</text>
+  <text x="570" y="1388" class="bullet">Connection state mgmt</text>
+
+  <rect x="770" y="1290" width="200" height="120" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="870" y="1310" class="node-label-sm" font-weight="600">metrics/</text>
+  <text x="785" y="1328" class="bullet">Prometheus /metrics</text>
+  <text x="785" y="1340" class="bullet">Connection gauges</text>
+  <text x="785" y="1352" class="bullet">Session counters</text>
+  <text x="785" y="1364" class="bullet">Agent lifecycle events</text>
+  <text x="785" y="1376" class="bullet">Histogram buckets</text>
+
+  <!-- Row 2 -->
+  <rect x="105" y="1425" width="220" height="100" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="215" y="1445" class="node-label-sm" font-weight="600">config/</text>
+  <text x="120" y="1463" class="bullet">Config — main config struct</text>
+  <text x="120" y="1475" class="bullet">MemoryConfig — memory settings</text>
+  <text x="120" y="1487" class="bullet">CustomModels — user models</text>
+  <text x="120" y="1499" class="bullet">solo.json parsing</text>
+
+  <rect x="340" y="1425" width="200" height="100" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="440" y="1445" class="node-label-sm" font-weight="600">pidlock/</text>
+  <text x="355" y="1463" class="bullet">Single instance guard</text>
+  <text x="355" y="1475" class="bullet">PID file management</text>
+  <text x="355" y="1487" class="bullet">Stale lock detection</text>
+
+  <rect x="555" y="1425" width="200" height="100" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="655" y="1445" class="node-label-sm" font-weight="600">wsconn/</text>
+  <text x="570" y="1463" class="bullet">WebSocket abstraction</text>
+  <text x="570" y="1475" class="bullet">Connection interface</text>
+  <text x="570" y="1487" class="bullet">Read/Write helpers</text>
+
+  <rect x="770" y="1425" width="200" height="100" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="870" y="1445" class="node-label-sm" font-weight="600">memorysetup/</text>
+  <text x="785" y="1463" class="bullet">Recorder assembly</text>
+  <text x="785" y="1475" class="bullet">Redactor + bridge wiring</text>
+  <text x="785" y="1487" class="bullet">MemoryConfig → components</text>
+
+  <!-- Row 3: memorybridge -->
+  <rect x="105" y="1540" width="220" height="60" rx="6" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1"/>
+  <text x="215" y="1560" class="node-label-sm" font-weight="600" fill="#6d28d9">memorybridge/</text>
+  <text x="120" y="1578" class="bullet">Session scheduler hook injection</text>
+  <text x="120" y="1590" class="bullet">server/memorybridge*.go</text>
+
+  <!-- Legend -->
+  <rect x="900" y="1670" width="190" height="120" rx="6" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="915" y="1690" font-size="11px" font-weight="600" fill="#475569">Legend</text>
+  <rect x="915" y="1700" width="12" height="12" rx="2" class="accent-bg"/>
+  <text x="932" y="1710" font-size="9px" fill="#64748b">Client / Bridge</text>
+  <rect x="915" y="1718" width="12" height="12" rx="2" class="node-bg"/>
+  <text x="932" y="1728" font-size="9px" fill="#64748b">Core service</text>
+  <rect x="915" y="1736" width="12" height="12" rx="2" class="purple-bg"/>
+  <text x="932" y="1746" font-size="9px" fill="#64748b">Memory subsystem</text>
+  <rect x="915" y="1754" width="12" height="12" rx="2" class="green-bg"/>
+  <text x="932" y="1764" font-size="9px" fill="#64748b">Schedule / Push / Metrics</text>
+  <rect x="915" y="1772" width="12" height="12" rx="2" class="amber-bg"/>
+  <text x="932" y="1782" font-size="9px" fill="#64748b">Loop engine</text>
+</svg>

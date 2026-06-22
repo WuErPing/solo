@@ -141,13 +141,14 @@ vi.mock("@/utils/cron-timezone", () => ({
   },
 }));
 
-function makeStoredSchedule(overrides: Record<string, unknown> = {}): StoredSchedule {
+function makeStoredSchedule(overrides: Partial<StoredSchedule> = {}): StoredSchedule {
   return {
     id: "schedule-1",
     name: "Daily Report",
     prompt: "Generate daily report",
     cadence: { type: "cron", expression: "0 9 * * *" },
     target: { type: "agent", agentId: "agent-1" },
+    cwd: null,
     status: "active",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
@@ -158,7 +159,7 @@ function makeStoredSchedule(overrides: Record<string, unknown> = {}): StoredSche
     maxRuns: null,
     runs: [],
     ...overrides,
-  } as StoredSchedule;
+  };
 }
 
 function makeInspectResult(overrides: Partial<ScheduleInspectResult> = {}): ScheduleInspectResult {
@@ -219,6 +220,31 @@ describe("ScheduleDetailScreen", () => {
 
     expect(container?.textContent).toContain("Daily Report");
     expect(container?.textContent).toContain("Generate the daily summary");
+  });
+
+  it("displays working directory when present", () => {
+    inspectResult.current = makeInspectResult({
+      schedule: makeStoredSchedule({ cwd: "/workspace/project" }),
+    });
+
+    act(() => {
+      root?.render(<ScheduleDetailScreen serverId="server-1" scheduleId="schedule-1" />);
+    });
+
+    expect(container?.textContent).toContain("Working Directory");
+    expect(container?.textContent).toContain("/workspace/project");
+  });
+
+  it("hides working directory when not set", () => {
+    inspectResult.current = makeInspectResult({
+      schedule: makeStoredSchedule({ cwd: null }),
+    });
+
+    act(() => {
+      root?.render(<ScheduleDetailScreen serverId="server-1" scheduleId="schedule-1" />);
+    });
+
+    expect(container?.textContent).not.toContain("Working Directory");
   });
 
   it("displays cron cadence expression", () => {

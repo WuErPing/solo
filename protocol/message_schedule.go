@@ -54,6 +54,7 @@ type StoredSchedule struct {
 	Prompt    string          `json:"prompt"`
 	Cadence   ScheduleCadence `json:"cadence"`
 	Target    ScheduleTarget  `json:"target"`
+	Cwd       *string         `json:"cwd,omitempty"`
 	Status    string          `json:"status"` // "active" | "paused" | "completed"
 	CreatedAt string          `json:"createdAt"`
 	UpdatedAt string          `json:"updatedAt"`
@@ -72,6 +73,7 @@ type ScheduleSummary struct {
 	Prompt    string          `json:"prompt"`
 	Cadence   ScheduleCadence `json:"cadence"`
 	Target    ScheduleTarget  `json:"target"`
+	Cwd       *string         `json:"cwd,omitempty"`
 	Status    string          `json:"status"` // "active" | "paused" | "completed"
 	CreatedAt string          `json:"createdAt"`
 	UpdatedAt string          `json:"updatedAt"`
@@ -91,6 +93,7 @@ type ScheduleCreateRequest struct {
 	Name      string          `json:"name,omitempty"`
 	Cadence   ScheduleCadence `json:"cadence"`
 	Target    ScheduleTarget  `json:"target"`
+	Cwd       *string         `json:"cwd,omitempty"`
 	MaxRuns   *int            `json:"maxRuns,omitempty"`
 	ExpiresAt string          `json:"expiresAt,omitempty"`
 }
@@ -152,6 +155,7 @@ type ScheduleUpdateRequest struct {
 	Name       string          `json:"name,omitempty"`
 	Cadence    ScheduleCadence `json:"cadence"`
 	Target     ScheduleTarget  `json:"target"`
+	Cwd        *string         `json:"cwd,omitempty"`
 	MaxRuns    *int            `json:"maxRuns,omitempty"`
 	ExpiresAt  string          `json:"expiresAt,omitempty"`
 }

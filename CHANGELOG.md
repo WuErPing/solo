@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-06-22
+
+### Added
+
+- **Schedule**: working directory (`cwd`) field on schedule create/edit/run paths
+- **Schedule**: Playwright E2E test covering schedule creation flow
+- **Sidebar**: color sidebar icons and align project badge colors
+- **Sidebar**: loop and schedule count badges on project rows
+- **Loop**: support editing all fields from the detail page
+- **Agent**: Codex provider support
+- **Protocol**: WebSocket protocol version 2 with `cwd` field on schedule messages
+
+### Fixed
+
+- **Schedule**: resolve app-bridge schema mismatch so schedules save and load when `cwd` is omitted
+- **Schedule**: dashboard subscribes to per-host runtime snapshots so schedules appear for connected hosts
+
 ## [0.7.0] - 2026-06-20
 
 ### Added

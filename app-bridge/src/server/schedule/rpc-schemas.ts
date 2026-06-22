@@ -10,11 +10,11 @@ import {
 const ScheduleCreateTargetSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("self"),
-    agentId: z.string().uuid(),
+    agentId: z.string().min(1),
   }),
   z.object({
     type: z.literal("agent"),
-    agentId: z.string().uuid(),
+    agentId: z.string().min(1),
   }),
   z.object({
     type: z.literal("new-agent"),
@@ -29,6 +29,7 @@ export const ScheduleCreateRequestSchema = z.object({
   name: z.string().optional(),
   cadence: ScheduleCadenceSchema,
   target: ScheduleCreateTargetSchema,
+  cwd: z.string().nullable().optional(),
   maxRuns: z.number().int().positive().optional(),
   expiresAt: z.string().optional(),
 });
@@ -76,6 +77,7 @@ export const ScheduleUpdateRequestSchema = z.object({
   name: z.string().optional(),
   cadence: ScheduleCadenceSchema,
   target: ScheduleCreateTargetSchema,
+  cwd: z.string().nullable().optional(),
   maxRuns: z.number().int().positive().optional(),
   expiresAt: z.string().optional(),
 });

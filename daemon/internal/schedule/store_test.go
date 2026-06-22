@@ -331,6 +331,127 @@ func TestStore_CreateWithOptionalFields(t *testing.T) {
 	}
 }
 
+func TestStore_CreateWithCwd(t *testing.T) {
+	store := NewStore()
+	cwd := "/project"
+	sched, err := store.Create(protocol.ScheduleCreateRequest{
+		Prompt:  "test",
+		Cadence: protocol.ScheduleCadence{Type: "every", EveryMs: 3600000},
+		Target:  protocol.ScheduleTarget{Type: "agent", AgentID: "a"},
+		Cwd:     &cwd,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if sched.Cwd == nil || *sched.Cwd != cwd {
+		t.Errorf("cwd mismatch: got %v, want %q", sched.Cwd, cwd)
+	}
+
+	loaded, ok := store.Get(sched.ID)
+	if !ok {
+		t.Fatal("expected schedule")
+	}
+	if loaded.Cwd == nil || *loaded.Cwd != cwd {
+		t.Errorf("loaded cwd mismatch: got %v, want %q", loaded.Cwd, cwd)
+	}
+
+	summaries := store.List()
+	if len(summaries) != 1 {
+		t.Fatalf("expected 1 summary, got %d", len(summaries))
+	}
+	if summaries[0].Cwd == nil || *summaries[0].Cwd != cwd {
+		t.Errorf("summary cwd mismatch: got %v, want %q", summaries[0].Cwd, cwd)
+	}
+}
+
+func TestStore_UpdateCwd(t *testing.T) {
+	store := NewStore()
+	sched, _ := store.Create(protocol.ScheduleCreateRequest{
+		Prompt:  "test",
+		Cadence: protocol.ScheduleCadence{Type: "every", EveryMs: 3600000},
+		Target:  protocol.ScheduleTarget{Type: "agent", AgentID: "a"},
+	})
+
+	cwd := "/project"
+	updated, err := store.Update(protocol.ScheduleUpdateRequest{
+		ScheduleID: sched.ID,
+		Prompt:     "updated",
+		Cadence:    protocol.ScheduleCadence{Type: "every", EveryMs: 3600000},
+		Target:     protocol.ScheduleTarget{Type: "agent", AgentID: "a"},
+		Cwd:        &cwd,
+	})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if updated.Cwd == nil || *updated.Cwd != cwd {
+		t.Errorf("updated cwd mismatch: got %v, want %q", updated.Cwd, cwd)
+	}
+
+	loaded, _ := store.Get(sched.ID)
+	if loaded.Cwd == nil || *loaded.Cwd != cwd {
+		t.Errorf("loaded cwd mismatch: got %v, want %q", loaded.Cwd, cwd)
+	}
+}
+
+func TestStore_UpdateClearsCwd(t *testing.T) {
+	store := NewStore()
+	cwd := "/project"
+	sched, _ := store.Create(protocol.ScheduleCreateRequest{
+		Prompt:  "test",
+		Cadence: protocol.ScheduleCadence{Type: "every", EveryMs: 3600000},
+		Target:  protocol.ScheduleTarget{Type: "agent", AgentID: "a"},
+		Cwd:     &cwd,
+	})
+	if sched.Cwd == nil {
+		t.Fatal("expected initial cwd")
+	}
+
+	updated, err := store.Update(protocol.ScheduleUpdateRequest{
+		ScheduleID: sched.ID,
+		Prompt:     "updated",
+		Cadence:    protocol.ScheduleCadence{Type: "every", EveryMs: 3600000},
+		Target:     protocol.ScheduleTarget{Type: "agent", AgentID: "a"},
+		Cwd:        nil,
+	})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if updated.Cwd != nil {
+		t.Errorf("expected cwd cleared, got %v", *updated.Cwd)
+	}
+
+	loaded, _ := store.Get(sched.ID)
+	if loaded.Cwd != nil {
+		t.Errorf("expected loaded cwd cleared, got %v", *loaded.Cwd)
+	}
+}
+
+func TestStore_PersistenceWithCwd(t *testing.T) {
+	tmpDir := t.TempDir()
+	dataPath := filepath.Join(tmpDir, "schedules.json")
+
+	cwd := "/project"
+	store1 := NewStore(WithDataPath(dataPath))
+	sched, err := store1.Create(protocol.ScheduleCreateRequest{
+		Prompt:  "test",
+		Cadence: protocol.ScheduleCadence{Type: "every", EveryMs: 3600000},
+		Target:  protocol.ScheduleTarget{Type: "agent", AgentID: "a"},
+		Cwd:     &cwd,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	store2 := NewStore(WithDataPath(dataPath))
+	loaded, ok := store2.Get(sched.ID)
+	if !ok {
+		t.Fatal("expected schedule to persist")
+	}
+	if loaded.Cwd == nil || *loaded.Cwd != cwd {
+		t.Errorf("persisted cwd mismatch: got %v, want %q", loaded.Cwd, cwd)
+	}
+}
+
 func TestStore_ListReturnsCopy(t *testing.T) {
 	store := NewStore()
 	store.Create(protocol.ScheduleCreateRequest{

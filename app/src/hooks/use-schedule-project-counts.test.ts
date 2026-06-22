@@ -4,6 +4,7 @@ import { buildScheduleCwdItems, type AggregatedScheduleForCounts } from "./use-s
 function makeSchedule(
   target: AggregatedScheduleForCounts["target"],
   serverId = "host1",
+  cwd: string | null = null,
 ): AggregatedScheduleForCounts {
   return {
     id: `sched-${Math.random().toString(36).slice(2)}`,
@@ -11,6 +12,7 @@ function makeSchedule(
     prompt: "do something",
     cadence: { type: "every", everyMs: 60000 },
     target,
+    cwd,
     status: "active",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -78,5 +80,41 @@ describe("buildScheduleCwdItems", () => {
     expect(result).toHaveLength(2);
     expect(result[0]).toEqual({ cwd: "/repo1", serverId: "host1" });
     expect(result[1]).toEqual({ cwd: "/repo2", serverId: "host2" });
+  });
+
+  it("prefers top-level cwd over new-agent config cwd", () => {
+    const schedules = [
+      makeSchedule(
+        { type: "new-agent", config: { provider: "claude", cwd: "/config-cwd" } },
+        "host1",
+        "/top-level-cwd",
+      ),
+    ];
+    const result = buildScheduleCwdItems(schedules);
+    expect(result).toEqual([{ cwd: "/top-level-cwd", serverId: "host1" }]);
+  });
+
+  it("extracts cwd from agent target when top-level cwd is present", () => {
+    const schedules = [
+      makeSchedule(
+        { type: "agent", agentId: "00000000-0000-0000-0000-000000000001" },
+        "host1",
+        "/agent-target-cwd",
+      ),
+    ];
+    const result = buildScheduleCwdItems(schedules);
+    expect(result).toEqual([{ cwd: "/agent-target-cwd", serverId: "host1" }]);
+  });
+
+  it("skips schedules with empty top-level cwd", () => {
+    const schedules = [
+      makeSchedule(
+        { type: "agent", agentId: "00000000-0000-0000-0000-000000000001" },
+        "host1",
+        "  ",
+      ),
+    ];
+    const result = buildScheduleCwdItems(schedules);
+    expect(result).toEqual([]);
   });
 });

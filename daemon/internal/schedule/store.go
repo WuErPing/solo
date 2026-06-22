@@ -179,6 +179,9 @@ func (st *Store) Create(input protocol.ScheduleCreateRequest) (*protocol.StoredS
 	if input.Name != "" {
 		schedule.Name = &input.Name
 	}
+	if input.Cwd != nil && *input.Cwd != "" {
+		schedule.Cwd = input.Cwd
+	}
 	if input.MaxRuns != nil && *input.MaxRuns > 0 {
 		schedule.MaxRuns = input.MaxRuns
 	}
@@ -304,6 +307,11 @@ func (st *Store) Update(input protocol.ScheduleUpdateRequest) (*protocol.StoredS
 	} else {
 		s.Name = nil
 	}
+	if input.Cwd != nil && *input.Cwd != "" {
+		s.Cwd = input.Cwd
+	} else {
+		s.Cwd = nil
+	}
 	if input.MaxRuns != nil && *input.MaxRuns > 0 {
 		s.MaxRuns = input.MaxRuns
 	} else {
@@ -344,6 +352,7 @@ func toSummary(s *protocol.StoredSchedule) protocol.ScheduleSummary {
 		Prompt:    s.Prompt,
 		Cadence:   s.Cadence,
 		Target:    s.Target,
+		Cwd:       s.Cwd,
 		Status:    s.Status,
 		CreatedAt: s.CreatedAt,
 		UpdatedAt: s.UpdatedAt,

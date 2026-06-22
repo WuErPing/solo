@@ -7,6 +7,89 @@ import (
 	"github.com/WuErPing/solo/protocol"
 )
 
+func TestHandleScheduleCreate_WithCwd(t *testing.T) {
+	_, ts := newTestWSServer(t)
+	conn := dialAndHello(t, ts.URL, "client-schedule-create-cwd")
+	defer conn.Close()
+	readInitialMessages(t, conn)
+
+	conn.WriteJSON(protocol.WSInboundMessage{
+		Type: "session",
+		Message: mustMarshal(map[string]interface{}{
+			"type":      "schedule/create",
+			"requestId": "req-create-cwd",
+			"prompt":    "Daily standup summary",
+			"cwd":       "/workspace/project",
+			"cadence": map[string]interface{}{
+				"type":    "every",
+				"everyMs": 3600000,
+			},
+			"target": map[string]interface{}{
+				"type":    "agent",
+				"agentId": "agent-123",
+			},
+		}),
+	})
+
+	resp := readUntilType(t, conn, "schedule/create/response")
+	payload := decodeSessionPayload[protocol.ScheduleCreateResponsePayload](t, resp)
+	if payload.Error != nil {
+		t.Fatalf("unexpected error: %s", *payload.Error)
+	}
+	if payload.Schedule == nil {
+		t.Fatal("expected schedule in response")
+	}
+	if payload.Schedule.Cwd == nil || *payload.Schedule.Cwd != "/workspace/project" {
+		t.Errorf("create response cwd mismatch: got %v", payload.Schedule.Cwd)
+	}
+
+	// Inspect and verify cwd round-trips
+	conn.WriteJSON(protocol.WSInboundMessage{
+		Type: "session",
+		Message: mustMarshal(map[string]interface{}{
+			"type":       "schedule/inspect",
+			"requestId":  "req-inspect-cwd",
+			"scheduleId": payload.Schedule.ID,
+		}),
+	})
+	inspectResp := readUntilType(t, conn, "schedule/inspect/response")
+	inspectPayload := decodeSessionPayload[protocol.ScheduleInspectResponsePayload](t, inspectResp)
+	if inspectPayload.Error != nil {
+		t.Fatalf("inspect error: %s", *inspectPayload.Error)
+	}
+	if inspectPayload.Schedule == nil || inspectPayload.Schedule.Cwd == nil || *inspectPayload.Schedule.Cwd != "/workspace/project" {
+		t.Errorf("inspect cwd mismatch: got %v", inspectPayload.Schedule.Cwd)
+	}
+
+	// Update cwd and verify response
+	conn.WriteJSON(protocol.WSInboundMessage{
+		Type: "session",
+		Message: mustMarshal(map[string]interface{}{
+			"type":       "schedule/update",
+			"requestId":  "req-update-cwd",
+			"scheduleId": payload.Schedule.ID,
+			"prompt":     "updated prompt",
+			"cwd":        "/workspace/other",
+			"cadence": map[string]interface{}{
+				"type":    "every",
+				"everyMs": 3600000,
+			},
+			"target": map[string]interface{}{
+				"type":    "agent",
+				"agentId": "agent-123",
+			},
+		}),
+	})
+	updateResp := readUntilType(t, conn, "schedule/update/response")
+	updatePayload := decodeSessionPayload[protocol.ScheduleUpdateResponsePayload](t, updateResp)
+	if updatePayload.Error != nil {
+		t.Fatalf("update error: %s", *updatePayload.Error)
+	}
+	if updatePayload.Schedule == nil || updatePayload.Schedule.Cwd == nil || *updatePayload.Schedule.Cwd != "/workspace/other" {
+		t.Errorf("update cwd mismatch: got %v", updatePayload.Schedule.Cwd)
+	}
+}
+
 func TestHandleScheduleCreate_Success(t *testing.T) {
 	_, ts := newTestWSServer(t)
 	conn := dialAndHello(t, ts.URL, "client-schedule-create")

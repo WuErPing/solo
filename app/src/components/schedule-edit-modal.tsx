@@ -63,6 +63,7 @@ export function ScheduleEditModal({ visible, onClose, serverId, schedule }: Sche
   const { updateSchedule, isUpdating } = useScheduleMutations({ serverId });
 
   const [name, setName] = useState("");
+  const [cwd, setCwd] = useState("");
   const [prompt, setPrompt] = useState("");
   const [cadenceType, setCadenceType] = useState<CadenceType>("cron");
   const [frequencyPreset, setFrequencyPreset] = useState<FrequencyPreset>("daily");
@@ -77,6 +78,7 @@ export function ScheduleEditModal({ visible, onClose, serverId, schedule }: Sche
   useEffect(() => {
     if (!schedule) return;
     setName(schedule.name ?? "");
+    setCwd(schedule.cwd ?? "");
     setPrompt(schedule.prompt);
     const tz = schedule.cadence.timezone || detectTimezone();
     setTimezone(tz);
@@ -181,12 +183,13 @@ export function ScheduleEditModal({ visible, onClose, serverId, schedule }: Sche
         prompt: prompt.trim(),
         cadence,
         target,
+        cwd: cwd.trim() || null,
       });
       handleClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to update schedule");
     }
-  }, [schedule, prompt, selectedAgentId, cadenceType, localCron, everyMs, name, timezone, updateSchedule, handleClose]);
+  }, [schedule, prompt, selectedAgentId, cadenceType, localCron, everyMs, name, cwd, timezone, updateSchedule, handleClose]);
 
   const updating = schedule ? isUpdating(schedule.id) : false;
 
@@ -208,6 +211,18 @@ export function ScheduleEditModal({ visible, onClose, serverId, schedule }: Sche
             onChangeText={setName}
             placeholderTextColor={theme.colors.foregroundMuted}
           />
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Working Directory</Text>
+          <AdaptiveTextInput
+            style={styles.input}
+            placeholder="/path/to/project"
+            value={cwd}
+            onChangeText={setCwd}
+            placeholderTextColor={theme.colors.foregroundMuted}
+          />
+          <Text style={styles.helperText}>Used to group this schedule with a project</Text>
         </View>
 
         <View style={styles.field}>

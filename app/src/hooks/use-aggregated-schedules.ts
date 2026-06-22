@@ -1,5 +1,5 @@
 import { useQueries, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useRef, useSyncExternalStore } from "react";
 import type { ScheduleSummary } from "@server/server/schedule/types";
 import { getHostRuntimeStore, useHosts, isHostRuntimeConnected } from "@/runtime/host-runtime";
 import { schedulesQueryKey } from "./use-schedules";
@@ -11,6 +11,8 @@ export interface AggregatedSchedule extends ScheduleSummary {
 
 export interface AggregatedSchedulesResult {
   schedules: AggregatedSchedule[];
+  configuredHosts: { serverId: string; serverLabel: string; isConnected: boolean }[];
+  connectedHosts: { serverId: string; serverLabel: string }[];
   isLoading: boolean;
   isInitialLoad: boolean;
   isRevalidating: boolean;
@@ -18,20 +20,69 @@ export interface AggregatedSchedulesResult {
   refreshAll: () => void;
 }
 
+function useConnectedHostsSnapshot(
+  hosts: { serverId: string; label: string }[],
+): { serverId: string; serverLabel: string }[] {
+  const lastSnapshot = useRef<{ serverId: string; serverLabel: string }[]>([]);
+
+  const subscribe = useCallback(
+    (callback: () => void) => {
+      const store = getHostRuntimeStore();
+      const unsubscribes = hosts.map((host) => store.subscribe(host.serverId, callback));
+      return () => unsubscribes.forEach((unsub) => unsub());
+    },
+    [hosts],
+  );
+
+  return useSyncExternalStore(
+    subscribe,
+    () => {
+      const store = getHostRuntimeStore();
+      const connected = hosts
+        .filter((host) => isHostRuntimeConnected(store.getSnapshot(host.serverId)))
+        .map((host) => ({ serverId: host.serverId, serverLabel: host.label }));
+
+      const previous = lastSnapshot.current;
+      if (
+        previous.length === connected.length &&
+        previous.every(
+          (host, index) =>
+            host.serverId === connected[index]?.serverId &&
+            host.serverLabel === connected[index]?.serverLabel,
+        )
+      ) {
+        return previous;
+      }
+
+      lastSnapshot.current = connected;
+      return connected;
+    },
+    () => [],
+  );
+}
+
 export function useAggregatedSchedules(): AggregatedSchedulesResult {
   const hosts = useHosts();
   const queryClient = useQueryClient();
 
-  const connectedHosts = useMemo(() => {
-    const store = getHostRuntimeStore();
-    return hosts.filter((host) => {
-      const snapshot = store.getSnapshot(host.serverId);
-      return isHostRuntimeConnected(snapshot);
-    });
-  }, [hosts]);
+  const connectedHosts = useConnectedHostsSnapshot(hosts);
+  const connectedHostIds = useMemo(
+    () => new Set(connectedHosts.map((host) => host.serverId)),
+    [connectedHosts],
+  );
+
+  const configuredHosts = useMemo(
+    () =>
+      hosts.map((host) => ({
+        serverId: host.serverId,
+        serverLabel: host.label,
+        isConnected: connectedHostIds.has(host.serverId),
+      })),
+    [hosts, connectedHostIds],
+  );
 
   const queries = useQueries({
-    queries: connectedHosts.map((host) => {
+    queries: hosts.map((host) => {
       const store = getHostRuntimeStore();
       const client = store.getClient(host.serverId);
       const snapshot = store.getSnapshot(host.serverId);
@@ -67,7 +118,7 @@ export function useAggregatedSchedules(): AggregatedSchedulesResult {
       const query = queries[i];
       if (!query) continue;
 
-      const host = connectedHosts[i];
+      const host = hosts[i];
       if (!host) continue;
 
       if (query.isLoading) {
@@ -112,7 +163,7 @@ export function useAggregatedSchedules(): AggregatedSchedulesResult {
       isRevalidating,
       error: anyError,
     };
-  }, [queries, connectedHosts]);
+  }, [queries, hosts]);
 
   const refreshAll = useCallback(() => {
     for (const host of connectedHosts) {
@@ -122,6 +173,8 @@ export function useAggregatedSchedules(): AggregatedSchedulesResult {
 
   return {
     ...result,
+    configuredHosts,
+    connectedHosts,
     refreshAll,
   };
 }

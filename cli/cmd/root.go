@@ -51,7 +51,7 @@ func errFprint(w io.Writer, a ...any) error {
 var rootCmd = &cobra.Command{
 	Use:           "solo",
 	Short:         "Solo CLI - manage AI coding agents from the command line",
-	Version:       "0.1.0",
+	Version:       "0.2.0",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }

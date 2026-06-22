@@ -41,6 +41,7 @@ export function ScheduleCreateModal({ visible, onClose, serverId }: ScheduleCrea
   const { createSchedule, isCreating } = useCreateSchedule({ serverId });
 
   const [name, setName] = useState("");
+  const [cwd, setCwd] = useState("");
   const [prompt, setPrompt] = useState("");
   const [cadenceType, setCadenceType] = useState<CadenceType>("cron");
   const [frequencyPreset, setFrequencyPreset] = useState<FrequencyPreset>("daily");
@@ -91,6 +92,7 @@ export function ScheduleCreateModal({ visible, onClose, serverId }: ScheduleCrea
 
   const handleClose = useCallback(() => {
     setName("");
+    setCwd("");
     setPrompt("");
     setCadenceType("cron");
     setFrequencyPreset("daily");
@@ -139,12 +141,13 @@ export function ScheduleCreateModal({ visible, onClose, serverId }: ScheduleCrea
         prompt: prompt.trim(),
         cadence,
         target,
+        cwd: cwd.trim() || null,
       });
       handleClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create schedule");
     }
-  }, [prompt, selectedAgentId, cadenceType, localCron, everyMs, name, timezone, createSchedule, handleClose]);
+  }, [prompt, selectedAgentId, cadenceType, localCron, everyMs, name, cwd, timezone, createSchedule, handleClose]);
 
   return (
     <AdaptiveModalSheet title="New Schedule" visible={visible} onClose={handleClose} scrollable={false}>
@@ -163,7 +166,21 @@ export function ScheduleCreateModal({ visible, onClose, serverId }: ScheduleCrea
             value={name}
             onChangeText={setName}
             placeholderTextColor={theme.colors.foregroundMuted}
+            testID="schedule-create-name-input"
           />
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Working Directory</Text>
+          <AdaptiveTextInput
+            style={styles.input}
+            placeholder="/path/to/project"
+            value={cwd}
+            onChangeText={setCwd}
+            placeholderTextColor={theme.colors.foregroundMuted}
+            testID="schedule-create-cwd-input"
+          />
+          <Text style={styles.helperText}>Used to group this schedule with a project</Text>
         </View>
 
         <View style={styles.field}>
@@ -176,6 +193,7 @@ export function ScheduleCreateModal({ visible, onClose, serverId }: ScheduleCrea
             multiline
             numberOfLines={3}
             placeholderTextColor={theme.colors.foregroundMuted}
+            testID="schedule-create-prompt-input"
           />
         </View>
 
@@ -252,6 +270,7 @@ export function ScheduleCreateModal({ visible, onClose, serverId }: ScheduleCrea
                   value={cronExpression}
                   onChangeText={setCronExpression}
                   placeholderTextColor={theme.colors.foregroundMuted}
+                  testID="schedule-create-cron-expression-input"
                 />
                 <Text style={styles.helperText}>
                   Standard cron (minute hour day month weekday)
@@ -302,6 +321,7 @@ export function ScheduleCreateModal({ visible, onClose, serverId }: ScheduleCrea
                 onChangeText={setEveryMs}
                 keyboardType="numeric"
                 placeholderTextColor={theme.colors.foregroundMuted}
+                testID="schedule-create-interval-input"
               />
               <Text style={styles.helperText}>
                 3600000 = 1 hour, 60000 = 1 minute
@@ -321,6 +341,7 @@ export function ScheduleCreateModal({ visible, onClose, serverId }: ScheduleCrea
               {agentOptions.map((agent) => (
                 <Pressable
                   key={agent.id}
+                  testID="schedule-create-agent-card"
                   style={[
                     styles.agentCard,
                     selectedAgentId === agent.id && styles.agentCardActive,
@@ -349,7 +370,11 @@ export function ScheduleCreateModal({ visible, onClose, serverId }: ScheduleCrea
           <Button variant="ghost" onPress={handleClose}>
             Cancel
           </Button>
-          <Button onPress={handleSubmit} disabled={isCreating}>
+          <Button
+            onPress={handleSubmit}
+            disabled={isCreating}
+            testID="schedule-create-submit-button"
+          >
             {isCreating ? "Creating..." : "Create Schedule"}
           </Button>
         </View>

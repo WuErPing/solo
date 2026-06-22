@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { router } from "expo-router";
+import { useIsFocused } from "@react-navigation/native";
 import {
   Activity,
   Calendar,
@@ -23,7 +24,6 @@ import { BackHeader } from "@/components/headers/back-header";
 import { Button } from "@/components/ui/button";
 import { useAggregatedSchedules } from "@/hooks/use-aggregated-schedules";
 import { useIsCompactFormFactor } from "@/constants/layout";
-import { useHosts, getHostRuntimeStore, isHostRuntimeConnected } from "@/runtime/host-runtime";
 import { buildHostSchedulesRoute } from "@/utils/host-routes";
 import type { AggregatedSchedule } from "@/hooks/use-aggregated-schedules";
 import type { ScheduleStatus } from "@server/server/schedule/types";
@@ -151,11 +151,24 @@ export function SchedulesDashboardScreen() {
   const { theme } = useUnistyles();
   const insets = useSafeAreaInsets();
   const isCompact = useIsCompactFormFactor();
-  const { schedules, isInitialLoad, isRevalidating, error, refreshAll } =
-    useAggregatedSchedules();
-  const hosts = useHosts();
+  const isFocused = useIsFocused();
+  const {
+    schedules,
+    configuredHosts,
+    connectedHosts,
+    isInitialLoad,
+    isRevalidating,
+    error,
+    refreshAll,
+  } = useAggregatedSchedules();
 
   const [selectedStatus, setSelectedStatus] = useState<ScheduleStatus | null>(null);
+
+  useEffect(() => {
+    if (isFocused) {
+      refreshAll();
+    }
+  }, [isFocused, refreshAll]);
 
   const groups = useMemo<StatusGroup[]>(() => {
     const activeCount = schedules.filter((s) => s.status === "active").length;
@@ -198,14 +211,6 @@ export function SchedulesDashboardScreen() {
   const handleRefresh = useCallback(() => {
     refreshAll();
   }, [refreshAll]);
-
-  const connectedHosts = useMemo(() => {
-    const store = getHostRuntimeStore();
-    return hosts.filter((host) => {
-      const snapshot = store.getSnapshot(host.serverId);
-      return isHostRuntimeConnected(snapshot);
-    });
-  }, [hosts]);
 
   const handleNewSchedule = useCallback(() => {
     const firstHost = connectedHosts[0];
@@ -297,14 +302,35 @@ export function SchedulesDashboardScreen() {
         ) : displayedSchedules.length === 0 ? (
           <View style={styles.emptyContainer}>
             <LayoutDashboard size={48} color={theme.colors.foregroundMuted} />
-            <Text style={styles.emptyTitle}>
-              {selectedStatus ? "No schedules in this category" : "No schedules yet"}
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              {selectedStatus
-                ? "Try selecting a different filter"
-                : "Connect to a host to see your schedules"}
-            </Text>
+            {configuredHosts.length === 0 ? (
+              <>
+                <Text style={styles.emptyTitle}>No hosts connected</Text>
+                <Text style={styles.emptySubtitle}>
+                  Connect to a host to see your schedules
+                </Text>
+              </>
+            ) : connectedHosts.length === 0 ? (
+              <>
+                <Text style={styles.emptyTitle}>Hosts are offline</Text>
+                <Text style={styles.emptySubtitle}>
+                  Connect to a host to see your schedules
+                </Text>
+              </>
+            ) : selectedStatus ? (
+              <>
+                <Text style={styles.emptyTitle}>No schedules in this category</Text>
+                <Text style={styles.emptySubtitle}>
+                  Try selecting a different filter
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.emptyTitle}>No schedules yet</Text>
+                <Text style={styles.emptySubtitle}>
+                  Create a schedule to get started
+                </Text>
+              </>
+            )}
           </View>
         ) : (
           <View style={isCompact ? styles.scheduleGridCompact : styles.scheduleGrid}>

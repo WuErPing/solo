@@ -524,6 +524,7 @@ export interface DeleteLoopOptions {
 export interface CreateScheduleOptions {
   prompt: string;
   name?: string | null;
+  cwd?: string | null;
   cadence:
     | {
         type: "every";
@@ -572,6 +573,7 @@ export interface UpdateScheduleOptions {
   id: string;
   prompt: string;
   name?: string | null;
+  cwd?: string | null;
   cadence:
     | {
         type: "every";
@@ -3586,6 +3588,7 @@ export class DaemonClient {
         cadence: options.cadence,
         target: options.target,
         ...(options.name ? { name: options.name } : {}),
+        ...(options.cwd !== undefined && options.cwd !== null ? { cwd: options.cwd } : {}),
         ...(typeof options.maxRuns === "number" ? { maxRuns: options.maxRuns } : {}),
         ...(options.expiresAt ? { expiresAt: options.expiresAt } : {}),
       },
@@ -3675,6 +3678,7 @@ export class DaemonClient {
         cadence: options.cadence,
         target: options.target,
         ...(options.name ? { name: options.name } : {}),
+        ...(options.cwd !== undefined && options.cwd !== null ? { cwd: options.cwd } : {}),
         ...(typeof options.maxRuns === "number" ? { maxRuns: options.maxRuns } : {}),
         ...(options.expiresAt ? { expiresAt: options.expiresAt } : {}),
       },

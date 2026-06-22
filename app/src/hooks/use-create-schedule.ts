@@ -9,6 +9,7 @@ export interface CreateScheduleInput {
   prompt: string;
   cadence: ScheduleCadence;
   target: ScheduleTarget;
+  cwd?: string | null;
   maxRuns?: number;
   expiresAt?: string;
 }
@@ -32,6 +33,7 @@ export function useCreateSchedule({ serverId }: { serverId: string }): CreateSch
         cadence: input.cadence,
         target: input.target as Parameters<typeof client.scheduleCreate>[0]["target"],
         ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.cwd !== undefined && input.cwd !== null ? { cwd: input.cwd } : {}),
         ...(typeof input.maxRuns === "number" ? { maxRuns: input.maxRuns } : {}),
         ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
       });

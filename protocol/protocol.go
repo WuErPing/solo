@@ -2,7 +2,7 @@ package protocol
 
 // Protocol constants matching the TypeScript implementation.
 const (
-	WSProtocolVersion int = 1
+	WSProtocolVersion int = 2
 
 	HelloTimeoutMs           = 15000
 	SessionDisconnectGraceMs = 90000

@@ -148,6 +148,7 @@ func toScheduleSummary(s *protocol.StoredSchedule) protocol.ScheduleSummary {
 		Prompt:    s.Prompt,
 		Cadence:   s.Cadence,
 		Target:    s.Target,
+		Cwd:       s.Cwd,
 		Status:    s.Status,
 		CreatedAt: s.CreatedAt,
 		UpdatedAt: s.UpdatedAt,

@@ -180,8 +180,8 @@ func TestProtocolVersionTypeConsistency(t *testing.T) {
 	msg := WSInboundMessage{
 		ProtocolVersion: WSProtocolVersion,
 	}
-	if msg.ProtocolVersion != 1 {
-		t.Errorf("WSProtocolVersion = %d, want 1", msg.ProtocolVersion)
+	if msg.ProtocolVersion != 2 {
+		t.Errorf("WSProtocolVersion = %d, want 2", msg.ProtocolVersion)
 	}
 
 	// RelayProtocolVersion must be a string

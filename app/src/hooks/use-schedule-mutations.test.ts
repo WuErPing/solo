@@ -15,6 +15,7 @@ const { mockClient } = vi.hoisted(() => {
     schedulePause: vi.fn(),
     scheduleResume: vi.fn(),
     scheduleDelete: vi.fn(),
+    scheduleUpdate: vi.fn(),
   };
   return { mockClient: hoistedClient };
 });
@@ -48,6 +49,7 @@ function makeScheduleSummary(overrides: Partial<ScheduleSummary> = {}): Schedule
     prompt: "Generate daily report",
     cadence: { type: "cron", expression: "0 9 * * *" },
     target: { type: "agent", agentId: "agent-1" },
+    cwd: null,
     status: "active",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
@@ -64,6 +66,7 @@ afterEach(() => {
   mockClient.schedulePause.mockReset();
   mockClient.scheduleResume.mockReset();
   mockClient.scheduleDelete.mockReset();
+  mockClient.scheduleUpdate.mockReset();
   useSessionStore.setState({ sessions: {}, agentLastActivity: new Map() });
 });
 
@@ -153,6 +156,35 @@ describe("useScheduleMutations", () => {
     const { result } = renderMutationsHook("server-1");
 
     await expect(result.current.deleteSchedule("schedule-1")).rejects.toThrow("not found");
+  });
+
+  it("updates a schedule with working directory", async () => {
+    mockClient.scheduleUpdate.mockResolvedValueOnce({
+      requestId: "req-1",
+      scheduleId: "schedule-1",
+      schedule: makeScheduleSummary({ cwd: "/workspace/project" }),
+      error: null,
+    });
+
+    const { result } = renderMutationsHook("server-1");
+
+    await act(async () => {
+      await result.current.updateSchedule({
+        scheduleId: "schedule-1",
+        prompt: "Updated prompt",
+        cadence: { type: "cron", expression: "0 9 * * *" },
+        target: { type: "agent", agentId: "agent-1" },
+        cwd: "/workspace/project",
+      });
+    });
+
+    expect(mockClient.scheduleUpdate).toHaveBeenCalledWith({
+      id: "schedule-1",
+      prompt: "Updated prompt",
+      cadence: { type: "cron", expression: "0 9 * * *" },
+      target: { type: "agent", agentId: "agent-1" },
+      cwd: "/workspace/project",
+    });
   });
 
   it("tracks pending mutation states", async () => {

@@ -14,70 +14,156 @@ Solo is an AI coding assistant platform that connects your local development env
 
 ### System Architecture
 
-![Solo System Architecture](docs/architecture/solo-system-architecture.png)
+![Solo System Architecture](docs/architecture/solo-system-architecture-detailed.png)
 
-> A higher-resolution SVG is available at [`docs/architecture/solo-system-architecture.svg`](docs/architecture/solo-system-architecture.svg).
+> Overview diagram: [PNG](docs/architecture/solo-system-architecture.png) | [SVG](docs/architecture/solo-system-architecture.svg).
+> Detailed diagram (above): [SVG](docs/architecture/solo-system-architecture-detailed.svg) | [PNG](docs/architecture/solo-system-architecture-detailed.png).
 
 <details>
 <summary>ASCII version (for text-only environments)</summary>
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        Client Layer                         │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
-│  │   Web App   │  │ Mobile App  │  │    CLI      │         │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘         │
-└─────────┼────────────────┼────────────────┼────────────────┘
-          └────────────────┴────────────────┘
-                         │
-                ┌────────▼────────┐
-                │   App-Bridge    │
-                └────────┬────────┘
-                         │
-┌────────────────────────▼────────────────────────────────────┐
-│                     Network Layer                           │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │              Nginx (optional)                        │   │
-│  └────────────────────────┬────────────────────────────┘   │
-│                           │                                  │
-│  ┌────────────────────────▼────────────────────────────┐   │
-│  │            Relay Server (signaling relay)            │   │
-│  └────────────────────────┬────────────────────────────┘   │
-└───────────────────────────┼──────────────────────────────────┘
-                            │
-┌───────────────────────────▼──────────────────────────────────┐
-│                      Service Layer                           │
-│                     Daemon (core service)                    │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │              WebSocket Server                        │   │
-│  │  ┌─────────────┐ ┌─────────────┐ ┌───────────────┐ │   │
-│  │  │   Session   │ │   Terminal  │ │   Workspace   │ │   │
-│  │  │   Manager   │ │   Manager   │ │    Manager    │ │   │
-│  │  └──────┬──────┘ └─────────────┘ └───────────────┘ │   │
-│  └─────────┼────────────────────────────────────────────┘   │
-│            │                                                  │
-│  ┌─────────▼────────────────────────────────────────────┐   │
-│  │              Agent Manager                           │   │
-│  │  ┌────────┐ ┌────────┐ ┌──────────┐ ┌─────┐        │   │
-│  │  │ Claude │ │  Kimi  │ │ OpenCode │ │  Pi │ Mock...│   │
-│  │  └────────┘ └────────┘ └──────────┘ └─────┘        │   │
-│  └─────────────────────────┬─────────────────────────────┘   │
-│                            │                                  │
-│  ┌─────────────────────────▼─────────────────────────────┐   │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌───────────────┐ │   │
-│  │  │Session Memory│ │Tmux Inspector│ │   Scheduler   │ │   │
-│  │  │(TurnRecorder │ │              │ │   (Cron)      │ │   │
-│  │  │ / Redaction) │ │              │ │               │ │   │
-│  │  └──────────────┘ └──────────────┘ └───────────────┘ │   │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌───────────────┐ │   │
-│  │  │Push Notifier │ │ Relay Client │ │ Loop Engine   │ │   │
-│  │  │              │ │              │ │ (Autonomous)  │ │   │
-│  │  └──────────────┘ └──────────────┘ └───────────────┘ │   │
-│  └───────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                              Client Layer                                │
+├──────────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐       │
+│  │     Web App      │  │   Mobile App     │  │       CLI        │       │
+│  │  (Expo Router)   │  │  (iOS / Android) │  │   (solo-cli)     │       │
+│  │                  │  │                  │  │                  │       │
+│  │  Screens:        │  │  Screens:        │  │  Commands:       │       │
+│  │  · Dashboard     │  │  · Dashboard     │  │  · agent ls/run  │       │
+│  │  · Agent Detail  │  │  · Agent Detail  │  │  · daemon start  │       │
+│  │  · Sessions      │  │  · Sessions      │  │  · loop ls/run   │       │
+│  │  · Schedules     │  │  · Schedules     │  │  · provider ls   │       │
+│  │  · Loops         │  │  · Loops         │  │  · onboard       │       │
+│  │  · Tmux Dash     │  │  · Tmux Dash     │  │                  │       │
+│  │  · Tmux Pane     │  │  · Tmux Pane     │  │                  │       │
+│  │  · Projects      │  │  · Projects      │  │                  │       │
+│  │  · Workspace     │  │  · Workspace     │  │                  │       │
+│  │  · Settings      │  │  · Settings      │  │                  │       │
+│  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘       │
+│           └──────────────────────┴──────────────────────┘                │
+│                                  │                                       │
+│                    ┌─────────────▼──────────────┐                        │
+│                    │        App-Bridge          │                        │
+│                    │  ┌──────────────────────┐  │                        │
+│                    │  │    DaemonClient      │  │                        │
+│                    │  │  · WebSocket trans.  │  │                        │
+│                    │  │  · Relay E2EE trans. │  │                        │
+│                    │  │  · Runtime metrics   │  │                        │
+│                    │  └──────────────────────┘  │                        │
+│                    │  ┌────────────┐ ┌────────┐ │                        │
+│                    │  │ Agent RPCs │ │ Tmux   │ │                        │
+│                    │  │ Schedule   │ │ RPCs   │ │                        │
+│                    │  │ Loop RPCs  │ │ Chat   │ │                        │
+│                    │  └────────────┘ └────────┘ │                        │
+│                    │  ┌──────────────────────┐  │                        │
+│                    │  │   Relay / E2EE       │  │                        │
+│                    │  │  · X25519 + XSalsa  │  │                        │
+│                    │  │  · EncryptedChannel  │  │                        │
+│                    │  └──────────────────────┘  │                        │
+│                    └─────────────┬──────────────┘                        │
+│                                  │                                       │
+┌──────────────────────────────────▼───────────────────────────────────────┐
+│                           Network Layer                                  │
+├──────────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────────────────────────────────────────────────────────┐   │
+│  │                      Nginx (optional)                            │   │
+│  │               TLS termination · reverse proxy                    │   │
+│  └───────────────────────────────┬──────────────────────────────────┘   │
+│                                  │                                       │
+│  ┌───────────────────────────────▼──────────────────────────────────┐   │
+│  │                    Relay Server (relay-go)                       │   │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐             │   │
+│  │  │    Control    │ │     Data     │ │    Session   │             │   │
+│  │  │   Channel     │ │   Channel    │ │   Manager    │             │   │
+│  │  └──────────────┘ └──────────────┘ └──────────────┘             │   │
+│  │  ┌──────────────┐ ┌──────────────┐                              │   │
+│  │  │    Crypto     │ │   Metrics    │                              │   │
+│  │  │ (X25519+XS)  │ │ (Prometheus) │                              │   │
+│  │  └──────────────┘ └──────────────┘                              │   │
+│  └───────────────────────────────┬──────────────────────────────────┘   │
+└──────────────────────────────────┼───────────────────────────────────────┘
+                                   │
+┌──────────────────────────────────▼───────────────────────────────────────┐
+│                            Service Layer                                 │
+│                       Daemon (daemon/internal)                           │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌─────────────────────── HTTP / WebSocket Server ────────────────────┐ │
+│  │  ┌────────────────────────────────────────────────────────────┐   │ │
+│  │  │  server/daemon.go — service orchestration, handler registry│   │ │
+│  │  └────────────────────────────────────────────────────────────┘   │ │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌────────────────────────┐   │ │
+│  │  │   session/   │ │  terminal/   │ │      workspace/        │   │ │
+│  │  │  · agent     │ │  · PTY mgmt  │ │  · ProjectRegistry     │   │ │
+│  │  │  · terminal  │ │  · resize    │ │  · WorkspaceRegistry   │   │ │
+│  │  │  · tmux      │ │              │ │  · GitService          │   │ │
+│  │  │  · schedule  │ │              │ │  · ScriptManager       │   │ │
+│  │  │  · loop      │ │              │ │  · FileExplorer        │   │ │
+│  │  │  · workspace │ │              │ │  · ScriptProxy         │   │ │
+│  │  │  · send      │ │              │ │                        │   │ │
+│  │  │  · multi-    │ │              │ │                        │   │ │
+│  │  │    socket    │ │              │ │                        │   │ │
+│  │  └──────────────┘ └──────────────┘ └────────────────────────┘   │ │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐             │ │
+│  │  │  attention/  │ │  sendqueue/  │ │  activity/   │             │ │
+│  │  │  policy +   │ │  async msg   │ │  tracker     │             │ │
+│  │  │  broadcast  │ │  buffering   │ │  heartbeat   │             │ │
+│  │  └──────────────┘ └──────────────┘ └──────────────┘             │ │
+│  └──────────────────────────────────────────────────────────────────┘ │
+│                                                                       │
+│  ┌──────────────────── agent/ (Agent Manager) ──────────────────────┐ │
+│  │  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌──────┐ ┌──────────┐   │ │
+│  │  │ Claude  │ │  Kimi   │ │ OpenCode │ │  Pi  │ │  Codex   │   │ │
+│  │  │ (print/ │ │ (Wire/  │ │  (SSE)   │ │(JSON │ │(auto/    │   │ │
+│  │  │ stream) │ │ JSONRPC)│ │          │ │stdio)│ │full-acc) │   │ │
+│  │  └─────────┘ └─────────┘ └──────────┘ └──────┘ └──────────┘   │ │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │ │
+│  │  │  ProviderReg │ │  AgentStore  │ │  TurnGuard   │            │ │
+│  │  │  discovery   │ │  persistence │ │  dedup guard │            │ │
+│  │  └──────────────┘ └──────────────┘ └──────────────┘            │ │
+│  │  ┌──────────────┐ ┌──────────────┐                             │ │
+│  │  │ StallMonitor │ │ CustomModels │                             │ │
+│  │  │ stuck detect │ │ user-defined │                             │ │
+│  │  └──────────────┘ └──────────────┘                             │ │
+│  └─────────────────────────────────────────────────────────────────┘ │
+│                                                                       │
+│  ┌────────────────── loop/ (Loop Engine) ───────────────────────────┐ │
+│  │  ┌──────────────┐ ┌──────────────┐                              │ │
+│  │  │   Engine     │ │    Store     │                              │ │
+│  │  │  iteration   │ │  persistence │                              │ │
+│  │  └──────────────┘ └──────────────┘                              │ │
+│  └──────────────────────────────────────────────────────────────────┘ │
+│                                                                       │
+│  ┌────────────────── schedule/ (Schedule Engine) ───────────────────┐ │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │ │
+│  │  │    Store     │ │   Executor   │ │    Runner    │            │ │
+│  │  │  cron state  │ │  agent exec  │ │  cron loop   │            │ │
+│  │  └──────────────┘ └──────────────┘ └──────────────┘            │ │
+│  └──────────────────────────────────────────────────────────────────┘ │
+│                                                                       │
+│  ┌─────────────── Supporting Services ──────────────────────────────┐ │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │ │
+│  │  │   memory/    │ │    push/     │ │ relayclient/ │            │ │
+│  │  │ TurnRecorder │ │  FCM / APNs  │ │  · Control   │            │ │
+│  │  │ filebackend  │ │  web push    │ │  · Data conn │            │ │
+│  │  │ redact/      │ │              │ │  · E2EE      │            │ │
+│  │  │ bridge/      │ │              │ │  · Keepalive │            │ │
+│  │  │ SafeBridge   │ │              │ │  · Reconnect │            │ │
+│  │  └──────────────┘ └──────────────┘ └──────────────┘            │ │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │ │
+│  │  │  metrics/    │ │   config/    │ │   pidlock/   │            │ │
+│  │  │  Prometheus  │ │ MemoryConfig │ │  single inst │            │ │
+│  │  │  /metrics    │ │ CustomModels │ │  guard       │            │ │
+│  │  └──────────────┘ └──────────────┘ └──────────────┘            │ │
+│  │  ┌──────────────┐ ┌──────────────┐                              │ │
+│  │  │  wsconn/     │ │ memorysetup/ │                              │ │
+│  │  │  WS conn     │ │  wiring +    │                              │ │
+│  │  │  abstract.   │ │  assembly    │                              │ │
+│  │  └──────────────┘ └──────────────┘                              │ │
+│  └──────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 </details>
@@ -92,6 +178,9 @@ Solo is an AI coding assistant platform that connects your local development env
 | **Relay** | [`relay-go/`](relay-go/) | Go | Connection relay for remote/mobile access |
 | **CLI** | [`cli/`](cli/) | Go | Command-line tool for session and agent management |
 | **Protocol** | [`protocol/`](protocol/) | Go | Shared protocol definitions |
+| **Highlight** | [`packages/highlight/`](packages/highlight/) | TypeScript | Syntax highlighting library |
+| **Tmux Subsystem** | `daemon/internal/server/session_tmux.go` | Go | Tmux agent detection, pane capture, key injection |
+| **SVG Preview** | `app/src/components/svg-preview*.tsx` | TypeScript | SVG file preview (WebView for mobile, native for web) |
 
 ---
 

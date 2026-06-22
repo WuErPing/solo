@@ -51,6 +51,7 @@ describe("useCreateSchedule", () => {
         prompt: "Generate report",
         cadence: { type: "cron", expression: "0 9 * * *" },
         target: { type: "agent", agentId: "agent-1" },
+        cwd: null,
         status: "active",
         createdAt: "2026-01-01T00:00:00.000Z",
         updatedAt: "2026-01-01T00:00:00.000Z",
@@ -83,6 +84,49 @@ describe("useCreateSchedule", () => {
     });
   });
 
+  it("forwards working directory to the daemon client", async () => {
+    mockClient.scheduleCreate.mockResolvedValueOnce({
+      requestId: "req-1",
+      schedule: {
+        id: "schedule-new",
+        name: "Daily Report",
+        prompt: "Generate report",
+        cadence: { type: "cron", expression: "0 9 * * *" },
+        target: { type: "agent", agentId: "agent-1" },
+        cwd: "/workspace/project",
+        status: "active",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        nextRunAt: "2026-01-02T09:00:00.000Z",
+        lastRunAt: null,
+        pausedAt: null,
+        expiresAt: null,
+        maxRuns: null,
+      },
+      error: null,
+    });
+
+    const { result } = renderCreateScheduleHook("server-1");
+
+    await act(async () => {
+      await result.current.createSchedule({
+        name: "Daily Report",
+        prompt: "Generate report",
+        cadence: { type: "cron", expression: "0 9 * * *" },
+        target: { type: "agent", agentId: "agent-1" },
+        cwd: "/workspace/project",
+      });
+    });
+
+    expect(mockClient.scheduleCreate).toHaveBeenCalledWith({
+      prompt: "Generate report",
+      name: "Daily Report",
+      cadence: { type: "cron", expression: "0 9 * * *" },
+      target: { type: "agent", agentId: "agent-1" },
+      cwd: "/workspace/project",
+    });
+  });
+
   it("creates a schedule with every cadence", async () => {
     mockClient.scheduleCreate.mockResolvedValueOnce({
       requestId: "req-1",
@@ -92,6 +136,7 @@ describe("useCreateSchedule", () => {
         prompt: "Ping",
         cadence: { type: "every", everyMs: 60000 },
         target: { type: "agent", agentId: "agent-1" },
+        cwd: null,
         status: "active",
         createdAt: "2026-01-01T00:00:00.000Z",
         updatedAt: "2026-01-01T00:00:00.000Z",
@@ -137,11 +182,11 @@ describe("useCreateSchedule", () => {
   it("tracks pending state during creation", async () => {
     let resolveCreate: (value: {
       requestId: string;
-      schedule: { id: string; name: string | null; prompt: string; cadence: { type: "cron"; expression: string }; target: { type: "agent"; agentId: string }; status: string; createdAt: string; updatedAt: string; nextRunAt: string | null; lastRunAt: string | null; pausedAt: string | null; expiresAt: string | null; maxRuns: number | null }; error: string | null;
+      schedule: { id: string; name: string | null; prompt: string; cadence: { type: "cron"; expression: string }; target: { type: "agent"; agentId: string }; cwd: string | null; status: string; createdAt: string; updatedAt: string; nextRunAt: string | null; lastRunAt: string | null; pausedAt: string | null; expiresAt: string | null; maxRuns: number | null }; error: string | null;
     }) => void;
     const createPromise = new Promise<{
       requestId: string;
-      schedule: { id: string; name: string | null; prompt: string; cadence: { type: "cron"; expression: string }; target: { type: "agent"; agentId: string }; status: string; createdAt: string; updatedAt: string; nextRunAt: string | null; lastRunAt: string | null; pausedAt: string | null; expiresAt: string | null; maxRuns: number | null };
+      schedule: { id: string; name: string | null; prompt: string; cadence: { type: "cron"; expression: string }; target: { type: "agent"; agentId: string }; cwd: string | null; status: string; createdAt: string; updatedAt: string; nextRunAt: string | null; lastRunAt: string | null; pausedAt: string | null; expiresAt: string | null; maxRuns: number | null };
       error: string | null;
     }>((resolve) => {
       resolveCreate = resolve;
@@ -170,6 +215,7 @@ describe("useCreateSchedule", () => {
         prompt: "Test",
         cadence: { type: "cron", expression: "0 9 * * *" },
         target: { type: "agent", agentId: "agent-1" },
+        cwd: null,
         status: "active",
         createdAt: "2026-01-01T00:00:00.000Z",
         updatedAt: "2026-01-01T00:00:00.000Z",

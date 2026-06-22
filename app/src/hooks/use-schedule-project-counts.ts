@@ -26,10 +26,15 @@ export function buildScheduleCwdItems(
 ): CwdItem[] {
   const items: CwdItem[] = [];
   for (const schedule of schedules) {
+    const cwd = schedule.cwd?.trim();
+    if (cwd) {
+      items.push({ cwd, serverId: schedule.serverId });
+      continue;
+    }
     if (schedule.target.type !== "new-agent") continue;
-    const cwd = schedule.target.config.cwd?.trim();
-    if (!cwd) continue;
-    items.push({ cwd, serverId: schedule.serverId });
+    const configCwd = schedule.target.config.cwd?.trim();
+    if (!configCwd) continue;
+    items.push({ cwd: configCwd, serverId: schedule.serverId });
   }
   return items;
 }

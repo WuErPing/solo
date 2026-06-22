@@ -22,6 +22,8 @@ docs/
 │   ├── session-memory-persistence.md      # Session turn recording & memory layer design
 │   ├── solo-system-architecture.png       # System architecture diagram (PNG)
 │   ├── solo-system-architecture.svg       # System architecture diagram (SVG)
+│   ├── solo-system-architecture-detailed.png  # Detailed architecture diagram (PNG)
+│   ├── solo-system-architecture-detailed.svg  # Detailed architecture diagram (SVG)
 │   ├── timeline-design.md                 # Head/Tail model, seq gate, deduplication
 │   └── tmux-pane-content-loading.md       # Tmux agent detection, pane capture, polling, key injection
 ├── product/                               ← Product feature analysis
@@ -83,6 +85,7 @@ System design, component contracts, and runtime behaviour.
 | [Deployment](architecture/deployment.md) | Runbook | Infra / CI | Systemd, Docker, Nginx config, env vars, monitoring, troubleshooting |
 | [Tmux Pane Content Loading](architecture/tmux-pane-content-loading.md) | Design | Dev | Tmux agent detection, pane capture with ANSI rendering, lazy history loading, keystroke injection, terminal themes |
 | [System Architecture Diagram](architecture/solo-system-architecture.svg) | Diagram | All | Visual system architecture (SVG) — [PNG version](architecture/solo-system-architecture.png) |
+| [Detailed Architecture Diagram](architecture/solo-system-architecture-detailed.svg) | Diagram | All | Detailed component view (SVG) — [PNG version](architecture/solo-system-architecture-detailed.png) |
 
 **Key facts (always-on context)**:
 - Daemon listens `127.0.0.1:17612`; Relay listens `127.0.0.1:8081` (behind Nginx :443)

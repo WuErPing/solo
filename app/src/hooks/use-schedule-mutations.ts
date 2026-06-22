@@ -12,6 +12,7 @@ export interface UpdateScheduleInput {
   scheduleId: string;
   prompt: string;
   name?: string | null;
+  cwd?: string | null;
   cadence: ScheduleCadence;
   target: ScheduleTarget;
 }
@@ -96,6 +97,7 @@ export function useScheduleMutations({ serverId }: ScheduleMutationsInput): Sche
         cadence: input.cadence,
         target: input.target as Parameters<typeof client.scheduleUpdate>[0]["target"],
         ...(input.name ? { name: input.name } : {}),
+        ...(input.cwd !== undefined && input.cwd !== null ? { cwd: input.cwd } : {}),
       });
       if (payload.error) {
         throw new Error(payload.error);
