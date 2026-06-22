@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useQueries, useQueryClient } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 import type { LoopListItem } from "@server/server/loop/rpc-schemas";
 import type { SidebarProjectEntry } from "./use-sidebar-workspaces-list";
 import {
@@ -15,7 +15,6 @@ import {
 import {
   buildProjectPathSources,
 } from "./use-tmux-project-counts";
-import type { ProjectPathSource } from "@/utils/tmux-project-matcher";
 
 export interface AggregatedLoop extends LoopListItem {
   serverId: string;
@@ -30,7 +29,6 @@ export function useLoopProjectCounts(
   serverId: string | null,
 ): Map<string, number> {
   const hosts = useHosts();
-  const queryClient = useQueryClient();
 
   const connectedHosts = useMemo(() => {
     const store = getHostRuntimeStore();

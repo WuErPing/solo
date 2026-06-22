@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useQueries, useQueryClient } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 import type { ScheduleSummary } from "@server/server/schedule/types";
 import type { SidebarProjectEntry } from "./use-sidebar-workspaces-list";
 import {
@@ -39,7 +39,6 @@ export function useScheduleProjectCounts(
   serverId: string | null,
 ): Map<string, number> {
   const hosts = useHosts();
-  const queryClient = useQueryClient();
 
   const connectedHosts = useMemo(() => {
     const store = getHostRuntimeStore();

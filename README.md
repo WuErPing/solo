@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="app/assets/images/solo-logo.png" alt="Solo Logo" width="120" />
+</p>
+
 # Solo
 
 📄 [中文版本](README.zh-CN.md)

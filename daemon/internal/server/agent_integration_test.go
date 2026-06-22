@@ -190,6 +190,7 @@ func TestCreateAgentPropagatesClientMessageID(t *testing.T) {
 	defer conn.Close()
 	readInitialMessages(t, conn)
 
+	cwd := filepath.Join(t.TempDir(), "test-project")
 	createReq := protocol.WSInboundMessage{
 		Type: "session",
 		Message: mustMarshal(map[string]interface{}{
@@ -199,7 +200,7 @@ func TestCreateAgentPropagatesClientMessageID(t *testing.T) {
 			"clientMessageId": "msg-test-123",
 			"config": map[string]interface{}{
 				"provider": "mock",
-				"cwd":      "/tmp/test-project",
+				"cwd":      cwd,
 			},
 			"labels": map[string]string{},
 		}),
@@ -209,6 +210,7 @@ func TestCreateAgentPropagatesClientMessageID(t *testing.T) {
 	}
 
 	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	var agentID string
 	var foundUserMessage, foundTurnCompleted bool
 	for !foundUserMessage || !foundTurnCompleted {
 		_, msg, err := conn.ReadMessage()
@@ -220,6 +222,18 @@ func TestCreateAgentPropagatesClientMessageID(t *testing.T) {
 			continue
 		}
 		msgBytes, _ := json.Marshal(resp.Message)
+		if agentID == "" {
+			var created struct {
+				Type    string `json:"type"`
+				Payload struct {
+					AgentID string `json:"agentId"`
+				} `json:"payload"`
+			}
+			if json.Unmarshal(msgBytes, &created) == nil && created.Type == "agent_created" {
+				agentID = created.Payload.AgentID
+				defer deleteAgentForTest(t, conn, agentID)
+			}
+		}
 		var peek struct {
 			Type    string `json:"type"`
 			Payload struct {
@@ -258,6 +272,7 @@ func TestCreateAgentNoDuplicateStreamEvents(t *testing.T) {
 	defer conn.Close()
 	readInitialMessages(t, conn)
 
+	cwd := filepath.Join(t.TempDir(), "test-project")
 	createReq := protocol.WSInboundMessage{
 		Type: "session",
 		Message: mustMarshal(map[string]interface{}{
@@ -267,7 +282,7 @@ func TestCreateAgentNoDuplicateStreamEvents(t *testing.T) {
 			"clientMessageId": "msg-no-dup-001",
 			"config": map[string]interface{}{
 				"provider": "mock",
-				"cwd":      "/tmp/test-project",
+				"cwd":      cwd,
 			},
 			"labels": map[string]string{},
 		}),
@@ -277,6 +292,7 @@ func TestCreateAgentNoDuplicateStreamEvents(t *testing.T) {
 	}
 
 	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	var agentID string
 	var userMsgCount, assistantMsgCount, turnCompletedCount int
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
@@ -289,6 +305,18 @@ func TestCreateAgentNoDuplicateStreamEvents(t *testing.T) {
 			continue
 		}
 		msgBytes, _ := json.Marshal(resp.Message)
+		if agentID == "" {
+			var created struct {
+				Type    string `json:"type"`
+				Payload struct {
+					AgentID string `json:"agentId"`
+				} `json:"payload"`
+			}
+			if json.Unmarshal(msgBytes, &created) == nil && created.Type == "agent_created" {
+				agentID = created.Payload.AgentID
+				defer deleteAgentForTest(t, conn, agentID)
+			}
+		}
 		var peek struct {
 			Type    string `json:"type"`
 			Payload struct {
