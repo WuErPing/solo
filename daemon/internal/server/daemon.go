@@ -16,6 +16,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
+	"github.com/WuErPing/solo/daemon/internal/agent/providers/claude"
+	"github.com/WuErPing/solo/daemon/internal/agent/providers/kimi"
+	"github.com/WuErPing/solo/daemon/internal/agent/providers/codex"
+	"github.com/WuErPing/solo/daemon/internal/agent/providers/opencode"
+	"github.com/WuErPing/solo/daemon/internal/agent/providers/pi"
 	"github.com/WuErPing/solo/daemon/internal/config"
 	"github.com/WuErPing/solo/daemon/internal/loop"
 	daemonmetrics "github.com/WuErPing/solo/daemon/internal/metrics"
@@ -73,11 +78,11 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 
 	// Initialize provider registry
 	registry := agent.NewProviderRegistry()
-	registry.Register(agent.NewClaudeAgentClient("", logger))
-	registry.Register(agent.NewOpenCodeAgentClient("", logger))
-	registry.Register(agent.NewKimiAgentClient("", logger))
-	registry.Register(agent.NewPiAgentClient("", logger))
-	registry.Register(agent.NewCodexAgentClient("", logger))
+	registry.Register(claude.NewClient("", logger))
+	registry.Register(opencode.NewClient("", logger))
+	registry.Register(kimi.NewClient("", logger))
+	registry.Register(pi.NewClient("", logger))
+	registry.Register(codex.NewClient("", logger))
 	if os.Getenv("SOLO_ENABLE_MOCK_PROVIDER") == "1" {
 		registry.Register(agent.NewMockAgentClient())
 	}
@@ -330,7 +335,7 @@ func (d *Daemon) Stop(ctx context.Context) error {
 	d.terminalMgr.KillAll()
 	d.ws.Close()
 	// Shutdown OpenCode server manager (terminates background server processes)
-	agent.ShutdownOpenCodeServerManager()
+	opencode.ShutdownOpenCodeServerManager()
 	// Drain session-memory: flush any in-flight streaming chunks first,
 	// then drain the recorder's queue. Both are best-effort.
 	if d.memoryBridge != nil {
@@ -381,7 +386,7 @@ func (d *Daemon) prewarmOpenCodeServer() {
 	if err != nil {
 		return
 	}
-	opencodeClient, ok := client.(*agent.OpenCodeAgentClient)
+	opencodeClient, ok := client.(*opencode.Client)
 	if !ok {
 		return
 	}

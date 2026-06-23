@@ -1,4 +1,5 @@
-package agent
+// Package contracttest provides shared contract test helpers for agent providers.
+package contracttest
 
 import (
 	"context"
@@ -6,16 +7,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/protocol"
 )
 
-// -----------------------------------------------------------------------
-// Contract test helpers
-// -----------------------------------------------------------------------
+const (
+	ContractTestMessageID = "msg-contract-test-001"
+	ContractTestPrompt    = "Reply with exactly one word: hello"
+)
 
-func drainEventsUntilTerminal(t *testing.T, ch <-chan AgentStreamEvent, timeout time.Duration) []AgentStreamEvent {
+func DrainEventsUntilTerminal(t *testing.T, ch <-chan agent.AgentStreamEvent, timeout time.Duration) []agent.AgentStreamEvent {
 	t.Helper()
-	var events []AgentStreamEvent
+	var events []agent.AgentStreamEvent
 	deadline := time.After(timeout)
 	for {
 		select {
@@ -24,17 +27,17 @@ func drainEventsUntilTerminal(t *testing.T, ch <-chan AgentStreamEvent, timeout 
 				return events
 			}
 			events = append(events, evt)
-			if isTerminalStreamEvent(evt) {
+			if IsTerminalStreamEvent(evt) {
 				return events
 			}
 		case <-deadline:
 			t.Fatalf("timed out after %v waiting for terminal event; received %d events: %v",
-				timeout, len(events), eventTypesList(events))
+				timeout, len(events), EventTypesList(events))
 		}
 	}
 }
 
-func isTerminalStreamEvent(evt AgentStreamEvent) bool {
+func IsTerminalStreamEvent(evt agent.AgentStreamEvent) bool {
 	switch evt.Event.(type) {
 	case protocol.TurnCompletedStreamEvent,
 		protocol.TurnFailedStreamEvent,
@@ -44,7 +47,7 @@ func isTerminalStreamEvent(evt AgentStreamEvent) bool {
 	return false
 }
 
-func findUserMessageEvent(events []AgentStreamEvent) (protocol.TimelineStreamEvent, bool) {
+func FindUserMessageEvent(events []agent.AgentStreamEvent) (protocol.TimelineStreamEvent, bool) {
 	for _, evt := range events {
 		if e, ok := evt.Event.(protocol.TimelineStreamEvent); ok {
 			if e.Item.Type == "user_message" {
@@ -55,7 +58,7 @@ func findUserMessageEvent(events []AgentStreamEvent) (protocol.TimelineStreamEve
 	return protocol.TimelineStreamEvent{}, false
 }
 
-func findThreadStartedIndex(events []AgentStreamEvent) int {
+func FindThreadStartedIndex(events []agent.AgentStreamEvent) int {
 	for i, evt := range events {
 		switch evt.Event.(type) {
 		case protocol.ThreadStartedStreamEvent:
@@ -65,7 +68,7 @@ func findThreadStartedIndex(events []AgentStreamEvent) int {
 	return -1
 }
 
-func findUserMessageIndex(events []AgentStreamEvent) int {
+func FindUserMessageIndex(events []agent.AgentStreamEvent) int {
 	for i, evt := range events {
 		if e, ok := evt.Event.(protocol.TimelineStreamEvent); ok {
 			if e.Item.Type == "user_message" {
@@ -76,19 +79,19 @@ func findUserMessageIndex(events []AgentStreamEvent) int {
 	return -1
 }
 
-func findTerminalIndex(events []AgentStreamEvent) int {
+func FindTerminalIndex(events []agent.AgentStreamEvent) int {
 	for i, evt := range events {
-		if isTerminalStreamEvent(evt) {
+		if IsTerminalStreamEvent(evt) {
 			return i
 		}
 	}
 	return -1
 }
 
-func eventTypesList(events []AgentStreamEvent) []string {
+func EventTypesList(events []agent.AgentStreamEvent) []string {
 	types := make([]string, len(events))
 	for i, evt := range events {
-		s := streamEventTypeString(evt)
+		s := streamEventTypeString(evt.Event)
 		if s == "" {
 			s = fmt.Sprintf("%T", evt.Event)
 		}
@@ -97,7 +100,7 @@ func eventTypesList(events []AgentStreamEvent) []string {
 	return types
 }
 
-func timelineItemTypes(events []AgentStreamEvent) []string {
+func TimelineItemTypes(events []agent.AgentStreamEvent) []string {
 	var types []string
 	for _, evt := range events {
 		if e, ok := evt.Event.(protocol.TimelineStreamEvent); ok {
@@ -107,12 +110,17 @@ func timelineItemTypes(events []AgentStreamEvent) []string {
 	return types
 }
 
-// -----------------------------------------------------------------------
-// Contract suite
-// -----------------------------------------------------------------------
-
-const contractTestMessageID = "msg-contract-test-001"
-const contractTestPrompt = "Reply with exactly one word: hello"
+func streamEventTypeString(event interface{}) string {
+	switch e := event.(type) {
+	case protocol.StreamEvent:
+		return e.StreamEventType()
+	case map[string]interface{}:
+		if t, ok := e["type"].(string); ok {
+			return t
+		}
+	}
+	return ""
+}
 
 // RunProviderContractSuite verifies that a provider follows the turn lifecycle
 // contract:
@@ -124,7 +132,7 @@ const contractTestPrompt = "Reply with exactly one word: hello"
 func RunProviderContractSuite(
 	t *testing.T,
 	providerName string,
-	client AgentClient,
+	client agent.AgentClient,
 ) {
 	t.Helper()
 
@@ -146,23 +154,23 @@ func RunProviderContractSuite(
 		if err != nil {
 			t.Skipf("CreateSession failed: %v", err)
 		}
-		defer session.Close()
+		defer func() { _ = session.Close() }()
 
 		ch := session.Subscribe()
 		go func() {
-			_, _ = session.Run(ctx, contractTestPrompt, nil, nil, contractTestMessageID)
+			_, _ = session.Run(ctx, ContractTestPrompt, nil, nil, ContractTestMessageID)
 		}()
 
-		events := drainEventsUntilTerminal(t, ch, 2*time.Minute)
+		events := DrainEventsUntilTerminal(t, ch, 2*time.Minute)
 
-		userMsg, found := findUserMessageEvent(events)
+		userMsg, found := FindUserMessageEvent(events)
 		if !found {
 			t.Fatalf("no user_message event in %d events: %v\nitem types: %v",
-				len(events), eventTypesList(events), timelineItemTypes(events))
+				len(events), EventTypesList(events), TimelineItemTypes(events))
 		}
-		if userMsg.Item.MessageID != contractTestMessageID {
+		if userMsg.Item.MessageID != ContractTestMessageID {
 			t.Errorf("user_message MessageID: got %q, want %q",
-				userMsg.Item.MessageID, contractTestMessageID)
+				userMsg.Item.MessageID, ContractTestMessageID)
 		}
 	})
 
@@ -171,18 +179,18 @@ func RunProviderContractSuite(
 		if err != nil {
 			t.Skipf("CreateSession failed: %v", err)
 		}
-		defer session.Close()
+		defer func() { _ = session.Close() }()
 
 		ch := session.Subscribe()
 		go func() {
-			_, _ = session.Run(ctx, contractTestPrompt, nil, nil, contractTestMessageID)
+			_, _ = session.Run(ctx, ContractTestPrompt, nil, nil, ContractTestMessageID)
 		}()
 
-		events := drainEventsUntilTerminal(t, ch, 2*time.Minute)
+		events := DrainEventsUntilTerminal(t, ch, 2*time.Minute)
 
-		terminalIdx := findTerminalIndex(events)
+		terminalIdx := FindTerminalIndex(events)
 		if terminalIdx < 0 {
-			t.Fatalf("no terminal event in %d events: %v", len(events), eventTypesList(events))
+			t.Fatalf("no terminal event in %d events: %v", len(events), EventTypesList(events))
 		}
 		switch evt := events[terminalIdx].Event.(type) {
 		case protocol.TurnCompletedStreamEvent:
@@ -201,27 +209,27 @@ func RunProviderContractSuite(
 		if err != nil {
 			t.Skipf("CreateSession failed: %v", err)
 		}
-		defer session.Close()
+		defer func() { _ = session.Close() }()
 
 		ch := session.Subscribe()
 		go func() {
-			_, _ = session.Run(ctx, contractTestPrompt, nil, nil, contractTestMessageID)
+			_, _ = session.Run(ctx, ContractTestPrompt, nil, nil, ContractTestMessageID)
 		}()
 
-		events := drainEventsUntilTerminal(t, ch, 2*time.Minute)
+		events := DrainEventsUntilTerminal(t, ch, 2*time.Minute)
 
-		threadIdx := findThreadStartedIndex(events)
-		userIdx := findUserMessageIndex(events)
-		terminalIdx := findTerminalIndex(events)
+		threadIdx := FindThreadStartedIndex(events)
+		userIdx := FindUserMessageIndex(events)
+		terminalIdx := FindTerminalIndex(events)
 
 		if threadIdx < 0 {
-			t.Errorf("no ThreadStartedStreamEvent in events: %v", eventTypesList(events))
+			t.Errorf("no ThreadStartedStreamEvent in events: %v", EventTypesList(events))
 		}
 		if userIdx < 0 {
-			t.Errorf("no user_message event in events: %v", eventTypesList(events))
+			t.Errorf("no user_message event in events: %v", EventTypesList(events))
 		}
 		if terminalIdx < 0 {
-			t.Errorf("no terminal event in events: %v", eventTypesList(events))
+			t.Errorf("no terminal event in events: %v", EventTypesList(events))
 		}
 
 		if threadIdx >= 0 && userIdx >= 0 && threadIdx > userIdx {
@@ -231,13 +239,4 @@ func RunProviderContractSuite(
 			t.Errorf("user_message (idx %d) must come before terminal event (idx %d)", userIdx, terminalIdx)
 		}
 	})
-}
-
-// -----------------------------------------------------------------------
-// Per-provider contract tests
-// -----------------------------------------------------------------------
-
-func TestMockProviderContract(t *testing.T) {
-	client := NewMockAgentClient()
-	RunProviderContractSuite(t, "mock", client)
 }

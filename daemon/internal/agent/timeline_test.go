@@ -8,6 +8,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
+	"github.com/WuErPing/solo/daemon/internal/agent/base"
 	"github.com/WuErPing/solo/daemon/internal/config"
 	daemonmetrics "github.com/WuErPing/solo/daemon/internal/metrics"
 	"github.com/WuErPing/solo/protocol"
@@ -186,7 +187,7 @@ func TestTimelineItemToProtocolMapIncludesRequiredDetailFields(t *testing.T) {
 		CallID: "call-1",
 		Name:   "bash",
 		Status: "running",
-		Detail: deriveShellDetail(nil, nil),
+		Detail: base.DeriveToolCallDetail("shell", nil, nil),
 	}
 
 	m := item.ToProtocolMap()
