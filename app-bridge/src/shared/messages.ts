@@ -93,6 +93,26 @@ export {
   type SoloScriptEntryRaw,
   type ProjectConfigRpcError,
 };
+import {
+  WorkspaceDescriptorSchema,
+  WorkspaceScriptSchema,
+  WorkspaceGitRuntimeSchema,
+  WorkspaceGitHubRuntimeSchema,
+  type WorkspaceDescriptor,
+  type WorkspaceScript,
+  type WorkspaceGitRuntime,
+  type WorkspaceGitHubRuntime,
+} from "../generated/protocol-schemas.js";
+export {
+  WorkspaceDescriptorSchema,
+  WorkspaceScriptSchema,
+  WorkspaceGitRuntimeSchema,
+  WorkspaceGitHubRuntimeSchema,
+  type WorkspaceDescriptor,
+  type WorkspaceScript,
+  type WorkspaceGitRuntime,
+  type WorkspaceGitHubRuntime,
+};
 // ---------------------------------------------------------------------------
 // Mutable daemon config schemas (shared between server store and client)
 // ---------------------------------------------------------------------------
@@ -3294,6 +3314,131 @@ export const TerminalStreamExitSchema = z.object({
   }),
 });
 
+export type SessionOutboundMessage =
+  | z.infer<typeof ActivityLogMessageSchema>
+  | z.infer<typeof AssistantChunkMessageSchema>
+  | z.infer<typeof AudioOutputMessageSchema>
+  | z.infer<typeof TranscriptionResultMessageSchema>
+  | z.infer<typeof VoiceInputStateMessageSchema>
+  | z.infer<typeof DictationStreamAckMessageSchema>
+  | z.infer<typeof DictationStreamFinishAcceptedMessageSchema>
+  | z.infer<typeof DictationStreamPartialMessageSchema>
+  | z.infer<typeof DictationStreamFinalMessageSchema>
+  | z.infer<typeof DictationStreamErrorMessageSchema>
+  | z.infer<typeof StatusMessageSchema>
+  | z.infer<typeof PongMessageSchema>
+  | z.infer<typeof RpcErrorMessageSchema>
+  | z.infer<typeof ArtifactMessageSchema>
+  | z.infer<typeof AgentUpdateMessageSchema>
+  | z.infer<typeof WorkspaceUpdateMessageSchema>
+  | z.infer<typeof ScriptStatusUpdateMessageSchema>
+  | z.infer<typeof WorkspaceSetupProgressMessageSchema>
+  | z.infer<typeof WorkspaceSetupStatusResponseMessageSchema>
+  | z.infer<typeof AgentStreamMessageSchema>
+  | z.infer<typeof AgentStatusMessageSchema>
+  | z.infer<typeof FetchAgentsResponseMessageSchema>
+  | z.infer<typeof FetchAgentHistoryResponseMessageSchema>
+  | z.infer<typeof FetchWorkspacesResponseMessageSchema>
+  | z.infer<typeof OpenProjectResponseMessageSchema>
+  | z.infer<typeof StartWorkspaceScriptResponseMessageSchema>
+  | z.infer<typeof ListAvailableEditorsResponseMessageSchema>
+  | z.infer<typeof OpenInEditorResponseMessageSchema>
+  | z.infer<typeof ArchiveWorkspaceResponseMessageSchema>
+  | z.infer<typeof RemoveProjectResponseMessageSchema>
+  | z.infer<typeof FetchAgentResponseMessageSchema>
+  | z.infer<typeof FetchAgentTimelineResponseMessageSchema>
+  | z.infer<typeof CancelAgentResponseMessageSchema>
+  | z.infer<typeof ClearAgentAttentionResponseMessageSchema>
+  | z.infer<typeof SendAgentMessageResponseMessageSchema>
+  | z.infer<typeof SetVoiceModeResponseMessageSchema>
+  | z.infer<typeof GetDaemonConfigResponseMessageSchema>
+  | z.infer<typeof SetDaemonConfigResponseMessageSchema>
+  | z.infer<typeof ReadProjectConfigResponseMessageSchema>
+  | z.infer<typeof WriteProjectConfigResponseMessageSchema>
+  | z.infer<typeof SetAgentModeResponseMessageSchema>
+  | z.infer<typeof SetAgentModelResponseMessageSchema>
+  | z.infer<typeof SetAgentThinkingResponseMessageSchema>
+  | z.infer<typeof SetAgentFeatureResponseMessageSchema>
+  | z.infer<typeof UpdateAgentResponseMessageSchema>
+  | z.infer<typeof WaitForFinishResponseMessageSchema>
+  | z.infer<typeof AgentPermissionRequestMessageSchema>
+  | z.infer<typeof AgentPermissionResolvedMessageSchema>
+  | z.infer<typeof AgentDeletedMessageSchema>
+  | z.infer<typeof AgentArchivedMessageSchema>
+  | z.infer<typeof CloseItemsResponseSchema>
+  | z.infer<typeof CheckoutStatusResponseSchema>
+  | z.infer<typeof CheckoutStatusUpdateSchema>
+  | z.infer<typeof SubscribeCheckoutDiffResponseSchema>
+  | z.infer<typeof CheckoutDiffUpdateSchema>
+  | z.infer<typeof CheckoutCommitResponseSchema>
+  | z.infer<typeof CheckoutMergeResponseSchema>
+  | z.infer<typeof CheckoutMergeFromBaseResponseSchema>
+  | z.infer<typeof CheckoutPullResponseSchema>
+  | z.infer<typeof CheckoutPushResponseSchema>
+  | z.infer<typeof CheckoutPrCreateResponseSchema>
+  | z.infer<typeof CheckoutPrStatusResponseSchema>
+  | z.infer<typeof PullRequestTimelineResponseSchema>
+  | z.infer<typeof CheckoutSwitchBranchResponseSchema>
+  | z.infer<typeof StashSaveResponseSchema>
+  | z.infer<typeof StashPopResponseSchema>
+  | z.infer<typeof StashListResponseSchema>
+  | z.infer<typeof ValidateBranchResponseSchema>
+  | z.infer<typeof BranchSuggestionsResponseSchema>
+  | z.infer<typeof GitHubSearchResponseSchema>
+  | z.infer<typeof DirectorySuggestionsResponseSchema>
+  | z.infer<typeof SoloWorktreeListResponseSchema>
+  | z.infer<typeof SoloWorktreeArchiveResponseSchema>
+  | z.infer<typeof CreateSoloWorktreeResponseSchema>
+  | z.infer<typeof FileExplorerResponseSchema>
+  | z.infer<typeof ProjectIconResponseSchema>
+  | z.infer<typeof FileDownloadTokenResponseSchema>
+  | z.infer<typeof ListProviderModelsResponseMessageSchema>
+  | z.infer<typeof ListProviderModesResponseMessageSchema>
+  | z.infer<typeof ListProviderFeaturesResponseMessageSchema>
+  | z.infer<typeof ListAvailableProvidersResponseSchema>
+  | z.infer<typeof GetProvidersSnapshotResponseMessageSchema>
+  | z.infer<typeof ProvidersSnapshotUpdateMessageSchema>
+  | z.infer<typeof RefreshProvidersSnapshotResponseMessageSchema>
+  | z.infer<typeof ProviderDiagnosticResponseMessageSchema>
+  | z.infer<typeof ListCommandsResponseSchema>
+  | z.infer<typeof ListTerminalsResponseSchema>
+  | z.infer<typeof TerminalsChangedSchema>
+  | z.infer<typeof CreateTerminalResponseSchema>
+  | z.infer<typeof SubscribeTerminalResponseSchema>
+  | z.infer<typeof KillTerminalResponseSchema>
+  | z.infer<typeof CaptureTerminalResponseSchema>
+  | z.infer<typeof TerminalStreamExitSchema>
+  | z.infer<typeof ChatCreateResponseSchema>
+  | z.infer<typeof ChatListResponseSchema>
+  | z.infer<typeof ChatInspectResponseSchema>
+  | z.infer<typeof ChatDeleteResponseSchema>
+  | z.infer<typeof ChatPostResponseSchema>
+  | z.infer<typeof ChatReadResponseSchema>
+  | z.infer<typeof ChatWaitResponseSchema>
+  | z.infer<typeof ScheduleCreateResponseSchema>
+  | z.infer<typeof ScheduleListResponseSchema>
+  | z.infer<typeof ScheduleInspectResponseSchema>
+  | z.infer<typeof ScheduleLogsResponseSchema>
+  | z.infer<typeof SchedulePauseResponseSchema>
+  | z.infer<typeof ScheduleResumeResponseSchema>
+  | z.infer<typeof ScheduleDeleteResponseSchema>
+  | z.infer<typeof ScheduleUpdateResponseSchema>
+  | z.infer<typeof TmuxListAgentsResponseSchema>
+  | z.infer<typeof TmuxCapturePaneResponseSchema>
+  | z.infer<typeof TmuxSendKeysResponseSchema>
+  | z.infer<typeof TmuxNewSessionResponseSchema>
+  | z.infer<typeof TmuxKillSessionResponseSchema>
+  | z.infer<typeof TmuxDeleteCommandHistoryResponseSchema>
+  | z.infer<typeof TmuxGetThemeResponseSchema>
+  | z.infer<typeof TmuxStatusLineResponseSchema>
+  | z.infer<typeof LoopRunResponseSchema>
+  | z.infer<typeof LoopListResponseSchema>
+  | z.infer<typeof LoopInspectResponseSchema>
+  | z.infer<typeof LoopLogsResponseSchema>
+  | z.infer<typeof LoopStopResponseSchema>
+  | z.infer<typeof LoopUpdateResponseSchema>
+  | z.infer<typeof LoopDeleteResponseSchema>;
+
 export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   ActivityLogMessageSchema,
   AssistantChunkMessageSchema,
@@ -3418,9 +3563,8 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   LoopStopResponseSchema,
   LoopUpdateResponseSchema,
   LoopDeleteResponseSchema,
-]);
+]) as z.ZodType<SessionOutboundMessage, z.ZodTypeDef, unknown>;
 
-export type SessionOutboundMessage = z.infer<typeof SessionOutboundMessageSchema>;
 
 // Type exports for individual message types
 export type ActivityLogMessage = z.infer<typeof ActivityLogMessageSchema>;
@@ -3733,6 +3877,11 @@ export const WSSessionInboundSchema = z.object({
   message: SessionInboundMessageSchema,
 });
 
+export type WSSessionOutboundMessage = {
+  type: "session";
+  message: SessionOutboundMessage;
+};
+
 export const WSSessionOutboundSchema = z.object({
   type: z.literal("session"),
   message: SessionOutboundMessageSchema,
@@ -3746,13 +3895,16 @@ export const WSInboundMessageSchema = z.discriminatedUnion("type", [
   WSSessionInboundSchema,
 ]);
 
+export type WSOutboundMessage =
+  | z.infer<typeof WSPongMessageSchema>
+  | WSSessionOutboundMessage;
+
 export const WSOutboundMessageSchema = z.discriminatedUnion("type", [
   WSPongMessageSchema,
   WSSessionOutboundSchema,
-]);
+]) as z.ZodType<WSOutboundMessage, z.ZodTypeDef, unknown>;
 
 export type WSInboundMessage = z.infer<typeof WSInboundMessageSchema>;
-export type WSOutboundMessage = z.infer<typeof WSOutboundMessageSchema>;
 export type WSHelloMessage = z.infer<typeof WSHelloMessageSchema>;
 
 // ============================================================================
