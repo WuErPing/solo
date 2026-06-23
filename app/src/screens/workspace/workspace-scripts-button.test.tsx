@@ -4,7 +4,7 @@
 import React, { type ReactElement } from "react";
 import { act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { WorkspaceScriptPayload } from "@server/shared/messages";
+import type { WorkspaceScript } from "@server/shared/messages";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoot } from "react-dom/client";
 import { WorkspaceScriptsButton } from "@/screens/workspace/workspace-scripts-button";
@@ -132,25 +132,25 @@ vi.mock("react-native", async () => {
 });
 
 function script(
-  input: Partial<WorkspaceScriptPayload> & Pick<WorkspaceScriptPayload, "scriptName">,
-): WorkspaceScriptPayload {
+  input: Partial<WorkspaceScript> & Pick<WorkspaceScript, "scriptName">,
+): WorkspaceScript {
   return {
     scriptName: input.scriptName,
     type: input.type ?? "script",
     hostname: input.hostname ?? input.scriptName,
-    port: input.port ?? null,
-    proxyUrl: input.proxyUrl ?? null,
+    port: input.port ?? undefined,
+    proxyUrl: input.proxyUrl ?? undefined,
     lifecycle: input.lifecycle ?? "stopped",
-    health: input.health ?? null,
-    exitCode: input.exitCode ?? null,
-    terminalId: input.terminalId ?? null,
+    health: input.health ?? undefined,
+    exitCode: input.exitCode ?? undefined,
+    terminalId: input.terminalId ?? undefined,
   };
 }
 
 const LIVE_TERMINAL_IDS: string[] = ["terminal-script-1"];
 
-function renderScripts(scripts: WorkspaceScriptPayload[]): {
-  rerender: (nextScripts: WorkspaceScriptPayload[]) => Promise<void>;
+function renderScripts(scripts: WorkspaceScript[]): {
+  rerender: (nextScripts: WorkspaceScript[]) => Promise<void>;
   unmount: () => void;
 } {
   const container = document.createElement("div");
@@ -163,7 +163,7 @@ function renderScripts(scripts: WorkspaceScriptPayload[]): {
     },
   });
 
-  function element(nextScripts: WorkspaceScriptPayload[]): ReactElement {
+  function element(nextScripts: WorkspaceScript[]): ReactElement {
     return (
       <QueryClientProvider client={queryClient}>
         <WorkspaceScriptsButton
@@ -306,7 +306,7 @@ describe("WorkspaceScriptsButton", () => {
         type: "service",
         hostname: "worker.solo.localhost",
         lifecycle: "running",
-        health: null,
+        health: undefined,
         port: 5000,
       }),
       script({

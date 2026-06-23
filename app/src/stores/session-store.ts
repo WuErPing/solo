@@ -113,15 +113,13 @@ export interface WorkspaceDescriptor {
   projectDisplayName: string;
   projectRootPath: string;
   workspaceDirectory: string;
-  projectKind: WorkspaceDescriptorPayload["projectKind"];
-  workspaceKind: WorkspaceDescriptorPayload["workspaceKind"];
+  projectKind: string;
+  workspaceKind: string;
   name: string;
-  status: WorkspaceDescriptorPayload["status"];
-  diffStat: { additions: number; deletions: number } | null;
+  status: string;
   scripts: WorkspaceDescriptorPayload["scripts"];
   gitRuntime?: WorkspaceDescriptorPayload["gitRuntime"];
   githubRuntime?: WorkspaceDescriptorPayload["githubRuntime"];
-  project?: ProjectPlacementPayload;
 }
 
 export function normalizeWorkspaceDescriptor(
@@ -137,11 +135,9 @@ export function normalizeWorkspaceDescriptor(
     workspaceKind: payload.workspaceKind,
     name: payload.name,
     status: payload.status,
-    diffStat: payload.diffStat ?? null,
     scripts: (payload.scripts ?? []).map((s) => Object.assign({}, s)),
     gitRuntime: payload.gitRuntime,
     githubRuntime: payload.githubRuntime,
-    project: payload.project,
   };
 }
 

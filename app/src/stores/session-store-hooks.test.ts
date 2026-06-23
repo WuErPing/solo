@@ -34,7 +34,6 @@ function createWorkspace(
     workspaceKind: input.workspaceKind ?? "local_checkout",
     name: input.name ?? "main",
     status: input.status ?? "done",
-    diffStat: input.diffStat ?? null,
     scripts: input.scripts ?? [],
   };
 }
@@ -347,7 +346,7 @@ describe("useWorkspaceStatusesForBadges", () => {
     act(() => {
       useSessionStore
         .getState()
-        .mergeWorkspaces(SERVER_ID, [{ ...workspaceA, scripts: [...workspaceA.scripts] }]);
+        .mergeWorkspaces(SERVER_ID, [{ ...workspaceA, scripts: [...(workspaceA.scripts ?? [])] }]);
     });
     expect(result.current).toBe(before);
 

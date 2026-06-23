@@ -23,7 +23,6 @@ function workspace(input: {
     workspaceKind: "checkout",
     name: input.name,
     statusBucket: "done",
-    diffStat: null,
     scripts: [],
     hasRunningScripts: false,
   };

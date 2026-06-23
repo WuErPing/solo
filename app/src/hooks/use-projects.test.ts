@@ -89,31 +89,14 @@ function workspace(input: {
     name: input.id,
     status: "done",
     activityAt: null,
-    diffStat: null,
     scripts: [],
     gitRuntime: {
       currentBranch: "main",
-      remoteUrl: input.remoteUrl,
+      remoteUrl: input.remoteUrl ?? undefined,
       isSoloOwnedWorktree: false,
       isDirty: false,
-      aheadBehind: null,
-      aheadOfOrigin: null,
-      behindOfOrigin: null,
     },
-    githubRuntime: null,
-    project: {
-      projectKey: input.projectKey,
-      projectName: input.projectName,
-      checkout: {
-        cwd: input.cwd,
-        isGit: true,
-        currentBranch: "main",
-        remoteUrl: input.remoteUrl,
-        worktreeRoot: input.cwd,
-        isSoloOwnedWorktree: false,
-        mainRepoRoot: null,
-      },
-    },
+    githubRuntime: undefined,
   };
 }
 

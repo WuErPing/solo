@@ -74,12 +74,6 @@ function deriveGithubUrl(projectKey: string): string | undefined {
 }
 
 function resolveHostRepoRoot(workspaces: WorkspaceDescriptor[]): string {
-  for (const workspace of workspaces) {
-    const mainRepoRoot = workspace.project?.checkout.mainRepoRoot;
-    if (mainRepoRoot) {
-      return mainRepoRoot;
-    }
-  }
   return workspaces[0]?.projectRootPath ?? "";
 }
 

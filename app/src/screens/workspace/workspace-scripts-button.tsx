@@ -208,8 +208,10 @@ interface HostLink {
   url: string | null;
 }
 
+type WorkspaceScript = NonNullable<WorkspaceDescriptor["scripts"]>[number];
+
 interface ScriptRowProps {
-  script: WorkspaceDescriptor["scripts"][number];
+  script: WorkspaceScript;
   liveTerminalIdSet: Set<string>;
   activeConnection: ReturnType<typeof useHostRuntimeSnapshot> extends infer R
     ? R extends { activeConnection: infer A }
@@ -222,7 +224,7 @@ interface ScriptRowProps {
 }
 
 function resolveScriptIconColorMapping(args: {
-  script: WorkspaceDescriptor["scripts"][number];
+  script: WorkspaceScript;
   isService: boolean;
   isRunning: boolean;
 }): (theme: Theme) => { color: string } {
@@ -361,6 +363,7 @@ export function WorkspaceScriptsButton({
   const client = useSessionStore((state) => state.sessions[serverId]?.client ?? null);
   const activeConnection = useHostRuntimeSnapshot(serverId)?.activeConnection ?? null;
   const liveTerminalIdSet = useMemo(() => new Set(liveTerminalIds), [liveTerminalIds]);
+  const scriptList = scripts ?? [];
 
   const startScriptMutation = useMutation({
     mutationFn: async (scriptName: string) => {
@@ -398,11 +401,11 @@ export function WorkspaceScriptsButton({
     [startScriptMutation],
   );
 
-  if (scripts.length === 0) {
+  if (scriptList.length === 0) {
     return null;
   }
 
-  const hasAnyRunning = scripts.some((s) => s.lifecycle === "running");
+  const hasAnyRunning = scriptList.some((s) => s.lifecycle === "running");
   const triggerPlayMapping = hasAnyRunning ? blueColorMapping : mutedColorMapping;
 
   return (
@@ -428,7 +431,7 @@ export function WorkspaceScriptsButton({
             testID="workspace-scripts-menu"
           >
             <View style={styles.scriptList}>
-              {scripts.map((script, index) => (
+              {scriptList.map((script, index) => (
                 <Fragment key={script.scriptName}>
                   {index > 0 ? <DropdownMenuSeparator /> : null}
                   <ScriptRow

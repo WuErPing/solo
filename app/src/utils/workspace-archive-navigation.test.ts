@@ -32,7 +32,6 @@ function workspace(
     workspaceKind: input.workspaceKind ?? "worktree",
     name: input.name ?? input.id,
     status: input.status ?? "done",
-    diffStat: input.diffStat ?? null,
     scripts: input.scripts ?? [],
   };
 }

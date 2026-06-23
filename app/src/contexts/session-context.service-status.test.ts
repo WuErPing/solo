@@ -18,7 +18,6 @@ function workspace(input: {
     workspaceKind: "checkout",
     name: "main",
     status: "running",
-    diffStat: null,
     scripts: input.scripts ?? [],
   };
 }
@@ -35,6 +34,9 @@ const runningScript: WorkspaceScriptPayload = {
   terminalId: null,
 };
 
+// patchWorkspaceScripts converts null → undefined for generated schema compatibility
+const expectedScript = { ...runningScript, exitCode: undefined, terminalId: undefined };
+
 describe("patchWorkspaceScripts", () => {
   it("patches only the matching workspace scripts", () => {
     const other = workspace({ id: "ws-other", workspaceDirectory: "/repo/other", scripts: [] });
@@ -49,7 +51,7 @@ describe("patchWorkspaceScripts", () => {
     });
 
     expect(next).not.toBe(current);
-    expect(next.get("ws-main")?.scripts).toEqual([runningScript]);
+    expect(next.get("ws-main")?.scripts).toEqual([expectedScript]);
     expect(next.get("ws-other")).toBe(other);
   });
 
@@ -71,7 +73,7 @@ describe("patchWorkspaceScripts", () => {
     });
 
     expect(next).not.toBe(current);
-    expect(next.get("workspace-record-42")?.scripts).toEqual([runningScript]);
+    expect(next.get("workspace-record-42")?.scripts).toEqual([expectedScript]);
   });
 
   it("ignores updates for unknown workspaces", () => {

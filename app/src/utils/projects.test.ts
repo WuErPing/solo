@@ -1,61 +1,32 @@
 import { describe, expect, it } from "vitest";
-import type { ProjectPlacementPayload } from "@server/shared/messages";
 import type { WorkspaceDescriptor } from "@/stores/session-store";
 import { buildProjects } from "./projects";
-
-function placement(input: {
-  projectKey: string;
-  projectName: string;
-  cwd: string;
-  remoteUrl: string | null;
-  mainRepoRoot?: string | null;
-}): ProjectPlacementPayload {
-  return {
-    projectKey: input.projectKey,
-    projectName: input.projectName,
-    checkout: {
-      cwd: input.cwd,
-      isGit: true,
-      currentBranch: "main",
-      remoteUrl: input.remoteUrl,
-      worktreeRoot: input.cwd,
-      isSoloOwnedWorktree: false,
-      mainRepoRoot: input.mainRepoRoot ?? null,
-    },
-  };
-}
 
 function workspace(input: {
   id: string;
   repoRoot: string;
-  project?: ProjectPlacementPayload;
   projectId?: string;
   projectName?: string;
   remoteUrl?: string | null;
 }): WorkspaceDescriptor {
   return {
     id: input.id,
-    projectId: input.projectId ?? input.project?.projectKey ?? input.repoRoot,
-    projectDisplayName: input.projectName ?? input.project?.projectName ?? "Project",
+    projectId: input.projectId ?? input.repoRoot,
+    projectDisplayName: input.projectName ?? "Project",
     projectRootPath: input.repoRoot,
     workspaceDirectory: input.repoRoot,
     projectKind: "git",
     workspaceKind: "local_checkout",
     name: input.id,
     status: "done",
-    diffStat: null,
     scripts: [],
     gitRuntime: {
       currentBranch: "main",
-      remoteUrl: input.remoteUrl ?? input.project?.checkout.remoteUrl ?? null,
+      remoteUrl: input.remoteUrl ?? undefined,
       isSoloOwnedWorktree: false,
       isDirty: false,
-      aheadBehind: null,
-      aheadOfOrigin: null,
-      behindOfOrigin: null,
     },
-    githubRuntime: null,
-    project: input.project,
+    githubRuntime: undefined,
   };
 }
 
@@ -71,32 +42,23 @@ describe("buildProjects", () => {
             workspace({
               id: "main",
               repoRoot: "/repo/app",
-              project: placement({
-                projectKey: "remote:github.com/acme/app",
-                projectName: "acme/app",
-                cwd: "/repo/app",
-                remoteUrl: "https://github.com/acme/app.git",
-              }),
+              projectId: "remote:github.com/acme/app",
+              projectName: "acme/app",
+              remoteUrl: "https://github.com/acme/app.git",
             }),
             workspace({
               id: "feature-a",
               repoRoot: "/repo/app",
-              project: placement({
-                projectKey: "remote:github.com/acme/app",
-                projectName: "acme/app",
-                cwd: "/repo/app/feature-a",
-                remoteUrl: "https://github.com/acme/app.git",
-              }),
+              projectId: "remote:github.com/acme/app",
+              projectName: "acme/app",
+              remoteUrl: "https://github.com/acme/app.git",
             }),
             workspace({
               id: "feature-b",
               repoRoot: "/repo/app",
-              project: placement({
-                projectKey: "remote:github.com/acme/app",
-                projectName: "acme/app",
-                cwd: "/repo/app/feature-b",
-                remoteUrl: "https://github.com/acme/app.git",
-              }),
+              projectId: "remote:github.com/acme/app",
+              projectName: "acme/app",
+              remoteUrl: "https://github.com/acme/app.git",
             }),
           ],
         },
@@ -108,22 +70,16 @@ describe("buildProjects", () => {
             workspace({
               id: "main",
               repoRoot: "/work/app",
-              project: placement({
-                projectKey: "remote:github.com/acme/app",
-                projectName: "acme/app",
-                cwd: "/work/app",
-                remoteUrl: "git@github.com:acme/app.git",
-              }),
+              projectId: "remote:github.com/acme/app",
+              projectName: "acme/app",
+              remoteUrl: "git@github.com:acme/app.git",
             }),
             workspace({
               id: "feature",
               repoRoot: "/work/app",
-              project: placement({
-                projectKey: "remote:github.com/acme/app",
-                projectName: "acme/app",
-                cwd: "/work/app/feature",
-                remoteUrl: "git@github.com:acme/app.git",
-              }),
+              projectId: "remote:github.com/acme/app",
+              projectName: "acme/app",
+              remoteUrl: "git@github.com:acme/app.git",
             }),
           ],
         },
@@ -158,12 +114,9 @@ describe("buildProjects", () => {
             workspace({
               id: `ws-${index}`,
               repoRoot: "/repo/app",
-              project: placement({
-                projectKey: "remote:github.com/acme/app",
-                projectName: "acme/app",
-                cwd: `/repo/app/ws-${index}`,
-                remoteUrl: "https://github.com/acme/app.git",
-              }),
+              projectId: "remote:github.com/acme/app",
+              projectName: "acme/app",
+              remoteUrl: "https://github.com/acme/app.git",
             }),
           ),
         },
@@ -177,7 +130,7 @@ describe("buildProjects", () => {
     expect(result.projects[0]?.hostCount).toBe(1);
   });
 
-  it("prefers placement mainRepoRoot for the host repoRoot and falls back to projectRootPath when placement is absent", () => {
+  it("uses projectRootPath as the host repoRoot", () => {
     const result = buildProjects({
       hosts: [
         {
@@ -188,13 +141,9 @@ describe("buildProjects", () => {
             workspace({
               id: "main",
               repoRoot: "/worktrees/app/main",
-              project: placement({
-                projectKey: "remote:github.com/acme/app",
-                projectName: "acme/app",
-                cwd: "/worktrees/app/main",
-                remoteUrl: "https://github.com/acme/app.git",
-                mainRepoRoot: "/repo/app",
-              }),
+              projectId: "remote:github.com/acme/app",
+              projectName: "acme/app",
+              remoteUrl: "https://github.com/acme/app.git",
             }),
           ],
         },
@@ -219,7 +168,7 @@ describe("buildProjects", () => {
     );
     const legacy = result.projects.find((project) => project.projectKey === "legacy-project");
 
-    expect(acme?.hosts[0]?.repoRoot).toBe("/repo/app");
+    expect(acme?.hosts[0]?.repoRoot).toBe("/worktrees/app/main");
     expect(legacy?.hosts[0]?.repoRoot).toBe("/repo/legacy");
   });
 
@@ -234,22 +183,16 @@ describe("buildProjects", () => {
             workspace({
               id: "github",
               repoRoot: "/repo/app",
-              project: placement({
-                projectKey: "remote:github.com/acme/app",
-                projectName: "acme/app",
-                cwd: "/repo/app",
-                remoteUrl: "https://github.com/acme/app.git",
-              }),
+              projectId: "remote:github.com/acme/app",
+              projectName: "acme/app",
+              remoteUrl: "https://github.com/acme/app.git",
             }),
             workspace({
               id: "local",
               repoRoot: "/repo/local",
-              project: placement({
-                projectKey: "/repo/local",
-                projectName: "local",
-                cwd: "/repo/local",
-                remoteUrl: null,
-              }),
+              projectId: "/repo/local",
+              projectName: "local",
+              remoteUrl: null,
             }),
           ],
         },
@@ -276,12 +219,9 @@ describe("buildProjects", () => {
             workspace({
               id: "ws",
               repoRoot: "/repo/app",
-              project: placement({
-                projectKey: "remote:github.com/acme/app",
-                projectName: "acme/app",
-                cwd: "/repo/app",
-                remoteUrl: "https://github.com/acme/app.git",
-              }),
+              projectId: "remote:github.com/acme/app",
+              projectName: "acme/app",
+              remoteUrl: "https://github.com/acme/app.git",
             }),
           ],
         },
@@ -293,12 +233,9 @@ describe("buildProjects", () => {
             workspace({
               id: "ws",
               repoRoot: "/repo/app",
-              project: placement({
-                projectKey: "remote:github.com/acme/app",
-                projectName: "acme/app",
-                cwd: "/repo/app",
-                remoteUrl: "https://github.com/acme/app.git",
-              }),
+              projectId: "remote:github.com/acme/app",
+              projectName: "acme/app",
+              remoteUrl: "https://github.com/acme/app.git",
             }),
           ],
         },
@@ -327,22 +264,16 @@ describe("buildProjects", () => {
             workspace({
               id: "one",
               repoRoot: "/repo/one",
-              project: placement({
-                projectKey: "/repo/one",
-                projectName: "one",
-                cwd: "/repo/one",
-                remoteUrl: null,
-              }),
+              projectId: "/repo/one",
+              projectName: "one",
+              remoteUrl: null,
             }),
             workspace({
               id: "two",
               repoRoot: "/repo/two",
-              project: placement({
-                projectKey: "/repo/two",
-                projectName: "two",
-                cwd: "/repo/two",
-                remoteUrl: null,
-              }),
+              projectId: "/repo/two",
+              projectName: "two",
+              remoteUrl: null,
             }),
           ],
         },
@@ -366,32 +297,23 @@ describe("buildProjects", () => {
             workspace({
               id: "github",
               repoRoot: "/repo/github",
-              project: placement({
-                projectKey: "remote:github.com/acme/app",
-                projectName: "acme/app",
-                cwd: "/repo/github",
-                remoteUrl: "https://github.com/acme/app.git",
-              }),
+              projectId: "remote:github.com/acme/app",
+              projectName: "acme/app",
+              remoteUrl: "https://github.com/acme/app.git",
             }),
             workspace({
               id: "gitlab",
               repoRoot: "/repo/gitlab",
-              project: placement({
-                projectKey: "remote:gitlab.com/acme/app",
-                projectName: "app",
-                cwd: "/repo/gitlab",
-                remoteUrl: "https://gitlab.com/acme/app.git",
-              }),
+              projectId: "remote:gitlab.com/acme/app",
+              projectName: "app",
+              remoteUrl: "https://gitlab.com/acme/app.git",
             }),
             workspace({
               id: "local",
               repoRoot: "/repo/local",
-              project: placement({
-                projectKey: "/repo/local",
-                projectName: "local",
-                cwd: "/repo/local",
-                remoteUrl: null,
-              }),
+              projectId: "/repo/local",
+              projectName: "local",
+              remoteUrl: null,
             }),
           ],
         },
@@ -416,12 +338,9 @@ describe("buildProjects", () => {
             workspace({
               id: "gitlab",
               repoRoot: "/repo/gitlab",
-              project: placement({
-                projectKey: "remote:gitlab.com/acme/app",
-                projectName: "app",
-                cwd: "/repo/gitlab",
-                remoteUrl: "https://gitlab.com/acme/app.git",
-              }),
+              projectId: "remote:gitlab.com/acme/app",
+              projectName: "app",
+              remoteUrl: "https://gitlab.com/acme/app.git",
             }),
           ],
         },
@@ -430,36 +349,5 @@ describe("buildProjects", () => {
 
     expect(result.projects).toEqual([]);
     expect(result.hiddenUnsupportedRemoteCount).toBe(1);
-  });
-
-  it("falls back conservatively for mixed-version daemons whose descriptors lack project", () => {
-    const result = buildProjects({
-      hosts: [
-        {
-          serverId: "old-daemon",
-          serverName: "Old daemon",
-          isOnline: true,
-          workspaces: [
-            workspace({
-              id: "legacy",
-              repoRoot: "/repo/legacy",
-              projectId: "legacy-project",
-              projectName: "Legacy",
-              remoteUrl: "https://gitlab.com/acme/legacy.git",
-            }),
-          ],
-        },
-      ],
-    });
-
-    expect(result.projects).toHaveLength(1);
-    const summary = result.projects[0];
-    expect(summary?.projectKey).toBe("legacy-project");
-    expect(summary?.projectName).toBe("Legacy");
-    expect(summary?.githubUrl).toBeUndefined();
-    expect(summary?.hosts).toHaveLength(1);
-    expect(summary?.hosts[0]?.repoRoot).toBe("/repo/legacy");
-    expect(summary?.hosts[0]?.workspaceCount).toBe(1);
-    expect(result.hiddenUnsupportedRemoteCount).toBe(0);
   });
 });

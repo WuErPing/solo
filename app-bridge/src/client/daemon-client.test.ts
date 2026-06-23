@@ -33,7 +33,7 @@ describe("DaemonClient — connection lifecycle", () => {
     expect(hello).toBeDefined();
     expect(hello!.parsed.clientId).toBe("test-client");
     expect(hello!.parsed.clientType).toBe("cli");
-    expect(hello!.parsed.protocolVersion).toBe(1);
+    expect(hello!.parsed.protocolVersion).toBe(2);
   });
 
   it("transitions to connected after receiving server_info", async () => {

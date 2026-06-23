@@ -23,7 +23,6 @@ function createWorkspace(
     workspaceKind: input.workspaceKind ?? "local_checkout",
     name: input.name ?? "main",
     status: input.status ?? "done",
-    diffStat: input.diffStat ?? null,
     scripts: input.scripts ?? [],
   };
 }
@@ -60,8 +59,8 @@ describe("normalizeWorkspaceDescriptor", () => {
         proxyUrl: "http://web.solo.localhost:6767",
         lifecycle: "running" as const,
         health: "healthy" as const,
-        exitCode: null,
-        terminalId: null,
+        exitCode: undefined,
+        terminalId: undefined,
       },
     ];
     const workspace = normalizeWorkspaceDescriptor({
@@ -75,7 +74,6 @@ describe("normalizeWorkspaceDescriptor", () => {
       name: "main",
       status: "running",
       activityAt: "not-a-date",
-      diffStat: null,
       scripts,
     });
 
@@ -88,8 +86,6 @@ describe("normalizeWorkspaceDescriptor", () => {
         proxyUrl: "http://web.solo.localhost:6767",
         lifecycle: "running",
         health: "healthy",
-        exitCode: null,
-        terminalId: null,
       },
     ]);
     expect(workspace.scripts).not.toBe(scripts);
@@ -107,7 +103,6 @@ describe("normalizeWorkspaceDescriptor", () => {
       name: "main",
       status: "done",
       activityAt: null,
-      diffStat: null,
       scripts: [],
     } as WorkspaceDescriptorPayload;
 
@@ -128,36 +123,11 @@ describe("normalizeWorkspaceDescriptor", () => {
       name: "main",
       status: "done",
       activityAt: null,
-      diffStat: null,
       scripts: [],
-      project: {
-        projectKey: "remote:github.com/acme/app",
-        projectName: "acme/app",
-        checkout: {
-          cwd: "/repo/app",
-          isGit: true,
-          currentBranch: "main",
-          remoteUrl: "https://github.com/acme/app.git",
-          worktreeRoot: "/repo/app",
-          isSoloOwnedWorktree: false,
-          mainRepoRoot: null,
-        },
-      },
     });
 
-    expect(workspace.project).toEqual({
-      projectKey: "remote:github.com/acme/app",
-      projectName: "acme/app",
-      checkout: {
-        cwd: "/repo/app",
-        isGit: true,
-        currentBranch: "main",
-        remoteUrl: "https://github.com/acme/app.git",
-        worktreeRoot: "/repo/app",
-        isSoloOwnedWorktree: false,
-        mainRepoRoot: null,
-      },
-    });
+    expect(workspace.projectId).toBe("remote:github.com/acme/app");
+    expect(workspace.projectDisplayName).toBe("acme/app");
   });
 });
 
@@ -182,8 +152,6 @@ describe("mergeWorkspaces", () => {
             proxyUrl: "http://web.solo.localhost:6767",
             lifecycle: "running",
             health: "healthy",
-            exitCode: null,
-            terminalId: null,
           },
         ],
       }),
@@ -198,8 +166,6 @@ describe("mergeWorkspaces", () => {
         proxyUrl: "http://web.solo.localhost:6767",
         lifecycle: "running",
         health: "healthy",
-        exitCode: null,
-        terminalId: null,
       },
     ]);
   });
@@ -212,7 +178,7 @@ describe("mergeWorkspaces", () => {
     store.mergeWorkspaces("test-server", [workspace]);
     const first = getTestSessionReferences();
 
-    store.mergeWorkspaces("test-server", [{ ...workspace, scripts: [...workspace.scripts] }]);
+    store.mergeWorkspaces("test-server", [{ ...workspace, scripts: [...(workspace.scripts ?? [])] }]);
     const second = getTestSessionReferences();
 
     expect(second.sessions).toBe(first.sessions);
@@ -242,25 +208,8 @@ describe("mergeWorkspaces", () => {
     expect(after.workspaces.get("/repo/b")).toBe(beforeB);
   });
 
-  it("uses incoming null diff stat as authoritative", () => {
-    const store = useSessionStore.getState();
-    initializeTestSession();
-    const workspace = createWorkspace({
-      id: "/repo/main",
-      diffStat: { additions: 2, deletions: 1 },
-    });
-    store.mergeWorkspaces("test-server", [workspace]);
-    const before = getTestSessionReferences();
-
-    store.mergeWorkspaces("test-server", [{ ...workspace, diffStat: null }]);
-    const after = getTestSessionReferences();
-
-    expect(after.sessions).not.toBe(before.sessions);
-    expect(after.session).not.toBe(before.session);
-    expect(after.workspaces).not.toBe(before.workspaces);
-    expect(after.workspaces.get(workspace.id)?.diffStat).toBeNull();
-  });
 });
+
 
 describe("setWorkspaces", () => {
   it("preserves identity when replacing workspaces with content-equal entries", () => {
@@ -272,7 +221,7 @@ describe("setWorkspaces", () => {
 
     store.setWorkspaces(
       "test-server",
-      new Map([[workspace.id, { ...workspace, scripts: [...workspace.scripts] }]]),
+      new Map([[workspace.id, { ...workspace, scripts: [...(workspace.scripts ?? [])] }]]),
     );
     const after = getTestSessionReferences();
 
@@ -302,7 +251,7 @@ describe("removeWorkspace", () => {
 
 describe("patchWorkspaceScripts", () => {
   it("preserves workspace entry identity when scripts are content-equal", () => {
-    const script = {
+    const baseScript = {
       scriptName: "web",
       type: "service" as const,
       hostname: "web.solo.localhost",
@@ -310,15 +259,15 @@ describe("patchWorkspaceScripts", () => {
       proxyUrl: "http://web.solo.localhost:6767",
       lifecycle: "running" as const,
       health: "healthy" as const,
-      exitCode: null,
-      terminalId: null,
+      exitCode: undefined as number | undefined,
+      terminalId: undefined as string | undefined,
     };
-    const workspace = createWorkspace({ id: "/repo/main", scripts: [script] });
+    const workspace = createWorkspace({ id: "/repo/main", scripts: [baseScript] });
     const current = new Map([[workspace.id, workspace]]);
 
     const next = patchWorkspaceScripts(current, {
       workspaceId: workspace.id,
-      scripts: [{ ...script }],
+      scripts: [{ ...baseScript, exitCode: null, terminalId: null }],
     });
 
     expect(next).toBe(current);

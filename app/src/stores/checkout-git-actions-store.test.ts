@@ -39,7 +39,6 @@ function workspace(input: Partial<WorkspaceDescriptor> & Pick<WorkspaceDescripto
     workspaceKind: input.workspaceKind ?? "worktree",
     name: input.name ?? input.id,
     status: input.status ?? "done",
-    diffStat: input.diffStat ?? null,
     scripts: input.scripts ?? [],
   } satisfies WorkspaceDescriptor;
 }

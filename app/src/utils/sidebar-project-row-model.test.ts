@@ -19,7 +19,6 @@ function workspace(overrides: Partial<SidebarWorkspaceEntry> = {}): SidebarWorks
     workspaceKind: "checkout",
     name: "solo",
     statusBucket: "done",
-    diffStat: null,
     scripts: [],
     hasRunningScripts: false,
     ...overrides,

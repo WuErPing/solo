@@ -25,7 +25,7 @@ function selectActiveGitWorkspaceProject(
   }
 
   const projectKey = workspace.projectId.trim();
-  const repoRoot = (workspace.project?.checkout.mainRepoRoot ?? workspace.projectRootPath).trim();
+  const repoRoot = workspace.projectRootPath.trim();
   if (!projectKey || !repoRoot) {
     return null;
   }

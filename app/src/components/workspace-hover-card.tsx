@@ -22,7 +22,6 @@ import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { ExternalLink } from "lucide-react-native";
 import { GitHubIcon } from "@/components/icons/github-icon";
 import type { Theme } from "@/styles/theme";
-import { DiffStat } from "@/components/diff-stat";
 import { Pressable } from "react-native";
 import { Portal } from "@gorhom/portal";
 import { useBottomSheetModalInternal } from "@gorhom/bottom-sheet";
@@ -116,7 +115,7 @@ function WorkspaceHoverCardDesktop({
   const graceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerHoveredRef = useRef(false);
 
-  const hasContent = prHint !== null || !!workspace.diffStat;
+  const hasContent = prHint !== null;
 
   const clearGraceTimer = useCallback(() => {
     if (graceTimerRef.current) {
@@ -291,15 +290,9 @@ function WorkspaceHoverCardContent({
               {workspace.name}
             </Text>
           </View>
-          {prHint || workspace.diffStat ? (
+          {prHint ? (
             <View style={styles.cardMetaRow}>
-              {workspace.diffStat ? (
-                <DiffStat
-                  additions={workspace.diffStat.additions}
-                  deletions={workspace.diffStat.deletions}
-                />
-              ) : null}
-              {prHint ? <PrBadge hint={prHint} /> : null}
+              <PrBadge hint={prHint} />
             </View>
           ) : null}
           {prHint?.checks && prHint.checks.length > 0 ? (

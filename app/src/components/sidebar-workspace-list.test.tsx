@@ -3,7 +3,7 @@
  */
 import { act } from "@testing-library/react";
 import type { DaemonClient } from "@server/client/daemon-client";
-import type { WorkspaceScriptPayload } from "@server/shared/messages";
+import type { WorkspaceScript, WorkspaceScriptPayload } from "@server/shared/messages";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
 import React from "react";
@@ -53,7 +53,7 @@ interface RenderCounts {
   rowSelection: Record<string, number>;
 }
 
-const runningScript: WorkspaceScriptPayload = {
+const runningScript: WorkspaceScript = {
   scriptName: "web",
   type: "service",
   hostname: "web.solo.localhost",
@@ -61,8 +61,8 @@ const runningScript: WorkspaceScriptPayload = {
   proxyUrl: "http://web.solo.localhost:6767",
   lifecycle: "running",
   health: "healthy",
-  exitCode: null,
-  terminalId: null,
+  exitCode: undefined,
+  terminalId: undefined,
 };
 
 function workspace(input: {
@@ -83,7 +83,6 @@ function workspace(input: {
     workspaceKind: input.name === "main" ? "local_checkout" : "worktree",
     name: input.name,
     status: input.status ?? "done",
-    diffStat: null,
     scripts: input.scripts ?? [],
   };
 }
@@ -400,7 +399,7 @@ describe("sidebar workspace render isolation", () => {
     const applyRunningScript = (current: Parameters<typeof patchWorkspaceScripts>[0]) =>
       patchWorkspaceScripts(current, {
         workspaceId: "a-main",
-        scripts: [{ ...runningScript }],
+        scripts: [{ ...runningScript }] as unknown as WorkspaceScriptPayload[],
       });
 
     act(() => {

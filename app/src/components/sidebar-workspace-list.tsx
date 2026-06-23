@@ -29,7 +29,7 @@ import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import type { Theme } from "@/styles/theme";
 import { type GestureType } from "react-native-gesture-handler";
 import * as Clipboard from "expo-clipboard";
-import { DiffStat } from "@/components/diff-stat";
+
 import {
   Archive,
   CircleAlert,
@@ -90,7 +90,10 @@ import { hasVisibleOrderChanged, mergeWithRemainder } from "@/utils/sidebar-reor
 import { decideLongPressMove } from "@/utils/sidebar-gesture-arbitration";
 import { confirmDialog } from "@/utils/confirm-dialog";
 import { projectIconPlaceholderLabelFromDisplayName } from "@/utils/project-display-name";
-import { shouldRenderSyncedStatusLoader } from "@/utils/status-loader";
+import {
+  shouldRenderSyncedStatusLoader,
+  type StatusLoaderBucket,
+} from "@/utils/status-loader";
 import { isEmphasizedStatusDotBucket } from "@/utils/status-dot-color";
 import type { SidebarStateBucket } from "@/utils/sidebar-agent-state";
 import { Button } from "@/components/ui/button";
@@ -394,7 +397,7 @@ function WorkspaceStatusIndicator({
   workspaceKind: SidebarWorkspaceEntry["workspaceKind"];
   loading?: boolean;
 }) {
-  const shouldShowSyncedLoader = shouldRenderSyncedStatusLoader({ bucket });
+  const shouldShowSyncedLoader = shouldRenderSyncedStatusLoader({ bucket: bucket as StatusLoaderBucket });
 
   if (loading) {
     return (
@@ -426,8 +429,8 @@ function WorkspaceStatusIndicator({
   else KindIcon = null;
   if (!KindIcon) return null;
 
-  const dotColorStyle = getStatusDotColorStyle(bucket);
-  const statusDotSize = isEmphasizedStatusDotBucket(bucket)
+  const dotColorStyle = getStatusDotColorStyle(bucket as SidebarStateBucket);
+  const statusDotSize = isEmphasizedStatusDotBucket(bucket as SidebarStateBucket)
     ? EMPHASIZED_STATUS_DOT_SIZE
     : DEFAULT_STATUS_DOT_SIZE;
   const statusDotOffset =
@@ -495,7 +498,7 @@ function ProjectLeadingVisual({
   const shouldShowWorkspaceStatus =
     activeWorkspace !== null && (isArchiving || activeWorkspace.statusBucket !== "done");
   const shouldShowSyncedLoader = activeWorkspace
-    ? shouldRenderSyncedStatusLoader({ bucket: activeWorkspace.statusBucket })
+    ? shouldRenderSyncedStatusLoader({ bucket: activeWorkspace.statusBucket as StatusLoaderBucket })
     : false;
 
   if (showChevron && chevron !== null) {
@@ -695,12 +698,6 @@ function WorkspaceRowRightGroup({
           archiveShortcutKeys={archiveShortcutKeys}
         />
       ) : null}
-      {!showKebab && workspace.diffStat ? (
-        <DiffStat
-          additions={workspace.diffStat.additions}
-          deletions={workspace.diffStat.deletions}
-        />
-      ) : null}
       {showShortcutBadge && shortcutNumber !== null ? (
         <View style={styles.shortcutBadge}>
           <Text style={styles.shortcutBadgeText}>{shortcutNumber}</Text>
@@ -833,8 +830,8 @@ function ProjectLeadingVisualStatus({
     );
   }
 
-  const dotColorStyle = getStatusDotColorStyle(activeWorkspace.statusBucket);
-  const statusDotSize = isEmphasizedStatusDotBucket(activeWorkspace.statusBucket)
+  const dotColorStyle = getStatusDotColorStyle(activeWorkspace.statusBucket as SidebarStateBucket);
+  const statusDotSize = isEmphasizedStatusDotBucket(activeWorkspace.statusBucket as SidebarStateBucket)
     ? EMPHASIZED_STATUS_DOT_SIZE
     : DEFAULT_STATUS_DOT_SIZE;
   const statusDotOffset =
@@ -1408,7 +1405,7 @@ function WorkspaceRowInner({
 
   const isDesktop = !isTouchPlatform;
   const showScriptsIcon = isDesktop && workspace.hasRunningScripts;
-  const hasRunningService = workspace.scripts.some(
+  const hasRunningService = (workspace.scripts ?? []).some(
     (s) => s.lifecycle === "running" && (s.type ?? "service") === "service",
   );
 

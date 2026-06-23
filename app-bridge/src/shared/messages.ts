@@ -113,6 +113,23 @@ export {
   type WorkspaceGitRuntime,
   type WorkspaceGitHubRuntime,
 };
+
+// Coerce null → undefined for Go pointer fields that marshal as JSON null.
+const GitRuntimeSchemaNullSafe = WorkspaceGitRuntimeSchema.nullable()
+  .optional()
+  .transform((v) => v ?? undefined);
+const GitHubRuntimeSchemaNullSafe = WorkspaceGitHubRuntimeSchema.nullable()
+  .optional()
+  .transform((v) => v ?? undefined);
+
+// Extends the generated schema with the workspaceDirectory default that Go omits on the wire.
+export const WorkspaceDescriptorSchemaWithDefault = WorkspaceDescriptorSchema.extend({
+  gitRuntime: GitRuntimeSchemaNullSafe,
+  githubRuntime: GitHubRuntimeSchemaNullSafe,
+}).transform((wd) => ({
+  ...wd,
+  workspaceDirectory: wd.workspaceDirectory ?? wd.projectRootPath,
+}));
 // ---------------------------------------------------------------------------
 // Mutable daemon config schemas (shared between server store and client)
 // ---------------------------------------------------------------------------
@@ -850,7 +867,7 @@ export const FetchAgentsRequestMessageSchema = z.object({
     .optional(),
 });
 
-const WorkspaceStateBucketSchema = z.enum([
+const _WorkspaceStateBucketSchema = z.enum([
   "needs_input",
   "failed",
   "running",
@@ -2151,80 +2168,6 @@ export const WorkspaceScriptPayloadSchema = z.object({
   terminalId: z.string().nullable().optional().default(null),
 });
 
-const WorkspaceGitRuntimePayloadSchema = z
-  .object({
-    currentBranch: z.string().nullable().optional(),
-    remoteUrl: z.string().nullable().optional(),
-    isSoloOwnedWorktree: z.boolean().optional(),
-    isDirty: z.boolean().nullable().optional(),
-    aheadBehind: z
-      .object({
-        ahead: z.number(),
-        behind: z.number(),
-      })
-      .nullable()
-      .optional(),
-    aheadOfOrigin: z.number().nullable().optional(),
-    behindOfOrigin: z.number().nullable().optional(),
-  })
-  .optional()
-  .nullable();
-
-const WorkspaceGitHubRuntimePayloadSchema = z
-  .object({
-    featuresEnabled: z.boolean().optional(),
-    pullRequest: z
-      .object({
-        url: z.string(),
-        title: z.string(),
-        state: z.string(),
-        baseRefName: z.string(),
-        headRefName: z.string(),
-        isMerged: z.boolean(),
-      })
-      .nullable()
-      .optional(),
-    error: z
-      .object({
-        message: z.string(),
-      })
-      .nullable()
-      .optional(),
-    refreshedAt: z.string().nullable().optional(),
-  })
-  .optional()
-  .nullable();
-
-export const WorkspaceDescriptorPayloadSchema = z
-  .object({
-    id: z.string(),
-    projectId: z.string(),
-    projectDisplayName: z.string(),
-    projectRootPath: z.string(),
-    workspaceDirectory: z.string().optional(),
-    projectKind: z.enum(["git", "non_git", "directory"]),
-    // COMPAT(workspaces): keep legacy directory workspace kind parseable.
-    workspaceKind: z.enum(["directory", "local_checkout", "checkout", "worktree"]),
-    name: z.string(),
-    status: WorkspaceStateBucketSchema,
-    activityAt: z.string().nullable(),
-    diffStat: z
-      .object({
-        additions: z.number(),
-        deletions: z.number(),
-      })
-      .nullable()
-      .optional(),
-    scripts: z.array(WorkspaceScriptPayloadSchema).default([]),
-    gitRuntime: WorkspaceGitRuntimePayloadSchema,
-    githubRuntime: WorkspaceGitHubRuntimePayloadSchema,
-    project: ProjectPlacementPayloadSchema.optional(),
-  })
-  .transform((workspace) => ({
-    ...workspace,
-    workspaceDirectory: workspace.workspaceDirectory ?? workspace.projectRootPath,
-  }));
-
 export const AgentUpdateMessageSchema = z.object({
   type: z.literal("agent_update"),
   payload: z.discriminatedUnion("kind", [
@@ -2303,7 +2246,7 @@ export const FetchWorkspacesResponseMessageSchema = z.object({
   payload: z.object({
     requestId: z.string(),
     subscriptionId: z.string().nullable().optional(),
-    entries: z.array(WorkspaceDescriptorPayloadSchema),
+    entries: z.array(WorkspaceDescriptorSchemaWithDefault),
     pageInfo: z.object({
       nextCursor: z.string().nullable(),
       prevCursor: z.string().nullable(),
@@ -2317,7 +2260,7 @@ export const WorkspaceUpdateMessageSchema = z.object({
   payload: z.discriminatedUnion("kind", [
     z.object({
       kind: z.literal("upsert"),
-      workspace: WorkspaceDescriptorPayloadSchema,
+      workspace: WorkspaceDescriptorSchemaWithDefault,
     }),
     z.object({
       kind: z.literal("remove"),
@@ -2363,7 +2306,7 @@ export const OpenProjectResponseMessageSchema = z.object({
   type: z.literal("open_project_response"),
   payload: z.object({
     requestId: z.string(),
-    workspace: WorkspaceDescriptorPayloadSchema.nullable(),
+    workspace: WorkspaceDescriptorSchemaWithDefault.nullable(),
     error: z.string().nullable(),
   }),
 });
@@ -3041,7 +2984,7 @@ export const SoloWorktreeArchiveResponseSchema = z.object({
 export const CreateSoloWorktreeResponseSchema = z.object({
   type: z.literal("create_solo_worktree_response"),
   payload: z.object({
-    workspace: WorkspaceDescriptorPayloadSchema.nullable(),
+    workspace: WorkspaceDescriptorSchemaWithDefault.nullable(),
     error: z.string().nullable(),
     errorCode: z.string().optional(),
     setupTerminalId: z.string().nullable(),
@@ -3588,8 +3531,8 @@ export type AgentStreamMessage = z.infer<typeof AgentStreamMessageSchema>;
 export type AgentStatusMessage = z.infer<typeof AgentStatusMessageSchema>;
 export type ProjectCheckoutLitePayload = z.infer<typeof ProjectCheckoutLitePayloadSchema>;
 export type ProjectPlacementPayload = z.infer<typeof ProjectPlacementPayloadSchema>;
-export type WorkspaceStateBucket = z.infer<typeof WorkspaceStateBucketSchema>;
-export type WorkspaceDescriptorPayload = z.infer<typeof WorkspaceDescriptorPayloadSchema>;
+export type WorkspaceStateBucket = z.infer<typeof _WorkspaceStateBucketSchema>;
+export type WorkspaceDescriptorPayload = z.infer<typeof WorkspaceDescriptorSchemaWithDefault>;
 export type WorkspaceScriptLifecycle = z.infer<typeof WorkspaceScriptLifecycleSchema>;
 export type WorkspaceScriptHealth = z.infer<typeof WorkspaceScriptHealthSchema>;
 export type WorkspaceScriptPayload = z.infer<typeof WorkspaceScriptPayloadSchema>;

@@ -120,8 +120,8 @@ export function mockWorkspaceDescriptor(overrides?: Record<string, unknown>) {
     status: "done" as const,
     activityAt: null,
     scripts: [],
-    gitRuntime: null,
-    githubRuntime: null,
+    gitRuntime: undefined,
+    githubRuntime: undefined,
     ...overrides,
   };
 }
