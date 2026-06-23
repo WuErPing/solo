@@ -5,6 +5,7 @@ package filebackend
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 )
 
@@ -43,6 +44,9 @@ type Config struct {
 	// is SoloHome (~/.solo), so sessions land at ~/.solo/memory/sessions/...
 	// For tests, typically a t.TempDir().
 	BaseDir string
+	// Logger receives error logs from the background writer. If nil,
+	// slog.Default() is used.
+	Logger *slog.Logger
 }
 
 // ApplyDefaults fills zero-valued fields with defaults and validates.

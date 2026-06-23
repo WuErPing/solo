@@ -6,6 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
+
+	"github.com/WuErPing/solo/daemon/internal/config"
+	daemonmetrics "github.com/WuErPing/solo/daemon/internal/metrics"
 	"github.com/WuErPing/solo/protocol"
 )
 
@@ -266,5 +270,87 @@ func TestAppend_DoesNotDeduplicateNonAdjacentLiveDuplicates(t *testing.T) {
 	result := s.Fetch("agent-1", "tail", nil, 0)
 	if len(result.Rows) != 3 {
 		t.Fatalf("expected 3 rows, got %d", len(result.Rows))
+	}
+}
+
+// ---------- Per-agent row limit ----------
+
+func TestTimelineStoreDefaultMaxRows(t *testing.T) {
+	s := NewInMemoryTimelineStore()
+	if s.maxRowsPerAgent != config.DefaultTimelineMaxRowsPerAgent {
+		t.Errorf("default maxRowsPerAgent: got %d, want %d", s.maxRowsPerAgent, config.DefaultTimelineMaxRowsPerAgent)
+	}
+}
+
+func TestTimelineStoreAppend_DropsOldestRowsWhenLimitExceeded(t *testing.T) {
+	s := NewInMemoryTimelineStoreWithLimit(3)
+	s.Initialize("agent-1")
+
+	s.Append("agent-1", TimelineItem{Type: "user_message", Text: "first"})
+	s.Append("agent-1", TimelineItem{Type: "user_message", Text: "second"})
+	s.Append("agent-1", TimelineItem{Type: "user_message", Text: "third"})
+	s.Append("agent-1", TimelineItem{Type: "user_message", Text: "fourth"})
+
+	result := s.Fetch("agent-1", "tail", nil, 0)
+	if len(result.Rows) != 3 {
+		t.Fatalf("expected 3 rows after drop, got %d", len(result.Rows))
+	}
+	if result.Rows[0].Item.Text != "second" {
+		t.Errorf("oldest row should be 'second', got %q", result.Rows[0].Item.Text)
+	}
+	if result.Rows[2].Item.Text != "fourth" {
+		t.Errorf("newest row should be 'fourth', got %q", result.Rows[2].Item.Text)
+	}
+	if result.Window.MinSeq != 1 {
+		t.Errorf("Window.MinSeq after drop: got %d, want 1", result.Window.MinSeq)
+	}
+}
+
+func TestTimelineStoreAppendFromHistory_DropsOldestRowsWhenLimitExceeded(t *testing.T) {
+	s := NewInMemoryTimelineStoreWithLimit(2)
+	s.Initialize("agent-1")
+
+	s.AppendFromHistory("agent-1", TimelineItem{Type: "user_message", Text: "old"})
+	s.AppendFromHistory("agent-1", TimelineItem{Type: "user_message", Text: "mid"})
+	s.AppendFromHistory("agent-1", TimelineItem{Type: "user_message", Text: "new"})
+
+	result := s.Fetch("agent-1", "tail", nil, 0)
+	if len(result.Rows) != 2 {
+		t.Fatalf("expected 2 rows after drop, got %d", len(result.Rows))
+	}
+	if result.Rows[0].Item.Text != "mid" {
+		t.Errorf("oldest row should be 'mid', got %q", result.Rows[0].Item.Text)
+	}
+}
+
+func TestTimelineStoreFetch_ResetsWhenCursorBeforeDroppedRows(t *testing.T) {
+	s := NewInMemoryTimelineStoreWithLimit(2)
+	s.Initialize("agent-1")
+
+	row0 := s.Append("agent-1", TimelineItem{Type: "user_message", Text: "zero"})
+	s.Append("agent-1", TimelineItem{Type: "user_message", Text: "one"})
+	s.Append("agent-1", TimelineItem{Type: "user_message", Text: "two"})   // drops "zero"
+	s.Append("agent-1", TimelineItem{Type: "user_message", Text: "three"}) // drops "one", minSeq now 2
+
+	cursor := row0.ToProtocolCursor(s.GetEpoch("agent-1"))
+	result := s.Fetch("agent-1", "after", &cursor, 10)
+	if !result.Reset {
+		t.Error("expected Reset=true because cursor points to dropped row")
+	}
+}
+
+func TestTimelineStoreMetrics_DroppedRowsCounted(t *testing.T) {
+	daemonmetrics.TimelineRowsDroppedTotal.Add(0) // ensure registered
+	before := testutil.ToFloat64(daemonmetrics.TimelineRowsDroppedTotal)
+
+	s := NewInMemoryTimelineStoreWithLimit(2)
+	s.Initialize("agent-1")
+	s.Append("agent-1", TimelineItem{Type: "user_message", Text: "one"})
+	s.Append("agent-1", TimelineItem{Type: "user_message", Text: "two"})
+	s.Append("agent-1", TimelineItem{Type: "user_message", Text: "three"}) // drops "one"
+
+	after := testutil.ToFloat64(daemonmetrics.TimelineRowsDroppedTotal)
+	if after-before != 1 {
+		t.Errorf("expected 1 dropped row counted, got %f", after-before)
 	}
 }

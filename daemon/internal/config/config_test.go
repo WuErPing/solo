@@ -23,6 +23,9 @@ func TestDefaultConfig(t *testing.T) {
 	if len(cfg.CORSOrigins) != 2 || cfg.CORSOrigins[0] != "https://solo.up2ai.top" || cfg.CORSOrigins[1] != "http://localhost:19000" {
 		t.Errorf("CORSOrigins: got %v", cfg.CORSOrigins)
 	}
+	if cfg.TimelineMaxRowsPerAgent != DefaultTimelineMaxRowsPerAgent {
+		t.Errorf("TimelineMaxRowsPerAgent default: got %d, want %d", cfg.TimelineMaxRowsPerAgent, DefaultTimelineMaxRowsPerAgent)
+	}
 }
 
 func TestLoad_Defaults(t *testing.T) {
@@ -302,5 +305,37 @@ func TestResolveListenTarget_Invalid(t *testing.T) {
 		if err == nil {
 			t.Errorf("expected error for %q", addr)
 		}
+	}
+}
+
+func TestLoad_PersistedConfig_TimelineMaxRowsPerAgent(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLO_HOME", home)
+
+	configData := []byte(`{"daemon":{"timelineMaxRowsPerAgent":500}}`)
+	_ = os.WriteFile(filepath.Join(home, "config.json"), configData, 0644)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.TimelineMaxRowsPerAgent != 500 {
+		t.Errorf("persisted TimelineMaxRowsPerAgent: got %d, want 500", cfg.TimelineMaxRowsPerAgent)
+	}
+}
+
+func TestLoad_PersistedConfig_TimelineMaxRowsPerAgent_IgnoresZero(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLO_HOME", home)
+
+	configData := []byte(`{"daemon":{"timelineMaxRowsPerAgent":0}}`)
+	_ = os.WriteFile(filepath.Join(home, "config.json"), configData, 0644)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.TimelineMaxRowsPerAgent != DefaultTimelineMaxRowsPerAgent {
+		t.Errorf("zero TimelineMaxRowsPerAgent should fall back to default: got %d, want %d", cfg.TimelineMaxRowsPerAgent, DefaultTimelineMaxRowsPerAgent)
 	}
 }

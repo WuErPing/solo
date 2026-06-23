@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -40,6 +41,20 @@ type FileTurnRecorder struct {
 	closeMu   sync.Mutex
 	flushMu   sync.Mutex
 
+	// logger receives error logs from the background writer.
+	logger *slog.Logger
+
+	// lastErr captures the first persistence error encountered during the
+	// final drain in Close. It is set by writeLoop before closing doneCh.
+	lastErr   error
+	lastErrMu sync.Mutex
+
+	// persistErr is the first persistence error encountered since the last
+	// Flush or Close. It is set by writeLoop/drainTurns and read/reset by
+	// Flush so that callers observe background failures.
+	persistErr   error
+	persistErrMu sync.Mutex
+
 	// sessions tracks session IDs that have already been written to the
 	// index, so each session produces exactly one JSONL entry.
 	sessions   map[string]bool
@@ -56,11 +71,16 @@ func New(cfg Config) (*FileTurnRecorder, error) {
 	if err := cfg.ApplyDefaults(); err != nil {
 		return nil, err
 	}
+	logger := cfg.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
 	r := &FileTurnRecorder{
 		cfg:        cfg,
 		turnCh:     make(chan memory.Turn, cfg.QueueSize),
 		flushReqCh: make(chan flushReq),
 		doneCh:     make(chan struct{}),
+		logger:     logger,
 		sessions:   make(map[string]bool),
 	}
 	go r.writeLoop()
@@ -130,8 +150,9 @@ func (r *FileTurnRecorder) Flush(ctx context.Context) error {
 }
 
 // Close flushes pending turns and stops the writer. Idempotent.
+// Returns the first persistence error encountered while draining the
+// remaining queue; nil if all turns were persisted successfully.
 func (r *FileTurnRecorder) Close() error {
-	var err error
 	r.closeOnce.Do(func() {
 		r.closeMu.Lock()
 		r.closed = true
@@ -139,50 +160,76 @@ func (r *FileTurnRecorder) Close() error {
 		close(r.turnCh)
 		<-r.doneCh
 	})
-	return err
+	r.lastErrMu.Lock()
+	defer r.lastErrMu.Unlock()
+	return r.lastErr
 }
 
 // writeLoop is the single background goroutine that performs all I/O.
 func (r *FileTurnRecorder) writeLoop() {
 	defer close(r.doneCh)
 
+	var closeErr error
 	for {
 		select {
 		case turn, ok := <-r.turnCh:
 			if !ok {
+				// Persist the final drain error so Close can return it.
+				r.setLastErr(closeErr)
 				// Drain any last-moment flush requests that raced with Close.
 				r.drainFlushReqs()
 				return
 			}
-			r.persistTurn(turn)
+			if err := r.persistTurn(turn); err != nil {
+				r.logPersistError(err, turn)
+				r.setPersistErr(err)
+				if closeErr == nil {
+					closeErr = err
+				}
+			}
 
 		case req := <-r.flushReqCh:
-			// Drain all pending turns before acknowledging the flush.
-			r.drainTurns()
+			// Drain all pending turns before acknowledging the flush, then
+			// surface any background persistence error that occurred since
+			// the last flush.
+			err := r.drainTurns()
+			if err == nil {
+				err = r.takePersistErr()
+			}
 			select {
-			case req.done <- nil:
+			case req.done <- err:
 			default:
 			}
 		}
 	}
 }
 
-// drainTurns blocks until turnCh is empty.
-func (r *FileTurnRecorder) drainTurns() {
+// drainTurns blocks until turnCh is empty and returns the first persistence
+// error encountered during the drain.
+func (r *FileTurnRecorder) drainTurns() error {
+	var err error
 	for {
 		select {
 		case turn, ok := <-r.turnCh:
 			if !ok {
-				return
+				return err
 			}
-			r.persistTurn(turn)
+			if perr := r.persistTurn(turn); perr != nil {
+				r.logPersistError(perr, turn)
+				r.setPersistErr(perr)
+				if err == nil {
+					err = perr
+				}
+			}
 		default:
-			return
+			return err
 		}
 	}
 }
 
 // drainFlushReqs acknowledges any buffered flush requests during shutdown.
+// Close-time flush requests are answered with the final drain error via
+// setLastErr/Close, so we simply unblock them here.
 func (r *FileTurnRecorder) drainFlushReqs() {
 	for {
 		select {
@@ -197,13 +244,49 @@ func (r *FileTurnRecorder) drainFlushReqs() {
 	}
 }
 
+// setLastErr stores the first error encountered during the final drain.
+func (r *FileTurnRecorder) setLastErr(err error) {
+	r.lastErrMu.Lock()
+	defer r.lastErrMu.Unlock()
+	r.lastErr = err
+}
+
+// setPersistErr stores the first persistence error since the last Flush.
+func (r *FileTurnRecorder) setPersistErr(err error) {
+	r.persistErrMu.Lock()
+	defer r.persistErrMu.Unlock()
+	if r.persistErr == nil {
+		r.persistErr = err
+	}
+}
+
+// takePersistErr returns and resets the first persistence error since the
+// last Flush. Callers should combine it with any drain-time error.
+func (r *FileTurnRecorder) takePersistErr() error {
+	r.persistErrMu.Lock()
+	defer r.persistErrMu.Unlock()
+	err := r.persistErr
+	r.persistErr = nil
+	return err
+}
+
+// logPersistError logs a background persistence failure with context.
+func (r *FileTurnRecorder) logPersistError(err error, turn memory.Turn) {
+	r.logger.Error("failed to persist turn",
+		"error", err,
+		"sessionID", turn.SessionID,
+		"seq", turn.Seq,
+		"role", turn.Role,
+	)
+}
+
 // persistTurn writes one turn file and (on first sight) its session index
-// entry. Errors are swallowed here; M5 wires them into metrics.
-func (r *FileTurnRecorder) persistTurn(turn memory.Turn) {
+// entry. It returns an error if any I/O or serialization step fails.
+func (r *FileTurnRecorder) persistTurn(turn memory.Turn) error {
 	ymd := turn.Ts.Format("2006-01-02")
 	turnsDir := filepath.Join(r.cfg.BaseDir, r.cfg.Root, "sessions", ymd, turn.SessionID, "turns")
 	if err := os.MkdirAll(turnsDir, dirPerm); err != nil {
-		return
+		return fmt.Errorf("mkdir turns dir: %w", err)
 	}
 
 	name := fmt.Sprintf("%04d-%s.md", turn.Seq, turn.Role)
@@ -211,12 +294,14 @@ func (r *FileTurnRecorder) persistTurn(turn memory.Turn) {
 
 	// Write-once: never clobber an existing turn file.
 	if _, err := os.Stat(path); err == nil {
-		return
+		return nil
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("stat turn file: %w", err)
 	}
 
 	fm, err := turn.FrontmatterYAML()
 	if err != nil {
-		return
+		return fmt.Errorf("frontmatter yaml: %w", err)
 	}
 	var sb strings.Builder
 	sb.WriteString("---\n")
@@ -225,10 +310,13 @@ func (r *FileTurnRecorder) persistTurn(turn memory.Turn) {
 	sb.WriteString(turn.Content)
 
 	if err := os.WriteFile(path, []byte(sb.String()), filePerm); err != nil {
-		return
+		return fmt.Errorf("write turn file: %w", err)
 	}
 
-	r.maybeWriteSessionIndex(turn)
+	if err := r.maybeWriteSessionIndex(turn); err != nil {
+		return fmt.Errorf("session index: %w", err)
+	}
+	return nil
 }
 
 // sessionIndexEntry is the JSONL schema for sessions.jsonl.
@@ -239,18 +327,18 @@ type sessionIndexEntry struct {
 	Source     string    `json:"source,omitempty"`
 }
 
-func (r *FileTurnRecorder) maybeWriteSessionIndex(turn memory.Turn) {
+func (r *FileTurnRecorder) maybeWriteSessionIndex(turn memory.Turn) error {
 	r.sessionsMu.Lock()
 	if r.sessions[turn.SessionID] {
 		r.sessionsMu.Unlock()
-		return
+		return nil
 	}
 	r.sessions[turn.SessionID] = true
 	r.sessionsMu.Unlock()
 
 	indexPath := filepath.Join(r.cfg.BaseDir, r.cfg.Root, "sessions.jsonl")
 	if err := os.MkdirAll(filepath.Dir(indexPath), dirPerm); err != nil {
-		return
+		return fmt.Errorf("mkdir index dir: %w", err)
 	}
 
 	entry := sessionIndexEntry{
@@ -261,13 +349,14 @@ func (r *FileTurnRecorder) maybeWriteSessionIndex(turn memory.Turn) {
 	}
 	line, err := json.Marshal(entry)
 	if err != nil {
-		return
+		return fmt.Errorf("marshal index entry: %w", err)
 	}
 	line = append(line, '\n')
 
 	if err := appendToFile(indexPath, line); err != nil {
-		return
+		return fmt.Errorf("append index entry: %w", err)
 	}
+	return nil
 }
 
 // appendToFile atomically appends data to a file, ensuring Close is

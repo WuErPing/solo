@@ -127,7 +127,7 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 	}
 
 	// Initialize timeline store
-	timelineStore := agent.NewInMemoryTimelineStore()
+	timelineStore := agent.NewInMemoryTimelineStoreWithLimit(cfg.TimelineMaxRowsPerAgent)
 
 	// Initialize workspace store
 	workspaceStore := NewWorkspaceStore(cfg.SoloHome, logger)

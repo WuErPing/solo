@@ -1,8 +1,11 @@
 package filebackend
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -24,6 +27,7 @@ func testConfig(t *testing.T) Config {
 		FlushInterval: 10 * time.Millisecond,
 		Root:          "memory",
 		BaseDir:       t.TempDir(),
+		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 }
 
@@ -290,5 +294,136 @@ func TestRecordTurn_RejectsInvalidTurn(t *testing.T) {
 	}
 	if errors.Is(err, memory.ErrClosed) {
 		t.Error("validation error should not be ErrClosed")
+	}
+}
+
+// ---------- Persist error propagation ----------
+
+func TestFlush_ReturnsPersistErrorOnMkdirAllFailure(t *testing.T) {
+	cfg := testConfig(t)
+	// Make BaseDir read-only so that creating sessions/... fails.
+	if err := os.Chmod(cfg.BaseDir, 0o555); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+	defer os.Chmod(cfg.BaseDir, 0o755)
+
+	r, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer r.Close()
+
+	turn := memory.NewTurn("sess-1", memory.RoleUser, memory.SourceCLI, time.Now().UTC(), "hello")
+	turn.Seq = 1
+
+	ctx := context.Background()
+	if err := r.RecordTurn(ctx, "sess-1", turn); err != nil {
+		t.Fatalf("RecordTurn: %v", err)
+	}
+
+	if err := r.Flush(ctx); err == nil {
+		t.Fatal("expected Flush to return persist error, got nil")
+	}
+}
+
+func TestFlush_ReturnsPersistErrorOnWriteFileFailure(t *testing.T) {
+	cfg := testConfig(t)
+	r, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer r.Close()
+
+	ctx := context.Background()
+	ts := time.Date(2026, 5, 28, 10, 0, 0, 0, time.UTC)
+
+	// First turn succeeds and creates the directory structure.
+	turn1 := memory.NewTurn("sess-1", memory.RoleUser, memory.SourceCLI, ts, "first")
+	turn1.Seq = 1
+	if err := r.RecordTurn(ctx, "sess-1", turn1); err != nil {
+		t.Fatalf("RecordTurn 1: %v", err)
+	}
+	if err := r.Flush(ctx); err != nil {
+		t.Fatalf("Flush 1: %v", err)
+	}
+
+	// Make the turns directory read-only so the second write fails.
+	turnsDir := filepath.Join(r.cfg.BaseDir, r.cfg.Root, "sessions", "2026-05-28", "sess-1", "turns")
+	if err := os.Chmod(turnsDir, 0o555); err != nil {
+		t.Fatalf("Chmod turns dir: %v", err)
+	}
+	defer os.Chmod(turnsDir, 0o755)
+
+	// Verify the chmod actually prevents writes from this process.
+	probe := filepath.Join(turnsDir, "probe.txt")
+	if probeErr := os.WriteFile(probe, []byte("x"), 0o644); probeErr == nil {
+		t.Fatalf("chmod did not prevent writes: probe write succeeded")
+	}
+
+	turn2 := memory.NewTurn("sess-1", memory.RoleUser, memory.SourceCLI, ts, "second")
+	turn2.Seq = 2
+	if err := r.RecordTurn(ctx, "sess-1", turn2); err != nil {
+		t.Fatalf("RecordTurn 2: %v", err)
+	}
+
+	if err := r.Flush(ctx); err == nil {
+		t.Fatal("expected Flush to return write error, got nil")
+	}
+}
+
+func TestClose_ReturnsPersistError(t *testing.T) {
+	cfg := testConfig(t)
+	if err := os.Chmod(cfg.BaseDir, 0o555); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+	defer os.Chmod(cfg.BaseDir, 0o755)
+
+	r, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	turn := memory.NewTurn("sess-1", memory.RoleUser, memory.SourceCLI, time.Now().UTC(), "hello")
+	turn.Seq = 1
+	if err := r.RecordTurn(context.Background(), "sess-1", turn); err != nil {
+		t.Fatalf("RecordTurn: %v", err)
+	}
+
+	if err := r.Close(); err == nil {
+		t.Fatal("expected Close to return persist error, got nil")
+	}
+}
+
+func TestPersistTurn_LogsError(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	cfg := testConfig(t)
+	cfg.Logger = logger
+	if err := os.Chmod(cfg.BaseDir, 0o555); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+	defer os.Chmod(cfg.BaseDir, 0o755)
+
+	r, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer r.Close()
+
+	turn := memory.NewTurn("sess-1", memory.RoleUser, memory.SourceCLI, time.Now().UTC(), "hello")
+	turn.Seq = 1
+	ctx := context.Background()
+	if err := r.RecordTurn(ctx, "sess-1", turn); err != nil {
+		t.Fatalf("RecordTurn: %v", err)
+	}
+	_ = r.Flush(ctx)
+
+	logged := buf.String()
+	if !strings.Contains(logged, "failed to persist turn") {
+		t.Errorf("expected error log to contain 'failed to persist turn', got:\n%s", logged)
+	}
+	if !strings.Contains(logged, "sess-1") {
+		t.Errorf("expected error log to contain sessionID, got:\n%s", logged)
 	}
 }

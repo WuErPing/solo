@@ -25,7 +25,21 @@ var (
 	// MessagesReceivedTotal counts the total number of inbound messages received.
 	MessagesReceivedTotal = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "solo_daemon_messages_received_total",
-		Help: "Total number of inbound messages received from clients",
+		Help: "Total number of inbound messages received",
+	})
+
+	// TimelineRowsTotal tracks the current number of in-memory timeline rows
+	// across all agents.
+	TimelineRowsTotal = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "solo_daemon_timeline_rows_total",
+		Help: "Current number of in-memory timeline rows across all agents",
+	})
+
+	// TimelineRowsDroppedTotal counts the number of timeline rows dropped due
+	// to per-agent row limits.
+	TimelineRowsDroppedTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "solo_daemon_timeline_rows_dropped_total",
+		Help: "Total number of timeline rows dropped due to per-agent limits",
 	})
 )
 
@@ -35,5 +49,7 @@ func init() {
 		ConnectionsTotal,
 		MessagesSentTotal,
 		MessagesReceivedTotal,
+		TimelineRowsTotal,
+		TimelineRowsDroppedTotal,
 	)
 }

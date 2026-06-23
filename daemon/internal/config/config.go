@@ -28,6 +28,7 @@ type Config struct {
 	Version                      string
 	CustomModels                 map[string][]CustomModelConfig // key = provider ID
 	TmuxAgentNames               []string                       // additional tmux agent names (merged with built-in defaults)
+	TimelineMaxRowsPerAgent      int                            // hard upper bound for in-memory timeline rows per agent
 	Memory                       MemoryConfig
 }
 
@@ -55,13 +56,14 @@ type PersistedConfig struct {
 }
 
 type DaemonConfig struct {
-	Listen         *string          `json:"listen,omitempty"`
-	Hostnames      []string         `json:"hostnames,omitempty"`
-	MCP            *MCPConfig       `json:"mcp,omitempty"`
-	CORS           *CORSConfig      `json:"cors,omitempty"`
-	Relay          *RelayConfig     `json:"relay,omitempty"`
-	Providers      *ProvidersConfig `json:"providers,omitempty"`
-	TmuxAgentNames []string         `json:"tmuxAgentNames,omitempty"`
+	Listen                  *string          `json:"listen,omitempty"`
+	Hostnames               []string         `json:"hostnames,omitempty"`
+	MCP                     *MCPConfig       `json:"mcp,omitempty"`
+	CORS                    *CORSConfig      `json:"cors,omitempty"`
+	Relay                   *RelayConfig     `json:"relay,omitempty"`
+	Providers               *ProvidersConfig `json:"providers,omitempty"`
+	TmuxAgentNames          []string         `json:"tmuxAgentNames,omitempty"`
+	TimelineMaxRowsPerAgent *int             `json:"timelineMaxRowsPerAgent,omitempty"`
 }
 
 type MCPConfig struct {
@@ -107,21 +109,27 @@ type CustomSelectOption struct {
 var Version = "0.3.0"
 
 // DefaultConfig returns a Config with sensible defaults.
+// DefaultTimelineMaxRowsPerAgent is the default hard upper bound for
+// in-memory timeline rows kept per agent. Older rows are dropped once the
+// limit is exceeded.
+const DefaultTimelineMaxRowsPerAgent = 10000
+
 func DefaultConfig() *Config {
 	return &Config{
-		SoloHome:            "",
-		Listen:              "127.0.0.1:17612",
-		ServerID:            "",
-		RelayEnabled:        true,
-		RelayEndpoint:       "relay.solo.sh:443",
-		RelayPublicEndpoint: "relay.solo.sh:443",
-		MCPEnabled:          true,
-		MCPInjectIntoAgents: false,
-		CORSOrigins:         []string{"https://solo.up2ai.top", "http://localhost:19000"},
-		Hostnames:           nil,
-		AppBaseURL:          "https://solo.up2ai.top",
-		Supervised:          false,
-		Version:             Version,
+		SoloHome:                "",
+		Listen:                  "127.0.0.1:17612",
+		ServerID:                "",
+		RelayEnabled:            true,
+		RelayEndpoint:           "relay.solo.sh:443",
+		RelayPublicEndpoint:     "relay.solo.sh:443",
+		MCPEnabled:              true,
+		MCPInjectIntoAgents:     false,
+		CORSOrigins:             []string{"https://solo.up2ai.top", "http://localhost:19000"},
+		Hostnames:               nil,
+		AppBaseURL:              "https://solo.up2ai.top",
+		Supervised:              false,
+		TimelineMaxRowsPerAgent: DefaultTimelineMaxRowsPerAgent,
+		Version:                 Version,
 	}
 }
 
@@ -226,6 +234,9 @@ func applyPersistedConfig(cfg *Config, pc *PersistedConfig) {
 		}
 		if len(pc.Daemon.TmuxAgentNames) > 0 {
 			cfg.TmuxAgentNames = pc.Daemon.TmuxAgentNames
+		}
+		if pc.Daemon.TimelineMaxRowsPerAgent != nil && *pc.Daemon.TimelineMaxRowsPerAgent > 0 {
+			cfg.TimelineMaxRowsPerAgent = *pc.Daemon.TimelineMaxRowsPerAgent
 		}
 	}
 	if pc.App != nil {

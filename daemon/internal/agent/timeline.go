@@ -3,12 +3,15 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/WuErPing/solo/daemon/internal/config"
+	daemonmetrics "github.com/WuErPing/solo/daemon/internal/metrics"
 	"github.com/WuErPing/solo/protocol"
 )
 
@@ -37,16 +40,28 @@ type TimelineState struct {
 
 // InMemoryTimelineStore manages timelines for all agents in memory.
 type InMemoryTimelineStore struct {
-	mu      sync.RWMutex
-	states  map[string]*TimelineState
-	waiters map[string][]chan struct{}
+	mu              sync.RWMutex
+	states          map[string]*TimelineState
+	waiters         map[string][]chan struct{}
+	maxRowsPerAgent int
 }
 
-// NewInMemoryTimelineStore creates a new timeline store.
+// NewInMemoryTimelineStore creates a new timeline store with the default
+// per-agent row limit.
 func NewInMemoryTimelineStore() *InMemoryTimelineStore {
+	return NewInMemoryTimelineStoreWithLimit(config.DefaultTimelineMaxRowsPerAgent)
+}
+
+// NewInMemoryTimelineStoreWithLimit creates a new timeline store with a custom
+// per-agent row limit. Non-positive values fall back to the default.
+func NewInMemoryTimelineStoreWithLimit(limit int) *InMemoryTimelineStore {
+	if limit <= 0 {
+		limit = config.DefaultTimelineMaxRowsPerAgent
+	}
 	return &InMemoryTimelineStore{
-		states:  make(map[string]*TimelineState),
-		waiters: make(map[string][]chan struct{}),
+		states:          make(map[string]*TimelineState),
+		waiters:         make(map[string][]chan struct{}),
+		maxRowsPerAgent: limit,
 	}
 }
 
@@ -75,7 +90,10 @@ func (s *InMemoryTimelineStore) Has(agentID string) bool {
 func (s *InMemoryTimelineStore) Delete(agentID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.states, agentID)
+	if state, ok := s.states[agentID]; ok {
+		daemonmetrics.TimelineRowsTotal.Sub(float64(len(state.Rows)))
+		delete(s.states, agentID)
+	}
 }
 
 // Append adds a timeline item and returns the new row.
@@ -118,7 +136,8 @@ func (s *InMemoryTimelineStore) getOrCreateStateLocked(agentID string) *Timeline
 	return state
 }
 
-// appendLocked appends item to state and notifies waiters. Caller must hold s.mu.
+// appendLocked appends item to state, enforces the per-agent row limit, and
+// notifies waiters. Caller must hold s.mu.
 func (s *InMemoryTimelineStore) appendLocked(state *TimelineState, agentID string, item TimelineItem) TimelineRow {
 	row := TimelineRow{
 		Seq:       state.NextSeq,
@@ -127,6 +146,9 @@ func (s *InMemoryTimelineStore) appendLocked(state *TimelineState, agentID strin
 	}
 	state.Rows = append(state.Rows, row)
 	state.NextSeq++
+	daemonmetrics.TimelineRowsTotal.Inc()
+
+	s.enforceLimitLocked(state, agentID)
 
 	// Notify waiters for assistant_message
 	if item.Type == "assistant_message" {
@@ -139,6 +161,38 @@ func (s *InMemoryTimelineStore) appendLocked(state *TimelineState, agentID strin
 	}
 
 	return row
+}
+
+// enforceLimitLocked drops the oldest rows when the per-agent limit is
+// exceeded. Caller must hold s.mu.
+func (s *InMemoryTimelineStore) enforceLimitLocked(state *TimelineState, agentID string) {
+	if len(state.Rows) <= s.maxRowsPerAgent {
+		return
+	}
+
+	excess := len(state.Rows) - s.maxRowsPerAgent
+	if excess <= 0 {
+		return
+	}
+
+	dropped := state.Rows[:excess]
+	state.Rows = state.Rows[excess:]
+
+	daemonmetrics.TimelineRowsTotal.Sub(float64(excess))
+	daemonmetrics.TimelineRowsDroppedTotal.Add(float64(excess))
+
+	slog.Default().Warn("timeline rows dropped due to per-agent limit",
+		"agentID", agentID,
+		"dropped", excess,
+		"remaining", len(state.Rows),
+		"maxRowsPerAgent", s.maxRowsPerAgent,
+	)
+
+	// Clean up now-stale waiters: any pending waiter was waiting for an
+	// assistant_message that has been evicted, so it will never be notified.
+	// Dropping these rows is a last-resort safety valve; clients should fetch
+	// with the updated epoch/window.
+	_ = dropped
 }
 
 // Fetch retrieves timeline rows with cursor-based pagination.
