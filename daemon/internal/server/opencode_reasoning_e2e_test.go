@@ -16,6 +16,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
+	"github.com/WuErPing/solo/daemon/internal/agent/providers/opencode"
 	"github.com/WuErPing/solo/daemon/internal/config"
 	"github.com/WuErPing/solo/daemon/internal/push"
 	"github.com/WuErPing/solo/daemon/internal/schedule"
@@ -44,7 +45,7 @@ func newTestWSServerWithOpenCode(t *testing.T) (*WSServer, *httptest.Server, boo
 	registry := agent.NewProviderRegistry()
 	registry.Register(agent.NewMockAgentClient())
 
-	opencodeClient := agent.NewOpenCodeAgentClient("", logger)
+	opencodeClient := opencode.NewClient("", logger)
 	opencodeAvailable := true
 	modelID := ""
 	reasoningModelID := ""
@@ -120,7 +121,7 @@ func newTestWSServerWithOpenCode(t *testing.T) (*WSServer, *httptest.Server, boo
 	t.Cleanup(func() {
 		ts.Close()
 		if opencodeAvailable {
-			agent.ShutdownOpenCodeServerManager()
+			opencode.ShutdownOpenCodeServerManager()
 		}
 	})
 	return ws, ts, opencodeAvailable, modelID, reasoningModelID, thinkingModelID, thinkingOptionID

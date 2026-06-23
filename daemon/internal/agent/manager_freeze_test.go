@@ -107,7 +107,7 @@ func TestSubscribeToSession_OpenCodeTerminalEventFallback_WhenWorkChFull(t *test
 	mockSession := &MockAgentSession{events: eventsCh}
 	ag := &ManagedAgent{
 		ID:          "opencode-freeze-test-agent",
-		Provider:    opencodeProviderName,
+		Provider:    "opencode",
 		Lifecycle:   protocol.AgentRunning,
 		Session:     mockSession,
 		subscribers: make(map[uint64]AgentEventFunc),
@@ -119,12 +119,12 @@ func TestSubscribeToSession_OpenCodeTerminalEventFallback_WhenWorkChFull(t *test
 	for i := 0; i < 10; i++ {
 		eventsCh <- AgentStreamEvent{
 			AgentID: ag.ID,
-			Event:   protocol.TimelineStreamEvent{Provider: opencodeProviderName, Item: protocol.TimelineItem{Type: "text", Text: "filler"}},
+			Event:   protocol.TimelineStreamEvent{Provider: "opencode", Item: protocol.TimelineItem{Type: "text", Text: "filler"}},
 		}
 	}
 	eventsCh <- AgentStreamEvent{
 		AgentID: ag.ID,
-		Event:   protocol.TurnCompletedStreamEvent{Provider: opencodeProviderName},
+		Event:   protocol.TurnCompletedStreamEvent{Provider: "opencode"},
 	}
 	close(eventsCh)
 
