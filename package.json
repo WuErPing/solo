@@ -11,6 +11,11 @@
     "postinstall": "patch-package",
     "lint": "npm run lint --workspaces --if-present"
   },
+  "overrides": {
+    "@solo/app-bridge": {
+      "zod": "^3.23.8"
+    }
+  },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@types/react": "~19.1.10",

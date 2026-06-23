@@ -159,27 +159,29 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
   }, [sessionAgents]);
 
   const hydrateWorkspaces = useCallback(
-    createHydrateWorkspaces({
-      client,
-      isConnected,
-      serverId,
-      setWorkspaces,
-      setHasHydratedWorkspaces,
-    }),
+    (...args: Parameters<ReturnType<typeof createHydrateWorkspaces>>) =>
+      createHydrateWorkspaces({
+        client,
+        isConnected,
+        serverId,
+        setWorkspaces,
+        setHasHydratedWorkspaces,
+      })(...args),
     [client, isConnected, serverId, setHasHydratedWorkspaces, setWorkspaces],
   );
 
   const applyAuthoritativeAgentSnapshot = useCallback(
-    createApplyAuthoritativeAgentSnapshot({
-      serverId,
-      queryClient,
-      setAgents,
-      setAgentLastActivity,
-      setPendingPermissions,
-      setQueuedMessages,
-      sendAgentMessageRef,
-      previousAgentStatusRef,
-    }),
+    (...args: Parameters<ReturnType<typeof createApplyAuthoritativeAgentSnapshot>>) =>
+      createApplyAuthoritativeAgentSnapshot({
+        serverId,
+        queryClient,
+        setAgents,
+        setAgentLastActivity,
+        setPendingPermissions,
+        setQueuedMessages,
+        sendAgentMessageRef,
+        previousAgentStatusRef,
+      })(...args),
     [
       queryClient,
       serverId,
@@ -191,44 +193,48 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
   );
 
   const runAuthoritativeRevalidation = useCallback(
-    createRunAuthoritativeRevalidation({
-      serverId,
-      hydrateWorkspaces,
-    }),
+    (...args: Parameters<ReturnType<typeof createRunAuthoritativeRevalidation>>) =>
+      createRunAuthoritativeRevalidation({
+        serverId,
+        hydrateWorkspaces,
+      })(...args),
     [hydrateWorkspaces, serverId],
   );
 
   const flushAuthoritativeRevalidation = useCallback(
-    createFlushAuthoritativeRevalidation({
-      client,
-      isConnected,
-      serverId,
-      runAuthoritativeRevalidation,
-      revalidationInFlightRef,
-      revalidationQueuedRef,
-      revalidationTimerRef,
-    }),
+    (...args: Parameters<ReturnType<typeof createFlushAuthoritativeRevalidation>>) =>
+      createFlushAuthoritativeRevalidation({
+        client,
+        isConnected,
+        serverId,
+        runAuthoritativeRevalidation,
+        revalidationInFlightRef,
+        revalidationQueuedRef,
+        revalidationTimerRef,
+      })(...args),
     [client, isConnected, runAuthoritativeRevalidation, serverId],
   );
 
   const scheduleAuthoritativeRevalidation = useCallback(
-    createScheduleAuthoritativeRevalidation({
-      client,
-      isConnected,
-      flushAuthoritativeRevalidation,
-      revalidationTimerRef,
-      revalidationQueuedRef,
-    }),
+    (...args: Parameters<ReturnType<typeof createScheduleAuthoritativeRevalidation>>) =>
+      createScheduleAuthoritativeRevalidation({
+        client,
+        isConnected,
+        flushAuthoritativeRevalidation,
+        revalidationTimerRef,
+        revalidationQueuedRef,
+      })(...args),
     [client, flushAuthoritativeRevalidation, isConnected],
   );
 
   const handleAppResumed = useCallback(
-    createHandleAppResumed({
-      serverId,
-      client,
-      scheduleAuthoritativeRevalidation,
-      bumpHistorySyncGeneration,
-    }),
+    (...args: Parameters<ReturnType<typeof createHandleAppResumed>>) =>
+      createHandleAppResumed({
+        serverId,
+        client,
+        scheduleAuthoritativeRevalidation,
+        bumpHistorySyncGeneration,
+      })(...args),
     [bumpHistorySyncGeneration, client, scheduleAuthoritativeRevalidation, serverId],
   );
 
@@ -237,14 +243,15 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
   usePushTokenRegistration({ client, serverId });
 
   const notifyAgentAttention = useCallback(
-    createNotifyAgentAttention({
-      serverId,
-      appStateRef,
-      attentionNotifiedRef,
-      getSessionState: () => useSessionStore.getState().sessions[serverId],
-      isAppActivelyVisible: getIsAppActivelyVisible,
-      sendNotification: sendOsNotification,
-    }),
+    (...args: Parameters<ReturnType<typeof createNotifyAgentAttention>>) =>
+      createNotifyAgentAttention({
+        serverId,
+        appStateRef,
+        attentionNotifiedRef,
+        getSessionState: () => useSessionStore.getState().sessions[serverId],
+        isAppActivelyVisible: getIsAppActivelyVisible,
+        sendNotification: sendOsNotification,
+      })(...args),
     [serverId],
   );
 
@@ -318,17 +325,18 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
   }, [client, hydrateWorkspaces, isConnected]);
 
   const applyAgentUpdatePayload = useCallback(
-    createApplyAgentUpdatePayload({
-      serverId,
-      queryClient,
-      setAgents,
-      setPendingPermissions,
-      setQueuedMessages,
-      setAgentTimelineCursor,
-      setAgentAuthoritativeHistoryApplied,
-      applyAuthoritativeAgentSnapshot,
-      previousAgentStatusRef,
-    }),
+    (...args: Parameters<ReturnType<typeof createApplyAgentUpdatePayload>>) =>
+      createApplyAgentUpdatePayload({
+        serverId,
+        queryClient,
+        setAgents,
+        setPendingPermissions,
+        setQueuedMessages,
+        setAgentTimelineCursor,
+        setAgentAuthoritativeHistoryApplied,
+        applyAuthoritativeAgentSnapshot,
+        previousAgentStatusRef,
+      })(...args),
     [
       applyAuthoritativeAgentSnapshot,
       queryClient,
@@ -342,32 +350,35 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
   );
 
   const applyWorkspaceSetupProgress = useCallback(
-    createApplyWorkspaceSetupProgress({
-      serverId,
-      upsertWorkspaceSetupProgress,
-    }),
+    (...args: Parameters<ReturnType<typeof createApplyWorkspaceSetupProgress>>) =>
+      createApplyWorkspaceSetupProgress({
+        serverId,
+        upsertWorkspaceSetupProgress,
+      })(...args),
     [serverId, upsertWorkspaceSetupProgress],
   );
 
   const requestCanonicalCatchUp = useCallback(
-    createRequestCanonicalCatchUp({ client }),
+    (...args: Parameters<ReturnType<typeof createRequestCanonicalCatchUp>>) =>
+      createRequestCanonicalCatchUp({ client })(...args),
     [client],
   );
 
   const applyTimelineResponse = useCallback(
-    createApplyTimelineResponse({
-      serverId,
-      applyAuthoritativeAgentSnapshot,
-      applyAgentUpdatePayload,
-      requestCanonicalCatchUp,
-      setInitializingAgents,
-      setAgentStreamTail,
-      setAgentStreamHead,
-      clearAgentStreamHead,
-      setAgentTimelineCursor,
-      setAgentAuthoritativeHistoryApplied,
-      markAgentHistorySynchronized,
-    }),
+    (...args: Parameters<ReturnType<typeof createApplyTimelineResponse>>) =>
+      createApplyTimelineResponse({
+        serverId,
+        applyAuthoritativeAgentSnapshot,
+        applyAgentUpdatePayload,
+        requestCanonicalCatchUp,
+        setInitializingAgents,
+        setAgentStreamTail,
+        setAgentStreamHead,
+        clearAgentStreamHead,
+        setAgentTimelineCursor,
+        setAgentAuthoritativeHistoryApplied,
+        markAgentHistorySynchronized,
+      })(...args),
     [
       applyAuthoritativeAgentSnapshot,
       applyAgentUpdatePayload,
@@ -400,8 +411,11 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
 
   useEffect(() => {
     return () => {
-      if (revalidationTimerRef.current) {
-        clearTimeout(revalidationTimerRef.current);
+      // revalidationTimerRef holds a setTimeout id, not a React node.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const timer = revalidationTimerRef.current;
+      if (timer) {
+        clearTimeout(timer);
       }
     };
   }, []);
@@ -462,18 +476,19 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
   ]);
 
   const sendAgentMessage = useCallback(
-    createSendAgentMessage({
-      serverId,
-      client,
-      setAgentStreamHead,
-      setAgentStreamTail,
-      getCurrentHead: (agentId) =>
-        useSessionStore.getState().sessions[serverId]?.agentStreamHead?.get(agentId),
-      getAgent: (agentId) => {
-        const agent = useSessionStore.getState().sessions[serverId]?.agents?.get(agentId);
-        return agent ? { status: agent.status, persistence: agent.persistence ?? null } : undefined;
-      },
-    }),
+    (...args: Parameters<ReturnType<typeof createSendAgentMessage>>) =>
+      createSendAgentMessage({
+        serverId,
+        client,
+        setAgentStreamHead,
+        setAgentStreamTail,
+        getCurrentHead: (agentId) =>
+          useSessionStore.getState().sessions[serverId]?.agentStreamHead?.get(agentId),
+        getAgent: (agentId) => {
+          const agent = useSessionStore.getState().sessions[serverId]?.agents?.get(agentId);
+          return agent ? { status: agent.status, persistence: agent.persistence ?? null } : undefined;
+        },
+      })(...args),
     [serverId, client, setAgentStreamHead, setAgentStreamTail],
   );
 
