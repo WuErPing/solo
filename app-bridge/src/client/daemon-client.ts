@@ -2094,7 +2094,7 @@ export class DaemonClient {
           type: "hello",
           clientId: this.config.clientId,
           clientType: this.config.clientType ?? "cli",
-          protocolVersion: 1,
+          protocolVersion: 2,
           ...(this.config.appVersion ? { appVersion: this.config.appVersion } : {}),
         }),
       );
