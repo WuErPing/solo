@@ -8,11 +8,13 @@
   "scripts": {
     "lint": "eslint src/",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "generate:schemas": "go run ../protocol/cmd/genzod -input ../protocol -output src/generated/protocol-schemas.ts"
   },
   "dependencies": {
     "base64-js": "^1.5.1",
-    "tweetnacl": "^1.0.3"
+    "tweetnacl": "^1.0.3",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^3.2.4",

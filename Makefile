@@ -131,7 +131,12 @@ build-workspace-deps:
 	cd $(APP_DIR) && npm run build:workspace-deps
 	@echo "=== Workspace dependencies built ==="
 
-typecheck: build-workspace-deps
+generate-ts-schemas:
+	@echo "=== Generating TypeScript Zod schemas from Go structs ==="
+	cd app-bridge && npm run generate:schemas
+	@echo "=== TypeScript schemas generated ==="
+
+typecheck: build-workspace-deps generate-ts-schemas
 	@printf '%s\n' \
 		'cd packages/highlight && npx tsc --noEmit' \
 		'cd $(APP_DIR) && npx tsc --noEmit' \

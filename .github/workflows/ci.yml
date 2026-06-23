@@ -77,8 +77,21 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.6'
+          cache: true
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Generate TypeScript schemas
+        working-directory: app-bridge
+        run: npm run generate:schemas
+
+      - name: Verify generated schemas are up-to-date
+        run: git diff --exit-code app-bridge/src/generated/
 
       - name: Lint app
         working-directory: app

@@ -1,0 +1,217 @@
+package genzod
+
+import (
+	"bytes"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func writeTempFiles(t *testing.T, files map[string]string) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "genzod-test-*")
+	if err != nil {
+		t.Fatalf("mkdir temp: %v", err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	for name, content := range files {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	return dir
+}
+
+func TestGenerate_BasicTypes(t *testing.T) {
+	dir := writeTempFiles(t, map[string]string{
+		"basic.go": `package protocol
+
+//genzod
+type Basic struct {
+	Name    string  ` + "`json:\"name\"`" + `
+	Count   int     ` + "`json:\"count\"`" + `
+	Score   float64 ` + "`json:\"score\"`" + `
+	Enabled bool    ` + "`json:\"enabled\"`" + `
+}
+`,
+	})
+
+	var buf bytes.Buffer
+	if err := Generate(dir, &buf); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "export const BasicSchema = z.object({") {
+		t.Errorf("missing BasicSchema declaration:\n%s", out)
+	}
+	wantParts := []string{
+		"name: z.string()",
+		"count: z.number()",
+		"score: z.number()",
+		"enabled: z.boolean()",
+		"export type Basic = z.infer<typeof BasicSchema>;",
+	}
+	for _, part := range wantParts {
+		if !strings.Contains(out, part) {
+			t.Errorf("expected output to contain %q:\n%s", part, out)
+		}
+	}
+}
+
+func TestGenerate_OptionalAndNullable(t *testing.T) {
+	dir := writeTempFiles(t, map[string]string{
+		"optional.go": `package protocol
+
+//genzod
+type OptionalDemo struct {
+	Required  string  ` + "`json:\"required\"`" + `
+	Omitted   *string ` + "`json:\"omitted,omitempty\"`" + `
+	Nullable  *string ` + "`json:\"nullable\"`" + `
+}
+`,
+	})
+
+	var buf bytes.Buffer
+	if err := Generate(dir, &buf); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	out := buf.String()
+	wantParts := []string{
+		"required: z.string()",
+		"omitted: z.string().optional()",
+		"nullable: z.string().nullable()",
+	}
+	for _, part := range wantParts {
+		if !strings.Contains(out, part) {
+			t.Errorf("expected output to contain %q:\n%s", part, out)
+		}
+	}
+}
+
+func TestGenerate_CollectionsAndMaps(t *testing.T) {
+	dir := writeTempFiles(t, map[string]string{
+		"collections.go": `package protocol
+
+//genzod
+type Collections struct {
+	Tags    []string          ` + "`json:\"tags\"`" + `
+	Meta    map[string]string ` + "`json:\"meta\"`" + `
+	Raw     map[string]interface{} ` + "`json:\"raw,omitempty\"`" + `
+	Generic interface{}       ` + "`json:\"generic,omitempty\"`" + `
+}
+`,
+	})
+
+	var buf bytes.Buffer
+	if err := Generate(dir, &buf); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	out := buf.String()
+	wantParts := []string{
+		"tags: z.array(z.string())",
+		"meta: z.record(z.string(), z.string())",
+		"raw: z.record(z.string(), z.unknown()).optional()",
+		"generic: z.unknown().optional()",
+	}
+	for _, part := range wantParts {
+		if !strings.Contains(out, part) {
+			t.Errorf("expected output to contain %q:\n%s", part, out)
+		}
+	}
+}
+
+func TestGenerate_NestedStruct(t *testing.T) {
+	dir := writeTempFiles(t, map[string]string{
+		"nested.go": `package protocol
+
+//genzod
+type Inner struct {
+	Value int ` + "`json:\"value\"`" + `
+}
+
+//genzod
+type Outer struct {
+	Inner  Inner   ` + "`json:\"inner\"`" + `
+	Inners []Inner ` + "`json:\"inners,omitempty\"`" + `
+}
+`,
+	})
+
+	var buf bytes.Buffer
+	if err := Generate(dir, &buf); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "export const InnerSchema = z.object({") {
+		t.Errorf("missing InnerSchema:\n%s", out)
+	}
+	if !strings.Contains(out, "export const OuterSchema = z.object({") {
+		t.Errorf("missing OuterSchema:\n%s", out)
+	}
+	if !strings.Contains(out, "inner: InnerSchema") {
+		t.Errorf("missing nested inner reference:\n%s", out)
+	}
+	if !strings.Contains(out, "inners: z.array(InnerSchema).optional()") {
+		t.Errorf("missing nested array reference:\n%s", out)
+	}
+}
+
+func TestGenerate_IgnoresUnmarkedStructs(t *testing.T) {
+	dir := writeTempFiles(t, map[string]string{
+		"mixed.go": `package protocol
+
+type Ignored struct {
+	ID string ` + "`json:\"id\"`" + `
+}
+
+//genzod
+type Included struct {
+	ID string ` + "`json:\"id\"`" + `
+}
+`,
+	})
+
+	var buf bytes.Buffer
+	if err := Generate(dir, &buf); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	out := buf.String()
+	if strings.Contains(out, "IgnoredSchema") {
+		t.Errorf("IgnoredSchema should not be generated:\n%s", out)
+	}
+	if !strings.Contains(out, "IncludedSchema") {
+		t.Errorf("IncludedSchema should be generated:\n%s", out)
+	}
+}
+
+func TestGenerate_Header(t *testing.T) {
+	dir := writeTempFiles(t, map[string]string{
+		"basic.go": `package protocol
+
+//genzod
+type Basic struct {
+	ID string ` + "`json:\"id\"`" + `
+}
+`,
+	})
+
+	var buf bytes.Buffer
+	if err := Generate(dir, &buf); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.HasPrefix(out, "// Code generated by genzod. DO NOT EDIT.") {
+		t.Errorf("missing generated header:\n%s", out)
+	}
+	if !strings.Contains(out, `import { z } from "zod";`) {
+		t.Errorf("missing zod import:\n%s", out)
+	}
+}

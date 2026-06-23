@@ -315,6 +315,7 @@ type OpenProjectResponsePayload struct {
 
 func (m *OpenProjectResponse) MsgType() string { return "open_project_response" }
 
+// genzod
 // WorkspaceDescriptor describes a workspace.
 type WorkspaceDescriptor struct {
 	ID                 string                  `json:"id"`
@@ -332,6 +333,7 @@ type WorkspaceDescriptor struct {
 	GitHubRuntime      *WorkspaceGitHubRuntime `json:"githubRuntime,omitempty"`
 }
 
+// genzod
 // WorkspaceScript describes a running script in a workspace.
 type WorkspaceScript struct {
 	ScriptName string  `json:"scriptName"`
@@ -345,6 +347,7 @@ type WorkspaceScript struct {
 	TerminalID *string `json:"terminalId,omitempty"`
 }
 
+// genzod
 // WorkspaceGitRuntime describes git state in a workspace.
 type WorkspaceGitRuntime struct {
 	CurrentBranch       *string `json:"currentBranch,omitempty"`
@@ -353,6 +356,7 @@ type WorkspaceGitRuntime struct {
 	IsDirty             *bool   `json:"isDirty,omitempty"`
 }
 
+// genzod
 // WorkspaceGitHubRuntime describes GitHub state in a workspace.
 type WorkspaceGitHubRuntime struct {
 	FeaturesEnabled *bool `json:"featuresEnabled,omitempty"`
