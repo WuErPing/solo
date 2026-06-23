@@ -41,7 +41,7 @@ func NewCodexAgentClient(binaryPath string, logger *slog.Logger) *CodexAgentClie
 
 func (c *CodexAgentClient) Provider() string { return codexProviderName }
 
-func (c *CodexAgentClient) IsAvailable(ctx context.Context) error {
+func (c *CodexAgentClient) IsAvailable(_ context.Context) error {
 	if c.binaryPath == "" {
 		return fmt.Errorf("codex binary not found")
 	}
@@ -83,15 +83,15 @@ func (c *CodexAgentClient) ResumeSession(ctx context.Context, handle *protocol.A
 	return session, nil
 }
 
-func (c *CodexAgentClient) ListModels(ctx context.Context, cwd string) ([]protocol.AgentModelDefinition, error) {
+func (c *CodexAgentClient) ListModels(_ context.Context, _ string) ([]protocol.AgentModelDefinition, error) {
 	return codexModels(), nil
 }
 
-func (c *CodexAgentClient) ListModes(ctx context.Context, cwd string) ([]protocol.AgentMode, error) {
+func (c *CodexAgentClient) ListModes(_ context.Context, _ string) ([]protocol.AgentMode, error) {
 	return codexModes(), nil
 }
 
-func (c *CodexAgentClient) ListClientCommands(ctx context.Context, cwd string) ([]protocol.AgentSlashCommand, error) {
+func (c *CodexAgentClient) ListClientCommands(_ context.Context, _ string) ([]protocol.AgentSlashCommand, error) {
 	return nil, nil
 }
 
@@ -140,7 +140,7 @@ func newCodexSession(binaryPath string, config *protocol.AgentSessionConfig, log
 	}
 }
 
-func (s *codexSession) Run(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
+func (s *codexSession) Run(ctx context.Context, text string, _ []protocol.ImageAttachment, _ []protocol.AgentAttachment, messageID string) (*AgentRunResult, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -175,7 +175,7 @@ func (s *codexSession) Run(ctx context.Context, text string, images []protocol.I
 	}, nil
 }
 
-func (s *codexSession) StartTurn(ctx context.Context, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment) (<-chan AgentStreamEvent, error) {
+func (s *codexSession) StartTurn(ctx context.Context, text string, _ []protocol.ImageAttachment, _ []protocol.AgentAttachment) (<-chan AgentStreamEvent, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 
 	if _, err := s.turnGuard.Acquire(); err != nil {
@@ -288,10 +288,10 @@ func (s *codexSession) buildEnv() []string {
 	env := os.Environ()
 	filtered := make([]string, 0, len(env))
 	blocked := map[string]bool{
-		"CLAUDECODE":                            true,
-		"CLAUDE_CODE_ENTRYPOINT":                true,
-		"CLAUDE_CODE_SSE_PORT":                  true,
-		"CLAUDE_AGENT_SDK_VERSION":              true,
+		"CLAUDECODE":                                true,
+		"CLAUDE_CODE_ENTRYPOINT":                    true,
+		"CLAUDE_CODE_SSE_PORT":                      true,
+		"CLAUDE_AGENT_SDK_VERSION":                  true,
 		"CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING": true,
 	}
 	for _, e := range env {
@@ -320,7 +320,7 @@ func (s *codexSession) Subscribe() <-chan AgentStreamEvent {
 	return ch
 }
 
-func (s *codexSession) Interrupt(ctx context.Context) error {
+func (s *codexSession) Interrupt(_ context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -356,19 +356,19 @@ func (s *codexSession) Close() error {
 	return nil
 }
 
-func (s *codexSession) RespondPermission(requestID string, response protocol.AgentPermissionResponse) error {
+func (s *codexSession) RespondPermission(_ string, _ protocol.AgentPermissionResponse) error {
 	return nil // Codex exec does not support interactive permissions
 }
 
-func (s *codexSession) GetRuntimeInfo(ctx context.Context) (*protocol.AgentRuntimeInfo, error) {
+func (s *codexSession) GetRuntimeInfo(_ context.Context) (*protocol.AgentRuntimeInfo, error) {
 	return s.base.GetRuntimeInfo(), nil
 }
 
-func (s *codexSession) GetAvailableModes(ctx context.Context) ([]protocol.AgentMode, error) {
+func (s *codexSession) GetAvailableModes(_ context.Context) ([]protocol.AgentMode, error) {
 	return codexModes(), nil
 }
 
-func (s *codexSession) GetCurrentMode(ctx context.Context) (*string, error) {
+func (s *codexSession) GetCurrentMode(_ context.Context) (*string, error) {
 	return s.base.GetCurrentModePtr(), nil
 }
 
@@ -392,24 +392,24 @@ func (s *codexSession) GetPendingPermissions() []interface{} {
 	return nil
 }
 
-func (s *codexSession) ListCommands(ctx context.Context) ([]protocol.AgentSlashCommand, error) {
+func (s *codexSession) ListCommands(_ context.Context) ([]protocol.AgentSlashCommand, error) {
 	return nil, nil
 }
 
-func (s *codexSession) StreamHistory(ctx context.Context) ([]AgentStreamEvent, error) {
+func (s *codexSession) StreamHistory(_ context.Context) ([]AgentStreamEvent, error) {
 	return nil, nil
 }
 
 // --- Translator ---
 
 type codexTranslator struct {
-	logger      *slog.Logger
-	messageID   string
-	prompt      string
-	threadStarted bool
+	logger         *slog.Logger
+	messageID      string
+	prompt         string
+	threadStarted  bool
 	userMsgEmitted bool
-	textBuf     string
-	usage       *protocol.AgentUsage
+	textBuf        string
+	usage          *protocol.AgentUsage
 }
 
 func newCodexTranslator(logger *slog.Logger, messageID, prompt string) *codexTranslator {
@@ -428,7 +428,7 @@ func (t *codexTranslator) lastUsage() *protocol.AgentUsage {
 	return t.usage
 }
 
-func (t *codexTranslator) Translate(raw []byte, timestamp time.Time) ([]interface{}, bool, error) {
+func (t *codexTranslator) Translate(raw []byte, _ time.Time) ([]interface{}, bool, error) {
 	var event map[string]interface{}
 	if err := json.Unmarshal(raw, &event); err != nil {
 		return nil, false, fmt.Errorf("parse codex JSON: %w", err)
@@ -491,11 +491,11 @@ func (t *codexTranslator) Translate(raw []byte, timestamp time.Time) ([]interfac
 		}
 		events = append(events, protocol.TimelineStreamEvent{
 			Item: protocol.TimelineItem{
-				Type:     "tool_call",
-				CallID:   callID,
-				Name:     name,
-				Status:   "running",
-				Detail:   buildCodexToolCallDetail(args),
+				Type:   "tool_call",
+				CallID: callID,
+				Name:   name,
+				Status: "running",
+				Detail: buildCodexToolCallDetail(args),
 			},
 		})
 

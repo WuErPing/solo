@@ -521,50 +521,6 @@ func (s *Session) handlePing(m *protocol.PingMessage) {
 	s.sendMessage(pong)
 }
 
-// relPath returns the path of target relative to base, using forward slashes.
-// If target equals base, it returns ".". On error, it falls back to target.
-
-// isTextContent checks if data is likely text by looking for null bytes.
-
-// --- Agent Event Handling ---
-
-// handleAgentEvent processes events from the AgentManager.
-
-// handleStreamEvent processes a stream event from an agent session.
-
-// handleCoalescedFlush processes a coalesced timeline item.
-
-// pushActiveAgents sends agent_update upserts for all currently active agents
-// to this session. Called once on connection so the client store is populated
-// before any agent_stream events arrive.
-
-// sendAgentStream sends an agent_stream message to the client.
-
-// sendProviderSnapshot sends the current provider snapshot to the client.
-
-// handleGetProvidersSnapshot handles get_providers_snapshot_request.
-
-// handleOpenProject handles open_project_request: registers a workspace and returns its descriptor.
-
-// handleFetchAgentHistory handles fetch_agent_history_request.
-
-// handleSetAgentThinking handles set_agent_thinking_request.
-
-// handleSetAgentFeature handles set_agent_feature_request.
-
-// handleUpdateAgent handles update_agent_request.
-
-// handleRefreshAgent handles refresh_agent_request.
-
-// handleCloseItems handles close_items_request.
-
-// --- Terminal Handlers ---
-
-// subscribeTerminalOutput subscribes to a terminal's output and sends it as binary frames.
-
-// extractTimelineItem converts a timeline item from either agent.TimelineItem
-// or map[string]interface{} (fallback) to agent.TimelineItem.
-
 // --- Grace Period ---
 
 // enterGrace transitions the session into the grace state. The session's

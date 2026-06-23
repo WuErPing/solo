@@ -276,9 +276,9 @@ func TestCreateAgentNoDuplicateStreamEvents(t *testing.T) {
 	createReq := protocol.WSInboundMessage{
 		Type: "session",
 		Message: mustMarshal(map[string]interface{}{
-			"type":           "create_agent_request",
-			"requestId":      "req-no-dup",
-			"initialPrompt":  "hello",
+			"type":            "create_agent_request",
+			"requestId":       "req-no-dup",
+			"initialPrompt":   "hello",
 			"clientMessageId": "msg-no-dup-001",
 			"config": map[string]interface{}{
 				"provider": "mock",
