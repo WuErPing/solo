@@ -39,7 +39,7 @@ function workspace(
 describe("buildWorkspaceArchiveRedirectRoute", () => {
   it("redirects an archived worktree to the new workspace screen for the same project", () => {
     const workspaces = [
-      workspace({ id: "/repo", workspaceKind: "checkout", name: "main" }),
+      workspace({ id: "/repo", workspaceKind: "local_checkout", name: "main" }),
       workspace({ id: "/repo/.solo/worktrees/feature", name: "feature" }),
     ];
 
@@ -76,8 +76,8 @@ describe("buildWorkspaceArchiveRedirectRoute", () => {
         id: "/notes",
         projectId: "notes",
         projectRootPath: "/notes",
-        projectKind: "directory",
-        workspaceKind: "checkout",
+        projectKind: "non_git",
+        workspaceKind: "local_checkout",
       }),
     ];
 

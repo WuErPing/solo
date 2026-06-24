@@ -106,7 +106,7 @@ type CustomSelectOption struct {
 
 // Version is the daemon version, injected at build time via -ldflags.
 // Default "dev" is overridden by Makefile builds and CI.
-var Version = "0.3.0"
+var Version = "0.4.0"
 
 // DefaultConfig returns a Config with sensible defaults.
 // DefaultTimelineMaxRowsPerAgent is the default hard upper bound for

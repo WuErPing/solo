@@ -1,10 +1,10 @@
 import type { TerminalCell, TerminalState } from "@server/shared/messages";
 
 interface TerminalStyle {
-  fg: number | undefined;
-  bg: number | undefined;
-  fgMode: number | undefined;
-  bgMode: number | undefined;
+  fg: number | null | undefined;
+  bg: number | null | undefined;
+  fgMode: number | null | undefined;
+  bgMode: number | null | undefined;
   bold: boolean;
   italic: boolean;
   underline: boolean;
@@ -168,11 +168,11 @@ function styleToAnsi(style: TerminalStyle): string {
     codes.push("9");
   }
 
-  if (style.fg !== undefined && style.fgMode !== undefined) {
+  if (style.fg != null && style.fgMode != null) {
     codes.push(...colorToSgr(style.fgMode, style.fg, false));
   }
 
-  if (style.bg !== undefined && style.bgMode !== undefined) {
+  if (style.bg != null && style.bgMode != null) {
     codes.push(...colorToSgr(style.bgMode, style.bg, true));
   }
 

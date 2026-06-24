@@ -82,7 +82,7 @@ type OptionalDemo struct {
 	out := buf.String()
 	wantParts := []string{
 		"required: z.string()",
-		"omitted: z.string().optional()",
+		"omitted: z.string().nullable().optional()",
 		"nullable: z.string().nullable()",
 	}
 	for _, part := range wantParts {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import type { WorkspaceDescriptorPayload } from "@server/shared/messages";
+import type { SidebarStateBucket } from "@/utils/sidebar-agent-state";
 import {
   normalizeWorkspaceDescriptor,
   useSessionStore,
@@ -15,7 +16,7 @@ import { useSidebarOrderStore } from "@/stores/sidebar-order-store";
 const EMPTY_ORDER: string[] = [];
 const EMPTY_PROJECTS: SidebarProjectEntry[] = [];
 
-export type SidebarStateBucket = WorkspaceDescriptor["status"];
+export type { SidebarStateBucket };
 
 export interface SidebarWorkspaceEntry {
   workspaceKey: string;
@@ -61,7 +62,7 @@ function createStructuralWorkspaceEntry(input: {
     projectRootPath: input.project.iconWorkingDir,
     workspaceDirectory: undefined,
     projectKind: input.project.projectKind,
-    workspaceKind: "checkout",
+    workspaceKind: "local_checkout",
     name: input.workspaceId,
     statusBucket: "done",
     scripts: [],
@@ -85,7 +86,7 @@ export function createSidebarWorkspaceEntry(input: {
     name: input.workspace.name,
     statusBucket: input.workspace.status,
     scripts: input.workspace.scripts,
-    hasRunningScripts: (input.workspace.scripts ?? []).some((script) => script.lifecycle === "running"),
+    hasRunningScripts: input.workspace.scripts.some((script) => script.lifecycle === "running"),
   };
 }
 

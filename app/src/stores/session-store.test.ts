@@ -70,7 +70,7 @@ describe("normalizeWorkspaceDescriptor", () => {
       projectRootPath: "/repo",
       workspaceDirectory: "/repo",
       projectKind: "git",
-      workspaceKind: "checkout",
+      workspaceKind: "local_checkout",
       name: "main",
       status: "running",
       activityAt: "not-a-date",
@@ -99,7 +99,7 @@ describe("normalizeWorkspaceDescriptor", () => {
       projectRootPath: "/repo",
       workspaceDirectory: "/repo",
       projectKind: "git",
-      workspaceKind: "checkout",
+      workspaceKind: "local_checkout",
       name: "main",
       status: "done",
       activityAt: null,
@@ -109,6 +109,26 @@ describe("normalizeWorkspaceDescriptor", () => {
     const workspace = normalizeWorkspaceDescriptor(payload);
 
     expect(workspace.scripts).toEqual([]);
+  });
+
+  it("normalizes undefined scripts to an empty array", () => {
+    const payload = {
+      id: "1",
+      projectId: "1",
+      projectDisplayName: "Project 1",
+      projectRootPath: "/repo",
+      workspaceDirectory: "/repo",
+      projectKind: "git",
+      workspaceKind: "local_checkout",
+      name: "main",
+      status: "done",
+      activityAt: null,
+    } as WorkspaceDescriptorPayload;
+
+    const workspace = normalizeWorkspaceDescriptor(payload);
+
+    expect(workspace.scripts).toEqual([]);
+    expect(Array.isArray(workspace.scripts)).toBe(true);
   });
 
   it("preserves project placement from workspace descriptor payloads", () => {

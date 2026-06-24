@@ -236,7 +236,7 @@ func typeToSchema(expr ast.Expr, omitempty bool, marked map[string]*ast.StructTy
 			return "", err
 		}
 		if omitempty {
-			return inner + ".optional()", nil
+			return inner + ".nullable().optional()", nil
 		}
 		return inner + ".nullable()", nil
 	case *ast.ArrayType:

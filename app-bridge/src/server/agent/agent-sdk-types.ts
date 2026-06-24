@@ -139,12 +139,12 @@ export interface AgentRunOptions {
 }
 
 export interface AgentUsage {
-  inputTokens?: number;
-  cachedInputTokens?: number;
-  outputTokens?: number;
-  totalCostUsd?: number;
-  contextWindowMaxTokens?: number;
-  contextWindowUsedTokens?: number;
+  inputTokens?: number | null;
+  cachedInputTokens?: number | null;
+  outputTokens?: number | null;
+  totalCostUsd?: number | null;
+  contextWindowMaxTokens?: number | null;
+  contextWindowUsedTokens?: number | null;
 }
 
 export const TOOL_CALL_ICON_NAMES = [

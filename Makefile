@@ -14,7 +14,7 @@ GIT_DIRTY := $(shell git diff --quiet 2>/dev/null && echo "" || echo "-dirty")
 VERSION ?= $(GIT_TAG)-dev-$(shell date +%Y%m%d%H%M%S)$(GIT_DIRTY)
 GO_LDFLAGS := -X github.com/WuErPing/solo/daemon/internal/config.Version=$(VERSION)
 
-.PHONY: all darwin linux clean dev dev-web dev-daemon run-daemon stop stop-all restart ci test test-go test-app typecheck lint $(BINS)
+.PHONY: all darwin linux clean dev dev-web dev-daemon run-daemon stop stop-all restart ci test test-go test-app typecheck lint check-schema-duplication $(BINS)
 
 all: darwin linux
 
@@ -102,13 +102,16 @@ restart: darwin
 
 ci: lint test typecheck
 
-lint:
+lint: check-schema-duplication
 	@printf '%s\n' \
 		'cd packages/highlight && npx eslint src/' \
 		'cd app-bridge && npx eslint src/' \
 		'cd $(APP_DIR) && npx expo lint --max-warnings 0' \
 	| xargs -P0 -I{} sh -c '{}'
 	@echo "=== All lint passed ==="
+
+check-schema-duplication:
+	@bash scripts/check-schema-duplication.sh
 
 test: test-go test-app
 

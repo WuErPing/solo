@@ -1,7 +1,7 @@
 # Solo 2026 产品/技术路线图（项目中心版）
 
 > **文档类型**：统一产品路线图
-> **日期**：2026-06-22
+> **日期**：2026-06-23
 > **基线版本**：Solo v0.6.3
 > **目标读者**：产品、技术负责人、核心开发者、投资者
 > **关联文档**：
@@ -73,23 +73,30 @@
 
 现代开发者每天要在多个上下文之间切换：IDE、终端、浏览器、聊天窗口、手机通知、不同 AI agent。研究表明，知识工作者每次上下文切换后需要 **10–23 分钟** 才能恢复深度思考状态；开发者同时维护多个项目时，重复解释“这个项目的规范、技术栈、偏好”的成本极高。
 
+2026 年 GitHub Top N 开源趋势更清晰地揭示了这一矛盾。OpenCode（~172k stars）、Cline（~63k stars）、Goose（~48k stars）、Aider（~45k stars）、Pi（~54k stars）、OpenHands（~75k stars）等开源 agent 百花齐放，但每款工具都自带一套配置方言和上下文模型。开发者不是在“选择最佳工具”，而是在“为每个项目重复配置所有工具”。
+
 AI coding agent 放大了这个问题：
 
-- 每个 agent 都有自己的配置文件（`.cursorrules`、`.claude/CLAUDE.md`、`.codex/config.json`、`.aider.conf.yml`）。
+- 每个 agent 都有自己的配置文件（`.cursorrules`、`.claude/CLAUDE.md`、`.codex/config.json`、`.aider.conf.yml`、`.opencode/opencode.json`）。
 - 每个会话都是“冷启动”，agent 需要重新探索项目结构。
 - 每次模型切换都要重新说明上下文。
+- 不同工具对同一项目的规则理解不一致，导致输出风格、构建命令、安全策略出现漂移。
+- 背景任务与实时会话之间缺乏共享上下文，人离开后 agent 容易“失忆”。
 
-### 1.2 解：把“项目工作目录”变成 AI 上下文的锚点
+### 1.2 解：把“项目工作目录”变成 AI 上下文的锚点，释放个人生产效率
 
 > **Solo 的核心设计原则：一切能力围绕项目工作目录聚合。**
+> 
+> **Solo 的北极星指标：让每个项目的 AI 配置与上下文从“重复劳动”变成“一次投入、持续复利”。**
 
 以 `~/work/solo` 为例，Solo 应该做到：
 
-1. **进入目录即加载上下文**：AGENTS.md、CLAUDE.md、项目记忆、MCP 工具、Provider 路由规则自动注入。
-2. **一次配置，处处生效**：项目规则同步到 Claude/Codex/Cursor/OpenCode/Aider/Continue。
-3. **背景 agent 值守**：人离开后，Loop/Schedule 继续基于项目目录执行任务。
-4. **移动端随时接管**：无论身在何处，都能查看项目级 agent 状态并干预。
-5. **跨会话记忆累积**：项目知识随使用增长，减少重复沟通。
+1. **进入目录即加载上下文**：AGENTS.md、CLAUDE.md、项目记忆、MCP 工具、Provider 路由规则自动注入。开发者无需再向每个 agent 重复介绍项目。
+2. **一次配置，处处生效**：项目规则同步到 Claude/Codex/Cursor/OpenCode/Aider/Continue/Goose。工具选择回归开发者偏好，项目规范由 Solo 统一保证。
+3. **背景 agent 值守**：人离开后，Loop/Schedule 继续基于项目目录执行任务，结果沉淀回项目记忆。
+4. **移动端随时接管**：无论身在何处，都能查看项目级 agent 状态并干预，把碎片时间转化为项目推进时间。
+5. **跨会话记忆累积**：项目知识随使用增长，agent 越用越懂项目，人工干预边际递减。
+6. **成本与风险可控**：按项目设定预算、路由规则、沙箱策略，避免全局配置导致的安全与成本失控。
 
 ### 1.3 借鉴的思想框架
 
@@ -105,18 +112,24 @@ AI coding agent 放大了这个问题：
 
 ### 1.4 业界实践映射
 
-| 业界产品/标准 | 核心做法 | Solo 的对齐策略 |
+| 业界产品/标准 | 现状与核心做法（2026-06） | Solo 的对齐策略 |
 |---|---|---|
-| **Claude Code** | CLAUDE.md 四级记忆层次（Managed/User/Project/Local）；五层 compaction pipeline | 自动读取项目 CLAUDE.md/AGENTS.md；把项目记忆作为对话前置上下文。 |
+| **Claude Code** | ~131k stars；四级记忆层次（Managed/User/Project/Local）；五层 compaction pipeline | 自动读取项目 CLAUDE.md/AGENTS.md；把项目记忆作为对话前置上下文。 |
 | **Cursor** | `.cursorrules`、Composer multi-file agent、codebase awareness | 导出 `.cursorrules`；提供项目级 codebase 索引给内部 agent。 |
 | **Devin** | VM-based autonomous workspace；Plan → Execute → Verify | Loop Schedule 提供本地版 autonomous workspace，项目目录即 workspace。 |
-| **Aider** | repomap、git integration、multi-model | Project Memory 自动生成 repomap；Loop 自动跑测试并修复。 |
-| **OpenHands / OpenCode** | 开源 autonomous coding、workspace 会话 | 支持 OpenCode provider；Loop 可委托给 OpenHands-style specialist。 |
-| **Codex CLI** | 沙箱化执行、AGENTS.md 支持、本地 OSS 模型 | 补齐 Codex provider；导出 `.codex/AGENTS.md`。 |
-| **Goose** | MCP-first agent framework | Provider Hub 以 MCP 为统一工具层。 |
-| **AGENTS.md 标准** | 项目级 agent 规则 markdown | 项目根目录 AGENTS.md 自动注入所有接入 agent。 |
+| **Aider** | ~45k stars；repomap、git integration、multi-model | Project Memory 自动生成 repomap；Loop 自动跑测试并修复。 |
+| **OpenCode** | ~172k stars，最活跃的 open-source coding agent；75+ provider；Plan/Build 双 agent | 原生 OpenCode provider；项目级配置可双向同步；Loop 可委托 Plan/Build specialist。 |
+| **OpenHands** | ~75k stars；开源 autonomous coding、sandboxed CI runs | Loop 可调用 OpenHands-style sandbox specialist 执行高风险任务。 |
+| **Codex CLI** | ~85k stars；Terminal-Bench #1；沙箱化执行、AGENTS.md 支持、本地 OSS 模型 | 补齐 Codex provider；导出 `.codex/AGENTS.md`；复用其沙箱思路。 |
+| **Pi** | ~54k stars；Armin Ronacher 出品；sub-1k token system prompt；“lazy skills” | 借鉴其轻量 prompt 与 lazy skill 思想，优化 Project Memory 的上下文压缩。 |
+| **Goose** | ~48k stars；已加入 Linux Foundation AAIF；MCP-first；70+ MCP extensions | Provider Hub 以 MCP 为统一工具层；支持 Goose 作为 external specialist。 |
+| **Continue** | ~33k stars；跨 IDE 开源 assistant；支持 PR checks | Config Exporter 覆盖 Continue；项目规则注入其 IDE 扩展。 |
+| **AGENTS.md 标准** | 项目级 agent 规则 markdown；与 MCP 并列为 AAIF 创始项目 | 项目根目录 AGENTS.md 自动注入所有接入 agent，并支持版本化、审计。 |
+| **MCP Servers** | 官方仓库 86k+ stars；10,000+ 公开 server；97M 月下载 | Provider Hub 作为项目级 MCP 统一入口，支持 Server Cards 发现与安全 attestation。 |
 
-### 1.5 Solo 的效率飞轮
+### 1.5 Solo 的效率飞轮：从“重复劳动”到“持续复利”
+
+Solo 的效率提升不是单次工具替换，而是围绕项目目录构建的复利系统：
 
 ```
             ┌─────────────────────────────────────────┐
@@ -140,7 +153,61 @@ AI coding agent 放大了这个问题：
             └─────────────────────────────────────────┘
 ```
 
-飞轮效应：项目记忆越丰富 → agent 输出越准 → 人工干预越少 → 背景值守越可靠 → 记忆进一步沉淀。
+**飞轮效应**：
+
+1. **项目上下文一次投入**：Onboarding 时自动生成代码地图、ADR、AGENTS.md 草案，降低后续所有 agent 的探索成本。
+2. **多工具一致性降低摩擦**：配置同步到 OpenCode/Codex/Cursor/Claude/Aider 后，开发者切换工具时无需重新解释项目规则，上下文切换成本从“10–23 分钟恢复心流”压缩到“秒级”。
+3. **人工干预边际递减**：项目记忆越丰富，agent 输出越准，审查和纠偏时间越少。
+4. **背景值守放大可用时间**：Loop/Schedule 在人离开时继续执行测试修复、依赖更新、文档生成等任务，把“非工作时间”转化为“项目推进时间”。
+5. **记忆进一步沉淀**：每次人工纠正、每次成功修复、每次架构决策都被记录，成为下一次 agent 更准的输入。
+
+**北极星公式**：
+
+> **个人生产效率提升 = Σ（每个项目的上下文切换时间节省 + 背景值守产出 + agent 输出准确率提升） / 配置与治理成本**
+
+Solo 的目标是让分子持续放大、分母趋近于一次性的项目 Onboarding 投入。
+
+### 1.6 GitHub Top N 开源趋势对产品设计的启示
+
+2026 年上半年 GitHub 开源榜单所揭示的趋势，进一步验证了 Solo“以项目为锚点”方向的必要性，并指明了需要优先补齐的能力。
+
+#### 1.6.1 开源 agent 大爆发，但“项目上下文”仍是最大摩擦点
+
+GitHub 上 OpenCode、Cline、Goose、Aider、Pi、OpenHands、Codex CLI 等开源 agent 累计 stars 已超 600k，但几乎所有工具都假设“用户会手动把项目规则告诉 agent”。这带来两个机会：
+
+- **配置中枢机会**：开发者需要一处管理所有工具的项目级配置，而不是在每个 agent 里重复维护 `.cursorrules`、`.codex/AGENTS.md`、`.claude/CLAUDE.md`、`.aider.conf.yml`。
+- **上下文同步机会**：项目规则、MCP 工具、provider 路由、记忆应当以项目目录为单位版本化，并自动转写到所有接入 agent。
+
+#### 1.6.2 MCP 成为“AI 的 USB-C”，但发现与安全仍是痛点
+
+MCP 官方 servers 仓库 86k+ stars，公开 MCP server 超过 10,000 个，月 SDK 下载量近一亿。然而生产环境中面临：
+
+- **发现难**：Anthropic registry、Smithery、Cline marketplace、OpenAI registry 索引互不统一。
+- **安全风险**：MCP server 来源鱼龙混杂，Perplexity 为此专门开源了供应链扫描工具 Bumblebee。
+- **能力不透明**：server 能做什么、需要什么权限，往往只有运行后才知道。
+
+**Solo 的应对**：Provider Hub 不仅要聚合 MCP server，更要提供项目级的 Server Cards 发现、Capability Attestation、危险工具标记、来源审计，把 MCP 从“能连”推进到“敢连、易管”。
+
+#### 1.6.3 背景值守与自治循环成为新战场
+
+OpenHands、Devin、Codex CLI 都在强调“人离开后 agent 继续工作”。GitHub Copilot 也在 2026-06 转向按量 AI credits，推动用户把重复任务交给后台 agent。
+
+**Solo 的应对**：Loop Schedule 必须支持跨网络断连持久化、崩溃恢复、人工门控，让“每晚自动修复测试失败”“自动更新依赖”等场景真正可托付。
+
+#### 1.6.4 多 Provider / BYOK 从“可选项”变为“必选项”
+
+OpenCode 支持 75+ provider，Cline/Aider/Goose 均支持本地模型，Codex CLI 也支持 `--oss` 本地推理。2026 年 6 月 Claude Fable 5 因出口管制暂停全球访问，再次证明不绑定单一厂商的必要性。
+
+**Solo 的应对**：Provider Hub 的智能路由与项目级 provider 规则从 nice-to-have 升级为风险对冲能力。例如：
+
+- 本项目审查用 Kimi，实现用 Claude，本地快速验证用 Ollama。
+- 不同项目可指定不同默认模型，避免全局切换带来的上下文丢失。
+
+#### 1.6.5 项目规则文件成为“新的基础设施”
+
+andrej-karpathy-skills（156k stars）把四条编码原则写进一个 `CLAUDE.md` 就获得极高关注，说明开发者强烈需要把个人/团队的编码偏好沉淀为可复用、可共享的项目规则。
+
+**Solo 的应对**：AGENTS.md / CLAUDE.md 不应是手写后束之高阁的文档，而应是 Solo 自动生成、自动注入、自动同步的“活配置”。Onboarding 时自动生成草案，Loop 执行时自动读取，配置 exporter 时自动转写。
 
 ---
 
@@ -521,3 +588,4 @@ Project CWD
 | 2026-06-19 | v1.1 | 结合 2026 年 6 月竞品动态（Cursor 3 / Claude Code Sonnet 4.5 / OpenAI Codex / Windsurf / MCP 生态 / AGENTS.md 标准）迭代：强化背景 Agent 值守、成本治理、智能路由、AGENTS.md 原生支持、多 Agent 协作、A2A 规划 |
 | 2026-06-20 | v1.2 | 新增“2026 年 Agentic 生态趋势研判”章节；强化 MCP 原生工具层、MCP Server Cards / Capability Attestation、A2A-ready、Open Responses 兼容层、本地/BYOK 模型支持；更新 KPIs、风险与近期行动项 |
 | 2026-06-22 | v2.0 | **项目中心版重构**：以“面向项目工作目录、聚合连接所有能力、提升个人生产效率”为主线，新增核心理念与效率飞轮、四层聚合架构、思想框架与业界实践映射，调整战略目标、季度优先级与 KPIs，强调项目 Onboarding、AGENTS.md 原生、跨会话项目记忆与多 Agent 协作。 |
+| 2026-06-23 | v2.1 | **结合 GitHub Top N 开源趋势强化核心理念**：新增 1.6 节“GitHub Top N 开源趋势对产品设计的启示”；更新 1.4 业界实践映射，补充 OpenCode / Pi / OpenHands / Continue 等 stars 与对齐策略；扩展 1.1 问题定义与 1.2 解决方案，突出“一次投入、持续复利”的效率飞轮和北极星公式；将“以项目为锚点，释放个人生产效率”贯穿第 1 章。 |

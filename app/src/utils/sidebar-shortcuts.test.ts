@@ -20,7 +20,7 @@ function workspace(input: {
     projectKey: input.projectKey ?? "project-default",
     workspaceDirectory: input.workspaceDirectory,
     projectKind: "git",
-    workspaceKind: "checkout",
+    workspaceKind: "local_checkout",
     name: input.name,
     statusBucket: "done",
     scripts: [],

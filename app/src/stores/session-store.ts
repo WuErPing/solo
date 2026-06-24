@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import type { DaemonClient } from "@server/client/daemon-client";
 import type { AgentDirectoryEntry } from "@/types/agent-directory";
+import type { ProjectKind, WorkspaceKind, WorkspaceStatus } from "@/types/workspace";
 import type { StreamItem } from "@/types/stream";
 import type { PendingPermission } from "@/types/shared";
 import type { ComposerAttachment } from "@/attachments/types";
@@ -113,11 +114,11 @@ export interface WorkspaceDescriptor {
   projectDisplayName: string;
   projectRootPath: string;
   workspaceDirectory: string;
-  projectKind: string;
-  workspaceKind: string;
+  projectKind: ProjectKind;
+  workspaceKind: WorkspaceKind;
   name: string;
-  status: string;
-  scripts: WorkspaceDescriptorPayload["scripts"];
+  status: WorkspaceStatus;
+  scripts: NonNullable<WorkspaceDescriptorPayload["scripts"]>;
   gitRuntime?: WorkspaceDescriptorPayload["gitRuntime"];
   githubRuntime?: WorkspaceDescriptorPayload["githubRuntime"];
 }
@@ -131,10 +132,10 @@ export function normalizeWorkspaceDescriptor(
     projectDisplayName: payload.projectDisplayName,
     projectRootPath: payload.projectRootPath,
     workspaceDirectory: payload.workspaceDirectory,
-    projectKind: payload.projectKind,
-    workspaceKind: payload.workspaceKind,
+    projectKind: payload.projectKind as ProjectKind,
+    workspaceKind: payload.workspaceKind as WorkspaceKind,
     name: payload.name,
-    status: payload.status,
+    status: payload.status as WorkspaceStatus,
     scripts: (payload.scripts ?? []).map((s) => Object.assign({}, s)),
     gitRuntime: payload.gitRuntime,
     githubRuntime: payload.githubRuntime,

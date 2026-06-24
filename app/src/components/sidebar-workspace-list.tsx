@@ -90,10 +90,7 @@ import { hasVisibleOrderChanged, mergeWithRemainder } from "@/utils/sidebar-reor
 import { decideLongPressMove } from "@/utils/sidebar-gesture-arbitration";
 import { confirmDialog } from "@/utils/confirm-dialog";
 import { projectIconPlaceholderLabelFromDisplayName } from "@/utils/project-display-name";
-import {
-  shouldRenderSyncedStatusLoader,
-  type StatusLoaderBucket,
-} from "@/utils/status-loader";
+import { shouldRenderSyncedStatusLoader } from "@/utils/status-loader";
 import { isEmphasizedStatusDotBucket } from "@/utils/status-dot-color";
 import type { SidebarStateBucket } from "@/utils/sidebar-agent-state";
 import { Button } from "@/components/ui/button";
@@ -397,7 +394,7 @@ function WorkspaceStatusIndicator({
   workspaceKind: SidebarWorkspaceEntry["workspaceKind"];
   loading?: boolean;
 }) {
-  const shouldShowSyncedLoader = shouldRenderSyncedStatusLoader({ bucket: bucket as StatusLoaderBucket });
+  const shouldShowSyncedLoader = shouldRenderSyncedStatusLoader({ bucket });
 
   if (loading) {
     return (
@@ -429,8 +426,8 @@ function WorkspaceStatusIndicator({
   else KindIcon = null;
   if (!KindIcon) return null;
 
-  const dotColorStyle = getStatusDotColorStyle(bucket as SidebarStateBucket);
-  const statusDotSize = isEmphasizedStatusDotBucket(bucket as SidebarStateBucket)
+  const dotColorStyle = getStatusDotColorStyle(bucket);
+  const statusDotSize = isEmphasizedStatusDotBucket(bucket)
     ? EMPHASIZED_STATUS_DOT_SIZE
     : DEFAULT_STATUS_DOT_SIZE;
   const statusDotOffset =
@@ -498,7 +495,7 @@ function ProjectLeadingVisual({
   const shouldShowWorkspaceStatus =
     activeWorkspace !== null && (isArchiving || activeWorkspace.statusBucket !== "done");
   const shouldShowSyncedLoader = activeWorkspace
-    ? shouldRenderSyncedStatusLoader({ bucket: activeWorkspace.statusBucket as StatusLoaderBucket })
+    ? shouldRenderSyncedStatusLoader({ bucket: activeWorkspace.statusBucket })
     : false;
 
   if (showChevron && chevron !== null) {
@@ -830,8 +827,8 @@ function ProjectLeadingVisualStatus({
     );
   }
 
-  const dotColorStyle = getStatusDotColorStyle(activeWorkspace.statusBucket as SidebarStateBucket);
-  const statusDotSize = isEmphasizedStatusDotBucket(activeWorkspace.statusBucket as SidebarStateBucket)
+  const dotColorStyle = getStatusDotColorStyle(activeWorkspace.statusBucket);
+  const statusDotSize = isEmphasizedStatusDotBucket(activeWorkspace.statusBucket)
     ? EMPHASIZED_STATUS_DOT_SIZE
     : DEFAULT_STATUS_DOT_SIZE;
   const statusDotOffset =
@@ -1405,7 +1402,7 @@ function WorkspaceRowInner({
 
   const isDesktop = !isTouchPlatform;
   const showScriptsIcon = isDesktop && workspace.hasRunningScripts;
-  const hasRunningService = (workspace.scripts ?? []).some(
+  const hasRunningService = workspace.scripts.some(
     (s) => s.lifecycle === "running" && (s.type ?? "service") === "service",
   );
 
@@ -1925,7 +1922,7 @@ function FlattenedProjectRow({
     return null;
   }
 
-  if (project.projectKind === "directory") {
+  if (project.projectKind === "non_git") {
     return (
       <NonGitProjectRowWithMenu
         project={project}

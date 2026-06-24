@@ -363,7 +363,7 @@ export function WorkspaceScriptsButton({
   const client = useSessionStore((state) => state.sessions[serverId]?.client ?? null);
   const activeConnection = useHostRuntimeSnapshot(serverId)?.activeConnection ?? null;
   const liveTerminalIdSet = useMemo(() => new Set(liveTerminalIds), [liveTerminalIds]);
-  const scriptList = scripts ?? [];
+  const scriptList = scripts;
 
   const startScriptMutation = useMutation({
     mutationFn: async (scriptName: string) => {

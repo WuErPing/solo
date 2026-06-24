@@ -2,29 +2,131 @@
 
 import { z } from "zod";
 
+export const AgentCapabilityFlagsSchema = z.object({
+  supportsStreaming: z.boolean(),
+  supportsSessionPersistence: z.boolean(),
+  supportsDynamicModes: z.boolean(),
+  supportsMcpServers: z.boolean(),
+  supportsReasoningStream: z.boolean(),
+  supportsToolInvocations: z.boolean(),
+});
+export type AgentCapabilityFlags = z.infer<typeof AgentCapabilityFlagsSchema>;
+
+export const AgentModeSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  description: z.string().optional(),
+  icon: z.string().optional(),
+  colorTier: z.string().optional(),
+});
+export type AgentMode = z.infer<typeof AgentModeSchema>;
+
+export const AgentSelectOptionSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  description: z.string().optional(),
+  isDefault: z.boolean().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+export type AgentSelectOption = z.infer<typeof AgentSelectOptionSchema>;
+
+export const AgentModelDefinitionSchema = z.object({
+  provider: z.string(),
+  id: z.string(),
+  label: z.string(),
+  description: z.string().optional(),
+  isDefault: z.boolean().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  thinkingOptions: z.array(AgentSelectOptionSchema).optional(),
+  defaultThinkingOptionId: z.string().optional(),
+});
+export type AgentModelDefinition = z.infer<typeof AgentModelDefinitionSchema>;
+
+export const AgentPersistenceHandleSchema = z.object({
+  provider: z.string(),
+  sessionId: z.string(),
+  nativeHandle: z.string().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+export type AgentPersistenceHandle = z.infer<typeof AgentPersistenceHandleSchema>;
+
+export const AgentRuntimeInfoSchema = z.object({
+  provider: z.string(),
+  sessionId: z.string().nullable(),
+  model: z.string().nullable().optional(),
+  thinkingOptionId: z.string().nullable().optional(),
+  modeId: z.string().nullable().optional(),
+  extra: z.record(z.string(), z.unknown()).optional(),
+});
+export type AgentRuntimeInfo = z.infer<typeof AgentRuntimeInfoSchema>;
+
+export const AgentUsageSchema = z.object({
+  inputTokens: z.number().nullable().optional(),
+  cachedInputTokens: z.number().nullable().optional(),
+  outputTokens: z.number().nullable().optional(),
+  totalCostUsd: z.number().nullable().optional(),
+  contextWindowMaxTokens: z.number().nullable().optional(),
+  contextWindowUsedTokens: z.number().nullable().optional(),
+});
+export type AgentUsage = z.infer<typeof AgentUsageSchema>;
+
+export const TerminalCellSchema = z.object({
+  char: z.string(),
+  fg: z.number().nullable().optional(),
+  bg: z.number().nullable().optional(),
+  fgMode: z.number().nullable().optional(),
+  bgMode: z.number().nullable().optional(),
+  bold: z.boolean().nullable().optional(),
+  italic: z.boolean().nullable().optional(),
+  underline: z.boolean().nullable().optional(),
+  dim: z.boolean().nullable().optional(),
+  inverse: z.boolean().nullable().optional(),
+  strikethrough: z.boolean().nullable().optional(),
+});
+export type TerminalCell = z.infer<typeof TerminalCellSchema>;
+
+export const TerminalCursorSchema = z.object({
+  row: z.number(),
+  col: z.number(),
+  hidden: z.boolean().nullable().optional(),
+  style: z.string().optional(),
+  blink: z.boolean().nullable().optional(),
+});
+export type TerminalCursor = z.infer<typeof TerminalCursorSchema>;
+
+export const TerminalStateSchema = z.object({
+  rows: z.number(),
+  cols: z.number(),
+  grid: z.array(z.array(TerminalCellSchema)),
+  scrollback: z.array(z.array(TerminalCellSchema)),
+  cursor: TerminalCursorSchema,
+  title: z.string().optional(),
+});
+export type TerminalState = z.infer<typeof TerminalStateSchema>;
+
 export const WorkspaceScriptSchema = z.object({
   scriptName: z.string(),
   type: z.string().optional(),
   hostname: z.string(),
-  port: z.number().optional(),
-  proxyUrl: z.string().optional(),
+  port: z.number().nullable().optional(),
+  proxyUrl: z.string().nullable().optional(),
   lifecycle: z.string(),
-  health: z.string().optional(),
-  exitCode: z.number().optional(),
-  terminalId: z.string().optional(),
+  health: z.string().nullable().optional(),
+  exitCode: z.number().nullable().optional(),
+  terminalId: z.string().nullable().optional(),
 });
 export type WorkspaceScript = z.infer<typeof WorkspaceScriptSchema>;
 
 export const WorkspaceGitRuntimeSchema = z.object({
-  currentBranch: z.string().optional(),
-  remoteUrl: z.string().optional(),
-  isSoloOwnedWorktree: z.boolean().optional(),
-  isDirty: z.boolean().optional(),
+  currentBranch: z.string().nullable().optional(),
+  remoteUrl: z.string().nullable().optional(),
+  isSoloOwnedWorktree: z.boolean().nullable().optional(),
+  isDirty: z.boolean().nullable().optional(),
 });
 export type WorkspaceGitRuntime = z.infer<typeof WorkspaceGitRuntimeSchema>;
 
 export const WorkspaceGitHubRuntimeSchema = z.object({
-  featuresEnabled: z.boolean().optional(),
+  featuresEnabled: z.boolean().nullable().optional(),
 });
 export type WorkspaceGitHubRuntime = z.infer<typeof WorkspaceGitHubRuntimeSchema>;
 
@@ -40,8 +142,8 @@ export const WorkspaceDescriptorSchema = z.object({
   status: z.string(),
   activityAt: z.string().nullable(),
   scripts: z.array(WorkspaceScriptSchema).optional(),
-  gitRuntime: WorkspaceGitRuntimeSchema.optional(),
-  githubRuntime: WorkspaceGitHubRuntimeSchema.optional(),
+  gitRuntime: WorkspaceGitRuntimeSchema.nullable().optional(),
+  githubRuntime: WorkspaceGitHubRuntimeSchema.nullable().optional(),
 });
 export type WorkspaceDescriptor = z.infer<typeof WorkspaceDescriptorSchema>;
 

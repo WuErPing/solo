@@ -66,6 +66,7 @@ func DecodeTerminalResize(payload []byte) (*TerminalResizePayload, error) {
 	return &r, nil
 }
 
+// genzod
 // TerminalCell represents a single cell in the terminal grid.
 type TerminalCell struct {
 	Char          string `json:"char"`
@@ -81,6 +82,7 @@ type TerminalCell struct {
 	Strikethrough *bool  `json:"strikethrough,omitempty"`
 }
 
+// genzod
 // TerminalCursor represents the cursor state in a terminal snapshot.
 type TerminalCursor struct {
 	Row    int    `json:"row"`
@@ -90,6 +92,7 @@ type TerminalCursor struct {
 	Blink  *bool  `json:"blink,omitempty"`
 }
 
+// genzod
 // TerminalState represents the full state of a terminal (used in Snapshot opcode).
 type TerminalState struct {
 	Rows       int              `json:"rows"`

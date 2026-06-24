@@ -1,6 +1,6 @@
-import type { WorkspaceDescriptor } from "@/stores/session-store";
+import type { SidebarStateBucket } from "@/utils/sidebar-agent-state";
 
-export type DesktopBadgeWorkspaceStatus = WorkspaceDescriptor["status"];
+export type DesktopBadgeWorkspaceStatus = SidebarStateBucket;
 
 export function isWorkspaceActionableForDesktopBadge(status: DesktopBadgeWorkspaceStatus): boolean {
   return status === "attention" || status === "needs_input" || status === "failed";

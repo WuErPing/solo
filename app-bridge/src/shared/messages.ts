@@ -98,6 +98,16 @@ import {
   WorkspaceScriptSchema,
   WorkspaceGitRuntimeSchema,
   WorkspaceGitHubRuntimeSchema,
+  AgentCapabilityFlagsSchema,
+  AgentModeSchema as AgentModeSchemaGenerated,
+  AgentSelectOptionSchema as AgentSelectOptionSchemaGenerated,
+  AgentModelDefinitionSchema as AgentModelDefinitionSchemaGenerated,
+  AgentUsageSchema,
+  AgentPersistenceHandleSchema as AgentPersistenceHandleSchemaGenerated,
+  AgentRuntimeInfoSchema as AgentRuntimeInfoSchemaGenerated,
+  TerminalCellSchema as TerminalCellSchemaGenerated,
+  TerminalCursorSchema as TerminalCursorSchemaGenerated,
+  TerminalStateSchema as TerminalStateSchemaGenerated,
   type WorkspaceDescriptor,
   type WorkspaceScript,
   type WorkspaceGitRuntime,
@@ -177,25 +187,13 @@ export type MutableDaemonConfig = z.infer<typeof MutableDaemonConfigSchema>;
 export type MutableDaemonConfigPatch = z.infer<typeof MutableDaemonConfigPatchSchema>;
 import type { LiteralUnion } from "./literal-union.js";
 import type {
-  AgentCapabilityFlags,
-  AgentModelDefinition,
-  AgentMode,
   AgentPermissionResponse,
-  AgentPersistenceHandle,
   ProviderStatus,
-  AgentRuntimeInfo,
-  AgentUsage,
 } from "../server/agent/agent-sdk-types.js";
 
 export const AgentStatusSchema = z.enum(AGENT_STATUSES);
 
-const AgentModeSchema: z.ZodType<AgentMode> = z.object({
-  id: z.string(),
-  label: z.string(),
-  description: z.string().optional(),
-  icon: z.string().optional(),
-  colorTier: z.string().optional(),
-});
+const AgentModeSchema = AgentModeSchemaGenerated;
 
 const ProviderStatusSchema: z.ZodType<ProviderStatus> = z.enum([
   "ready",
@@ -204,13 +202,7 @@ const ProviderStatusSchema: z.ZodType<ProviderStatus> = z.enum([
   "unavailable",
 ]);
 
-const AgentSelectOptionSchema = z.object({
-  id: z.string(),
-  label: z.string(),
-  description: z.string().optional(),
-  isDefault: z.boolean().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-});
+const AgentSelectOptionSchema = AgentSelectOptionSchemaGenerated;
 
 export const AgentFeatureToggleSchema = z.object({
   type: z.literal("toggle"),
@@ -238,16 +230,7 @@ export const AgentFeatureSchema = z.discriminatedUnion("type", [
   AgentFeatureSelectSchema,
 ]);
 
-const AgentModelDefinitionSchema: z.ZodType<AgentModelDefinition> = z.object({
-  provider: AgentProviderSchema,
-  id: z.string(),
-  label: z.string(),
-  description: z.string().optional(),
-  isDefault: z.boolean().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-  thinkingOptions: z.array(AgentSelectOptionSchema).optional(),
-  defaultThinkingOptionId: z.string().optional(),
-});
+const AgentModelDefinitionSchema = AgentModelDefinitionSchemaGenerated;
 
 export const ProviderSnapshotEntrySchema = z.object({
   provider: AgentProviderSchema,
@@ -262,23 +245,6 @@ export const ProviderSnapshotEntrySchema = z.object({
   defaultModeId: z.string().nullable().optional(),
 });
 
-const AgentCapabilityFlagsSchema: z.ZodType<AgentCapabilityFlags> = z.object({
-  supportsStreaming: z.boolean(),
-  supportsSessionPersistence: z.boolean(),
-  supportsDynamicModes: z.boolean(),
-  supportsMcpServers: z.boolean(),
-  supportsReasoningStream: z.boolean(),
-  supportsToolInvocations: z.boolean(),
-});
-
-const AgentUsageSchema: z.ZodType<AgentUsage> = z.object({
-  inputTokens: z.number().optional(),
-  cachedInputTokens: z.number().optional(),
-  outputTokens: z.number().optional(),
-  totalCostUsd: z.number().optional(),
-  contextWindowMaxTokens: z.number().optional(),
-  contextWindowUsedTokens: z.number().optional(),
-});
 
 const McpStdioServerConfigSchema = z.object({
   type: z.literal("stdio"),
@@ -645,23 +611,9 @@ export const AgentStreamEventPayloadSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
-const AgentPersistenceHandleSchema: z.ZodType<AgentPersistenceHandle | null> = z
-  .object({
-    provider: AgentProviderSchema,
-    sessionId: z.string(),
-    nativeHandle: z.string().optional(),
-    metadata: z.record(z.string(), z.unknown()).optional(),
-  })
-  .nullable();
+const AgentPersistenceHandleSchema = AgentPersistenceHandleSchemaGenerated.nullable();
 
-const AgentRuntimeInfoSchema: z.ZodType<AgentRuntimeInfo> = z.object({
-  provider: AgentProviderSchema,
-  sessionId: z.string().nullable(),
-  model: z.string().nullable().optional(),
-  thinkingOptionId: z.string().nullable().optional(),
-  modeId: z.string().nullable().optional(),
-  extra: z.record(z.string(), z.unknown()).optional(),
-});
+const AgentRuntimeInfoSchema = AgentRuntimeInfoSchemaGenerated;
 
 export const AgentSnapshotPayloadSchema = z.object({
   id: z.string(),
@@ -3149,44 +3101,13 @@ const TerminalInfoSchema = z.object({
   title: z.string().optional(),
 });
 
-export const TerminalCellSchema = z
-  .object({
-    char: z.string(),
-    fg: z.number().optional(),
-    bg: z.number().optional(),
-    fgMode: z.number().optional(),
-    bgMode: z.number().optional(),
-    bold: z.boolean().optional(),
-    italic: z.boolean().optional(),
-    underline: z.boolean().optional(),
-    dim: z.boolean().optional(),
-    inverse: z.boolean().optional(),
-    strikethrough: z.boolean().optional(),
-  })
-  .strict();
+export const TerminalCellSchema = TerminalCellSchemaGenerated;
 
 export const TerminalCursorStyleSchema = z.enum(["block", "underline", "bar"]);
 
-export const TerminalCursorSchema = z
-  .object({
-    row: z.number(),
-    col: z.number(),
-    hidden: z.boolean().optional(),
-    style: TerminalCursorStyleSchema.optional(),
-    blink: z.boolean().optional(),
-  })
-  .strict();
+export const TerminalCursorSchema = TerminalCursorSchemaGenerated;
 
-export const TerminalStateSchema = z
-  .object({
-    rows: z.number(),
-    cols: z.number(),
-    grid: z.array(z.array(TerminalCellSchema)),
-    scrollback: z.array(z.array(TerminalCellSchema)),
-    cursor: TerminalCursorSchema,
-    title: z.string().optional(),
-  })
-  .strict();
+export const TerminalStateSchema = TerminalStateSchemaGenerated;
 
 export const ListTerminalsResponseSchema = z.object({
   type: z.literal("list_terminals_response"),

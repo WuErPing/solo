@@ -2,6 +2,7 @@ package protocol
 
 // --- Common Sub-Types ---
 
+// genzod
 // AgentCapabilityFlags describes what an agent provider supports.
 type AgentCapabilityFlags struct {
 	SupportsStreaming          bool `json:"supportsStreaming"`
@@ -12,6 +13,7 @@ type AgentCapabilityFlags struct {
 	SupportsToolInvocations    bool `json:"supportsToolInvocations"`
 }
 
+// genzod
 // AgentMode describes an available mode for an agent.
 type AgentMode struct {
 	ID          string `json:"id"`
@@ -21,6 +23,7 @@ type AgentMode struct {
 	ColorTier   string `json:"colorTier,omitempty"`
 }
 
+// genzod
 // AgentSelectOption is a select option for agent features.
 type AgentSelectOption struct {
 	ID          string                 `json:"id"`
@@ -30,6 +33,7 @@ type AgentSelectOption struct {
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 }
 
+// genzod
 // AgentModelDefinition describes a model available for a provider.
 type AgentModelDefinition struct {
 	Provider                string                 `json:"provider"`
@@ -42,6 +46,7 @@ type AgentModelDefinition struct {
 	DefaultThinkingOptionID string                 `json:"defaultThinkingOptionId,omitempty"`
 }
 
+// genzod
 // AgentUsage tracks token usage for an agent session.
 type AgentUsage struct {
 	InputTokens             *float64 `json:"inputTokens,omitempty"`
@@ -91,6 +96,7 @@ type AgentFeature struct {
 	Options     []AgentSelectOption `json:"options,omitempty"`
 }
 
+// genzod
 // AgentPersistenceHandle describes how an agent session can be persisted.
 type AgentPersistenceHandle struct {
 	Provider     string                 `json:"provider"`
@@ -99,6 +105,7 @@ type AgentPersistenceHandle struct {
 	Metadata     map[string]interface{} `json:"metadata,omitempty"`
 }
 
+// genzod
 // AgentRuntimeInfo contains runtime information about an agent session.
 type AgentRuntimeInfo struct {
 	Provider         string                 `json:"provider"`

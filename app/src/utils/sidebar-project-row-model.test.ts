@@ -16,7 +16,7 @@ function workspace(overrides: Partial<SidebarWorkspaceEntry> = {}): SidebarWorks
     projectKey: "project-1",
     workspaceDirectory: "/repo",
     projectKind: "git",
-    workspaceKind: "checkout",
+    workspaceKind: "local_checkout",
     name: "solo",
     statusBucket: "done",
     scripts: [],
@@ -40,13 +40,13 @@ describe("buildSidebarProjectRowModel", () => {
   it("flattens non-git projects with one workspace into a direct workspace row model", () => {
     const flattenedWorkspace = workspace({
       workspaceId: "ws-non-git",
-      workspaceKind: "checkout",
+      workspaceKind: "local_checkout",
       statusBucket: "running",
     });
 
     const result = buildSidebarProjectRowModel({
       project: project({
-        projectKind: "directory",
+        projectKind: "non_git",
         workspaces: [flattenedWorkspace],
       }),
       collapsed: false,
@@ -68,7 +68,7 @@ describe("buildSidebarProjectRowModel", () => {
 
     const result = buildSidebarProjectRowModel({
       project: project({
-        projectKind: "directory",
+        projectKind: "non_git",
         workspaces: [flattenedWorkspace],
       }),
       collapsed: false,
@@ -86,7 +86,7 @@ describe("buildSidebarProjectRowModel", () => {
   it("keeps single-workspace git projects as sections with the new worktree action", () => {
     const onlyWorkspace = workspace({
       workspaceId: "ws-main",
-      workspaceKind: "checkout",
+      workspaceKind: "local_checkout",
     });
 
     const result = buildSidebarProjectRowModel({
@@ -109,7 +109,7 @@ describe("buildSidebarProjectRowModel", () => {
       project: project({
         projectKind: "git",
         workspaces: [
-          workspace({ workspaceId: "ws-main", workspaceKind: "checkout" }),
+          workspace({ workspaceId: "ws-main", workspaceKind: "local_checkout" }),
           workspace({ workspaceId: "ws-feature", workspaceKind: "worktree" }),
         ],
       }),
@@ -130,7 +130,7 @@ describe("isSidebarProjectFlattened", () => {
       isSidebarProjectFlattened(project({ projectKind: "git", workspaces: [workspace()] })),
     ).toBe(false);
     expect(
-      isSidebarProjectFlattened(project({ projectKind: "directory", workspaces: [workspace()] })),
+      isSidebarProjectFlattened(project({ projectKind: "non_git", workspaces: [workspace()] })),
     ).toBe(true);
   });
 

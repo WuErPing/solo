@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-06-24
+
+### Added
+
+- **Protocol**: Go-to-TypeScript Zod codegen (`genzod`) with CI enforcement against hand-written schema duplication
+- **Daemon**: `TimelineMaxRowsPerAgent` configuration (default 10000) with FIFO eviction
+- **Daemon**: `timeline_rows_total` and `timeline_rows_dropped_total` metrics
+
+### Fixed
+
+- **App-bridge**: send correct protocol version in hello message
+- **Daemon**: propagate `persistTurn` errors to `Flush`/`Close` and log failures
+- **Daemon**: enforce per-agent timeline row limit with FIFO eviction
+
+### Changed
+
+- **App-bridge**: migrate `WorkspaceDescriptor` and 9 other schemas to genzod-generated Zod schemas
+- **App-bridge**: split `agent-rpc` and `chat-rpc` into per-domain RPC modules
+- **App**: split `session-context` into domain modules
+- **App**: tighten `WorkspaceDescriptor` fields to typed unions (`ProjectKind`, `WorkspaceKind`, `WorkspaceStatus`)
+- **Agent**: split provider implementations into sub-packages
+- **Daemon**: split tmux logic into focused files
+
 ## [0.8.0] - 2026-06-22
 
 ### Added
