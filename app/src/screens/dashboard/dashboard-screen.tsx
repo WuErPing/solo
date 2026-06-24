@@ -201,7 +201,7 @@ export function DashboardScreen() {
   return (
     <View style={styles.container}>
       <BackHeader
-        title="Dashboard"
+        title="Agents"
         onBack={() => router.navigate("/")}
         rightContent={
           <View style={styles.headerBadge}>

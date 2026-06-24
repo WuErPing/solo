@@ -496,7 +496,7 @@ function TmuxDashboardScreenInner() {
   return (
     <View style={styles.container}>
       <BackHeader
-        title="Tmux Dashboard"
+        title="Tmux"
         onBack={() => router.navigate("/")}
         rightContent={
           <View style={styles.headerRightRow}>

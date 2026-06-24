@@ -808,7 +808,7 @@ function MobileSidebar({
             <SidebarHeaderRow
               icon={LayoutDashboard}
               iconColor={theme.colors.palette.amber[500]}
-              label="Dashboard"
+              label="Agents"
               onPress={handleDashboardNavigate}
               isActive={pathname === "/dashboard"}
               testID="sidebar-dashboard"
@@ -832,7 +832,7 @@ function MobileSidebar({
             <SidebarHeaderRow
               icon={Terminal}
               iconColor={theme.colors.palette.orange[500]}
-              label="Tmux Dashboard"
+              label="Tmux"
               onPress={handleTmuxDashboardNavigate}
               isActive={pathname === "/tmux-dashboard"}
               testID="sidebar-tmux-dashboard"
@@ -992,7 +992,7 @@ function DesktopSidebar({
           />
           <SidebarHeaderRow
             icon={LayoutDashboard}
-            label="Dashboard"
+            label="Agents"
             onPress={handleDashboardNavigate}
             isActive={pathname === "/dashboard"}
             testID="sidebar-dashboard"
@@ -1016,7 +1016,7 @@ function DesktopSidebar({
           />
           <SidebarHeaderRow
             icon={Terminal}
-            label="Tmux Dashboard"
+            label="Tmux"
             onPress={handleTmuxDashboardNavigate}
             isActive={pathname === "/tmux-dashboard"}
             testID="sidebar-tmux-dashboard"
