@@ -53,6 +53,6 @@ export function normalizeAgentSnapshot(snapshot: AgentSnapshotPayload, serverId:
     attentionReason: snapshot.attentionReason ?? null,
     attentionTimestamp,
     archivedAt,
-    labels: snapshot.labels,
+    labels: snapshot.labels ?? {},
   };
 }

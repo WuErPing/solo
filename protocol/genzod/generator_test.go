@@ -215,3 +215,255 @@ type Basic struct {
 		t.Errorf("missing zod import:\n%s", out)
 	}
 }
+
+func TestGenerate_PointerEdgeCases(t *testing.T) {
+	dir := writeTempFiles(t, map[string]string{
+		"ptrs.go": `package protocol
+
+//genzod
+type Inner struct {
+	Value int ` + "`json:\"value\"`" + `
+}
+
+//genzod
+type PtrDemo struct {
+	IntPtr    *int              ` + "`json:\"intPtr\"`" + `
+	FloatPtr  *float64          ` + "`json:\"floatPtr\"`" + `
+	BoolPtr   *bool             ` + "`json:\"boolPtr\"`" + `
+	StructPtr *Inner            ` + "`json:\"structPtr\"`" + `
+	SlicePtr  *[]string         ` + "`json:\"slicePtr\"`" + `
+	MapPtr    *map[string]string ` + "`json:\"mapPtr\"`" + `
+	NoTag     *string
+}
+`,
+	})
+
+	var buf bytes.Buffer
+	if err := Generate(dir, &buf); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	out := buf.String()
+	wantParts := []string{
+		"intPtr: z.number().nullable()",
+		"floatPtr: z.number().nullable()",
+		"boolPtr: z.boolean().nullable()",
+		"structPtr: InnerSchema.nullable()",
+		"slicePtr: z.array(z.string()).nullable()",
+		"mapPtr: z.record(z.string(), z.string()).nullable()",
+		"noTag: z.string().nullable()",
+	}
+	for _, part := range wantParts {
+		if !strings.Contains(out, part) {
+			t.Errorf("expected output to contain %q:\n%s", part, out)
+		}
+	}
+}
+
+func TestGenerate_OmitemptyEdgeCases(t *testing.T) {
+	dir := writeTempFiles(t, map[string]string{
+		"omitempty.go": `package protocol
+
+//genzod
+type Inner struct {
+	Value int ` + "`json:\"value\"`" + `
+}
+
+//genzod
+type OmitemptyDemo struct {
+	WithOmitempty     string  ` + "`json:\"withOmitempty,omitempty\"`" + `
+	WithoutOmitempty  string  ` + "`json:\"withoutOmitempty\"`" + `
+	PtrOmitempty      *int    ` + "`json:\"ptrOmitempty,omitempty\"`" + `
+	PtrStructOmitempty *Inner ` + "`json:\"ptrStructOmitempty,omitempty\"`" + `
+}
+`,
+	})
+
+	var buf bytes.Buffer
+	if err := Generate(dir, &buf); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	out := buf.String()
+	wantParts := []string{
+		"withOmitempty: z.string().optional()",
+		"withoutOmitempty: z.string()",
+		"ptrOmitempty: z.number().nullable().optional()",
+		"ptrStructOmitempty: InnerSchema.nullable().optional()",
+	}
+	for _, part := range wantParts {
+		if !strings.Contains(out, part) {
+			t.Errorf("expected output to contain %q:\n%s", part, out)
+		}
+	}
+	// withoutOmitempty must NOT have .optional()
+	if strings.Contains(out, "withoutOmitempty: z.string().optional()") {
+		t.Errorf("withoutOmitempty should not be optional:\n%s", out)
+	}
+}
+
+func TestGenerate_ArrayEdgeCases(t *testing.T) {
+	dir := writeTempFiles(t, map[string]string{
+		"arrays.go": `package protocol
+
+//genzod
+type Inner struct {
+	Value int ` + "`json:\"value\"`" + `
+}
+
+//genzod
+type ArrayDemo struct {
+	TwoD        [][]Inner   ` + "`json:\"twoD\"`" + `
+	PtrElems    []*string   ` + "`json:\"ptrElems\"`" + `
+	IfaceSlice  []interface{} ` + "`json:\"ifaceSlice\"`" + `
+}
+`,
+	})
+
+	var buf bytes.Buffer
+	if err := Generate(dir, &buf); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	out := buf.String()
+	wantParts := []string{
+		"twoD: z.array(z.array(InnerSchema))",
+		"ptrElems: z.array(z.string().nullable())",
+		"ifaceSlice: z.array(z.unknown())",
+	}
+	for _, part := range wantParts {
+		if !strings.Contains(out, part) {
+			t.Errorf("expected output to contain %q:\n%s", part, out)
+		}
+	}
+}
+
+func TestGenerate_MapEdgeCases(t *testing.T) {
+	dir := writeTempFiles(t, map[string]string{
+		"maps.go": `package protocol
+
+//genzod
+type Inner struct {
+	Value int ` + "`json:\"value\"`" + `
+}
+
+//genzod
+type MapDemo struct {
+	StructVals map[string]Inner    ` + "`json:\"structVals\"`" + `
+	PtrVals    map[string]*string  ` + "`json:\"ptrVals\"`" + `
+	SliceVals  map[string][]string ` + "`json:\"sliceVals\"`" + `
+}
+`,
+	})
+
+	var buf bytes.Buffer
+	if err := Generate(dir, &buf); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	out := buf.String()
+	wantParts := []string{
+		"structVals: z.record(z.string(), InnerSchema)",
+		"ptrVals: z.record(z.string(), z.string().nullable())",
+		"sliceVals: z.record(z.string(), z.array(z.string()))",
+	}
+	for _, part := range wantParts {
+		if !strings.Contains(out, part) {
+			t.Errorf("expected output to contain %q:\n%s", part, out)
+		}
+	}
+}
+
+func TestGenerate_NonStringMapKeyErrors(t *testing.T) {
+	dir := writeTempFiles(t, map[string]string{
+		"badmap.go": `package protocol
+
+//genzod
+type BadMap struct {
+	Data map[int]string ` + "`json:\"data\"`" + `
+}
+`,
+	})
+
+	var buf bytes.Buffer
+	err := Generate(dir, &buf)
+	if err == nil {
+		t.Fatal("expected error for non-string map key, got nil")
+	}
+	if !strings.Contains(err.Error(), "only map[string]T is supported") {
+		t.Errorf("expected error about map key type, got: %v", err)
+	}
+}
+
+func TestGenerate_CombinedEdgeCases(t *testing.T) {
+	dir := writeTempFiles(t, map[string]string{
+		"kitchen.go": `package protocol
+
+//genzod
+type Inner struct {
+	Value int ` + "`json:\"value\"`" + `
+}
+
+//genzod
+type KitchenSink struct {
+	Name        string            ` + "`json:\"name\"`" + `
+	Tag         string            ` + "`json:\"tag,omitempty\"`" + `
+	Count       *int              ` + "`json:\"count\"`" + `
+	PtrOmitempty *string          ` + "`json:\"ptrOmitempty,omitempty\"`" + `
+	Items       []Inner           ` + "`json:\"items\"`" + `
+	Meta        map[string]string ` + "`json:\"meta\"`" + `
+	Raw         interface{}       ` + "`json:\"raw,omitempty\"`" + `
+	Ignored     string            ` + "`json:\"-\"`" + `
+	CustomName  string            ` + "`json:\"custom_name\"`" + `
+}
+`,
+	})
+
+	var buf bytes.Buffer
+	if err := Generate(dir, &buf); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	out := buf.String()
+	wantParts := []string{
+		"name: z.string()",
+		"tag: z.string().optional()",
+		"count: z.number().nullable()",
+		"ptrOmitempty: z.string().nullable().optional()",
+		"items: z.array(InnerSchema)",
+		"meta: z.record(z.string(), z.string())",
+		"raw: z.unknown().optional()",
+		"custom_name: z.string()",
+	}
+	for _, part := range wantParts {
+		if !strings.Contains(out, part) {
+			t.Errorf("expected output to contain %q:\n%s", part, out)
+		}
+	}
+	if strings.Contains(out, "ignored") {
+		t.Errorf("json:\"-\" field should be excluded from output:\n%s", out)
+	}
+}
+
+func TestGenerate_EmptyStruct(t *testing.T) {
+	dir := writeTempFiles(t, map[string]string{
+		"empty.go": `package protocol
+
+//genzod
+type Empty struct {}
+`,
+	})
+
+	var buf bytes.Buffer
+	if err := Generate(dir, &buf); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "export const EmptySchema = z.object({") {
+		t.Errorf("missing EmptySchema declaration:\n%s", out)
+	}
+	if !strings.Contains(out, "});") {
+		t.Errorf("missing closing brace:\n%s", out)
+	}
+}
