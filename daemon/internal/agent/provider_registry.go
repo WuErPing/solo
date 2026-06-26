@@ -5,21 +5,24 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/WuErPing/solo/daemon/internal/config"
 	"github.com/WuErPing/solo/protocol"
 )
 
 // ProviderRegistry manages available agent providers.
 type ProviderRegistry struct {
-	mu           sync.RWMutex
-	clients      map[string]AgentClient
-	customModels map[string][]protocol.AgentModelDefinition
+	mu               sync.RWMutex
+	clients          map[string]AgentClient
+	customModels     map[string][]protocol.AgentModelDefinition
+	providerSettings map[string]config.ProviderSettingsConfig
 }
 
 // NewProviderRegistry creates a new empty registry.
 func NewProviderRegistry() *ProviderRegistry {
 	return &ProviderRegistry{
-		clients:      make(map[string]AgentClient),
-		customModels: make(map[string][]protocol.AgentModelDefinition),
+		clients:          make(map[string]AgentClient),
+		customModels:     make(map[string][]protocol.AgentModelDefinition),
+		providerSettings: make(map[string]config.ProviderSettingsConfig),
 	}
 }
 
@@ -28,6 +31,13 @@ func (r *ProviderRegistry) SetCustomModels(models map[string][]protocol.AgentMod
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.customModels = models
+}
+
+// SetProviderSettings sets user-defined metadata and enabled flag per provider.
+func (r *ProviderRegistry) SetProviderSettings(settings map[string]config.ProviderSettingsConfig) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.providerSettings = settings
 }
 
 // Register adds a provider client to the registry.
@@ -176,7 +186,14 @@ func (r *ProviderRegistry) ToProviderSnapshotEntries() []protocol.ProviderSnapsh
 	avail := r.ListAvailable()
 	entries := make([]protocol.ProviderSnapshotEntry, 0, len(defs))
 
+	r.mu.RLock()
+	settings := r.providerSettings
+	customModels := r.customModels
+	r.mu.RUnlock()
+
+	seen := make(map[string]bool, len(defs))
 	for _, def := range defs {
+		seen[def.ID] = true
 		entry := protocol.ProviderSnapshotEntry{
 			Provider:      def.ID,
 			Status:        "ready",
@@ -194,6 +211,18 @@ func (r *ProviderRegistry) ToProviderSnapshotEntries() []protocol.ProviderSnapsh
 		} else {
 			entry.Status = "unavailable"
 			entry.Error = "not registered"
+		}
+
+		if s, ok := settings[def.ID]; ok {
+			if s.Enabled != nil {
+				entry.Enabled = *s.Enabled
+			}
+			if s.Label != "" {
+				entry.Label = s.Label
+			}
+			if s.Description != "" {
+				entry.Description = s.Description
+			}
 		}
 
 		// Convert modes
@@ -232,10 +261,7 @@ func (r *ProviderRegistry) ToProviderSnapshotEntries() []protocol.ProviderSnapsh
 		}
 
 		// Merge custom models: override-by-ID or append
-		r.mu.RLock()
-		custom := r.customModels[def.ID]
-		r.mu.RUnlock()
-		if len(custom) > 0 {
+		if custom := customModels[def.ID]; len(custom) > 0 {
 			existing := make(map[string]int, len(models))
 			for i, m := range models {
 				existing[m.ID] = i
@@ -250,6 +276,50 @@ func (r *ProviderRegistry) ToProviderSnapshotEntries() []protocol.ProviderSnapsh
 		}
 
 		entry.Models = models
+
+		entries = append(entries, entry)
+	}
+
+	// Append custom providers that are not built-in.
+	for providerID := range customModels {
+		if seen[providerID] {
+			continue
+		}
+		seen[providerID] = true
+		s := settings[providerID]
+		entry := protocol.ProviderSnapshotEntry{
+			Provider: providerID,
+			Status:   "unavailable",
+			Enabled:  s.Enabled == nil || *s.Enabled,
+			Label:    s.Label,
+			Models:   customModels[providerID],
+		}
+		if entry.Label == "" {
+			entry.Label = providerID
+		}
+		if s.Description != "" {
+			entry.Description = s.Description
+		}
+		entries = append(entries, entry)
+	}
+	for providerID := range settings {
+		if seen[providerID] {
+			continue
+		}
+		seen[providerID] = true
+		s := settings[providerID]
+		entry := protocol.ProviderSnapshotEntry{
+			Provider: providerID,
+			Status:   "unavailable",
+			Enabled:  s.Enabled == nil || *s.Enabled,
+			Label:    s.Label,
+		}
+		if entry.Label == "" {
+			entry.Label = providerID
+		}
+		if s.Description != "" {
+			entry.Description = s.Description
+		}
 		entries = append(entries, entry)
 	}
 

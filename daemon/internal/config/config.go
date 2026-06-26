@@ -26,9 +26,11 @@ type Config struct {
 	AppBaseURL                   string
 	Supervised                   bool
 	Version                      string
-	CustomModels                 map[string][]CustomModelConfig // key = provider ID
-	TmuxAgentNames               []string                       // additional tmux agent names (merged with built-in defaults)
-	TimelineMaxRowsPerAgent      int                            // hard upper bound for in-memory timeline rows per agent
+	CustomModels                 map[string][]CustomModelConfig    // key = provider ID
+	ProviderSettings             map[string]ProviderSettingsConfig // key = provider ID
+	LLMProviders                 []LLMProviderConfig               // user-configured LLM API providers
+	TmuxAgentNames               []string                          // additional tmux agent names (merged with built-in defaults)
+	TimelineMaxRowsPerAgent      int                               // hard upper bound for in-memory timeline rows per agent
 	Memory                       MemoryConfig
 }
 
@@ -56,14 +58,45 @@ type PersistedConfig struct {
 }
 
 type DaemonConfig struct {
-	Listen                  *string          `json:"listen,omitempty"`
-	Hostnames               []string         `json:"hostnames,omitempty"`
-	MCP                     *MCPConfig       `json:"mcp,omitempty"`
-	CORS                    *CORSConfig      `json:"cors,omitempty"`
-	Relay                   *RelayConfig     `json:"relay,omitempty"`
-	Providers               *ProvidersConfig `json:"providers,omitempty"`
-	TmuxAgentNames          []string         `json:"tmuxAgentNames,omitempty"`
-	TimelineMaxRowsPerAgent *int             `json:"timelineMaxRowsPerAgent,omitempty"`
+	Listen                  *string             `json:"listen,omitempty"`
+	Hostnames               []string            `json:"hostnames,omitempty"`
+	MCP                     *MCPConfig          `json:"mcp,omitempty"`
+	CORS                    *CORSConfig         `json:"cors,omitempty"`
+	Relay                   *RelayConfig        `json:"relay,omitempty"`
+	Providers               *ProvidersConfig    `json:"providers,omitempty"`
+	LLMProviders            []LLMProviderConfig `json:"llmProviders,omitempty"`
+	TmuxAgentNames          []string            `json:"tmuxAgentNames,omitempty"`
+	TimelineMaxRowsPerAgent *int                `json:"timelineMaxRowsPerAgent,omitempty"`
+}
+
+type ProvidersConfig struct {
+	CustomModels     map[string][]CustomModelConfig    `json:"customModels,omitempty"`
+	ProviderSettings map[string]ProviderSettingsConfig `json:"providerSettings,omitempty"`
+}
+
+type ProviderSettingsConfig struct {
+	Enabled     *bool  `json:"enabled,omitempty"`
+	Label       string `json:"label,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+// LLMProviderConfig holds a user-configured LLM API provider.
+type LLMProviderConfig struct {
+	ID          string           `json:"id"`
+	Label       string           `json:"label,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Enabled     *bool            `json:"enabled,omitempty"`
+	BaseURL     string           `json:"baseURL,omitempty"`
+	APIKey      string           `json:"apiKey,omitempty"`
+	Models      []LLMModelConfig `json:"models,omitempty"`
+}
+
+// LLMModelConfig holds a model exposed by an LLMProviderConfig.
+type LLMModelConfig struct {
+	ID          string `json:"id"`
+	Label       string `json:"label,omitempty"`
+	Description string `json:"description,omitempty"`
+	IsDefault   *bool  `json:"isDefault,omitempty"`
 }
 
 type MCPConfig struct {
@@ -83,10 +116,6 @@ type RelayConfig struct {
 
 type AppConfig struct {
 	BaseURL *string `json:"baseUrl,omitempty"`
-}
-
-type ProvidersConfig struct {
-	CustomModels map[string][]CustomModelConfig `json:"customModels,omitempty"`
 }
 
 type CustomModelConfig struct {
@@ -229,8 +258,16 @@ func applyPersistedConfig(cfg *Config, pc *PersistedConfig) {
 				cfg.RelayDisableControlKeepalive = *pc.Daemon.Relay.DisableControlKeepalive
 			}
 		}
-		if pc.Daemon.Providers != nil && len(pc.Daemon.Providers.CustomModels) > 0 {
-			cfg.CustomModels = pc.Daemon.Providers.CustomModels
+		if pc.Daemon.Providers != nil {
+			if len(pc.Daemon.Providers.CustomModels) > 0 {
+				cfg.CustomModels = pc.Daemon.Providers.CustomModels
+			}
+			if len(pc.Daemon.Providers.ProviderSettings) > 0 {
+				cfg.ProviderSettings = pc.Daemon.Providers.ProviderSettings
+			}
+		}
+		if len(pc.Daemon.LLMProviders) > 0 {
+			cfg.LLMProviders = pc.Daemon.LLMProviders
 		}
 		if len(pc.Daemon.TmuxAgentNames) > 0 {
 			cfg.TmuxAgentNames = pc.Daemon.TmuxAgentNames
@@ -277,6 +314,21 @@ func (c *Config) Save() error {
 		pc.Daemon = &DaemonConfig{}
 	}
 	pc.Daemon.TmuxAgentNames = c.TmuxAgentNames
+
+	if len(c.CustomModels) > 0 || len(c.ProviderSettings) > 0 {
+		if pc.Daemon.Providers == nil {
+			pc.Daemon.Providers = &ProvidersConfig{}
+		}
+		if len(c.CustomModels) > 0 {
+			pc.Daemon.Providers.CustomModels = c.CustomModels
+		}
+		if len(c.ProviderSettings) > 0 {
+			pc.Daemon.Providers.ProviderSettings = c.ProviderSettings
+		}
+	}
+	if len(c.LLMProviders) > 0 {
+		pc.Daemon.LLMProviders = c.LLMProviders
+	}
 
 	data, err := json.MarshalIndent(pc, "", "  ")
 	if err != nil {

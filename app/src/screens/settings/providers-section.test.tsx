@@ -1,8 +1,9 @@
 /**
  * @vitest-environment jsdom
  */
-import React, { act } from "react";
+import React from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { act, fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProviderSnapshotEntry } from "@server/server/agent/agent-sdk-types";
 import type { MutableDaemonConfig } from "@server/shared/messages";
@@ -46,6 +47,25 @@ vi.mock("react-native", () => ({
     React.createElement("div", { "data-testid": testID }, children),
   Text: ({ children }: { children?: React.ReactNode }) =>
     React.createElement("span", null, children),
+  TextInput: ({
+    value,
+    onChangeText,
+    placeholder,
+    testID,
+  }: {
+    value?: string;
+    onChangeText?: (text: string) => void;
+    placeholder?: string;
+    testID?: string;
+  }) =>
+    React.createElement("input", {
+      "data-testid": testID,
+      placeholder,
+      value: value ?? "",
+      onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+        onChangeText?.(event.target.value);
+      },
+    }),
   Pressable: ({
     children,
     onPress,
@@ -96,6 +116,7 @@ vi.mock("lucide-react-native", () => {
   return {
     ChevronRight: icon("ChevronRight"),
     RotateCw: icon("RotateCw"),
+    Plus: icon("Plus"),
   };
 });
 
@@ -197,7 +218,7 @@ const disabledCodexEntry: ProviderSnapshotEntry = {
 };
 
 function makeConfig(providers: MutableDaemonConfig["providers"] = {}): MutableDaemonConfig {
-  return { mcp: { injectIntoAgents: false }, providers, tmuxAgentNames: [] };
+  return { mcp: { injectIntoAgents: false }, providers, llmProviders: [], tmuxAgentNames: [] };
 }
 
 function descendants(el: HTMLElement): HTMLElement[] {
@@ -343,5 +364,112 @@ describe("ProvidersSection", () => {
       providers: { claude: { enabled: false } },
     });
     expect(container?.querySelector('[data-testid="provider-diagnostic-sheet"]')).toBeNull();
+  });
+
+  it("shows an add-provider form when the add button is pressed", () => {
+    snapshotState.entries = [claudeEntry];
+    configState.config = makeConfig();
+
+    render();
+
+    expect(container?.querySelector('[data-testid="add-provider-form"]')).toBeNull();
+
+    const addButton = container?.querySelector<HTMLElement>('[data-testid="add-provider-button"]');
+    expect(addButton).not.toBeNull();
+
+    act(() => {
+      addButton?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container?.querySelector('[data-testid="add-provider-form"]')).not.toBeNull();
+  });
+
+  it("creates a new provider through patchConfig when the add form is submitted", async () => {
+    snapshotState.entries = [claudeEntry];
+    configState.config = makeConfig();
+
+    render();
+
+    const addButton = container?.querySelector<HTMLElement>('[data-testid="add-provider-button"]');
+    act(() => {
+      addButton?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    });
+
+    const idInput = container?.querySelector<HTMLInputElement>('[data-testid="add-provider-id"]');
+    const labelInput = container?.querySelector<HTMLInputElement>(
+      '[data-testid="add-provider-label"]',
+    );
+    const descriptionInput = container?.querySelector<HTMLInputElement>(
+      '[data-testid="add-provider-description"]',
+    );
+    expect(idInput).not.toBeNull();
+    expect(labelInput).not.toBeNull();
+    expect(descriptionInput).not.toBeNull();
+
+    act(() => {
+      fireEvent.change(idInput!, { target: { value: "custom-ai" } });
+    });
+    act(() => {
+      fireEvent.change(labelInput!, { target: { value: "Custom AI" } });
+    });
+    act(() => {
+      fireEvent.change(descriptionInput!, { target: { value: "My custom provider" } });
+    });
+
+    const submitButton = container?.querySelector<HTMLElement>(
+      '[data-testid="add-provider-submit"]',
+    );
+    expect(submitButton).not.toBeNull();
+
+    await act(async () => {
+      submitButton?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(patchConfigMock).toHaveBeenCalledTimes(1);
+    expect(patchConfigMock).toHaveBeenCalledWith({
+      providers: {
+        "custom-ai": {
+          enabled: true,
+          label: "Custom AI",
+          description: "My custom provider",
+        },
+      },
+    });
+  });
+
+  it("falls back to the provider id as label when no label is provided", async () => {
+    snapshotState.entries = [claudeEntry];
+    configState.config = makeConfig();
+
+    render();
+
+    const addButton = container?.querySelector<HTMLElement>('[data-testid="add-provider-button"]');
+    act(() => {
+      addButton?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    });
+
+    const idInput = container?.querySelector<HTMLInputElement>('[data-testid="add-provider-id"]');
+    act(() => {
+      fireEvent.change(idInput!, { target: { value: "custom-ai" } });
+    });
+
+    const submitButton = container?.querySelector<HTMLElement>(
+      '[data-testid="add-provider-submit"]',
+    );
+    await act(async () => {
+      submitButton?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(patchConfigMock).toHaveBeenCalledWith({
+      providers: {
+        "custom-ai": {
+          enabled: true,
+          label: "custom-ai",
+          description: "",
+        },
+      },
+    });
   });
 });

@@ -814,6 +814,14 @@ function MobileSidebar({
               testID="sidebar-dashboard"
             />
             <SidebarHeaderRow
+              icon={Terminal}
+              iconColor={theme.colors.palette.orange[500]}
+              label="Tmux"
+              onPress={handleTmuxDashboardNavigate}
+              isActive={pathname === "/tmux-dashboard"}
+              testID="sidebar-tmux-dashboard"
+            />
+            <SidebarHeaderRow
               icon={Calendar}
               iconColor={theme.colors.palette.blue[500]}
               label="Schedules"
@@ -828,14 +836,6 @@ function MobileSidebar({
               onPress={handleLoops}
               isActive={isLoopsActive}
               testID="sidebar-loops"
-            />
-            <SidebarHeaderRow
-              icon={Terminal}
-              iconColor={theme.colors.palette.orange[500]}
-              label="Tmux"
-              onPress={handleTmuxDashboardNavigate}
-              isActive={pathname === "/tmux-dashboard"}
-              testID="sidebar-tmux-dashboard"
             />
 
             {isInitialLoad ? (
@@ -999,6 +999,14 @@ function DesktopSidebar({
             iconColor={theme.colors.palette.amber[500]}
           />
           <SidebarHeaderRow
+            icon={Terminal}
+            label="Tmux"
+            onPress={handleTmuxDashboardNavigate}
+            isActive={pathname === "/tmux-dashboard"}
+            testID="sidebar-tmux-dashboard"
+            iconColor={theme.colors.palette.orange[500]}
+          />
+          <SidebarHeaderRow
             icon={Calendar}
             label="Schedules"
             onPress={handleSchedulesNavigate}
@@ -1013,14 +1021,6 @@ function DesktopSidebar({
             isActive={isLoopsActive}
             testID="sidebar-loops"
             iconColor={theme.colors.palette.purple[500]}
-          />
-          <SidebarHeaderRow
-            icon={Terminal}
-            label="Tmux"
-            onPress={handleTmuxDashboardNavigate}
-            isActive={pathname === "/tmux-dashboard"}
-            testID="sidebar-tmux-dashboard"
-            iconColor={theme.colors.palette.orange[500]}
           />
         </View>
 

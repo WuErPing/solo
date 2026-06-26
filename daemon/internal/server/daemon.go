@@ -17,8 +17,8 @@ import (
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/agent/providers/claude"
-	"github.com/WuErPing/solo/daemon/internal/agent/providers/kimi"
 	"github.com/WuErPing/solo/daemon/internal/agent/providers/codex"
+	"github.com/WuErPing/solo/daemon/internal/agent/providers/kimi"
 	"github.com/WuErPing/solo/daemon/internal/agent/providers/opencode"
 	"github.com/WuErPing/solo/daemon/internal/agent/providers/pi"
 	"github.com/WuErPing/solo/daemon/internal/config"
@@ -87,42 +87,12 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 		registry.Register(agent.NewMockAgentClient())
 	}
 
-	// Apply custom models from config
+	// Apply provider settings and custom models from config.
 	if len(cfg.CustomModels) > 0 {
-		customModels := make(map[string][]protocol.AgentModelDefinition)
-		for providerID, models := range cfg.CustomModels {
-			for _, m := range models {
-				def := protocol.AgentModelDefinition{
-					Provider:    providerID,
-					ID:          m.ID,
-					Label:       m.Label,
-					Description: m.Description,
-				}
-				if def.Label == "" {
-					def.Label = m.ID
-				}
-				if m.IsDefault != nil {
-					def.IsDefault = *m.IsDefault
-				}
-				if m.DefaultThinkingOptionID != nil {
-					def.DefaultThinkingOptionID = *m.DefaultThinkingOptionID
-				}
-				for _, opt := range m.ThinkingOptions {
-					so := protocol.AgentSelectOption{ID: opt.ID}
-					if opt.Label != "" {
-						so.Label = opt.Label
-					} else {
-						so.Label = opt.ID
-					}
-					if opt.IsDefault != nil {
-						so.IsDefault = *opt.IsDefault
-					}
-					def.ThinkingOptions = append(def.ThinkingOptions, so)
-				}
-				customModels[providerID] = append(customModels[providerID], def)
-			}
-		}
-		registry.SetCustomModels(customModels)
+		registry.SetCustomModels(configCustomModelsToAgent(cfg.CustomModels))
+	}
+	if len(cfg.ProviderSettings) > 0 {
+		registry.SetProviderSettings(cfg.ProviderSettings)
 	}
 
 	// Initialize agent manager

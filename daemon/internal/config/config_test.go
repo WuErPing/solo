@@ -125,6 +125,63 @@ func TestLoad_PersistedConfig(t *testing.T) {
 	}
 }
 
+func TestLoad_PersistedConfig_LLMProviders(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLO_HOME", home)
+
+	configData := []byte(`{"daemon":{"llmProviders":[{"id":"openai","label":"OpenAI","baseURL":"https://api.openai.com/v1","apiKey":"sk-test","models":[{"id":"gpt-5","label":"GPT-5","isDefault":true}]}]}}`)
+	_ = os.WriteFile(filepath.Join(home, "config.json"), configData, 0644)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(cfg.LLMProviders) != 1 {
+		t.Fatalf("expected 1 LLM provider, got %d", len(cfg.LLMProviders))
+	}
+	p := cfg.LLMProviders[0]
+	if p.ID != "openai" || p.Label != "OpenAI" || p.BaseURL != "https://api.openai.com/v1" || p.APIKey != "sk-test" {
+		t.Errorf("provider mismatch: %+v", p)
+	}
+	if len(p.Models) != 1 || p.Models[0].ID != "gpt-5" || !*p.Models[0].IsDefault {
+		t.Errorf("model mismatch: %+v", p.Models)
+	}
+}
+
+func TestSave_LLMProviders(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLO_HOME", home)
+	cfg := &Config{
+		SoloHome: home,
+		LLMProviders: []LLMProviderConfig{
+			{
+				ID:      "anthropic",
+				Label:   "Anthropic",
+				BaseURL: "https://api.anthropic.com/v1",
+				APIKey:  "sk-ant",
+				Models: []LLMModelConfig{
+					{ID: "claude-opus", Label: "Claude Opus"},
+				},
+			},
+		},
+	}
+
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	loaded, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(loaded.LLMProviders) != 1 {
+		t.Fatalf("expected 1 provider after save, got %d", len(loaded.LLMProviders))
+	}
+	if loaded.LLMProviders[0].APIKey != "sk-ant" {
+		t.Errorf("api key not round-tripped: %q", loaded.LLMProviders[0].APIKey)
+	}
+}
+
 func TestLoad_CORSOrigins_TrimsSpaces(t *testing.T) {
 	t.Setenv("SOLO_CORS_ORIGINS", "https://a.com, https://b.com , https://c.com")
 	cfg, err := Load()

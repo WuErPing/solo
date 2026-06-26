@@ -623,12 +623,104 @@ func (s *Session) handleSetAgentModel(m *protocol.SetAgentModelRequest) {
 }
 
 func buildDaemonConfigResponse(cfg *config.Config) map[string]interface{} {
+	providers := make(map[string]interface{}, len(cfg.ProviderSettings)+len(cfg.CustomModels))
+
+	for providerID, settings := range cfg.ProviderSettings {
+		entry := map[string]interface{}{
+			"enabled": settings.Enabled == nil || *settings.Enabled,
+		}
+		if settings.Label != "" {
+			entry["label"] = settings.Label
+		}
+		if settings.Description != "" {
+			entry["description"] = settings.Description
+		}
+		providers[providerID] = entry
+	}
+	for providerID, models := range cfg.CustomModels {
+		entry, ok := providers[providerID].(map[string]interface{})
+		if !ok {
+			entry = map[string]interface{}{
+				"enabled": true,
+			}
+			providers[providerID] = entry
+		}
+		entry["additionalModels"] = customModelsToResponse(models)
+	}
+
 	return map[string]interface{}{
 		"mcp": map[string]interface{}{
 			"injectIntoAgents": cfg.MCPInjectIntoAgents,
 		},
+		"providers":      providers,
+		"llmProviders":   llmProvidersToResponse(cfg.LLMProviders),
 		"tmuxAgentNames": cfg.TmuxAgentNames,
 	}
+}
+
+func llmProvidersToResponse(providers []config.LLMProviderConfig) []map[string]interface{} {
+	out := make([]map[string]interface{}, len(providers))
+	for i, p := range providers {
+		entry := map[string]interface{}{
+			"id":      p.ID,
+			"enabled": p.Enabled == nil || *p.Enabled,
+		}
+		if p.Label != "" {
+			entry["label"] = p.Label
+		}
+		if p.Description != "" {
+			entry["description"] = p.Description
+		}
+		if p.BaseURL != "" {
+			entry["baseURL"] = p.BaseURL
+		}
+		if p.APIKey != "" {
+			entry["apiKey"] = p.APIKey
+		}
+		if len(p.Models) > 0 {
+			entry["models"] = llmModelsToResponse(p.Models)
+		}
+		out[i] = entry
+	}
+	return out
+}
+
+func llmModelsToResponse(models []config.LLMModelConfig) []map[string]interface{} {
+	out := make([]map[string]interface{}, len(models))
+	for i, m := range models {
+		entry := map[string]interface{}{
+			"id": m.ID,
+		}
+		if m.Label != "" {
+			entry["label"] = m.Label
+		}
+		if m.Description != "" {
+			entry["description"] = m.Description
+		}
+		if m.IsDefault != nil {
+			entry["isDefault"] = *m.IsDefault
+		}
+		out[i] = entry
+	}
+	return out
+}
+
+func customModelsToResponse(models []config.CustomModelConfig) []map[string]interface{} {
+	out := make([]map[string]interface{}, len(models))
+	for i, m := range models {
+		entry := map[string]interface{}{
+			"id":    m.ID,
+			"label": m.Label,
+		}
+		if m.Description != "" {
+			entry["description"] = m.Description
+		}
+		if m.IsDefault != nil {
+			entry["isDefault"] = *m.IsDefault
+		}
+		out[i] = entry
+	}
+	return out
 }
 
 func (s *Session) handleGetDaemonConfig(m *protocol.GetDaemonConfigRequest) {
@@ -658,6 +750,29 @@ func (s *Session) handleSetDaemonConfig(m *protocol.SetDaemonConfigRequest) {
 		}
 	}
 
+	if providersRaw, ok := m.Config["providers"]; ok {
+		if providers, ok := providersRaw.(map[string]interface{}); ok {
+			if err := s.applyProviderConfigPatch(providers); err != nil {
+				s.sendRPCError(m.RequestID, "set_daemon_config_request", "failed to apply provider config: "+err.Error(), nil)
+				return
+			}
+			if err := s.cfg.Save(); err != nil {
+				s.sendRPCError(m.RequestID, "set_daemon_config_request", "failed to persist config: "+err.Error(), nil)
+				return
+			}
+		}
+	}
+
+	if llmProvidersRaw, ok := m.Config["llmProviders"]; ok {
+		if providers, ok := llmProvidersRaw.([]interface{}); ok {
+			s.cfg.LLMProviders = parseLLMProviders(providers)
+			if err := s.cfg.Save(); err != nil {
+				s.sendRPCError(m.RequestID, "set_daemon_config_request", "failed to persist config: "+err.Error(), nil)
+				return
+			}
+		}
+	}
+
 	cfg := buildDaemonConfigResponse(s.cfg)
 	s.sendMessage(protocol.NewSessionMessage(&protocol.SetDaemonConfigResponse{
 		Type: "set_daemon_config_response",
@@ -676,6 +791,173 @@ func (s *Session) handleSetDaemonConfig(m *protocol.SetDaemonConfigRequest) {
 			},
 		}))
 	}
+}
+
+func (s *Session) applyProviderConfigPatch(providers map[string]interface{}) error {
+	if s.cfg.ProviderSettings == nil {
+		s.cfg.ProviderSettings = make(map[string]config.ProviderSettingsConfig)
+	}
+	if s.cfg.CustomModels == nil {
+		s.cfg.CustomModels = make(map[string][]config.CustomModelConfig)
+	}
+
+	for providerID, raw := range providers {
+		patch, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		settings := s.cfg.ProviderSettings[providerID]
+		updated := false
+
+		if enabledRaw, ok := patch["enabled"]; ok {
+			if enabled, ok := enabledRaw.(bool); ok {
+				settings.Enabled = &enabled
+				updated = true
+			}
+		}
+		if labelRaw, ok := patch["label"]; ok {
+			if label, ok := labelRaw.(string); ok {
+				settings.Label = label
+				updated = true
+			}
+		}
+		if descriptionRaw, ok := patch["description"]; ok {
+			if description, ok := descriptionRaw.(string); ok {
+				settings.Description = description
+				updated = true
+			}
+		}
+		if updated {
+			s.cfg.ProviderSettings[providerID] = settings
+		}
+
+		if modelsRaw, ok := patch["additionalModels"]; ok {
+			if modelsArr, ok := modelsRaw.([]interface{}); ok {
+				models := make([]config.CustomModelConfig, 0, len(modelsArr))
+				for _, mRaw := range modelsArr {
+					m, ok := mRaw.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					id, _ := m["id"].(string)
+					label, _ := m["label"].(string)
+					if id == "" {
+						continue
+					}
+					model := config.CustomModelConfig{ID: id, Label: label}
+					if description, ok := m["description"].(string); ok {
+						model.Description = description
+					}
+					if isDefaultRaw, ok := m["isDefault"]; ok {
+						if isDefault, ok := isDefaultRaw.(bool); ok {
+							model.IsDefault = &isDefault
+						}
+					}
+					models = append(models, model)
+				}
+				if len(models) > 0 {
+					s.cfg.CustomModels[providerID] = models
+				} else {
+					delete(s.cfg.CustomModels, providerID)
+				}
+			}
+		}
+	}
+
+	s.registry.SetCustomModels(configCustomModelsToAgent(s.cfg.CustomModels))
+	s.registry.SetProviderSettings(s.cfg.ProviderSettings)
+	return nil
+}
+
+func configCustomModelsToAgent(models map[string][]config.CustomModelConfig) map[string][]protocol.AgentModelDefinition {
+	out := make(map[string][]protocol.AgentModelDefinition, len(models))
+	for providerID, list := range models {
+		defs := make([]protocol.AgentModelDefinition, 0, len(list))
+		for _, m := range list {
+			def := protocol.AgentModelDefinition{
+				Provider: providerID,
+				ID:       m.ID,
+				Label:    m.Label,
+			}
+			if def.Label == "" {
+				def.Label = m.ID
+			}
+			if m.Description != "" {
+				def.Description = m.Description
+			}
+			if m.IsDefault != nil {
+				def.IsDefault = *m.IsDefault
+			}
+			defs = append(defs, def)
+		}
+		out[providerID] = defs
+	}
+	return out
+}
+
+func parseLLMProviders(raw []interface{}) []config.LLMProviderConfig {
+	out := make([]config.LLMProviderConfig, 0, len(raw))
+	for _, pRaw := range raw {
+		p, ok := pRaw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		id, _ := p["id"].(string)
+		if id == "" {
+			continue
+		}
+		provider := config.LLMProviderConfig{ID: id}
+		if label, ok := p["label"].(string); ok {
+			provider.Label = label
+		}
+		if description, ok := p["description"].(string); ok {
+			provider.Description = description
+		}
+		if enabledRaw, ok := p["enabled"]; ok {
+			if enabled, ok := enabledRaw.(bool); ok {
+				provider.Enabled = &enabled
+			}
+		}
+		if baseURL, ok := p["baseURL"].(string); ok {
+			provider.BaseURL = baseURL
+		}
+		if apiKey, ok := p["apiKey"].(string); ok {
+			provider.APIKey = apiKey
+		}
+		if modelsRaw, ok := p["models"].([]interface{}); ok {
+			provider.Models = parseLLMModels(modelsRaw)
+		}
+		out = append(out, provider)
+	}
+	return out
+}
+
+func parseLLMModels(raw []interface{}) []config.LLMModelConfig {
+	out := make([]config.LLMModelConfig, 0, len(raw))
+	for _, mRaw := range raw {
+		m, ok := mRaw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		id, _ := m["id"].(string)
+		if id == "" {
+			continue
+		}
+		model := config.LLMModelConfig{ID: id}
+		if label, ok := m["label"].(string); ok {
+			model.Label = label
+		}
+		if description, ok := m["description"].(string); ok {
+			model.Description = description
+		}
+		if isDefaultRaw, ok := m["isDefault"]; ok {
+			if isDefault, ok := isDefaultRaw.(bool); ok {
+				model.IsDefault = &isDefault
+			}
+		}
+		out = append(out, model)
+	}
+	return out
 }
 
 func (s *Session) handleFetchAgentHistory(m *protocol.FetchAgentHistoryRequest) {

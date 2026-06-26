@@ -173,10 +173,12 @@ function NameCard({
   group,
   isActive,
   onPress,
+  label,
 }: {
   group: AgentNameGroup;
   isActive: boolean;
   onPress: () => void;
+  label?: string;
 }) {
   const { theme } = useUnistyles();
 
@@ -189,7 +191,7 @@ function NameCard({
       ]}
     >
       <Text style={styles.nameCardCount}>{group.count}</Text>
-      <Text style={styles.nameCardLabel}>{group.name}</Text>
+      <Text style={styles.nameCardLabel}>{label ?? group.name}</Text>
     </Pressable>
   );
 }
@@ -346,6 +348,7 @@ function TmuxDashboardScreenInner() {
   const { deleteCommand } = useTmuxDeleteCommandHistory();
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [selectedCmd, setSelectedCmd] = useState<string | null>(null);
+  const [selectedDir, setSelectedDir] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<DashboardTab>("agents");
   const [showNewSessionInput, setShowNewSessionInput] = useState(false);
   const [newSessionName, setNewSessionName] = useState("");
@@ -397,12 +400,18 @@ function TmuxDashboardScreenInner() {
   }, [agents]);
 
   const filteredAgents = useMemo(() => {
-    if (!selectedName) return dirFilteredAgents;
-    return dirFilteredAgents.filter((a) => a.agentName === selectedName);
-  }, [dirFilteredAgents, selectedName]);
+    let result = dirFilteredAgents;
+    if (selectedName) result = result.filter((a) => a.agentName === selectedName);
+    if (selectedDir) result = result.filter((a) => a.workingDir === selectedDir);
+    return result;
+  }, [dirFilteredAgents, selectedName, selectedDir]);
 
   const handleNamePress = (name: string) => {
     setSelectedName((prev) => (prev === name ? null : name));
+  };
+
+  const handleDirPress = (dir: string) => {
+    setSelectedDir((prev) => (prev === dir ? null : dir));
   };
 
   const handleAgentPress = (agent: TmuxAgent) => {
@@ -478,10 +487,25 @@ function TmuxDashboardScreenInner() {
       .sort((a, b) => b.count - a.count);
   }, [otherPanes]);
 
+  const dirGroups = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const agent of dirFilteredAgents) {
+      if (agent.workingDir) map.set(agent.workingDir, (map.get(agent.workingDir) ?? 0) + 1);
+    }
+    for (const pane of dirFilteredOtherPanes) {
+      if (pane.workingDir) map.set(pane.workingDir, (map.get(pane.workingDir) ?? 0) + 1);
+    }
+    return Array.from(map.entries())
+      .map(([dir, count]) => ({ name: dir, count, label: shortenPath(dir) }))
+      .sort((a, b) => b.count - a.count);
+  }, [dirFilteredAgents, dirFilteredOtherPanes]);
+
   const filteredOtherPanes = useMemo(() => {
-    if (!selectedCmd) return dirFilteredOtherPanes;
-    return dirFilteredOtherPanes.filter((p) => p.currentCmd === selectedCmd);
-  }, [dirFilteredOtherPanes, selectedCmd]);
+    let result = dirFilteredOtherPanes;
+    if (selectedCmd) result = result.filter((p) => p.currentCmd === selectedCmd);
+    if (selectedDir) result = result.filter((p) => p.workingDir === selectedDir);
+    return result;
+  }, [dirFilteredOtherPanes, selectedCmd, selectedDir]);
 
   const badgeText = activeTab === "agents"
     ? `${dirFilteredAgents.length} agent(s)${dirFilteredAgents.filter((a) => a.status === "exited").length > 0
@@ -656,6 +680,24 @@ function TmuxDashboardScreenInner() {
 
           {activeTab === "agents" ? (
             <>
+              {dirGroups.length > 1 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.nameCardsScroll}
+                  contentContainerStyle={styles.nameCardsContainer}
+                >
+                  {dirGroups.map((group) => (
+                    <NameCard
+                      key={group.name}
+                      group={group}
+                      label={group.label}
+                      isActive={selectedDir === group.name}
+                      onPress={() => handleDirPress(group.name)}
+                    />
+                  ))}
+                </ScrollView>
+              ) : null}
               {nameGroups.length > 0 ? (
                 <ScrollView
                   horizontal
@@ -693,6 +735,24 @@ function TmuxDashboardScreenInner() {
             </>
           ) : activeTab === "other-panes" ? (
             <>
+              {dirGroups.length > 1 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.nameCardsScroll}
+                  contentContainerStyle={styles.nameCardsContainer}
+                >
+                  {dirGroups.map((group) => (
+                    <NameCard
+                      key={group.name}
+                      group={group}
+                      label={group.label}
+                      isActive={selectedDir === group.name}
+                      onPress={() => handleDirPress(group.name)}
+                    />
+                  ))}
+                </ScrollView>
+              ) : null}
               {cmdGroups.length > 0 ? (
                 <ScrollView
                   horizontal

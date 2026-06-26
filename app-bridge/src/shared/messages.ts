@@ -160,6 +160,30 @@ const MutableDaemonProviderConfigSchema = z
   })
   .passthrough();
 
+const LLMProviderModelSchema = z
+  .object({
+    id: z.string().min(1),
+    label: z.string().min(1).optional(),
+    description: z.string().optional(),
+    isDefault: z.boolean().optional(),
+  })
+  .passthrough();
+
+export const LLMProviderConfigSchema = z
+  .object({
+    id: z.string().min(1),
+    label: z.string().optional(),
+    description: z.string().optional(),
+    enabled: z.boolean().optional(),
+    baseURL: z.string().optional(),
+    apiKey: z.string().optional(),
+    models: z.array(LLMProviderModelSchema).optional(),
+  })
+  .passthrough();
+
+export type LLMProviderConfig = z.infer<typeof LLMProviderConfigSchema>;
+export type LLMProviderModel = z.infer<typeof LLMProviderModelSchema>;
+
 export const MutableDaemonConfigSchema = z
   .object({
     mcp: z
@@ -168,6 +192,7 @@ export const MutableDaemonConfigSchema = z
       })
       .passthrough(),
     providers: z.record(z.string(), MutableDaemonProviderConfigSchema).default({}),
+    llmProviders: z.array(LLMProviderConfigSchema).default([]),
     tmuxAgentNames: z.array(z.string()).default([]),
   })
   .passthrough();
@@ -178,6 +203,7 @@ export const MutableDaemonConfigPatchSchema = z
     providers: z
       .record(z.string(), MutableDaemonProviderConfigSchema.partial().passthrough())
       .optional(),
+    llmProviders: z.array(LLMProviderConfigSchema).optional(),
     tmuxAgentNames: z.array(z.string()).optional(),
   })
   .partial()

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/WuErPing/solo/daemon/internal/config"
 	"github.com/WuErPing/solo/protocol"
 )
 
@@ -173,5 +174,41 @@ func TestBuiltinProviderDefinitions(t *testing.T) {
 		if !ids[id] {
 			t.Errorf("expected builtin provider %q", id)
 		}
+	}
+}
+
+func TestProviderRegistry_CustomProvidersInSnapshot(t *testing.T) {
+	r := NewProviderRegistry()
+	r.Register(&mockAgentClient{providerName: "claude", available: true})
+	r.SetCustomModels(map[string][]protocol.AgentModelDefinition{
+		"custom-ai": {{ID: "model-a", Label: "Model A"}},
+	})
+	r.SetProviderSettings(map[string]config.ProviderSettingsConfig{
+		"custom-ai": {Enabled: boolPtr(true), Label: "Custom AI", Description: "My provider"},
+	})
+
+	entries := r.ToProviderSnapshotEntries()
+
+	var custom *protocol.ProviderSnapshotEntry
+	for i := range entries {
+		if entries[i].Provider == "custom-ai" {
+			custom = &entries[i]
+			break
+		}
+	}
+	if custom == nil {
+		t.Fatal("expected custom-ai snapshot entry")
+	}
+	if custom.Label != "Custom AI" {
+		t.Errorf("label: got %q, want Custom AI", custom.Label)
+	}
+	if custom.Description != "My provider" {
+		t.Errorf("description: got %q, want My provider", custom.Description)
+	}
+	if custom.Status != "unavailable" {
+		t.Errorf("status: got %q, want unavailable", custom.Status)
+	}
+	if len(custom.Models) != 1 || custom.Models[0].ID != "model-a" {
+		t.Errorf("models: got %+v", custom.Models)
 	}
 }

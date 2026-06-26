@@ -69,6 +69,7 @@ import { resolveAppVersion } from "@/utils/app-version";
 import { settingsStyles } from "@/styles/settings";
 import { HostPage, HostRenameButton } from "@/screens/settings/host-page";
 import { ProvidersSection } from "@/screens/settings/providers-section";
+import { LlmProvidersSection } from "@/screens/settings/llm-providers-section";
 import { TmuxAgentsSection } from "@/screens/settings/tmux-agents-section";
 import { OperationsSection } from "@/screens/settings/operations-section";
 import ProjectsScreen from "@/screens/projects-screen";
@@ -297,6 +298,7 @@ function GeneralSection({
         </View>
       </SettingsSection>
       {serverId ? <ProvidersSection serverId={serverId} /> : null}
+      {serverId ? <LlmProvidersSection serverId={serverId} /> : null}
       {serverId && hostLabel ? <OperationsSection serverId={serverId} hostLabel={hostLabel} /> : null}
       {serverId ? <TmuxAgentsSection serverId={serverId} /> : null}
     </>

@@ -1,5 +1,12 @@
 import { useCallback, useMemo, useState } from "react";
-import { Alert, Pressable, Text, View, type PressableStateCallbackType } from "react-native";
+import {
+  Alert,
+  Pressable,
+  Text,
+  TextInput,
+  View,
+  type PressableStateCallbackType,
+} from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { settingsStyles } from "@/styles/settings";
 import { useHostRuntimeIsConnected } from "@/runtime/host-runtime";
@@ -10,8 +17,9 @@ import { getProviderIcon } from "@/components/provider-icons";
 import { ProviderDiagnosticSheet } from "@/components/provider-diagnostic-sheet";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
 import { SettingsSection } from "@/screens/settings/settings-section";
-import { ChevronRight, RotateCw } from "lucide-react-native";
+import { ChevronRight, RotateCw, Plus } from "lucide-react-native";
 
 type ProviderDefinition = ReturnType<typeof buildProviderDefinitions>[number];
 type ProviderEntry = NonNullable<ReturnType<typeof useProvidersSnapshot>["entries"]>[number];
@@ -171,6 +179,105 @@ function StatusIndicator({ status }: { status: ProviderStatus }) {
   );
 }
 
+interface AddProviderFormProps {
+  serverId: string;
+  onCancel: () => void;
+}
+
+function AddProviderForm({ serverId, onCancel }: AddProviderFormProps) {
+  const { theme } = useUnistyles();
+  const { patchConfig } = useDaemonConfig(serverId);
+  const [providerId, setProviderId] = useState("");
+  const [label, setLabel] = useState("");
+  const [description, setDescription] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const trimmedId = providerId.trim();
+  const canSubmit = trimmedId.length > 0 && !saving;
+
+  const handleSubmit = useCallback(async () => {
+    if (!canSubmit) {
+      return;
+    }
+    setSaving(true);
+    try {
+      await patchConfig({
+        providers: {
+          [trimmedId]: {
+            enabled: true,
+            label: label.trim() || trimmedId,
+            description: description.trim(),
+          },
+        },
+      });
+      onCancel();
+    } catch (error) {
+      Alert.alert(
+        "Unable to add provider",
+        error instanceof Error ? error.message : String(error),
+      );
+    } finally {
+      setSaving(false);
+    }
+  }, [canSubmit, trimmedId, label, description, patchConfig, onCancel]);
+
+  const inputStyle = useMemo(
+    () => [styles.addProviderInput, { color: theme.colors.foreground }],
+    [theme.colors.foreground],
+  );
+
+  return (
+    <View style={settingsStyles.card} testID="add-provider-form">
+      <View style={styles.addProviderRow}>
+        <TextInput
+          value={providerId}
+          onChangeText={setProviderId}
+          placeholder="Provider ID"
+          placeholderTextColor={theme.colors.foregroundMuted}
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={inputStyle}
+          testID="add-provider-id"
+        />
+      </View>
+      <View style={[styles.addProviderRow, settingsStyles.rowBorder]}>
+        <TextInput
+          value={label}
+          onChangeText={setLabel}
+          placeholder="Label"
+          placeholderTextColor={theme.colors.foregroundMuted}
+          style={inputStyle}
+          testID="add-provider-label"
+        />
+      </View>
+      <View style={[styles.addProviderRow, settingsStyles.rowBorder]}>
+        <TextInput
+          value={description}
+          onChangeText={setDescription}
+          placeholder="Description"
+          placeholderTextColor={theme.colors.foregroundMuted}
+          style={inputStyle}
+          testID="add-provider-description"
+        />
+      </View>
+      <View style={[styles.addProviderActions, settingsStyles.rowBorder]}>
+        <Button variant="outline" size="sm" onPress={onCancel} testID="add-provider-cancel">
+          Cancel
+        </Button>
+        <Button
+          variant="default"
+          size="sm"
+          onPress={handleSubmit}
+          disabled={!canSubmit}
+          testID="add-provider-submit"
+        >
+          {saving ? "Adding…" : "Add provider"}
+        </Button>
+      </View>
+    </View>
+  );
+}
+
 export interface ProvidersSectionProps {
   serverId: string;
 }
@@ -182,6 +289,7 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
   const { patchConfig } = useDaemonConfig(serverId);
   const [diagnosticProvider, setDiagnosticProvider] = useState<string | null>(null);
   const [pendingProviderId, setPendingProviderId] = useState<string | null>(null);
+  const [isAddingProvider, setIsAddingProvider] = useState(false);
 
   const providerDefinitions = useMemo(() => buildProviderDefinitions(entries), [entries]);
   const providerRefreshInFlight =
@@ -193,6 +301,8 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
   }, [refresh]);
 
   const handleCloseDiagnostic = useCallback(() => setDiagnosticProvider(null), []);
+  const handleStartAddProvider = useCallback(() => setIsAddingProvider(true), []);
+  const handleCancelAddProvider = useCallback(() => setIsAddingProvider(false), []);
   const handleToggleEnabled = useCallback(
     async (providerId: string, enabled: boolean) => {
       setPendingProviderId(providerId);
@@ -213,27 +323,40 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
   const refreshAction = useMemo(
     () =>
       hasServer && isConnected ? (
-        <Pressable
-          onPress={handleRefresh}
-          disabled={providerRefreshInFlight}
-          hitSlop={8}
-          style={settingsStyles.sectionHeaderLink}
-          accessibilityRole="button"
-          accessibilityLabel={
-            providerRefreshInFlight ? "Refreshing providers" : "Refresh providers"
-          }
-        >
-          {providerRefreshInFlight ? (
-            <LoadingSpinner size={theme.iconSize.sm} color={theme.colors.foregroundMuted} />
-          ) : (
-            <RotateCw size={theme.iconSize.sm} color={theme.colors.foregroundMuted} />
-          )}
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable
+            onPress={handleStartAddProvider}
+            hitSlop={8}
+            style={settingsStyles.sectionHeaderLink}
+            accessibilityRole="button"
+            accessibilityLabel="Add provider"
+            testID="add-provider-button"
+          >
+            <Plus size={theme.iconSize.sm} color={theme.colors.foregroundMuted} />
+          </Pressable>
+          <Pressable
+            onPress={handleRefresh}
+            disabled={providerRefreshInFlight}
+            hitSlop={8}
+            style={settingsStyles.sectionHeaderLink}
+            accessibilityRole="button"
+            accessibilityLabel={
+              providerRefreshInFlight ? "Refreshing providers" : "Refresh providers"
+            }
+          >
+            {providerRefreshInFlight ? (
+              <LoadingSpinner size={theme.iconSize.sm} color={theme.colors.foregroundMuted} />
+            ) : (
+              <RotateCw size={theme.iconSize.sm} color={theme.colors.foregroundMuted} />
+            )}
+          </Pressable>
+        </View>
       ) : undefined,
     [
       hasServer,
       isConnected,
       handleRefresh,
+      handleStartAddProvider,
       providerRefreshInFlight,
       theme.iconSize.sm,
       theme.colors.foregroundMuted,
@@ -243,7 +366,7 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
   return (
     <>
       <SettingsSection
-        title="Providers"
+        title="Coding Agent Providers"
         trailing={refreshAction}
         testID="host-page-providers-card"
         style={styles.sectionSpacing}
@@ -277,6 +400,9 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
               );
             })}
           </View>
+        ) : null}
+        {hasServer && isConnected && isAddingProvider ? (
+          <AddProviderForm serverId={serverId} onCancel={handleCancelAddProvider} />
         ) : null}
       </SettingsSection>
 
@@ -351,6 +477,27 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.palette.red[300],
     fontSize: theme.fontSize.xs,
     marginTop: theme.spacing[1],
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+  },
+  addProviderRow: {
+    ...settingsStyles.row,
+    minHeight: 44,
+  },
+  addProviderInput: {
+    flex: 1,
+    fontSize: theme.fontSize.base,
+    padding: 0,
+  },
+  addProviderActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: theme.spacing[2],
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[4],
   },
 }));
 
