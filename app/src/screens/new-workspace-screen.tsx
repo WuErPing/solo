@@ -4,7 +4,6 @@ import type { PressableStateCallbackType } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated from "react-native-reanimated";
-import { createNameId } from "mnemonic-id";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, GitBranch, GitPullRequest } from "lucide-react-native";
 import { Composer } from "@/components/composer";
@@ -25,6 +24,7 @@ import { buildDraftStoreKey, generateDraftId } from "@/stores/draft-keys";
 import { useDraftStore } from "@/stores/draft-store";
 import { useWorkspaceDraftSubmissionStore } from "@/stores/workspace-draft-submission-store";
 import { toErrorMessage } from "@/utils/error-messages";
+import { generateWorktreeSlug } from "@/utils/worktree-slug";
 import { navigateToPreparedWorkspaceTab } from "@/utils/workspace-navigation";
 import type { ComposerAttachment } from "@/attachments/types";
 import type { ImageAttachment, MessagePayload } from "@/components/message-input";
@@ -588,15 +588,21 @@ export function NewWorkspaceScreen({
   const buildCreateWorktreeInput = useCallback(
     (input: { cwd: string; attachments: AgentAttachment[] }) => {
       const checkoutRequest = pickerItemToCheckoutRequest(selectedItem);
+      const prTitle = selectedItem?.kind === "github-pr" ? selectedItem.item.title : undefined;
 
       return {
         cwd: input.cwd,
-        worktreeSlug: createNameId(),
+        worktreeSlug: generateWorktreeSlug({
+          prompt: chatDraft.text,
+          prTitle,
+          projectDisplayName: displayName,
+          sourceDirectory,
+        }),
         ...(input.attachments.length > 0 ? { attachments: input.attachments } : {}),
         ...checkoutRequest,
       };
     },
-    [selectedItem],
+    [selectedItem, chatDraft.text, displayName, sourceDirectory],
   );
 
   const ensureWorkspace = useCallback(

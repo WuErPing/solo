@@ -597,9 +597,18 @@ func (s *Session) handleWorkspaceSetupStatus(m *protocol.WorkspaceSetupStatusReq
 }
 
 func (s *Session) handleArchiveWorkspace(m *protocol.ArchiveWorkspaceRequest) {
-	if err := s.workspaceReg.Archive(m.WorkspaceID, time.Now()); err != nil {
+	now := time.Now()
+	if err := s.workspaceReg.Archive(m.WorkspaceID, now); err != nil {
 		s.sendRPCError(m.RequestID, m.MsgType(), "archive workspace: "+err.Error(), nil)
 		return
+	}
+
+	s.workspacesMu.Lock()
+	delete(s.workspaces, m.WorkspaceID)
+	s.workspacesMu.Unlock()
+
+	if s.workspaceStore != nil {
+		_ = s.workspaceStore.Delete(m.WorkspaceID)
 	}
 
 	s.sendMessage(protocol.NewSessionMessage(&protocol.WorkspaceUpdateMessage{
@@ -607,6 +616,91 @@ func (s *Session) handleArchiveWorkspace(m *protocol.ArchiveWorkspaceRequest) {
 		Payload: protocol.WorkspaceUpdatePayload{
 			Kind: "remove",
 			ID:   m.WorkspaceID,
+		},
+	}))
+
+	archivedAt := now.UTC().Format(time.RFC3339)
+	s.sendMessage(protocol.NewSessionMessage(&protocol.ArchiveWorkspaceResponse{
+		Type: "archive_workspace_response",
+		Payload: protocol.ArchiveWorkspaceResponsePayload{
+			RequestID:   m.RequestID,
+			WorkspaceID: m.WorkspaceID,
+			ArchivedAt:  &archivedAt,
+		},
+	}))
+}
+
+func (s *Session) handleSoloWorktreeArchive(m *protocol.SoloWorktreeArchiveRequest) {
+	if m.WorktreePath == "" {
+		s.sendRPCError(m.RequestID, m.MsgType(), "worktreePath is required", nil)
+		return
+	}
+
+	now := time.Now()
+	var removedAgents []string
+
+	if s.agentMgr != nil {
+		for _, ag := range s.agentMgr.ListAgents() {
+			if ag == nil {
+				continue
+			}
+			cwd := strings.TrimSpace(ag.Cwd)
+			if cwd == "" || !strings.HasPrefix(cwd, m.WorktreePath) {
+				continue
+			}
+			// Ensure cwd is inside the worktree, not a sibling path that happens to share a prefix.
+			if len(cwd) > len(m.WorktreePath) && cwd[len(m.WorktreePath)] != filepath.Separator {
+				continue
+			}
+			if err := s.agentMgr.ArchiveAgent(ag.ID); err != nil {
+				s.logger.Warn("failed to archive agent while archiving worktree", "agentId", ag.ID, "error", err)
+				continue
+			}
+			removedAgents = append(removedAgents, ag.ID)
+		}
+	}
+
+	if err := workspace.DeleteWorktree(s.cfg.SoloHome, m.WorktreePath); err != nil {
+		s.sendRPCError(m.RequestID, m.MsgType(), "archive worktree: "+err.Error(), nil)
+		return
+	}
+
+	if s.workspaceReg != nil {
+		var projectID string
+		if rec, ok := s.workspaceReg.Get(m.WorktreePath); ok {
+			projectID = rec.ProjectID
+		}
+		_ = s.workspaceReg.Archive(m.WorktreePath, now)
+		if projectID != "" {
+			remaining := s.workspaceReg.FindByProjectID(projectID)
+			if len(remaining) == 0 && s.projectReg != nil {
+				_ = s.projectReg.Archive(projectID, now)
+			}
+		}
+	}
+
+	s.workspacesMu.Lock()
+	delete(s.workspaces, m.WorktreePath)
+	s.workspacesMu.Unlock()
+
+	if s.workspaceStore != nil {
+		_ = s.workspaceStore.Delete(m.WorktreePath)
+	}
+
+	s.sendMessage(protocol.NewSessionMessage(&protocol.WorkspaceUpdateMessage{
+		Type: "workspace_update",
+		Payload: protocol.WorkspaceUpdatePayload{
+			Kind: "remove",
+			ID:   m.WorktreePath,
+		},
+	}))
+
+	s.sendMessage(protocol.NewSessionMessage(&protocol.SoloWorktreeArchiveResponse{
+		Type: "solo_worktree_archive_response",
+		Payload: protocol.SoloWorktreeArchiveResponsePayload{
+			RequestID:     m.RequestID,
+			Success:       true,
+			RemovedAgents: removedAgents,
 		},
 	}))
 }

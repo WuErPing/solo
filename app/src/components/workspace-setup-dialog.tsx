@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Image, Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
-import { createNameId } from "mnemonic-id";
 import { AdaptiveModalSheet } from "@/components/adaptive-modal-sheet";
 import { Composer } from "@/components/composer";
 import { useToast } from "@/contexts/toast-context";
@@ -13,6 +12,7 @@ import { useWorkspaceSetupStore } from "@/stores/workspace-setup-store";
 import { normalizeAgentSnapshot } from "@/utils/agent-snapshots";
 import { encodeImages } from "@/utils/encode-images";
 import { toErrorMessage } from "@/utils/error-messages";
+import { generateWorktreeSlug } from "@/utils/worktree-slug";
 import { splitComposerAttachmentsForSubmit } from "@/components/composer-attachments";
 import type {
   CreateAgentRequestOptions,
@@ -83,13 +83,17 @@ async function callWorkspaceCreation({
 }: {
   creationMethod: "create_worktree" | "open_project";
   connectedClient: DaemonClient;
-  input: { cwd: string };
+  input: { cwd: string; prompt?: string; projectDisplayName?: string; sourceDirectory?: string };
   wirePayload: { attachments: WorkspaceCreationAttachments };
 }) {
   if (creationMethod === "create_worktree") {
     return connectedClient.createSoloWorktree({
       cwd: input.cwd,
-      worktreeSlug: createNameId(),
+      worktreeSlug: generateWorktreeSlug({
+        prompt: input.prompt,
+        projectDisplayName: input.projectDisplayName,
+        sourceDirectory: input.sourceDirectory,
+      }),
       ...(wirePayload.attachments.length > 0 ? { attachments: wirePayload.attachments } : {}),
     });
   }
@@ -232,7 +236,12 @@ export function WorkspaceSetupDialog() {
       const payload = await callWorkspaceCreation({
         creationMethod: pendingWorkspaceSetup.creationMethod,
         connectedClient,
-        input,
+        input: {
+          ...input,
+          prompt: chatDraft.text,
+          projectDisplayName: displayName,
+          sourceDirectory,
+        },
         wirePayload,
       });
 
@@ -256,6 +265,9 @@ export function WorkspaceSetupDialog() {
       pendingWorkspaceSetup,
       setHasHydratedWorkspaces,
       withConnectedClient,
+      chatDraft.text,
+      displayName,
+      sourceDirectory,
     ],
   );
 

@@ -85,6 +85,7 @@ func (s *Session) registerHandlers() {
 	r.Register("create_solo_worktree_request", typeHandler(s.handleCreateSoloWorktree))
 	r.Register("workspace_setup_status_request", typeHandler(s.handleWorkspaceSetupStatus))
 	r.Register("archive_workspace_request", typeHandler(s.handleArchiveWorkspace))
+	r.Register("solo_worktree_archive_request", typeHandler(s.handleSoloWorktreeArchive))
 	r.Register("remove_project_request", typeHandler(s.handleRemoveProject))
 	r.Register("checkout_pr_status_request", typeHandler(s.handleCheckoutPrStatus))
 	r.Register("read_project_config_request", typeHandler(s.handleReadProjectConfig))

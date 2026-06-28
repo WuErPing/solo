@@ -2,37 +2,37 @@ package protocol
 
 // TmuxPaneInfo represents any tmux pane (not necessarily running an agent).
 type TmuxPaneInfo struct {
-	SessionName             string `json:"sessionName"`
-	WindowName              string `json:"windowName"`
-	PaneID                  string `json:"paneId"`
-	PaneIndex               int    `json:"paneIndex"`
-	PanePID                 int    `json:"panePid"`
-	CurrentCmd              string `json:"currentCmd"`
-	WorkingDir              string `json:"workingDir"`
-	Title                   string `json:"title,omitempty"`
-	LastContentChange       int64  `json:"lastContentChange"`
-	LastContentChangeHHMM   string `json:"lastContentChangeHHMM,omitempty"`
-	LastContentChangeAgo    string `json:"lastContentChangeAgo,omitempty"`
+	SessionName           string `json:"sessionName"`
+	WindowName            string `json:"windowName"`
+	PaneID                string `json:"paneId"`
+	PaneIndex             int    `json:"paneIndex"`
+	PanePID               int    `json:"panePid"`
+	CurrentCmd            string `json:"currentCmd"`
+	WorkingDir            string `json:"workingDir"`
+	Title                 string `json:"title,omitempty"`
+	LastContentChange     int64  `json:"lastContentChange"`
+	LastContentChangeHHMM string `json:"lastContentChangeHHMM,omitempty"`
+	LastContentChangeAgo  string `json:"lastContentChangeAgo,omitempty"`
 }
 
 // TmuxAgentInfo represents a single AI agent detected in a tmux pane.
 type TmuxAgentInfo struct {
-	SessionName             string `json:"sessionName"`
-	WindowName              string `json:"windowName"`
-	PaneID                  string `json:"paneId"`
-	PaneIndex               int    `json:"paneIndex"`
-	PanePID                 int    `json:"panePid"`
-	AgentName               string `json:"agentName"`
-	CurrentCmd              string `json:"currentCmd"`
-	WorkingDir              string `json:"workingDir"`
-	Title                   string `json:"title,omitempty"`
-	GitCommit               string `json:"gitCommit,omitempty"`
-	Status                  string `json:"status,omitempty"`   // "active" (default/omitted) or "exited"
-	Activity                string `json:"activity,omitempty"` // "busy", "idle", or "" (unknown)
-	LaunchCmd               string `json:"launchCmd,omitempty"`
-	LastContentChange       int64  `json:"lastContentChange"`
-	LastContentChangeHHMM   string `json:"lastContentChangeHHMM,omitempty"`
-	LastContentChangeAgo    string `json:"lastContentChangeAgo,omitempty"`
+	SessionName           string `json:"sessionName"`
+	WindowName            string `json:"windowName"`
+	PaneID                string `json:"paneId"`
+	PaneIndex             int    `json:"paneIndex"`
+	PanePID               int    `json:"panePid"`
+	AgentName             string `json:"agentName"`
+	CurrentCmd            string `json:"currentCmd"`
+	WorkingDir            string `json:"workingDir"`
+	Title                 string `json:"title,omitempty"`
+	GitCommit             string `json:"gitCommit,omitempty"`
+	Status                string `json:"status,omitempty"`   // "active" (default/omitted) or "exited"
+	Activity              string `json:"activity,omitempty"` // "busy", "idle", or "" (unknown)
+	LaunchCmd             string `json:"launchCmd,omitempty"`
+	LastContentChange     int64  `json:"lastContentChange"`
+	LastContentChangeHHMM string `json:"lastContentChangeHHMM,omitempty"`
+	LastContentChangeAgo  string `json:"lastContentChangeAgo,omitempty"`
 }
 
 // TmuxListAgentsRequest asks the daemon to scan tmux for AI agent panes.

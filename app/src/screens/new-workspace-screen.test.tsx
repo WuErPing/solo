@@ -528,8 +528,8 @@ vi.mock("@/components/ui/combobox", () => ({
   ),
 }));
 
-vi.mock("mnemonic-id", () => ({
-  createNameId: () => "gentle-slug",
+vi.mock("@/utils/worktree-slug", () => ({
+  generateWorktreeSlug: () => "gentle-slug",
 }));
 
 vi.mock("react-native", async () => {

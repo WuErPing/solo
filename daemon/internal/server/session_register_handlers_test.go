@@ -88,6 +88,7 @@ func TestRegisterHandlers_RegistersAllTypes(t *testing.T) {
 		"create_solo_worktree_request",
 		"workspace_setup_status_request",
 		"archive_workspace_request",
+		"solo_worktree_archive_request",
 		"remove_project_request",
 		"checkout_pr_status_request",
 		"read_project_config_request",

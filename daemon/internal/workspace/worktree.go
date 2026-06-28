@@ -336,24 +336,49 @@ func gitOutput(dir string, args ...string) (string, error) {
 
 // DeleteWorktree removes a git worktree.
 func DeleteWorktree(soloHome, worktreePath string) error {
-	// Safety: only delete under our worktrees root
-	projectHash := deriveWorktreeProjectHash(filepath.Dir(worktreePath))
-	expectedPrefix := filepath.Join(soloHome, "worktrees", projectHash)
-	if !strings.HasPrefix(worktreePath, expectedPrefix) {
+	if soloHome == "" || worktreePath == "" {
+		return fmt.Errorf("soloHome and worktreePath are required")
+	}
+
+	// Safety: only delete paths that are direct children of soloHome/worktrees/<projectHash>.
+	worktreesRoot := filepath.Join(soloHome, "worktrees")
+	rel, err := filepath.Rel(worktreesRoot, worktreePath)
+	if err != nil || rel == worktreePath || filepath.IsAbs(rel) || strings.Contains(rel, "..") {
+		return fmt.Errorf("refusing to delete worktree outside managed directory: %s", worktreePath)
+	}
+	parts := strings.Split(rel, string(filepath.Separator))
+	if len(parts) != 2 || parts[0] == "" || parts[0] == "." || parts[1] == "" || parts[1] == "." {
 		return fmt.Errorf("refusing to delete worktree outside managed directory: %s", worktreePath)
 	}
 
-	// Try git worktree remove first
-	if err := gitRun(filepath.Dir(worktreePath), "worktree", "remove", worktreePath, "--force"); err != nil {
-		// Fallback to os.RemoveAll
+	// Resolve the main repo root from the worktree so git commands run in the right place.
+	repoRoot := strings.TrimSpace(gitOutputOrEmpty(worktreePath, "rev-parse", "--show-toplevel"))
+
+	if repoRoot == "" {
+		// Worktree is not usable as a git checkout; just remove the directory.
+		if err := os.RemoveAll(worktreePath); err != nil {
+			return fmt.Errorf("remove worktree directory: %w", err)
+		}
+		return nil
+	}
+
+	// Try git worktree remove first, then fall back to a plain directory removal.
+	if err := gitRun(repoRoot, "worktree", "remove", worktreePath, "--force"); err != nil {
 		if err := os.RemoveAll(worktreePath); err != nil {
 			return fmt.Errorf("remove worktree directory: %w", err)
 		}
 	}
 
-	// Prune stale worktree references
-	if err := gitRun(filepath.Dir(worktreePath), "worktree", "prune"); err != nil {
-		return fmt.Errorf("prune worktrees: %w", err)
-	}
+	// Prune stale worktree references; failures here are non-fatal.
+	_ = gitRun(repoRoot, "worktree", "prune")
 	return nil
+}
+
+// gitOutputOrEmpty runs a git command and returns stdout, or an empty string on error.
+func gitOutputOrEmpty(dir string, args ...string) string {
+	out, err := gitOutput(dir, args...)
+	if err != nil {
+		return ""
+	}
+	return out
 }

@@ -100,6 +100,52 @@ type ArchiveWorkspaceRequest struct {
 
 func (m *ArchiveWorkspaceRequest) MsgType() string { return "archive_workspace_request" }
 
+type ArchiveWorkspaceResponse struct {
+	Type    string                          `json:"type"`
+	Payload ArchiveWorkspaceResponsePayload `json:"payload"`
+}
+
+type ArchiveWorkspaceResponsePayload struct {
+	RequestID   string  `json:"requestId"`
+	WorkspaceID string  `json:"workspaceId"`
+	ArchivedAt  *string `json:"archivedAt,omitempty"`
+	Error       *string `json:"error,omitempty"`
+}
+
+func (m *ArchiveWorkspaceResponse) MsgType() string { return "archive_workspace_response" }
+
+// --- Solo worktree archive ---
+
+type SoloWorktreeArchiveRequest struct {
+	Type         string `json:"type"`
+	WorktreePath string `json:"worktreePath,omitempty"`
+	RepoRoot     string `json:"repoRoot,omitempty"`
+	BranchName   string `json:"branchName,omitempty"`
+	RequestID    string `json:"requestId"`
+}
+
+func (m *SoloWorktreeArchiveRequest) MsgType() string { return "solo_worktree_archive_request" }
+
+type SoloWorktreeArchiveResponse struct {
+	Type    string                             `json:"type"`
+	Payload SoloWorktreeArchiveResponsePayload `json:"payload"`
+}
+
+type SoloWorktreeArchiveResponsePayload struct {
+	RequestID     string         `json:"requestId"`
+	Success       bool           `json:"success"`
+	RemovedAgents []string       `json:"removedAgents,omitempty"`
+	Error         *CheckoutError `json:"error,omitempty"`
+}
+
+// CheckoutError mirrors the app-bridge checkout error schema.
+type CheckoutError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+func (m *SoloWorktreeArchiveResponse) MsgType() string { return "solo_worktree_archive_response" }
+
 // --- Remove project ---
 
 type RemoveProjectRequest struct {
