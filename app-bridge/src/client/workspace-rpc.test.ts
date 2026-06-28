@@ -132,6 +132,7 @@ describe("WorkspaceRpc", () => {
         config: {
           mcp: { injectIntoAgents: false },
           providers: {},
+          llmProviders: [],
           tmuxAgentNames: [],
         },
       },

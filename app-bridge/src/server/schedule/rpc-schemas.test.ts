@@ -98,4 +98,27 @@ describe("ScheduleListResponseSchema", () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it("falls back to unknown target for a provider schedule missing providerId", () => {
+    const result = ScheduleListResponseSchema.safeParse({
+      type: "schedule/list/response",
+      payload: {
+        requestId: "req-1",
+        schedules: [
+          {
+            ...baseSchedule,
+            id: "sched-broken",
+            target: { type: "provider" },
+          },
+          baseSchedule,
+        ],
+        error: null,
+      },
+    });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.payload.schedules).toHaveLength(2);
+    expect(result.data.payload.schedules[0].target.type).toBe("unknown");
+    expect(result.data.payload.schedules[1].target.type).toBe("agent");
+  });
 });

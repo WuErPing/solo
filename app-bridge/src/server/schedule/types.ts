@@ -18,36 +18,81 @@ export const ScheduleCadenceSchema = z.discriminatedUnion("type", [
 ]);
 export type ScheduleCadence = z.infer<typeof ScheduleCadenceSchema>;
 
-export const ScheduleTargetSchema = z.discriminatedUnion("type", [
+export const ScheduleNewAgentConfigSchema = z.object({
+  provider: AgentProviderSchema,
+  cwd: z.string().trim().min(1),
+  modeId: z.string().trim().min(1).optional(),
+  model: z.string().trim().min(1).optional(),
+  thinkingOptionId: z.string().trim().min(1).optional(),
+  title: z.string().trim().min(1).nullable().optional(),
+  approvalPolicy: z.string().trim().min(1).optional(),
+  sandboxMode: z.string().trim().min(1).optional(),
+  networkAccess: z.boolean().optional(),
+  webSearch: z.boolean().optional(),
+  extra: z
+    .object({
+      codex: z.record(z.string(), z.unknown()).optional(),
+      claude: z.record(z.string(), z.unknown()).optional(),
+    })
+    .partial()
+    .optional(),
+  systemPrompt: z.string().optional(),
+  mcpServers: z.record(z.string(), z.unknown()).optional(),
+});
+
+// Discriminated union of the three supported targets plus a synthetic
+// "unknown" type for schedules persisted with an obsolete target type (e.g.
+// an old experimental "clone-agent" type). They still appear in the list so
+// the user can open them and re-save with a supported target.
+const ScheduleTargetDiscriminatedSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("agent"),
     agentId: z.string().min(1),
   }),
   z.object({
+    type: z.literal("provider"),
+    providerId: AgentProviderSchema,
+  }),
+  z.object({
     type: z.literal("new-agent"),
-    config: z.object({
-      provider: AgentProviderSchema,
-      cwd: z.string().trim().min(1),
-      modeId: z.string().trim().min(1).optional(),
-      model: z.string().trim().min(1).optional(),
-      thinkingOptionId: z.string().trim().min(1).optional(),
-      title: z.string().trim().min(1).nullable().optional(),
-      approvalPolicy: z.string().trim().min(1).optional(),
-      sandboxMode: z.string().trim().min(1).optional(),
-      networkAccess: z.boolean().optional(),
-      webSearch: z.boolean().optional(),
-      extra: z
-        .object({
-          codex: z.record(z.string(), z.unknown()).optional(),
-          claude: z.record(z.string(), z.unknown()).optional(),
-        })
-        .partial()
-        .optional(),
-      systemPrompt: z.string().optional(),
-      mcpServers: z.record(z.string(), z.unknown()).optional(),
-    }),
+    config: ScheduleNewAgentConfigSchema,
+  }),
+  z.object({
+    type: z.literal("unknown"),
   }),
 ]);
+
+export const ScheduleTargetSchema = z.preprocess((value) => {
+  if (typeof value !== "object" || value === null) {
+    return value;
+  }
+  const target = value as {
+    type?: unknown;
+    agentId?: unknown;
+    providerId?: unknown;
+    config?: unknown;
+  };
+  const type = target.type;
+
+  // Known type but missing required fields → fall back to "unknown" so the
+  // schedule still appears in the list and can be repaired by the user.
+  if (type === "agent") {
+    return typeof target.agentId === "string" && target.agentId.length > 0
+      ? value
+      : { type: "unknown" };
+  }
+  if (type === "provider") {
+    return typeof target.providerId === "string" && target.providerId.length > 0
+      ? value
+      : { type: "unknown" };
+  }
+  if (type === "new-agent") {
+    return typeof target.config === "object" && target.config !== null
+      ? value
+      : { type: "unknown" };
+  }
+  return { type: "unknown" };
+}, ScheduleTargetDiscriminatedSchema);
 export type ScheduleTarget = z.infer<typeof ScheduleTargetSchema>;
 
 export const ScheduleRunSchema = z.object({

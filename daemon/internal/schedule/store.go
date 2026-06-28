@@ -150,6 +150,32 @@ func (st *Store) fixupNextRunAt() {
 	}
 }
 
+func validateScheduleTarget(t protocol.ScheduleTarget) error {
+	switch t.Type {
+	case "agent":
+		if t.AgentID == "" {
+			return fmt.Errorf("agent target requires agentId")
+		}
+	case "provider":
+		if t.ProviderID == "" {
+			return fmt.Errorf("provider target requires providerId")
+		}
+	case "new-agent":
+		if t.Config == nil {
+			return fmt.Errorf("new-agent target requires config")
+		}
+		if t.Config.Provider == "" {
+			return fmt.Errorf("new-agent config requires provider")
+		}
+		if t.Config.Cwd == "" {
+			return fmt.Errorf("new-agent config requires cwd")
+		}
+	default:
+		return fmt.Errorf("unsupported target type: %s", t.Type)
+	}
+	return nil
+}
+
 func (st *Store) Create(input protocol.ScheduleCreateRequest) (*protocol.StoredSchedule, error) {
 	if input.Prompt == "" {
 		return nil, fmt.Errorf("prompt is required")
@@ -162,6 +188,9 @@ func (st *Store) Create(input protocol.ScheduleCreateRequest) (*protocol.StoredS
 	}
 	if input.Cadence.Type == "cron" && input.Cadence.Expression == "" {
 		return nil, fmt.Errorf("cron expression is required")
+	}
+	if err := validateScheduleTarget(input.Target); err != nil {
+		return nil, err
 	}
 
 	now := nowISO()
@@ -288,6 +317,9 @@ func (st *Store) Update(input protocol.ScheduleUpdateRequest) (*protocol.StoredS
 	}
 	if input.Cadence.Type == "cron" && input.Cadence.Expression == "" {
 		return nil, fmt.Errorf("cron expression is required")
+	}
+	if err := validateScheduleTarget(input.Target); err != nil {
+		return nil, err
 	}
 
 	st.mu.Lock()

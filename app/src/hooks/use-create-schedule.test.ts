@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useCreateSchedule } from "./use-create-schedule";
+import { schedulesQueryKey } from "./use-schedules";
 
 const { mockClient } = vi.hoisted(() => {
   const hoistedClient = {
@@ -233,5 +234,52 @@ describe("useCreateSchedule", () => {
     await waitFor(() => {
       expect(result.current.isCreating).toBe(false);
     });
+  });
+
+  it("optimistically adds the created schedule to the schedules query cache", async () => {
+    const newSchedule = {
+      id: "schedule-new",
+      name: "Daily Report",
+      prompt: "Generate report",
+      cadence: { type: "cron" as const, expression: "0 9 * * *" },
+      target: { type: "agent" as const, agentId: "agent-1" },
+      cwd: null,
+      status: "active" as const,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      nextRunAt: "2026-01-02T09:00:00.000Z",
+      lastRunAt: null,
+      pausedAt: null,
+      expiresAt: null,
+      maxRuns: null,
+    };
+    mockClient.scheduleCreate.mockResolvedValueOnce({
+      requestId: "req-1",
+      schedule: newSchedule,
+      error: null,
+    });
+
+    const queryClient = createQueryClient();
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(QueryClientProvider, { client: queryClient }, children);
+
+    queryClient.setQueryData(schedulesQueryKey("server-1"), { schedules: [], error: null });
+
+    const { result } = renderHook(() => useCreateSchedule({ serverId: "server-1" }), { wrapper });
+
+    await act(async () => {
+      await result.current.createSchedule({
+        name: "Daily Report",
+        prompt: "Generate report",
+        cadence: { type: "cron", expression: "0 9 * * *" },
+        target: { type: "agent", agentId: "agent-1" },
+      });
+    });
+
+    const cached = queryClient.getQueryData<{ schedules: { id: string }[] }>(
+      schedulesQueryKey("server-1"),
+    );
+    expect(cached?.schedules).toHaveLength(1);
+    expect(cached?.schedules[0].id).toBe("schedule-new");
   });
 });

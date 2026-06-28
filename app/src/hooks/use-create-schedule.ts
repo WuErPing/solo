@@ -4,6 +4,11 @@ import type { ScheduleSummary, ScheduleCadence, ScheduleTarget } from "@server/s
 import { useHostRuntimeClient } from "@/runtime/host-runtime";
 import { schedulesQueryKey } from "./use-schedules";
 
+interface SchedulesQueryData {
+  schedules: ScheduleSummary[];
+  error: string | null;
+}
+
 export interface CreateScheduleInput {
   name?: string | null;
   prompt: string;
@@ -45,8 +50,21 @@ export function useCreateSchedule({ serverId }: { serverId: string }): CreateSch
       }
       return payload.schedule;
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: schedulesQueryKey(serverId) });
+    onSuccess: (schedule) => {
+      const key = schedulesQueryKey(serverId);
+      queryClient.setQueryData<SchedulesQueryData>(key, (old) => {
+        if (!old) {
+          return { schedules: [schedule], error: null };
+        }
+        if (old.schedules.some((s) => s.id === schedule.id)) {
+          return old;
+        }
+        return { schedules: [schedule, ...old.schedules], error: old.error };
+      });
+      void queryClient.invalidateQueries({
+        queryKey: key,
+        refetchType: "active",
+      });
     },
   });
 

@@ -12,9 +12,10 @@ type ScheduleCadence struct {
 // --- Schedule Target ---
 
 type ScheduleTarget struct {
-	Type    string               `json:"type"` // "agent" | "new-agent"
-	AgentID string               `json:"agentId,omitempty"`
-	Config  *ScheduleAgentConfig `json:"config,omitempty"`
+	Type       string               `json:"type"`                 // "agent" | "new-agent" | "provider"
+	AgentID    string               `json:"agentId,omitempty"`    // existing agent id when Type == "agent"
+	ProviderID string               `json:"providerId,omitempty"` // provider id when Type == "provider"
+	Config     *ScheduleAgentConfig `json:"config,omitempty"`
 }
 
 type ScheduleAgentConfig struct {

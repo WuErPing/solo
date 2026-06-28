@@ -15,6 +15,7 @@ type scheduleAgentManager interface {
 	GetAgent(agentID string) *agent.ManagedAgent
 	SendAgentMessage(ctx context.Context, agentID, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) error
 	CreateAgent(ctx context.Context, config *protocol.AgentSessionConfig, labels map[string]string) (*agent.ManagedAgent, error)
+	DeleteAgent(agentID string) error
 	Subscribe(handler agent.AgentEventFunc) func()
 }
 
@@ -71,10 +72,14 @@ func (r *daemonRunner) Run(sched protocol.StoredSchedule) schedule.RunResult {
 			return schedule.RunResult{Error: &errMsg}
 		}
 		agentID = ag.ID
+		defer r.closeScheduleAgent(agentID)
 		if err := r.agentMgr.SendAgentMessage(ctx, agentID, sched.Prompt, nil, nil, ""); err != nil {
 			errMsg := err.Error()
 			return schedule.RunResult{AgentID: &agentID, Error: &errMsg}
 		}
+
+	case "provider":
+		return r.spawnProviderAgent(ctx, sched)
 
 	default:
 		errMsg := fmt.Sprintf("unsupported target type: %s", sched.Target.Type)
@@ -82,6 +87,48 @@ func (r *daemonRunner) Run(sched protocol.StoredSchedule) schedule.RunResult {
 	}
 
 	return r.waitForAgent(ctx, agentID)
+}
+
+func (r *daemonRunner) spawnProviderAgent(ctx context.Context, sched protocol.StoredSchedule) schedule.RunResult {
+	providerID := sched.Target.ProviderID
+	if providerID == "" {
+		errMsg := "provider target requires providerId"
+		return schedule.RunResult{Error: &errMsg}
+	}
+
+	cwd := ""
+	if sched.Cwd != nil && *sched.Cwd != "" {
+		cwd = *sched.Cwd
+	}
+
+	config := &protocol.AgentSessionConfig{
+		Provider: providerID,
+		Cwd:      cwd,
+	}
+
+	ag, err := r.agentMgr.CreateAgent(ctx, config, map[string]string{
+		"source":     "schedule",
+		"scheduleId": sched.ID,
+		"providerId": providerID,
+	})
+	if err != nil {
+		errMsg := fmt.Sprintf("create agent: %s", err.Error())
+		return schedule.RunResult{Error: &errMsg}
+	}
+	agentID := ag.ID
+	defer r.closeScheduleAgent(agentID)
+	if err := r.agentMgr.SendAgentMessage(ctx, agentID, sched.Prompt, nil, nil, ""); err != nil {
+		errMsg := err.Error()
+		return schedule.RunResult{AgentID: &agentID, Error: &errMsg}
+	}
+
+	return r.waitForAgent(ctx, agentID)
+}
+
+func (r *daemonRunner) closeScheduleAgent(agentID string) {
+	if err := r.agentMgr.DeleteAgent(agentID); err != nil {
+		r.logger.Warn("failed to close schedule agent", "agentId", agentID, "error", err)
+	}
 }
 
 func (r *daemonRunner) waitForAgent(ctx context.Context, agentID string) schedule.RunResult {

@@ -127,6 +127,9 @@ export function useAggregatedSchedules(): AggregatedSchedulesResult {
       if (query.isFetching) {
         isFetching = true;
       }
+      if (query.error instanceof Error && !anyError) {
+        anyError = query.error.message;
+      }
       if (query.data?.error && !anyError) {
         anyError = query.data.error;
       }

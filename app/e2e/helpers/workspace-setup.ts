@@ -74,7 +74,8 @@ interface WorkspaceSetupDaemonClient {
             cwd: string;
             [key: string]: unknown;
           };
-        };
+        }
+      | { type: "provider"; providerId: string };
     maxRuns?: number;
     requestId?: string;
   }): Promise<{ schedule: { id: string } | null; error: string | null }>;

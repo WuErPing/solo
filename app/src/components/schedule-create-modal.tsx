@@ -5,8 +5,8 @@ import { AdaptiveModalSheet, AdaptiveTextInput } from "@/components/adaptive-mod
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { useAllAgentsList } from "@/hooks/use-all-agents-list";
 import { useCreateSchedule } from "@/hooks/use-create-schedule";
+import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
 import { detectTimezone, cronToUTC } from "@/utils/cron-timezone";
 import { HelpCircle } from "lucide-react-native";
 import type { ScheduleCadence, ScheduleTarget } from "@server/server/schedule/types";
@@ -37,7 +37,9 @@ function buildCronFromPreset(preset: FrequencyPreset, hour: number, minute: numb
 
 export function ScheduleCreateModal({ visible, onClose, serverId }: ScheduleCreateModalProps) {
   const { theme } = useUnistyles();
-  const { agents, isInitialLoad } = useAllAgentsList({ serverId });
+  const { entries: providers, isLoading: isProvidersLoading } = useProvidersSnapshot(serverId, {
+    enabled: visible,
+  });
   const { createSchedule, isCreating } = useCreateSchedule({ serverId });
 
   const [name, setName] = useState("");
@@ -49,17 +51,19 @@ export function ScheduleCreateModal({ visible, onClose, serverId }: ScheduleCrea
   const [minute, setMinute] = useState("0");
   const [cronExpression, setCronExpression] = useState("0 9 * * *");
   const [everyMs, setEveryMs] = useState("3600000");
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const timezone = useMemo(() => detectTimezone(), []);
   const [error, setError] = useState<string | null>(null);
 
-  const agentOptions = useMemo(() => {
-    return agents.map((agent) => ({
-      id: agent.id,
-      label: agent.title || "New session",
-      description: agent.cwd,
+  const providerOptions = useMemo(() => {
+    return (providers ?? []).map((provider) => ({
+      id: provider.provider,
+      label: provider.label || provider.provider,
+      description: provider.description || "",
+      status: provider.status,
+      enabled: provider.enabled,
     }));
-  }, [agents]);
+  }, [providers]);
 
   // Compute the local cron expression from preset + time
   const localCron = useMemo(() => {
@@ -100,7 +104,7 @@ export function ScheduleCreateModal({ visible, onClose, serverId }: ScheduleCrea
     setMinute("0");
     setCronExpression("0 9 * * *");
     setEveryMs("3600000");
-    setSelectedAgentId(null);
+    setSelectedProviderId(null);
     setError(null);
     onClose();
   }, [onClose]);
@@ -111,8 +115,8 @@ export function ScheduleCreateModal({ visible, onClose, serverId }: ScheduleCrea
       setError("Prompt is required");
       return;
     }
-    if (!selectedAgentId) {
-      setError("Please select an agent");
+    if (!selectedProviderId) {
+      setError("Please select a provider");
       return;
     }
 
@@ -133,7 +137,7 @@ export function ScheduleCreateModal({ visible, onClose, serverId }: ScheduleCrea
       cadence = { type: "every", everyMs: ms };
     }
 
-    const target: ScheduleTarget = { type: "agent", agentId: selectedAgentId };
+    const target: ScheduleTarget = { type: "provider", providerId: selectedProviderId };
 
     try {
       await createSchedule({
@@ -147,13 +151,13 @@ export function ScheduleCreateModal({ visible, onClose, serverId }: ScheduleCrea
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create schedule");
     }
-  }, [prompt, selectedAgentId, cadenceType, localCron, everyMs, name, cwd, timezone, createSchedule, handleClose]);
+  }, [prompt, selectedProviderId, cadenceType, localCron, everyMs, name, cwd, timezone, createSchedule, handleClose]);
 
   return (
     <AdaptiveModalSheet title="New Schedule" visible={visible} onClose={handleClose} scrollable={false}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         {error ? (
-          <View style={styles.errorBanner}>
+          <View style={styles.errorBanner} testID="schedule-create-error">
             <Text style={styles.errorText}>{error}</Text>
           </View>
         ) : null}
@@ -332,36 +336,35 @@ export function ScheduleCreateModal({ visible, onClose, serverId }: ScheduleCrea
 
         <View style={styles.field}>
           <Text style={styles.label}>Target Agent *</Text>
-          {isInitialLoad ? (
-            <Text style={styles.helperText}>Loading agents...</Text>
-          ) : agentOptions.length === 0 ? (
-            <Text style={styles.helperText}>No agents available</Text>
+          {isProvidersLoading ? (
+            <Text style={styles.helperText}>Loading providers...</Text>
+          ) : providerOptions.length === 0 ? (
+            <Text style={styles.helperText}>No providers available</Text>
           ) : (
             <View style={styles.agentList}>
-              {agentOptions.map((agent) => (
-                <Pressable
-                  key={agent.id}
-                  testID="schedule-create-agent-card"
-                  style={[
-                    styles.agentCard,
-                    selectedAgentId === agent.id && styles.agentCardActive,
-                  ]}
-                  onPress={() => setSelectedAgentId(agent.id)}
-                >
-                  <Text
-                    style={[
-                      styles.agentName,
-                      selectedAgentId === agent.id && styles.agentNameActive,
-                    ]}
-                    numberOfLines={1}
+              {providerOptions.map((provider) => {
+                const isSelected = selectedProviderId === provider.id;
+                return (
+                  <Pressable
+                    key={provider.id}
+                    testID="schedule-create-provider-card"
+                    data-selected={isSelected}
+                    style={[styles.agentCard, isSelected && styles.agentCardActive]}
+                    onPress={() => setSelectedProviderId(provider.id)}
                   >
-                    {agent.label}
-                  </Text>
-                  <Text style={styles.agentDesc} numberOfLines={1}>
-                    {agent.description}
-                  </Text>
-                </Pressable>
-              ))}
+                    <Text
+                      style={[styles.agentName, isSelected && styles.agentNameActive]}
+                      numberOfLines={1}
+                    >
+                      {provider.label}
+                    </Text>
+                    <Text style={styles.agentDesc} numberOfLines={1}>
+                      {provider.status} · {provider.enabled ? "enabled" : "disabled"}
+                      {provider.description ? ` · ${provider.description}` : ""}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
           )}
         </View>

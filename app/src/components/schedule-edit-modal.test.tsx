@@ -4,13 +4,14 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ScheduleCreateModal } from "./schedule-create-modal";
+import { ScheduleEditModal } from "./schedule-edit-modal";
+import type { ScheduleSummary } from "@server/server/schedule/types";
 
-const { createScheduleResult, providersResult, theme } = vi.hoisted(() => ({
-  createScheduleResult: {
+const { mutationsResult, providersResult, theme } = vi.hoisted(() => ({
+  mutationsResult: {
     current: null as {
-      createSchedule: ReturnType<typeof vi.fn>;
-      isCreating: boolean;
+      updateSchedule: ReturnType<typeof vi.fn>;
+      isUpdating: (scheduleId: string) => boolean;
     } | null,
   },
   providersResult: {
@@ -151,12 +152,12 @@ vi.mock("@/components/ui/tooltip", () => ({
   TooltipContent: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-vi.mock("@/hooks/use-create-schedule", () => ({
-  useCreateSchedule: () => {
-    if (!createScheduleResult.current) {
-      throw new Error("Expected create schedule result");
+vi.mock("@/hooks/use-schedule-mutations", () => ({
+  useScheduleMutations: () => {
+    if (!mutationsResult.current) {
+      throw new Error("Expected schedule mutations result");
     }
-    return createScheduleResult.current;
+    return mutationsResult.current;
   },
 }));
 
@@ -180,7 +181,27 @@ vi.mock("lucide-react-native", () => ({
   HelpCircle: () => React.createElement("span", { "data-icon": "HelpCircle" }),
 }));
 
-describe("ScheduleCreateModal", () => {
+function makeSchedule(overrides: Partial<ScheduleSummary> = {}): ScheduleSummary {
+  return {
+    id: "schedule-1",
+    name: "Daily Report",
+    prompt: "Generate daily report",
+    cadence: { type: "cron", expression: "0 9 * * *" },
+    target: { type: "provider", providerId: "claude" },
+    cwd: "/workspace/project",
+    status: "active",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    nextRunAt: null,
+    lastRunAt: null,
+    pausedAt: null,
+    expiresAt: null,
+    maxRuns: null,
+    ...overrides,
+  };
+}
+
+describe("ScheduleEditModal", () => {
   let container: HTMLElement | null = null;
   let root: Root | null = null;
 
@@ -192,27 +213,15 @@ describe("ScheduleCreateModal", () => {
     root = createRoot(container);
 
     providersResult.current = {
-      entries: [{ provider: "claude", label: "Claude", description: "Anthropic", status: "ready", enabled: true }],
+      entries: [
+        { provider: "claude", label: "Claude", description: "Anthropic", status: "ready", enabled: true },
+        { provider: "codex", label: "Codex", description: "OpenAI", status: "ready", enabled: true },
+      ],
       isLoading: false,
     };
-    createScheduleResult.current = {
-      createSchedule: vi.fn(async () => ({
-        id: "schedule-new",
-        name: null,
-        prompt: "Generate report",
-        cadence: { type: "cron", expression: "0 9 * * *" },
-        target: { type: "provider", providerId: "claude" },
-        cwd: "/workspace/project",
-        status: "active",
-        createdAt: "2026-01-01T00:00:00.000Z",
-        updatedAt: "2026-01-01T00:00:00.000Z",
-        nextRunAt: null,
-        lastRunAt: null,
-        pausedAt: null,
-        expiresAt: null,
-        maxRuns: null,
-      })),
-      isCreating: false,
+    mutationsResult.current = {
+      updateSchedule: vi.fn(async () => makeSchedule()),
+      isUpdating: () => false,
     };
   });
 
@@ -226,47 +235,27 @@ describe("ScheduleCreateModal", () => {
     container?.remove();
     container = null;
     providersResult.current = null;
-    createScheduleResult.current = null;
+    mutationsResult.current = null;
     vi.unstubAllGlobals();
   });
 
-  function renderModal() {
+  function renderModal(schedule: ScheduleSummary | null = makeSchedule()) {
     act(() => {
-      root?.render(<ScheduleCreateModal visible serverId="server-1" onClose={vi.fn()} />);
-    });
-  }
-
-  function setPrompt(value: string) {
-    const input = container?.querySelector('input[data-testid="schedule-create-prompt-input"]') as HTMLInputElement | undefined;
-    act(() => {
-      input?.dispatchEvent(new InputEvent("change", { bubbles: true }));
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
-      nativeInputValueSetter?.call(input, value);
-      input?.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-  }
-
-  function setCwd(value: string) {
-    const input = container?.querySelector('input[data-testid="schedule-create-cwd-input"]') as HTMLInputElement | undefined;
-    act(() => {
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
-      nativeInputValueSetter?.call(input, value);
-      input?.dispatchEvent(new Event("change", { bubbles: true }));
+      root?.render(<ScheduleEditModal visible serverId="server-1" onClose={vi.fn()} schedule={schedule} />);
     });
   }
 
   function selectProviderCard(index = 0) {
-    const cards = container?.querySelectorAll('[data-testid="schedule-create-provider-card"]');
+    const cards = container?.querySelectorAll('[data-testid="schedule-edit-provider-card"]');
     act(() => {
       cards?.[index]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
   }
 
   async function submit() {
-    const button = container?.querySelector('[data-testid="schedule-create-submit-button"]');
+    const button = container?.querySelector('[data-testid="schedule-edit-submit-button"]');
     await act(async () => {
       button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-      // Let the async createSchedule promise and subsequent state updates flush.
       await Promise.resolve();
     });
   }
@@ -274,40 +263,52 @@ describe("ScheduleCreateModal", () => {
   it("renders provider cards", () => {
     renderModal();
 
-    const providerCards = container?.querySelectorAll('[data-testid="schedule-create-provider-card"]');
-    expect(providerCards?.length).toBe(1);
+    const cards = container?.querySelectorAll('[data-testid="schedule-edit-provider-card"]');
+    expect(cards?.length).toBe(2);
   });
 
-  it("creates a provider schedule with schedule cwd", async () => {
+  it("selects the existing provider when schedule target is provider", () => {
+    renderModal(makeSchedule({ target: { type: "provider", providerId: "codex" } }));
+
+    const cards = container?.querySelectorAll('[data-testid="schedule-edit-provider-card"]');
+    expect(cards?.[0]?.getAttribute("data-selected")).toBe("false");
+    expect(cards?.[1]?.getAttribute("data-selected")).toBe("true");
+  });
+
+  it("clears selection when existing schedule has non-provider target", () => {
+    renderModal(makeSchedule({ target: { type: "agent", agentId: "agent-1" } }));
+
+    const cards = container?.querySelectorAll('[data-testid="schedule-edit-provider-card"]');
+    expect(cards?.[0]?.getAttribute("data-selected")).toBe("false");
+    expect(cards?.[1]?.getAttribute("data-selected")).toBe("false");
+  });
+
+  it("updates schedule with provider target", async () => {
     renderModal();
 
-    selectProviderCard(0);
-    setCwd("/workspace/project");
-    setPrompt("Generate report");
+    selectProviderCard(1);
     await submit();
 
     await vi.waitFor(() => {
-      expect(createScheduleResult.current?.createSchedule).toHaveBeenCalled();
+      expect(mutationsResult.current?.updateSchedule).toHaveBeenCalled();
     });
 
-    expect(createScheduleResult.current?.createSchedule).toHaveBeenCalledWith(
+    expect(mutationsResult.current?.updateSchedule).toHaveBeenCalledWith(
       expect.objectContaining({
-        target: { type: "provider", providerId: "claude" },
-        cwd: "/workspace/project",
-        prompt: "Generate report",
+        scheduleId: "schedule-1",
+        target: { type: "provider", providerId: "codex" },
       }),
     );
   });
 
   it("shows validation error when no provider chosen", async () => {
-    renderModal();
+    renderModal(makeSchedule({ target: { type: "agent", agentId: "agent-1" } }));
 
-    setPrompt("Generate report");
     await submit();
 
-    const error = container?.querySelector('[data-testid="schedule-create-error"]');
+    const error = container?.querySelector('[data-testid="schedule-edit-error"]');
     expect(error).not.toBeNull();
     expect(error?.textContent).toContain("provider");
-    expect(createScheduleResult.current?.createSchedule).not.toHaveBeenCalled();
+    expect(mutationsResult.current?.updateSchedule).not.toHaveBeenCalled();
   });
 });

@@ -5,8 +5,8 @@ import { AdaptiveModalSheet, AdaptiveTextInput } from "@/components/adaptive-mod
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { useAllAgentsList } from "@/hooks/use-all-agents-list";
 import { useScheduleMutations } from "@/hooks/use-schedule-mutations";
+import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
 import { detectTimezone, cronToUTC, cronFromUTC } from "@/utils/cron-timezone";
 import { HelpCircle } from "lucide-react-native";
 import type { ScheduleSummary, ScheduleCadence, ScheduleTarget } from "@server/server/schedule/types";
@@ -59,7 +59,9 @@ function detectPreset(expression: string): { preset: FrequencyPreset; hour: stri
 
 export function ScheduleEditModal({ visible, onClose, serverId, schedule }: ScheduleEditModalProps) {
   const { theme } = useUnistyles();
-  const { agents, isInitialLoad } = useAllAgentsList({ serverId });
+  const { entries: providers, isLoading: isProvidersLoading } = useProvidersSnapshot(serverId, {
+    enabled: visible,
+  });
   const { updateSchedule, isUpdating } = useScheduleMutations({ serverId });
 
   const [name, setName] = useState("");
@@ -71,7 +73,7 @@ export function ScheduleEditModal({ visible, onClose, serverId, schedule }: Sche
   const [minute, setMinute] = useState("0");
   const [cronExpression, setCronExpression] = useState("0 9 * * *");
   const [everyMs, setEveryMs] = useState("3600000");
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [timezone, setTimezone] = useState(detectTimezone());
   const [error, setError] = useState<string | null>(null);
 
@@ -95,21 +97,23 @@ export function ScheduleEditModal({ visible, onClose, serverId, schedule }: Sche
       setCadenceType("every");
       setEveryMs(String(schedule.cadence.everyMs));
     }
-    if (schedule.target.type === "agent") {
-      setSelectedAgentId(schedule.target.agentId);
+    if (schedule.target.type === "provider") {
+      setSelectedProviderId(schedule.target.providerId);
     } else {
-      setSelectedAgentId(null);
+      setSelectedProviderId(null);
     }
     setError(null);
   }, [schedule]);
 
-  const agentOptions = useMemo(() => {
-    return agents.map((agent) => ({
-      id: agent.id,
-      label: agent.title || "New session",
-      description: agent.cwd,
+  const providerOptions = useMemo(() => {
+    return (providers ?? []).map((provider) => ({
+      id: provider.provider,
+      label: provider.label || provider.provider,
+      description: provider.description || "",
+      status: provider.status,
+      enabled: provider.enabled,
     }));
-  }, [agents]);
+  }, [providers]);
 
   // Compute the local cron expression from preset + time
   const localCron = useMemo(() => {
@@ -152,8 +156,8 @@ export function ScheduleEditModal({ visible, onClose, serverId, schedule }: Sche
       setError("Prompt is required");
       return;
     }
-    if (!selectedAgentId) {
-      setError("Please select an agent");
+    if (!selectedProviderId) {
+      setError("Please select a provider");
       return;
     }
 
@@ -174,7 +178,7 @@ export function ScheduleEditModal({ visible, onClose, serverId, schedule }: Sche
       cadence = { type: "every", everyMs: ms };
     }
 
-    const target: ScheduleTarget = { type: "agent", agentId: selectedAgentId };
+    const target: ScheduleTarget = { type: "provider", providerId: selectedProviderId };
 
     try {
       await updateSchedule({
@@ -189,7 +193,7 @@ export function ScheduleEditModal({ visible, onClose, serverId, schedule }: Sche
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to update schedule");
     }
-  }, [schedule, prompt, selectedAgentId, cadenceType, localCron, everyMs, name, cwd, timezone, updateSchedule, handleClose]);
+  }, [schedule, prompt, selectedProviderId, cadenceType, localCron, everyMs, name, cwd, timezone, updateSchedule, handleClose]);
 
   const updating = schedule ? isUpdating(schedule.id) : false;
 
@@ -197,7 +201,7 @@ export function ScheduleEditModal({ visible, onClose, serverId, schedule }: Sche
     <AdaptiveModalSheet title="Edit Schedule" visible={visible} onClose={handleClose} scrollable={false}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         {error ? (
-          <View style={styles.errorBanner}>
+          <View style={styles.errorBanner} testID="schedule-edit-error">
             <Text style={styles.errorText}>{error}</Text>
           </View>
         ) : null}
@@ -369,35 +373,35 @@ export function ScheduleEditModal({ visible, onClose, serverId, schedule }: Sche
 
         <View style={styles.field}>
           <Text style={styles.label}>Target Agent *</Text>
-          {isInitialLoad ? (
-            <Text style={styles.helperText}>Loading agents...</Text>
-          ) : agentOptions.length === 0 ? (
-            <Text style={styles.helperText}>No agents available</Text>
+          {isProvidersLoading ? (
+            <Text style={styles.helperText}>Loading providers...</Text>
+          ) : providerOptions.length === 0 ? (
+            <Text style={styles.helperText}>No providers available</Text>
           ) : (
             <View style={styles.agentList}>
-              {agentOptions.map((agent) => (
-                <Pressable
-                  key={agent.id}
-                  style={[
-                    styles.agentCard,
-                    selectedAgentId === agent.id && styles.agentCardActive,
-                  ]}
-                  onPress={() => setSelectedAgentId(agent.id)}
-                >
-                  <Text
-                    style={[
-                      styles.agentName,
-                      selectedAgentId === agent.id && styles.agentNameActive,
-                    ]}
-                    numberOfLines={1}
+              {providerOptions.map((provider) => {
+                const isSelected = selectedProviderId === provider.id;
+                return (
+                  <Pressable
+                    key={provider.id}
+                    testID="schedule-edit-provider-card"
+                    data-selected={isSelected}
+                    style={[styles.agentCard, isSelected && styles.agentCardActive]}
+                    onPress={() => setSelectedProviderId(provider.id)}
                   >
-                    {agent.label}
-                  </Text>
-                  <Text style={styles.agentDesc} numberOfLines={1}>
-                    {agent.description}
-                  </Text>
-                </Pressable>
-              ))}
+                    <Text
+                      style={[styles.agentName, isSelected && styles.agentNameActive]}
+                      numberOfLines={1}
+                    >
+                      {provider.label}
+                    </Text>
+                    <Text style={styles.agentDesc} numberOfLines={1}>
+                      {provider.status} · {provider.enabled ? "enabled" : "disabled"}
+                      {provider.description ? ` · ${provider.description}` : ""}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
           )}
         </View>
@@ -406,7 +410,7 @@ export function ScheduleEditModal({ visible, onClose, serverId, schedule }: Sche
           <Button variant="ghost" onPress={handleClose}>
             Cancel
           </Button>
-          <Button onPress={handleSubmit} disabled={updating}>
+          <Button onPress={handleSubmit} disabled={updating} testID="schedule-edit-submit-button">
             {updating ? "Saving..." : "Save Changes"}
           </Button>
         </View>

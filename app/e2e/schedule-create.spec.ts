@@ -1,157 +1,89 @@
 /**
- * E2E test: create a schedule through the UI and verify it appears in the list.
+ * E2E tests for schedule save, load and edit.
  *
- * Seeds an agent directly via the daemon so the schedule-create modal has a
- * selectable target. This avoids relying on tmux-detected agents, which are not
- * guaranteed to be present in the daemon's agent directory.
+ * The test daemon enables the mock provider, so schedules can target it and
+ * spawn a new agent instance per run.
  */
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
-import { test, expect } from "./fixtures";
-import { createNodeWebSocketFactory, type NodeWebSocketFactory } from "./helpers/node-ws-factory";
-import { buildSeededHost, buildCreateAgentPreferences } from "./helpers/daemon-registry";
+import { test, expect, type Page } from "./fixtures";
+import { connectWorkspaceSetupClient } from "./helpers/workspace-setup";
 
-interface SeededAgent {
+interface CreatedSchedule {
   id: string;
-  cwd: string;
+  name: string;
+  prompt: string;
 }
 
-interface DaemonClientLike {
-  connect(): Promise<void>;
-  close(): Promise<void>;
-  createAgent(input: {
-    config: { provider: string; cwd: string; title?: string };
-    initialPrompt?: string;
-  }): Promise<{ id: string; cwd: string; title?: string | null }>;
-  deleteAgent(agentId: string): Promise<void>;
-}
-
-async function loadDaemonClientConstructor(): Promise<
-  new (config: {
-    url: string;
-    clientId: string;
-    clientType: "cli";
-    webSocketFactory?: NodeWebSocketFactory;
-  }) => DaemonClientLike
-> {
-  const repoRoot = path.resolve(__dirname, "../..");
-  const moduleUrl = pathToFileURL(
-    path.join(repoRoot, "app-bridge/dist/client/daemon-client.js"),
-  ).href;
-  const mod = (await import(moduleUrl)) as {
-    DaemonClient: new (config: {
-      url: string;
-      clientId: string;
-      clientType: "cli";
-      webSocketFactory?: NodeWebSocketFactory;
-    }) => DaemonClientLike;
-  };
-  return mod.DaemonClient;
-}
-
-async function getDaemonWsUrl(): Promise<string> {
-  const daemonPort = process.env.E2E_DAEMON_PORT;
-  if (!daemonPort) {
-    throw new Error("E2E_DAEMON_PORT is not set.");
+function getRequiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} is not set`);
   }
-  return `ws://127.0.0.1:${daemonPort}/ws`;
+  return value;
 }
 
-test.describe("schedule creation", () => {
+async function swallowMetroHmr(page: Page): Promise<void> {
+  const metroPort = process.env.E2E_METRO_PORT;
+  if (!metroPort) {
+    return;
+  }
+  await page.routeWebSocket(`ws://localhost:${metroPort}/hot`, (route) => {
+    route.onMessage(() => {
+      /* drop HMR frames */
+    });
+  });
+}
+
+async function createScheduleViaApi(name: string, prompt: string): Promise<CreatedSchedule> {
+  const client = await connectWorkspaceSetupClient();
+  try {
+    const result = await client.scheduleCreate({
+      requestId: `req-${randomUUID()}`,
+      prompt,
+      name,
+      cadence: { type: "every", everyMs: 60_000 },
+      target: { type: "provider", providerId: "mock" },
+    });
+    if (!result.schedule) {
+      throw new Error(result.error ?? "scheduleCreate returned no schedule");
+    }
+    return { id: result.schedule.id, name, prompt };
+  } finally {
+    await client.close();
+  }
+}
+
+async function deleteScheduleViaApi(id: string): Promise<void> {
+  const client = await connectWorkspaceSetupClient();
+  try {
+    await client.scheduleDelete({ id });
+  } finally {
+    await client.close();
+  }
+}
+
+async function openCreateModal(page: Page, serverId: string): Promise<void> {
+  await page.goto(`/h/${serverId}/schedules?create=true`);
+  await expect(page.getByText("New Schedule").first()).toBeVisible({ timeout: 15_000 });
+}
+
+async function openSchedulesList(page: Page, serverId: string): Promise<void> {
+  await page.goto(`/h/${serverId}/schedules`);
+  await expect(page.getByText("Schedules").first()).toBeVisible({ timeout: 15_000 });
+}
+
+test.describe("schedule management", () => {
   test.describe.configure({ timeout: 120_000 });
 
-  let seededAgent: SeededAgent | null = null;
-  let seededCwd: string | null = null;
-  let daemonClient: DaemonClientLike | null = null;
-
-  test.beforeAll(async () => {
-    const serverId = process.env.E2E_SERVER_ID;
-    if (!serverId) {
-      throw new Error("E2E_SERVER_ID is not set");
-    }
-
-    seededCwd = await mkdtemp(path.join(tmpdir(), "solo-schedule-e2e-"));
-    const DaemonClient = await loadDaemonClientConstructor();
-    const client = new DaemonClient({
-      url: await getDaemonWsUrl(),
-      clientId: `schedule-e2e-${randomUUID()}`,
-      clientType: "cli",
-      webSocketFactory: createNodeWebSocketFactory(),
-    });
-    await client.connect();
-
-    const agent = await client.createAgent({
-      config: {
-        provider: "mock",
-        cwd: seededCwd,
-        title: "Schedule E2E Agent",
-      },
-    });
-
-    seededAgent = { id: agent.id, cwd: agent.cwd };
-    daemonClient = client;
-  });
-
-  test.afterAll(async () => {
-    if (daemonClient) {
-      if (seededAgent) {
-        await daemonClient.deleteAgent(seededAgent.id).catch(() => undefined);
-      }
-      await daemonClient.close().catch(() => undefined);
-    }
-    if (seededCwd) {
-      await rm(seededCwd, { recursive: true, force: true });
-    }
-  });
-
-  test("creates a schedule from the schedules page and shows it in the list", async ({ page }) => {
+  test("saves a new schedule via the UI and shows it in the list", async ({ page }) => {
     test.setTimeout(120_000);
 
-    const serverId = process.env.E2E_SERVER_ID;
-    const daemonPort = process.env.E2E_DAEMON_PORT;
-    if (!serverId) {
-      throw new Error("E2E_SERVER_ID is not set");
-    }
-    if (!daemonPort) {
-      throw new Error("E2E_DAEMON_PORT is not set");
-    }
-    if (!seededAgent) {
-      throw new Error("Seeded agent was not created");
-    }
+    const serverId = getRequiredEnv("E2E_SERVER_ID");
+    await swallowMetroHmr(page);
 
-    // Swallow Metro HMR updates so they cannot starve the daemon keepalive timers.
-    const metroPort = process.env.E2E_METRO_PORT;
-    if (metroPort) {
-      await page.routeWebSocket(`ws://localhost:${metroPort}/hot`, (route) => {
-        route.onMessage(() => {
-          /* drop HMR frames */
-        });
-      });
-    }
+    await openCreateModal(page, serverId);
 
-    // Seed local storage before the app loads.
-    const endpoint = `127.0.0.1:${daemonPort}`;
-    const daemon = buildSeededHost({ serverId, endpoint, nowIso: new Date().toISOString() });
-    const preferences = buildCreateAgentPreferences(serverId);
-    await page.context().addInitScript(
-      (([seededDaemon, seededPreferences]: [unknown, unknown]) => {
-        localStorage.setItem("@solo:e2e", "1");
-        localStorage.setItem("@solo:daemon-registry", JSON.stringify([seededDaemon]));
-        localStorage.setItem("@solo:create-agent-preferences", JSON.stringify(seededPreferences));
-        localStorage.removeItem("@solo:settings");
-      }) as () => void,
-      [daemon, preferences],
-    );
-
-    // Open the host schedules page with the create modal visible.
-    await page.goto(`/h/${serverId}/schedules?create=true`);
-    await expect(page.getByText("New Schedule").first()).toBeVisible({ timeout: 15_000 });
-
-    const scheduleName = `e2e-schedule-${Date.now()}`;
-
+    const scheduleName = `e2e-save-${Date.now()}`;
     await page.getByTestId("schedule-create-name-input").first().fill(scheduleName);
     await page.getByTestId("schedule-create-prompt-input").first().fill("echo hello from schedule");
 
@@ -159,16 +91,62 @@ test.describe("schedule creation", () => {
     await page.getByText("Interval", { exact: true }).first().click();
     await page.getByTestId("schedule-create-interval-input").first().fill("60000");
 
-    // Select the seeded agent.
-    const agentCard = page.getByTestId("schedule-create-agent-card").first();
-    await expect(agentCard).toBeVisible({ timeout: 30_000 });
-    await agentCard.click();
+    // Select the mock provider.
+    const providerCard = page.getByTestId("schedule-create-provider-card").first();
+    await expect(providerCard).toBeVisible({ timeout: 30_000 });
+    await providerCard.click();
 
-    // Submit the form.
     await page.getByTestId("schedule-create-submit-button").first().click();
 
     // Modal should close and the new schedule should appear in the list.
     await expect(page.getByText("New Schedule").first()).not.toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(scheduleName).first()).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("loads existing schedules on the schedules page", async ({ page }) => {
+    test.setTimeout(120_000);
+
+    const serverId = getRequiredEnv("E2E_SERVER_ID");
+    const schedule = await createScheduleViaApi(`e2e-load-${Date.now()}`, "echo load");
+
+    try {
+      await swallowMetroHmr(page);
+      await openSchedulesList(page, serverId);
+
+      await expect(page.getByText(schedule.name).first()).toBeVisible({ timeout: 15_000 });
+    } finally {
+      await deleteScheduleViaApi(schedule.id);
+    }
+  });
+
+  test("edits a schedule and reflects the change in the list", async ({ page }) => {
+    test.setTimeout(120_000);
+
+    const serverId = getRequiredEnv("E2E_SERVER_ID");
+    const schedule = await createScheduleViaApi(`e2e-edit-${Date.now()}`, "echo before");
+
+    try {
+      await swallowMetroHmr(page);
+      await openSchedulesList(page, serverId);
+
+      await page.locator(`[data-action="edit-${schedule.id}"]`).first().click();
+      await expect(page.getByText("Edit Schedule").first()).toBeVisible({ timeout: 15_000 });
+
+      const newName = `${schedule.name}-edited`;
+      await page.getByPlaceholder("Optional name").first().fill(newName);
+      await page.getByPlaceholder("What should the agent do?").first().fill("echo after");
+
+      // Ensure a provider is selected before saving.
+      const providerCard = page.getByTestId("schedule-edit-provider-card").first();
+      await expect(providerCard).toBeVisible({ timeout: 30_000 });
+      await providerCard.click();
+
+      await page.getByTestId("schedule-edit-submit-button").first().click();
+
+      await expect(page.getByText("Edit Schedule").first()).not.toBeVisible({ timeout: 20_000 });
+      await expect(page.getByText(newName).first()).toBeVisible({ timeout: 15_000 });
+    } finally {
+      await deleteScheduleViaApi(schedule.id);
+    }
   });
 });
