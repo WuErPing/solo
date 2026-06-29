@@ -145,6 +145,11 @@ type AgentSessionConfig struct {
 	OutputSchema     map[string]interface{}     `json:"outputSchema,omitempty"`
 }
 
+// AgentTemplate is a reusable configuration for instantiating an agent.
+// It is intentionally identical to AgentSessionConfig so that any field
+// available to a chat agent is also available to loop/schedule agents.
+type AgentTemplate = AgentSessionConfig
+
 // ImageAttachment represents an image sent to an agent.
 type ImageAttachment struct {
 	Data     string `json:"data"`

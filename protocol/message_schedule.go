@@ -12,27 +12,15 @@ type ScheduleCadence struct {
 // --- Schedule Target ---
 
 type ScheduleTarget struct {
-	Type       string               `json:"type"`                 // "agent" | "new-agent" | "provider"
-	AgentID    string               `json:"agentId,omitempty"`    // existing agent id when Type == "agent"
-	ProviderID string               `json:"providerId,omitempty"` // provider id when Type == "provider"
-	Config     *ScheduleAgentConfig `json:"config,omitempty"`
+	Type       string         `json:"type"`                 // "agent" | "new-agent" | "provider"
+	AgentID    string         `json:"agentId,omitempty"`    // existing agent id when Type == "agent"
+	ProviderID string         `json:"providerId,omitempty"` // provider id when Type == "provider"
+	Config     *AgentTemplate `json:"config,omitempty"`     // template when Type == "new-agent"
 }
 
-type ScheduleAgentConfig struct {
-	Provider         string                 `json:"provider"`
-	Cwd              string                 `json:"cwd"`
-	ModeID           *string                `json:"modeId,omitempty"`
-	Model            *string                `json:"model,omitempty"`
-	ThinkingOptionID *string                `json:"thinkingOptionId,omitempty"`
-	Title            *string                `json:"title,omitempty"`
-	ApprovalPolicy   string                 `json:"approvalPolicy,omitempty"`
-	SandboxMode      string                 `json:"sandboxMode,omitempty"`
-	NetworkAccess    bool                   `json:"networkAccess,omitempty"`
-	WebSearch        bool                   `json:"webSearch,omitempty"`
-	Extra            map[string]interface{} `json:"extra,omitempty"`
-	SystemPrompt     string                 `json:"systemPrompt,omitempty"`
-	McpServers       map[string]interface{} `json:"mcpServers,omitempty"`
-}
+// ScheduleAgentConfig is kept as a deprecated alias for one release cycle.
+// Deprecated: use AgentTemplate instead.
+type ScheduleAgentConfig = AgentTemplate
 
 // --- Schedule Run ---
 

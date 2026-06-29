@@ -236,6 +236,66 @@ func TestStore_Update_FullFields(t *testing.T) {
 	}
 }
 
+func TestStore_Update_AgentTemplate(t *testing.T) {
+	t.Parallel()
+
+	s := NewStore()
+	created, _ := s.Create(protocol.LoopRunRequest{Prompt: "original", Cwd: "/tmp"}, func() (string, error) { return "mock", nil })
+
+	model := "claude-3-opus"
+	template := protocol.AgentTemplate{
+		Provider:     "claude",
+		Cwd:          "/tmp",
+		Model:        &model,
+		SystemPrompt: "be thorough",
+	}
+
+	updated, err := s.Update(created.ID, UpdateInput{AgentTemplate: &template})
+	if err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
+	if updated.AgentTemplate == nil {
+		t.Fatal("expected agentTemplate to be set")
+	}
+	if updated.AgentTemplate.Provider != "claude" {
+		t.Errorf("provider = %q, want claude", updated.AgentTemplate.Provider)
+	}
+	if updated.AgentTemplate.SystemPrompt != "be thorough" {
+		t.Errorf("systemPrompt = %q, want be thorough", updated.AgentTemplate.SystemPrompt)
+	}
+	if updated.Provider != "claude" {
+		t.Errorf("legacy provider = %q, want claude", updated.Provider)
+	}
+}
+
+func TestStore_List_IncludesAgentProvider(t *testing.T) {
+	t.Parallel()
+
+	s := NewStore()
+	model := "kimi-k2"
+	_, _ = s.Create(protocol.LoopRunRequest{
+		Prompt: "first",
+		Cwd:    "/project",
+		AgentTemplate: &protocol.AgentTemplate{
+			Provider: "kimi",
+			Cwd:      "/project",
+			Model:    &model,
+		},
+	}, func() (string, error) { return "mock", nil })
+
+	list := s.List()
+	if len(list) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(list))
+	}
+	item := list[0]
+	if item.Provider != "kimi" {
+		t.Errorf("provider = %q, want kimi", item.Provider)
+	}
+	if item.Model == nil || *item.Model != model {
+		t.Errorf("model = %v, want %v", item.Model, &model)
+	}
+}
+
 func TestStore_Delete(t *testing.T) {
 	t.Parallel()
 

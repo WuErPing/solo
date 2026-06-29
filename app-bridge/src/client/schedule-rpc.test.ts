@@ -75,6 +75,8 @@ const mockLoopItem = {
   name: "test-loop",
   status: "running" as const,
   cwd: "/test/project",
+  provider: "claude",
+  model: null,
   createdAt: "2026-06-22T00:00:00Z",
   updatedAt: "2026-06-22T00:00:00Z",
   activeIteration: null,

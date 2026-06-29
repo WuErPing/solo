@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AgentProviderSchema } from "../agent/provider-manifest.js";
+import { AgentSessionConfigSchema } from "../../shared/agent-session-config.js";
 
 export const ScheduleStatusSchema = z.enum(["active", "paused", "completed"]);
 export type ScheduleStatus = z.infer<typeof ScheduleStatusSchema>;
@@ -18,27 +19,11 @@ export const ScheduleCadenceSchema = z.discriminatedUnion("type", [
 ]);
 export type ScheduleCadence = z.infer<typeof ScheduleCadenceSchema>;
 
-export const ScheduleNewAgentConfigSchema = z.object({
-  provider: AgentProviderSchema,
-  cwd: z.string().trim().min(1),
-  modeId: z.string().trim().min(1).optional(),
-  model: z.string().trim().min(1).optional(),
-  thinkingOptionId: z.string().trim().min(1).optional(),
-  title: z.string().trim().min(1).nullable().optional(),
-  approvalPolicy: z.string().trim().min(1).optional(),
-  sandboxMode: z.string().trim().min(1).optional(),
-  networkAccess: z.boolean().optional(),
-  webSearch: z.boolean().optional(),
-  extra: z
-    .object({
-      codex: z.record(z.string(), z.unknown()).optional(),
-      claude: z.record(z.string(), z.unknown()).optional(),
-    })
-    .partial()
-    .optional(),
-  systemPrompt: z.string().optional(),
-  mcpServers: z.record(z.string(), z.unknown()).optional(),
-});
+// ScheduleNewAgentConfigSchema is the agent template used when a schedule
+// target creates a new agent. It is intentionally identical to
+// AgentSessionConfigSchema so that every agent capability available to a chat
+// agent is also available to scheduled agents.
+export const ScheduleNewAgentConfigSchema = AgentSessionConfigSchema;
 
 // Discriminated union of the three supported targets plus a synthetic
 // "unknown" type for schedules persisted with an obsolete target type (e.g.

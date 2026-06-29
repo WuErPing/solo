@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import type { LoopRecord } from "@server/server/loop/rpc-schemas";
+import type { AgentSessionConfig } from "@server/shared/agent-session-config";
 
 import { useHostRuntimeClient } from "@/runtime/host-runtime";
 import { loopsQueryKey } from "./use-loops";
@@ -14,6 +15,9 @@ export interface CreateLoopInput {
   sleepMs?: number;
   maxIterations?: number;
   maxTimeMs?: number;
+  agentTemplate?: AgentSessionConfig | null;
+  workerAgentTemplate?: AgentSessionConfig | null;
+  verifierAgentTemplate?: AgentSessionConfig | null;
 }
 
 export interface CreateLoopResult {
@@ -39,6 +43,9 @@ export function useCreateLoop({ serverId }: { serverId: string }): CreateLoopRes
         sleepMs: input.sleepMs,
         maxIterations: input.maxIterations,
         maxTimeMs: input.maxTimeMs,
+        agentTemplate: input.agentTemplate ?? null,
+        workerAgentTemplate: input.workerAgentTemplate ?? null,
+        verifierAgentTemplate: input.verifierAgentTemplate ?? null,
       });
       if (payload.error) {
         throw new Error(payload.error);

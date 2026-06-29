@@ -7,25 +7,60 @@ import (
 	"fmt"
 	"log/slog"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/protocol"
 )
 
+// defaultVerifyCheckTimeout bounds a single verify-check command. It is set
+// generously because a real verification command (e.g. `make ci`) routinely
+// runs builds and full test suites that take several minutes. A short timeout
+// would kill legitimate checks and make the loop unable to ever pass.
+const defaultVerifyCheckTimeout = 30 * time.Minute
+
+// maxFeedbackOutputRunes caps how much of a failed check's output is fed back
+// into the next worker prompt, so a huge CI log cannot blow up the prompt.
+// The tail is kept because failures are usually reported at the end.
+const maxFeedbackOutputRunes = 4000
+
+// agentManager is the subset of agent.AgentManager used by the loop engine.
+// It is defined as an interface so the engine can be unit-tested with a fake.
+type agentManager interface {
+	CreateAgent(ctx context.Context, config *protocol.AgentSessionConfig, labels map[string]string) (*agent.ManagedAgent, error)
+	DeleteAgent(agentID string) error
+	SendAgentMessage(ctx context.Context, agentID, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string) error
+	GetAgent(agentID string) *agent.ManagedAgent
+	Subscribe(handler agent.AgentEventFunc) func()
+}
+
 // Engine executes loop records.
 type Engine struct {
-	store    *Store
-	agentMgr *agent.AgentManager
-	logger   *slog.Logger
+	store         *Store
+	agentMgr      agentManager
+	logger        *slog.Logger
+	verifyTimeout time.Duration
 }
 
 // NewEngine creates a new loop engine.
 func NewEngine(store *Store, agentMgr *agent.AgentManager, logger *slog.Logger) *Engine {
 	return &Engine{
-		store:    store,
-		agentMgr: agentMgr,
-		logger:   logger.With("component", "loop-engine"),
+		store:         store,
+		agentMgr:      agentMgr,
+		logger:        logger.With("component", "loop-engine"),
+		verifyTimeout: defaultVerifyCheckTimeout,
+	}
+}
+
+// NewEngineWithManager creates a new loop engine with an arbitrary agentManager
+// implementation. Intended for tests.
+func NewEngineWithManager(store *Store, agentMgr agentManager, logger *slog.Logger) *Engine {
+	return &Engine{
+		store:         store,
+		agentMgr:      agentMgr,
+		logger:        logger.With("component", "loop-engine"),
+		verifyTimeout: defaultVerifyCheckTimeout,
 	}
 }
 
@@ -69,6 +104,10 @@ func (e *Engine) run(ctx context.Context, id string) {
 		}
 	}
 
+	// prevIter carries the previous iteration's verification result so its
+	// failure output can be fed back to the next worker. nil on the first pass.
+	var prevIter *protocol.LoopIterationRecord
+
 	for i := 0; i < maxIterations; i++ {
 		record, ok = e.store.Get(id)
 		if !ok {
@@ -102,7 +141,8 @@ func (e *Engine) run(ctx context.Context, id string) {
 
 		e.log(id, iterIndex, "loop", "info", fmt.Sprintf("Starting iteration %d", iterIndex))
 
-		outcome, workerErr := e.runWorker(ctx, record, &iter)
+		workerPrompt := buildWorkerPrompt(record.Prompt, prevIter)
+		outcome, workerErr := e.runWorker(ctx, record, &iter, workerPrompt)
 		if outcome != nil {
 			iter.WorkerOutcome = outcome
 		}
@@ -136,6 +176,11 @@ func (e *Engine) run(ctx context.Context, id string) {
 			return
 		}
 
+		// Carry this iteration's verification failure into the next worker
+		// prompt so the agent can act on what actually failed.
+		iterCopy := iter
+		prevIter = &iterCopy
+
 		if record.SleepMs > 0 {
 			select {
 			case <-ctx.Done():
@@ -149,14 +194,10 @@ func (e *Engine) run(ctx context.Context, id string) {
 	e.finish(id, StatusFailed, "max iterations reached")
 }
 
-func (e *Engine) runWorker(ctx context.Context, record *protocol.LoopRecord, iter *protocol.LoopIterationRecord) (*string, string) {
-	config := &protocol.AgentSessionConfig{
-		Provider: record.Provider,
-		Cwd:      record.Cwd,
-		Model:    record.Model,
-	}
+func (e *Engine) runWorker(ctx context.Context, record *protocol.LoopRecord, iter *protocol.LoopIterationRecord, prompt string) (*string, string) {
+	config := agent.LoopRecordToWorkerConfig(*record)
 
-	ag, err := e.agentMgr.CreateAgent(ctx, config, map[string]string{"source": "loop"})
+	ag, err := e.agentMgr.CreateAgent(ctx, &config, map[string]string{"source": "loop"})
 	if err != nil {
 		reason := fmt.Sprintf("create worker agent: %s", err.Error())
 		outcome := "failed"
@@ -171,7 +212,7 @@ func (e *Engine) runWorker(ctx context.Context, record *protocol.LoopRecord, ite
 		}
 	}()
 
-	if err := e.agentMgr.SendAgentMessage(ctx, agentID, record.Prompt, nil, nil, ""); err != nil {
+	if err := e.agentMgr.SendAgentMessage(ctx, agentID, prompt, nil, nil, ""); err != nil {
 		reason := fmt.Sprintf("send worker message: %s", err.Error())
 		outcome := "failed"
 		return &outcome, reason
@@ -262,7 +303,7 @@ func (e *Engine) runVerifyChecks(ctx context.Context, record *protocol.LoopRecor
 
 	for _, command := range record.VerifyChecks {
 		startedAt := nowISO()
-		exitCode, stdout, stderr, err := runShellCheck(ctx, record.Cwd, command)
+		exitCode, stdout, stderr, err := runShellCheck(ctx, record.Cwd, command, e.verifyTimeout)
 		completedAt := nowISO()
 
 		passed := exitCode == 0 && err == nil
@@ -289,22 +330,9 @@ func (e *Engine) runVerifyChecks(ctx context.Context, record *protocol.LoopRecor
 }
 
 func (e *Engine) runVerifyPrompt(ctx context.Context, record *protocol.LoopRecord, iter *protocol.LoopIterationRecord) (bool, string) {
-	provider := record.Provider
-	model := record.Model
-	if record.VerifierProvider != nil && *record.VerifierProvider != "" {
-		provider = *record.VerifierProvider
-	}
-	if record.VerifierModel != nil && *record.VerifierModel != "" {
-		model = record.VerifierModel
-	}
+	config := agent.LoopRecordToVerifierConfig(*record)
 
-	config := &protocol.AgentSessionConfig{
-		Provider: provider,
-		Cwd:      record.Cwd,
-		Model:    model,
-	}
-
-	ag, err := e.agentMgr.CreateAgent(ctx, config, map[string]string{"source": "loop-verifier"})
+	ag, err := e.agentMgr.CreateAgent(ctx, &config, map[string]string{"source": "loop-verifier"})
 	if err != nil {
 		iter.VerifyPrompt = &protocol.LoopVerifyPromptResult{
 			Passed:    false,
@@ -377,9 +405,9 @@ func (e *Engine) finish(id string, status Status, reason string) {
 	_ = e.store.Save()
 }
 
-// runShellCheck runs a shell command with a 60-second timeout.
-func runShellCheck(ctx context.Context, cwd, command string) (exitCode int, stdout, stderr string, err error) {
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+// runShellCheck runs a shell command, bounded by the given timeout.
+func runShellCheck(ctx context.Context, cwd, command string, timeout time.Duration) (exitCode int, stdout, stderr string, err error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "bash", "-c", command)
@@ -404,4 +432,73 @@ func runShellCheck(ctx context.Context, cwd, command string) (exitCode int, stdo
 		return exitCode, stdout, stderr, runErr
 	}
 	return 0, stdout, stderr, nil
+}
+
+// buildWorkerPrompt augments the loop's base prompt with feedback from the
+// previous iteration's failed verification, so a fresh worker can act on what
+// actually went wrong instead of blindly repeating the same instruction.
+func buildWorkerPrompt(basePrompt string, prev *protocol.LoopIterationRecord) string {
+	if prev == nil {
+		return basePrompt
+	}
+	feedback := buildVerificationFeedback(prev)
+	if feedback == "" {
+		return basePrompt
+	}
+	return basePrompt + "\n\n" + feedback
+}
+
+// buildVerificationFeedback renders the previous iteration's verification
+// failures (failed checks and/or verifier reason) into a worker-facing block.
+// It returns "" when there is nothing actionable to report.
+func buildVerificationFeedback(prev *protocol.LoopIterationRecord) string {
+	var b strings.Builder
+	wrote := false
+
+	for _, c := range prev.VerifyChecks {
+		if c.Passed {
+			continue
+		}
+		wrote = true
+		fmt.Fprintf(&b, "\n$ %s\n(exit code %d)\n", c.Command, c.ExitCode)
+		if out := combineOutput(c.Stdout, c.Stderr); out != "" {
+			b.WriteString(truncateTail(out, maxFeedbackOutputRunes))
+			b.WriteString("\n")
+		}
+	}
+
+	if prev.VerifyPrompt != nil && !prev.VerifyPrompt.Passed && prev.VerifyPrompt.Reason != "" {
+		wrote = true
+		fmt.Fprintf(&b, "\nVerifier feedback: %s\n", prev.VerifyPrompt.Reason)
+	}
+
+	if !wrote {
+		return ""
+	}
+
+	return "The previous attempt did not pass verification. " +
+		"Fix the problems below, then make sure every check passes.\n" + b.String()
+}
+
+// combineOutput joins non-empty trimmed stdout and stderr with a newline.
+func combineOutput(stdout, stderr string) string {
+	parts := make([]string, 0, 2)
+	if s := strings.TrimSpace(stdout); s != "" {
+		parts = append(parts, s)
+	}
+	if s := strings.TrimSpace(stderr); s != "" {
+		parts = append(parts, s)
+	}
+	return strings.Join(parts, "\n")
+}
+
+// truncateTail keeps the last maxRunes runes of s, prefixed with a marker when
+// truncation occurs. The tail is kept because command failures are typically
+// reported at the end of the output.
+func truncateTail(s string, maxRunes int) string {
+	r := []rune(s)
+	if len(r) <= maxRunes {
+		return s
+	}
+	return "...(truncated)\n" + string(r[len(r)-maxRunes:])
 }

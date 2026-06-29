@@ -77,6 +77,14 @@ func runLoopRun(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
+		// Prefer the shared AgentTemplate so the daemon can use all template
+		// fields (system prompt, MCP servers, etc.) while still receiving legacy
+		// provider/model for old daemons.
+		req.AgentTemplate = &protocol.AgentTemplate{
+			Provider: resolved.Provider,
+			Cwd:      cwd,
+			Model:    strPtr(resolved.Model),
+		}
 		req.Provider = strPtr(resolved.Provider)
 		req.Model = strPtr(resolved.Model)
 	}

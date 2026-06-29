@@ -156,6 +156,13 @@ export class ScheduleRpc {
           ? { maxIterations: options.maxIterations }
           : {}),
         ...(typeof options.maxTimeMs === "number" ? { maxTimeMs: options.maxTimeMs } : {}),
+        ...(options.agentTemplate ? { agentTemplate: options.agentTemplate } : {}),
+        ...(options.workerAgentTemplate
+          ? { workerAgentTemplate: options.workerAgentTemplate }
+          : {}),
+        ...(options.verifierAgentTemplate
+          ? { verifierAgentTemplate: options.verifierAgentTemplate }
+          : {}),
       },
       responseType: "loop/run/response",
       timeout: 15000,
@@ -225,6 +232,13 @@ export class ScheduleRpc {
         ...(options.cwd ? { cwd: options.cwd } : {}),
         ...(options.verifyChecks ? { verifyChecks: options.verifyChecks } : {}),
         ...(options.maxIterations != null ? { maxIterations: options.maxIterations } : {}),
+        ...(options.agentTemplate ? { agentTemplate: options.agentTemplate } : {}),
+        ...(options.workerAgentTemplate
+          ? { workerAgentTemplate: options.workerAgentTemplate }
+          : {}),
+        ...(options.verifierAgentTemplate
+          ? { verifierAgentTemplate: options.verifierAgentTemplate }
+          : {}),
       },
       responseType: "loop/update/response",
       timeout: 10000,

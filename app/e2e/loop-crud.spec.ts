@@ -12,7 +12,7 @@ test.describe("loop crud", () => {
     await expect(page).toHaveURL(/\/h\/[^/]+\/loops/);
 
     // Start creating a loop.
-    await page.getByText("+ New Loop").first().click();
+    await page.getByText("New Loop", { exact: true }).first().click();
     await expect(page).toHaveURL(/\/h\/[^/]+\/loops\/create/);
 
     const loopName = `e2e-loop-${Date.now()}`;

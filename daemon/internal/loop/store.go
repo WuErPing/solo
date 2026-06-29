@@ -73,7 +73,9 @@ func (s *Store) Create(req protocol.LoopRunRequest, defaultProvider func() (stri
 	}
 
 	provider := ""
-	if req.Provider != nil && *req.Provider != "" {
+	if req.AgentTemplate != nil && req.AgentTemplate.Provider != "" {
+		provider = req.AgentTemplate.Provider
+	} else if req.Provider != nil && *req.Provider != "" {
 		provider = *req.Provider
 	} else {
 		p, err := defaultProvider()
@@ -81,6 +83,48 @@ func (s *Store) Create(req protocol.LoopRunRequest, defaultProvider func() (stri
 			return nil, fmt.Errorf("no provider available: %w", err)
 		}
 		provider = p
+	}
+
+	// Build shared templates for new code while keeping legacy provider/model
+	// fields populated for old clients during the deprecation window.
+	agentTemplate := req.AgentTemplate
+	if agentTemplate == nil {
+		agentTemplate = &protocol.AgentTemplate{
+			Provider: provider,
+			Cwd:      req.Cwd,
+			Model:    req.Model,
+		}
+	} else if agentTemplate.Cwd == "" {
+		// Copy so we don't mutate the request value.
+		cp := *agentTemplate
+		cp.Cwd = req.Cwd
+		agentTemplate = &cp
+	}
+
+	workerTemplate := req.WorkerAgentTemplate
+	if workerTemplate == nil && (req.WorkerProvider != nil || req.WorkerModel != nil) {
+		wp := ""
+		if req.WorkerProvider != nil {
+			wp = *req.WorkerProvider
+		}
+		workerTemplate = &protocol.AgentTemplate{
+			Provider: wp,
+			Cwd:      req.Cwd,
+			Model:    req.WorkerModel,
+		}
+	}
+
+	verifierTemplate := req.VerifierAgentTemplate
+	if verifierTemplate == nil && (req.VerifierProvider != nil || req.VerifierModel != nil) {
+		vp := ""
+		if req.VerifierProvider != nil {
+			vp = *req.VerifierProvider
+		}
+		verifierTemplate = &protocol.AgentTemplate{
+			Provider: vp,
+			Cwd:      req.Cwd,
+			Model:    req.VerifierModel,
+		}
 	}
 
 	maxIterations := 10
@@ -95,23 +139,26 @@ func (s *Store) Create(req protocol.LoopRunRequest, defaultProvider func() (stri
 
 	now := nowISO()
 	record := &protocol.LoopRecord{
-		ID:            generateID(),
-		Prompt:        req.Prompt,
-		Cwd:           req.Cwd,
-		Provider:      provider,
-		Model:         req.Model,
-		VerifyPrompt:  req.VerifyPrompt,
-		VerifyChecks:  req.VerifyChecks,
-		Archive:       req.Archive != nil && *req.Archive,
-		SleepMs:       sleepMs,
-		MaxIterations: &maxIterations,
-		MaxTimeMs:     req.MaxTimeMs,
-		Status:        string(StatusRunning),
-		CreatedAt:     now,
-		UpdatedAt:     now,
-		StartedAt:     now,
-		NextLogSeq:    1,
-		Iterations:    []protocol.LoopIterationRecord{},
+		ID:                    generateID(),
+		Prompt:                req.Prompt,
+		Cwd:                   req.Cwd,
+		Provider:              provider,
+		Model:                 req.Model,
+		VerifyPrompt:          req.VerifyPrompt,
+		VerifyChecks:          req.VerifyChecks,
+		Archive:               req.Archive != nil && *req.Archive,
+		SleepMs:               sleepMs,
+		MaxIterations:         &maxIterations,
+		MaxTimeMs:             req.MaxTimeMs,
+		Status:                string(StatusRunning),
+		CreatedAt:             now,
+		UpdatedAt:             now,
+		StartedAt:             now,
+		NextLogSeq:            1,
+		Iterations:            []protocol.LoopIterationRecord{},
+		AgentTemplate:         agentTemplate,
+		WorkerAgentTemplate:   workerTemplate,
+		VerifierAgentTemplate: verifierTemplate,
 		Logs: []protocol.LoopLogEntry{
 			{
 				Seq:       1,
@@ -181,7 +228,9 @@ func (s *Store) Update(id string, input UpdateInput) (*protocol.LoopRecord, erro
 
 	hasAnyField := input.Name != nil || input.Archive != nil ||
 		input.Prompt != nil || input.Cwd != nil ||
-		input.VerifyChecks != nil || input.MaxIterations != nil
+		input.VerifyChecks != nil || input.MaxIterations != nil ||
+		input.AgentTemplate != nil || input.WorkerAgentTemplate != nil ||
+		input.VerifierAgentTemplate != nil
 	if !hasAnyField {
 		s.mu.Unlock()
 		return nil, fmt.Errorf("no fields to update")
@@ -204,6 +253,22 @@ func (s *Store) Update(id string, input UpdateInput) (*protocol.LoopRecord, erro
 	}
 	if input.MaxIterations != nil {
 		r.MaxIterations = input.MaxIterations
+	}
+	if input.AgentTemplate != nil {
+		r.AgentTemplate = input.AgentTemplate
+		// Keep legacy fields in sync during the deprecation window.
+		r.Provider = input.AgentTemplate.Provider
+		r.Model = input.AgentTemplate.Model
+	}
+	if input.WorkerAgentTemplate != nil {
+		r.WorkerAgentTemplate = input.WorkerAgentTemplate
+		r.WorkerProvider = &input.WorkerAgentTemplate.Provider
+		r.WorkerModel = input.WorkerAgentTemplate.Model
+	}
+	if input.VerifierAgentTemplate != nil {
+		r.VerifierAgentTemplate = input.VerifierAgentTemplate
+		r.VerifierProvider = &input.VerifierAgentTemplate.Provider
+		r.VerifierModel = input.VerifierAgentTemplate.Model
 	}
 	r.UpdatedAt = nowISO()
 	err := s.saveLocked()
@@ -429,11 +494,19 @@ func (s *Store) load() error {
 }
 
 func toListItem(r *protocol.LoopRecord) protocol.LoopListItem {
+	provider := r.Provider
+	model := r.Model
+	if r.AgentTemplate != nil {
+		provider = r.AgentTemplate.Provider
+		model = r.AgentTemplate.Model
+	}
 	return protocol.LoopListItem{
 		ID:              r.ID,
 		Name:            r.Name,
 		Status:          r.Status,
 		Cwd:             r.Cwd,
+		Provider:        provider,
+		Model:           model,
 		CreatedAt:       r.CreatedAt,
 		UpdatedAt:       r.UpdatedAt,
 		ActiveIteration: r.ActiveIteration,
@@ -445,6 +518,19 @@ func copyRecord(r *protocol.LoopRecord) *protocol.LoopRecord {
 		return nil
 	}
 	c := *r
+
+	if r.AgentTemplate != nil {
+		cp := *r.AgentTemplate
+		c.AgentTemplate = &cp
+	}
+	if r.WorkerAgentTemplate != nil {
+		cp := *r.WorkerAgentTemplate
+		c.WorkerAgentTemplate = &cp
+	}
+	if r.VerifierAgentTemplate != nil {
+		cp := *r.VerifierAgentTemplate
+		c.VerifierAgentTemplate = &cp
+	}
 
 	if r.Name != nil {
 		name := *r.Name

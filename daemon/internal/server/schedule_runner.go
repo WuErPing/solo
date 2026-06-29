@@ -50,23 +50,24 @@ func (r *daemonRunner) Run(sched protocol.StoredSchedule) schedule.RunResult {
 			return schedule.RunResult{AgentID: &agentID, Error: &errMsg}
 		}
 
-	case "new-agent":
-		if sched.Target.Config == nil {
-			errMsg := "new-agent target requires config"
-			return schedule.RunResult{Error: &errMsg}
-		}
-		cwd := sched.Target.Config.Cwd
+	case "new-agent", "provider":
+		cwd := ""
 		if sched.Cwd != nil && *sched.Cwd != "" {
 			cwd = *sched.Cwd
 		}
-		config := &protocol.AgentSessionConfig{
-			Provider: sched.Target.Config.Provider,
-			Cwd:      cwd,
+		config, err := agent.ScheduleTargetToConfig(sched.Target, cwd)
+		if err != nil {
+			errMsg := err.Error()
+			return schedule.RunResult{Error: &errMsg}
 		}
-		ag, err := r.agentMgr.CreateAgent(ctx, config, map[string]string{
+		labels := map[string]string{
 			"source":     "schedule",
 			"scheduleId": sched.ID,
-		})
+		}
+		if sched.Target.Type == "provider" {
+			labels["providerId"] = sched.Target.ProviderID
+		}
+		ag, err := r.agentMgr.CreateAgent(ctx, &config, labels)
 		if err != nil {
 			errMsg := fmt.Sprintf("create agent: %s", err.Error())
 			return schedule.RunResult{Error: &errMsg}
@@ -78,48 +79,9 @@ func (r *daemonRunner) Run(sched protocol.StoredSchedule) schedule.RunResult {
 			return schedule.RunResult{AgentID: &agentID, Error: &errMsg}
 		}
 
-	case "provider":
-		return r.spawnProviderAgent(ctx, sched)
-
 	default:
 		errMsg := fmt.Sprintf("unsupported target type: %s", sched.Target.Type)
 		return schedule.RunResult{Error: &errMsg}
-	}
-
-	return r.waitForAgent(ctx, agentID)
-}
-
-func (r *daemonRunner) spawnProviderAgent(ctx context.Context, sched protocol.StoredSchedule) schedule.RunResult {
-	providerID := sched.Target.ProviderID
-	if providerID == "" {
-		errMsg := "provider target requires providerId"
-		return schedule.RunResult{Error: &errMsg}
-	}
-
-	cwd := ""
-	if sched.Cwd != nil && *sched.Cwd != "" {
-		cwd = *sched.Cwd
-	}
-
-	config := &protocol.AgentSessionConfig{
-		Provider: providerID,
-		Cwd:      cwd,
-	}
-
-	ag, err := r.agentMgr.CreateAgent(ctx, config, map[string]string{
-		"source":     "schedule",
-		"scheduleId": sched.ID,
-		"providerId": providerID,
-	})
-	if err != nil {
-		errMsg := fmt.Sprintf("create agent: %s", err.Error())
-		return schedule.RunResult{Error: &errMsg}
-	}
-	agentID := ag.ID
-	defer r.closeScheduleAgent(agentID)
-	if err := r.agentMgr.SendAgentMessage(ctx, agentID, sched.Prompt, nil, nil, ""); err != nil {
-		errMsg := err.Error()
-		return schedule.RunResult{AgentID: &agentID, Error: &errMsg}
 	}
 
 	return r.waitForAgent(ctx, agentID)

@@ -4,7 +4,6 @@ import {
   ScheduleRunSchema,
   ScheduleSummarySchema,
   StoredScheduleSchema,
-  ScheduleTargetSchema,
   ScheduleNewAgentConfigSchema,
 } from "./types.js";
 

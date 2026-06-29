@@ -289,3 +289,73 @@ type failingSendAgentManager struct {
 func (m *failingSendAgentManager) SendAgentMessage(_ context.Context, _ string, _ string, _ []protocol.ImageAttachment, _ []protocol.AgentAttachment, _ string) error {
 	return fmt.Errorf("send failed")
 }
+
+func TestDaemonRunner_NewAgentUsesAgentTemplate(t *testing.T) {
+	mgr := newFakeAgentManager()
+	runner := newDaemonRunner(mgr, runnerTestLogger)
+
+	model := "claude-3-opus"
+	sched := protocol.StoredSchedule{
+		ID:     "sched-template",
+		Prompt: "test",
+		Target: protocol.ScheduleTarget{
+			Type: "new-agent",
+			Config: &protocol.AgentTemplate{
+				Provider:     "claude",
+				Cwd:          "/config-cwd",
+				Model:        &model,
+				SystemPrompt: "scheduled prompt",
+				McpServers: map[string]protocol.McpServerConfig{
+					"fs": {Type: "stdio", Command: "mcp-fs"},
+				},
+			},
+		},
+	}
+
+	runner.Run(sched)
+
+	if len(mgr.created) != 1 {
+		t.Fatalf("expected 1 agent created, got %d", len(mgr.created))
+	}
+	createdConfig := mgr.created[0]
+	if createdConfig.Provider != "claude" {
+		t.Errorf("provider: got %q, want claude", createdConfig.Provider)
+	}
+	if createdConfig.Cwd != "/config-cwd" {
+		t.Errorf("cwd: got %q, want /config-cwd", createdConfig.Cwd)
+	}
+	if createdConfig.Model == nil || *createdConfig.Model != model {
+		t.Errorf("model: got %v, want %v", createdConfig.Model, &model)
+	}
+	if createdConfig.SystemPrompt != "scheduled prompt" {
+		t.Errorf("systemPrompt: got %q, want scheduled prompt", createdConfig.SystemPrompt)
+	}
+	if len(createdConfig.McpServers) != 1 || createdConfig.McpServers["fs"].Type != "stdio" {
+		t.Errorf("mcpServers: got %#v, want one stdio server", createdConfig.McpServers)
+	}
+}
+
+func TestDaemonRunner_NewAgentRejectsEmptyTemplate(t *testing.T) {
+	mgr := newFakeAgentManager()
+	runner := newDaemonRunner(mgr, runnerTestLogger)
+
+	sched := protocol.StoredSchedule{
+		ID:     "sched-empty",
+		Prompt: "test",
+		Target: protocol.ScheduleTarget{
+			Type: "new-agent",
+		},
+	}
+
+	result := runner.Run(sched)
+
+	if len(mgr.created) != 0 {
+		t.Errorf("expected 0 agents created, got %d", len(mgr.created))
+	}
+	if result.Error == nil {
+		t.Fatal("expected error result")
+	}
+	if *result.Error != "new-agent target requires config" {
+		t.Errorf("error: got %q, want new-agent target requires config", *result.Error)
+	}
+}
