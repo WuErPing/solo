@@ -104,19 +104,6 @@ export const TerminalStateSchema = z.object({
 });
 export type TerminalState = z.infer<typeof TerminalStateSchema>;
 
-export const WorkspaceGitRuntimeSchema = z.object({
-  currentBranch: z.string().nullable().optional(),
-  remoteUrl: z.string().nullable().optional(),
-  isSoloOwnedWorktree: z.boolean().nullable().optional(),
-  isDirty: z.boolean().nullable().optional(),
-});
-export type WorkspaceGitRuntime = z.infer<typeof WorkspaceGitRuntimeSchema>;
-
-export const WorkspaceGitHubRuntimeSchema = z.object({
-  featuresEnabled: z.boolean().nullable().optional(),
-});
-export type WorkspaceGitHubRuntime = z.infer<typeof WorkspaceGitHubRuntimeSchema>;
-
 export const WorkspaceScriptSchema = z.object({
   scriptName: z.string(),
   type: z.string().optional(),
@@ -129,6 +116,19 @@ export const WorkspaceScriptSchema = z.object({
   terminalId: z.string().nullable().optional(),
 });
 export type WorkspaceScript = z.infer<typeof WorkspaceScriptSchema>;
+
+export const WorkspaceGitRuntimeSchema = z.object({
+  currentBranch: z.string().nullable().optional(),
+  remoteUrl: z.string().nullable().optional(),
+  isSoloOwnedWorktree: z.boolean().nullable().optional(),
+  isDirty: z.boolean().nullable().optional(),
+});
+export type WorkspaceGitRuntime = z.infer<typeof WorkspaceGitRuntimeSchema>;
+
+export const WorkspaceGitHubRuntimeSchema = z.object({
+  featuresEnabled: z.boolean().nullable().optional(),
+});
+export type WorkspaceGitHubRuntime = z.infer<typeof WorkspaceGitHubRuntimeSchema>;
 
 export const WorkspaceDescriptorSchema = z.object({
   id: z.string(),
