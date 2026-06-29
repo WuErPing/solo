@@ -1,7 +1,7 @@
 # Solo — Documentation Index
 
 > **Purpose**: Persistent context base for Solo development, CI/CD, and architecture decisions.
-> **Last updated**: 2026-06-21
+> **Last updated**: 2026-06-28
 
 ---
 
@@ -26,6 +26,8 @@ docs/
 │   ├── solo-system-architecture-detailed.svg  # Detailed architecture diagram (SVG)
 │   ├── timeline-design.md                 # Head/Tail model, seq gate, deduplication
 │   └── tmux-pane-content-loading.md       # Tmux agent detection, pane capture, polling, key injection
+├── decisions/                             ← Architecture Decision Records (ADRs)
+│   └── adr-001-shared-agent-template-for-loop-and-schedule.md  # Shared AgentTemplate for Loop & Schedule
 ├── product/                               ← Product feature analysis
 │   ├── agent-profile-switch-export-design.md # Provider Hub / CC-Switch migration design
 │   ├── agent-send-presets-design.md       # Agent send button presets design
@@ -95,7 +97,17 @@ System design, component contracts, and runtime behaviour.
 
 ---
 
-## 2 · Product
+## 2 · Architecture Decision Records
+
+Formal records of significant architectural decisions, including context, alternatives considered, and consequences.
+
+| Document | Status | Summary |
+|----------|--------|---------|
+| [ADR-001: Shared Agent Template for Loop and Schedule](decisions/adr-001-shared-agent-template-for-loop-and-schedule.md) | Accepted | Introduce `AgentTemplate` as a shared user-facing preset for Loop and Schedule, distinct from runtime `AgentSessionConfig` |
+
+---
+
+## 3 · Product
 
 Feature inventory and UI/UX analysis.
 
@@ -115,7 +127,7 @@ Feature inventory and UI/UX analysis.
 
 ---
 
-## 3 · Providers
+## 4 · Providers
 
 AI provider integration research and implementation plans.
 
@@ -132,7 +144,7 @@ AI provider integration research and implementation plans.
 
 ---
 
-## 4 · Technical Analysis
+## 5 · Technical Analysis
 
 Deep dives into specific subsystems.
 
@@ -162,7 +174,7 @@ Deep dives into specific subsystems.
 
 ---
 
-## 5 · Build & CI/CD Quick Reference
+## 6 · Build & CI/CD Quick Reference
 
 > Full commands live in `Makefile`, `.github/workflows/ci.yml`, and `.github/workflows/e2e-nightly.yml`.
 
@@ -196,10 +208,11 @@ Deep dives into specific subsystems.
 
 ---
 
-## 6 · How to Use These Docs
+## 7 · How to Use These Docs
 
 1. **Starting a feature** → read the relevant Architecture doc first, then check Product for existing coverage.
-2. **Adding a provider** → read `providers/` docs for protocol decisions, then `architecture/components.md` § Daemon.
+2. **Making or revisiting an architectural decision** → check `decisions/` for ADRs that record the context, alternatives, and consequences.
+3. **Adding a provider** → read `providers/` docs for protocol decisions, then `architecture/components.md` § Daemon.
 3. **Debugging connectivity** → `architecture/network-architecture.md` (port ACL, common misconfig) + `architecture/deployment.md` (troubleshooting).
 4. **CI/CD changes** → check § 5 above + `Makefile` + `.github/workflows/ci.yml`.
 5. **Agent/context boot** → the `solo-dev-base` skill (`.agents/skills/solo-dev-base/SKILL.md`) loads key facts from this index automatically.
