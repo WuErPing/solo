@@ -1,16 +1,27 @@
 import { useCallback, useMemo, useState } from "react";
-import { View, Text, ScrollView } from "react-native";
+import { View, Text, ScrollView, Pressable } from "react-native";
 import { useIsFocused } from "@react-navigation/native";
 import { router } from "expo-router";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { ArrowLeft, Loader, Pencil, Trash2 } from "lucide-react-native";
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronRight,
+  Loader,
+  Pencil,
+  RotateCcw,
+  Trash2,
+} from "lucide-react-native";
 import { BackHeader } from "@/components/headers/back-header";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { AdaptiveModalSheet, AdaptiveTextInput } from "@/components/adaptive-modal-sheet";
+import { useCreateLoop } from "@/hooks/use-create-loop";
 import { useLoopInspect } from "@/hooks/use-loop-inspect";
 import { useLoopMutations } from "@/hooks/use-loop-mutations";
-import { buildHostLoopsRoute } from "@/utils/host-routes";
+import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
+import { buildHostLoopDetailRoute, buildHostLoopsRoute } from "@/utils/host-routes";
+import type { AgentProvider } from "@server/server/agent/agent-sdk-types";
 
 export function LoopDetailScreen({ serverId, loopId }: { serverId: string; loopId: string }) {
   const isFocused = useIsFocused();
@@ -20,6 +31,11 @@ export function LoopDetailScreen({ serverId, loopId }: { serverId: string; loopI
   }
 
   return <LoopDetailScreenContent serverId={serverId} loopId={loopId} />;
+}
+
+function formatLogTime(timestamp: string): string {
+  const match = timestamp.match(/T(\d{2}:\d{2}:\d{2})/);
+  return match ? match[1]! : timestamp;
 }
 
 function LoopStatusBadge({ status }: { status: string }) {
@@ -55,15 +71,34 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
   const { theme } = useUnistyles();
   const { loop, isLoading, error } = useLoopInspect({ serverId, loopId });
   const { updateLoop, deleteLoop, isUpdating, isDeleting } = useLoopMutations({ serverId });
+  const { createLoop, isCreating } = useCreateLoop({ serverId });
 
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const { entries: providers, isLoading: isProvidersLoading } = useProvidersSnapshot(serverId, {
+    enabled: isEditModalVisible,
+  });
   const [editName, setEditName] = useState("");
   const [editPrompt, setEditPrompt] = useState("");
   const [editCwd, setEditCwd] = useState("");
   const [editVerifyChecks, setEditVerifyChecks] = useState("");
   const [editMaxIterations, setEditMaxIterations] = useState("");
+  const [isAgentOpen, setIsAgentOpen] = useState(false);
+  const [editSelectedProvider, setEditSelectedProvider] = useState<string | null>(null);
+  const [editModel, setEditModel] = useState("");
+  const [editSystemPrompt, setEditSystemPrompt] = useState("");
   const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [retryError, setRetryError] = useState<string | null>(null);
+
+  const providerOptions = useMemo(() => {
+    return (providers ?? []).map((provider) => ({
+      id: provider.provider,
+      label: provider.label || provider.provider,
+      description: provider.description || "",
+      status: provider.status,
+      enabled: provider.enabled,
+    }));
+  }, [providers]);
 
   const handleBack = useCallback(() => {
     router.navigate(buildHostLoopsRoute(serverId));
@@ -75,9 +110,23 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
     setEditCwd(loop?.cwd ?? "");
     setEditVerifyChecks(loop?.verifyChecks?.join("\n") ?? "");
     setEditMaxIterations(loop?.maxIterations?.toString() ?? "");
+    const hasTemplate = Boolean(loop?.agentTemplate);
+    setIsAgentOpen(hasTemplate);
+    setEditSelectedProvider(loop?.agentTemplate?.provider ?? loop?.provider ?? null);
+    setEditModel(loop?.agentTemplate?.model ?? loop?.model ?? "");
+    setEditSystemPrompt(loop?.agentTemplate?.systemPrompt ?? "");
     setEditError(null);
     setIsEditModalVisible(true);
-  }, [loop?.name, loop?.prompt, loop?.cwd, loop?.verifyChecks, loop?.maxIterations]);
+  }, [
+    loop?.name,
+    loop?.prompt,
+    loop?.cwd,
+    loop?.verifyChecks,
+    loop?.maxIterations,
+    loop?.agentTemplate,
+    loop?.provider,
+    loop?.model,
+  ]);
 
   const handleCloseEdit = useCallback(() => {
     setIsEditModalVisible(false);
@@ -106,6 +155,19 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
       setEditError("Max iterations must be a positive number");
       return;
     }
+    if (isAgentOpen && !editSelectedProvider) {
+      setEditError("Please select an agent provider");
+      return;
+    }
+
+    const agentTemplate = editSelectedProvider
+      ? {
+          provider: editSelectedProvider as AgentProvider,
+          cwd: trimmedCwd || "/",
+          model: editModel.trim() || undefined,
+          systemPrompt: editSystemPrompt.trim() || undefined,
+        }
+      : null;
 
     try {
       await updateLoop({
@@ -115,12 +177,25 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
         cwd: trimmedCwd,
         verifyChecks: checks.length > 0 ? checks : null,
         maxIterations: maxIter,
+        agentTemplate,
       });
       setIsEditModalVisible(false);
     } catch (e) {
       setEditError(e instanceof Error ? e.message : "Failed to update loop");
     }
-  }, [updateLoop, loopId, editName, editPrompt, editCwd, editVerifyChecks, editMaxIterations]);
+  }, [
+    updateLoop,
+    loopId,
+    editName,
+    editPrompt,
+    editCwd,
+    editVerifyChecks,
+    editMaxIterations,
+    isAgentOpen,
+    editSelectedProvider,
+    editModel,
+    editSystemPrompt,
+  ]);
 
   const handleOpenDelete = useCallback(() => {
     setIsDeleteModalVisible(true);
@@ -139,6 +214,42 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
       // Error surfaced by mutation
     }
   }, [deleteLoop, loopId, serverId]);
+
+  const handleRetry = useCallback(async () => {
+    if (!loop) {
+      return;
+    }
+    setRetryError(null);
+    // Loops created through the app always carry an agentTemplate; fall back to
+    // the legacy provider/model fields so older loops re-run with the same agent.
+    const agentTemplate =
+      loop.agentTemplate ??
+      (loop.provider
+        ? {
+            provider: loop.provider as AgentProvider,
+            cwd: loop.cwd,
+            model: loop.model ?? undefined,
+          }
+        : null);
+    try {
+      const newLoop = await createLoop({
+        prompt: loop.prompt,
+        cwd: loop.cwd,
+        name: loop.name,
+        verifyPrompt: loop.verifyPrompt,
+        verifyChecks: loop.verifyChecks,
+        sleepMs: loop.sleepMs,
+        maxIterations: loop.maxIterations ?? undefined,
+        maxTimeMs: loop.maxTimeMs ?? undefined,
+        agentTemplate,
+        workerAgentTemplate: loop.workerAgentTemplate ?? null,
+        verifierAgentTemplate: loop.verifierAgentTemplate ?? null,
+      });
+      router.replace(buildHostLoopDetailRoute(serverId, newLoop.id));
+    } catch (e) {
+      setRetryError(e instanceof Error ? e.message : "Failed to re-run loop");
+    }
+  }, [loop, createLoop, serverId]);
 
   if (isLoading) {
     return (
@@ -188,6 +299,17 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
         onBack={handleBack}
         rightContent={
           <View style={styles.headerActions}>
+            {loop.status !== "running" ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                leftIcon={RotateCcw}
+                onPress={handleRetry}
+                disabled={isCreating}
+              >
+                {isCreating ? "Starting..." : "Re-run"}
+              </Button>
+            ) : null}
             <Button variant="ghost" size="sm" leftIcon={Pencil} onPress={handleOpenEdit}>
               Edit
             </Button>
@@ -199,6 +321,11 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
       />
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        {retryError ? (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>{retryError}</Text>
+          </View>
+        ) : null}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle} testID="loop-detail-name">
@@ -223,6 +350,23 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
             <Text style={styles.detailLabel}>Working Directory</Text>
             <Text style={styles.detailValue}>{loop.cwd}</Text>
           </View>
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Agent</Text>
+            <Text style={styles.detailValue}>
+              {loop.agentTemplate?.provider ?? loop.provider ?? "default"}
+              {loop.agentTemplate?.model ?? loop.model
+                ? ` / ${loop.agentTemplate?.model ?? loop.model}`
+                : ""}
+            </Text>
+          </View>
+
+          {loop.agentTemplate?.systemPrompt ? (
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>System Prompt</Text>
+              <Text style={styles.detailValue}>{loop.agentTemplate.systemPrompt}</Text>
+            </View>
+          ) : null}
 
           {loop.verifyChecks && loop.verifyChecks.length > 0 ? (
             <View style={styles.detailRow}>
@@ -255,8 +399,50 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
                 {iteration.failureReason ? (
                   <Text style={styles.errorText}>{iteration.failureReason}</Text>
                 ) : null}
+                {iteration.verifyChecks.map((check, idx) => {
+                  const output = [check.stdout, check.stderr]
+                    .map((s) => s.trim())
+                    .filter((s) => s.length > 0)
+                    .join("\n");
+                  return (
+                    <View key={idx} style={styles.checkRow}>
+                      <Text
+                        style={[
+                          styles.checkCommand,
+                          { color: check.passed ? theme.colors.palette.green[400] : theme.colors.palette.red[500] },
+                        ]}
+                      >
+                        {check.passed ? "✓" : "✗"} {check.command} (exit {check.exitCode})
+                      </Text>
+                      {!check.passed && output ? (
+                        <Text style={styles.codeOutput}>{output}</Text>
+                      ) : null}
+                    </View>
+                  );
+                })}
               </View>
             ))
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Logs</Text>
+          {loop.logs.length === 0 ? (
+            <Text style={styles.emptyText}>No logs yet</Text>
+          ) : (
+            <View style={styles.logList}>
+              {loop.logs.map((log) => (
+                <View key={log.seq} style={styles.logRow}>
+                  <Text style={styles.logMeta}>
+                    {formatLogTime(log.timestamp)} · {log.source}
+                    {log.iteration != null ? ` · #${log.iteration}` : ""}
+                  </Text>
+                  <Text style={[styles.logText, log.level === "error" ? styles.logTextError : null]}>
+                    {log.text}
+                  </Text>
+                </View>
+              ))}
+            </View>
           )}
         </View>
       </ScrollView>
@@ -323,6 +509,96 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
               placeholderTextColor={theme.colors.foregroundMuted}
             />
           </View>
+
+          <View style={styles.section}>
+            <Pressable
+              style={styles.sectionHeader}
+              onPress={() => setIsAgentOpen((prev) => !prev)}
+            >
+              <Text style={styles.sectionTitle}>Agent Template</Text>
+              {isAgentOpen ? (
+                <ChevronDown size={20} color={theme.colors.foregroundMuted} />
+              ) : (
+                <ChevronRight size={20} color={theme.colors.foregroundMuted} />
+              )}
+            </Pressable>
+            {isAgentOpen ? (
+              <View style={styles.sectionContent}>
+                <Text style={styles.helperText}>
+                  Configure the agent that runs this loop. Leave collapsed to use
+                  the default agent.
+                </Text>
+
+                <View style={styles.field}>
+                  <Text style={styles.label}>Provider *</Text>
+                  {isProvidersLoading ? (
+                    <Text style={styles.helperText}>Loading providers...</Text>
+                  ) : providerOptions.length === 0 ? (
+                    <Text style={styles.helperText}>No providers available</Text>
+                  ) : (
+                    <View style={styles.providerList}>
+                      {providerOptions.map((provider) => {
+                        const isSelected = editSelectedProvider === provider.id;
+                        return (
+                          <Pressable
+                            key={provider.id}
+                            style={[
+                              styles.providerCard,
+                              isSelected && styles.providerCardActive,
+                              !provider.enabled && styles.providerCardDisabled,
+                            ]}
+                            onPress={() =>
+                              provider.enabled && setEditSelectedProvider(provider.id)
+                            }
+                            disabled={!provider.enabled}
+                          >
+                            <Text
+                              style={[
+                                styles.providerName,
+                                isSelected && styles.providerNameActive,
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {provider.label}
+                            </Text>
+                            <Text style={styles.providerDesc} numberOfLines={1}>
+                              {provider.status} · {provider.enabled ? "enabled" : "disabled"}
+                              {provider.description ? ` · ${provider.description}` : ""}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={styles.label}>Model</Text>
+                  <AdaptiveTextInput
+                    style={styles.input}
+                    placeholder="e.g. claude-3-opus (optional)"
+                    value={editModel}
+                    onChangeText={setEditModel}
+                    placeholderTextColor={theme.colors.foregroundMuted}
+                  />
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={styles.label}>System Prompt</Text>
+                  <AdaptiveTextInput
+                    style={[styles.input, styles.textArea]}
+                    placeholder="Optional instructions for the agent"
+                    value={editSystemPrompt}
+                    onChangeText={setEditSystemPrompt}
+                    multiline
+                    numberOfLines={3}
+                    placeholderTextColor={theme.colors.foregroundMuted}
+                  />
+                </View>
+              </View>
+            ) : null}
+          </View>
+
           <Button onPress={handleSaveEdit} disabled={isUpdating}>
             Save
           </Button>
@@ -450,6 +726,39 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: theme.fontSize.base,
     fontWeight: "500",
   },
+  checkRow: {
+    gap: theme.spacing[1],
+  },
+  checkCommand: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: "500",
+  },
+  codeOutput: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+    fontFamily: "monospace",
+    backgroundColor: theme.colors.surface1,
+    borderRadius: theme.borderRadius.sm,
+    padding: theme.spacing[2],
+  },
+  logList: {
+    gap: theme.spacing[2],
+  },
+  logRow: {
+    gap: theme.spacing[1],
+  },
+  logMeta: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.xs,
+    fontFamily: "monospace",
+  },
+  logText: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
+  },
+  logTextError: {
+    color: theme.colors.palette.red[500],
+  },
   errorText: {
     color: theme.colors.palette.red[500],
     fontSize: theme.fontSize.sm,
@@ -492,5 +801,42 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     justifyContent: "flex-end",
     gap: theme.spacing[3],
+  },
+  sectionContent: {
+    gap: theme.spacing[4],
+  },
+  helperText: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+  },
+  providerList: {
+    gap: theme.spacing[2],
+  },
+  providerCard: {
+    backgroundColor: theme.colors.surface2,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing[3],
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  providerCardActive: {
+    borderColor: theme.colors.accent,
+    backgroundColor: theme.colors.surface3,
+  },
+  providerCardDisabled: {
+    opacity: 0.5,
+  },
+  providerName: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.base,
+    fontWeight: "500",
+  },
+  providerNameActive: {
+    color: theme.colors.accent,
+  },
+  providerDesc: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+    marginTop: theme.spacing[1],
   },
 }));

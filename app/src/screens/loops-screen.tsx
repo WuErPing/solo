@@ -82,6 +82,12 @@ function LoopCard({
 
       <View style={styles.cardMetaRow}>
         <Text style={styles.cardMetaText}>{loop.cwd}</Text>
+        {loop.provider ? (
+          <Text style={styles.cardMetaText}>
+            · {loop.provider}
+            {loop.model ? ` / ${loop.model}` : ""}
+          </Text>
+        ) : null}
       </View>
 
       <View style={styles.cardActions}>
@@ -144,7 +150,7 @@ function LoopsScreenContent({ serverId }: { serverId: string }) {
         onBack={() => router.navigate("/")}
         rightContent={
           <Button variant="ghost" size="sm" leftIcon={Plus} onPress={handleCreate}>
-            + New Loop
+            New Loop
           </Button>
         }
       />

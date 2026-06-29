@@ -77,6 +77,7 @@ import type {
   AgentSessionConfig,
 } from "../server/agent/agent-sdk-types.js";
 import type { MutableDaemonConfig, MutableDaemonConfigPatch } from "../shared/messages.js";
+import type { AgentSessionConfig as WireAgentSessionConfig } from "../shared/agent-session-config.js";
 import { isRelayClientWebSocketUrl } from "../shared/daemon-endpoints.js";
 import { asUint8Array } from "../shared/terminal-stream-protocol.js";
 import {
@@ -482,6 +483,9 @@ export interface RunLoopOptions {
   sleepMs?: number;
   maxIterations?: number;
   maxTimeMs?: number;
+  agentTemplate?: WireAgentSessionConfig | null;
+  workerAgentTemplate?: WireAgentSessionConfig | null;
+  verifierAgentTemplate?: WireAgentSessionConfig | null;
   requestId?: string;
 }
 export interface InspectLoopOptions {
@@ -505,6 +509,9 @@ export interface UpdateLoopOptions {
   cwd?: string | null;
   verifyChecks?: string[] | null;
   maxIterations?: number | null;
+  agentTemplate?: WireAgentSessionConfig | null;
+  workerAgentTemplate?: WireAgentSessionConfig | null;
+  verifierAgentTemplate?: WireAgentSessionConfig | null;
   requestId?: string;
 }
 export interface DeleteLoopOptions {

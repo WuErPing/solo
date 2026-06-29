@@ -5,6 +5,8 @@ import {
   ScheduleListResponseSchema,
   ScheduleUpdateRequestSchema,
 } from "./rpc-schemas.js";
+import { ScheduleNewAgentConfigSchema } from "./types.js";
+import { AgentSessionConfigSchema } from "../../shared/agent-session-config.js";
 
 const baseSchedule = {
   id: "sched-1",
@@ -120,5 +122,33 @@ describe("ScheduleListResponseSchema", () => {
     expect(result.data.payload.schedules).toHaveLength(2);
     expect(result.data.payload.schedules[0].target.type).toBe("unknown");
     expect(result.data.payload.schedules[1].target.type).toBe("agent");
+  });
+});
+
+describe("ScheduleNewAgentConfigSchema", () => {
+  it("is identical to AgentSessionConfigSchema", () => {
+    expect(ScheduleNewAgentConfigSchema).toBe(AgentSessionConfigSchema);
+  });
+
+  it("accepts all AgentSessionConfig fields", () => {
+    const result = ScheduleNewAgentConfigSchema.safeParse({
+      provider: "claude",
+      cwd: "/project",
+      modeId: "code",
+      model: "claude-3-opus",
+      thinkingOptionId: "extended",
+      featureValues: { temperature: 0.2 },
+      title: "My Agent",
+      approvalPolicy: "dangerous-only",
+      sandboxMode: "none",
+      networkAccess: true,
+      webSearch: true,
+      extra: { codex: { foo: "bar" } },
+      systemPrompt: "be helpful",
+      mcpServers: {
+        fs: { type: "stdio", command: "mcp-fs" },
+      },
+    });
+    expect(result.success).toBe(true);
   });
 });

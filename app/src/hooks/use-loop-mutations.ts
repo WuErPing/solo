@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { LoopRecord } from "@server/server/loop/rpc-schemas";
+import type { AgentSessionConfig } from "@server/shared/agent-session-config";
 import { useHostRuntimeClient } from "@/runtime/host-runtime";
 import { loopsQueryKey } from "./use-loops";
 import { loopInspectQueryKey } from "./use-loop-inspect";
@@ -17,6 +18,9 @@ export interface UpdateLoopInput {
   cwd?: string | null;
   verifyChecks?: string[] | null;
   maxIterations?: number | null;
+  agentTemplate?: AgentSessionConfig | null;
+  workerAgentTemplate?: AgentSessionConfig | null;
+  verifierAgentTemplate?: AgentSessionConfig | null;
 }
 
 export interface LoopMutationsResult {
@@ -45,6 +49,13 @@ export function useLoopMutations({ serverId }: LoopMutationsInput): LoopMutation
         ...(input.cwd ? { cwd: input.cwd } : {}),
         ...(input.verifyChecks ? { verifyChecks: input.verifyChecks } : {}),
         ...(input.maxIterations != null ? { maxIterations: input.maxIterations } : {}),
+        ...(input.agentTemplate ? { agentTemplate: input.agentTemplate } : {}),
+        ...(input.workerAgentTemplate
+          ? { workerAgentTemplate: input.workerAgentTemplate }
+          : {}),
+        ...(input.verifierAgentTemplate
+          ? { verifierAgentTemplate: input.verifierAgentTemplate }
+          : {}),
       });
       if (payload.error) {
         throw new Error(payload.error);

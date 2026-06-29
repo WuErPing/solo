@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AgentProviderSchema } from "../agent/provider-manifest.js";
+import { AgentSessionConfigSchema } from "../../shared/agent-session-config.js";
 
 export const LoopLogEntrySchema = z.object({
   seq: z.number().int().positive(),
@@ -47,11 +48,15 @@ export const LoopRecordSchema = z.object({
   prompt: z.string(),
   cwd: z.string(),
   provider: AgentProviderSchema,
-  model: z.string().nullable(),
-  workerProvider: AgentProviderSchema.nullable(),
-  workerModel: z.string().nullable(),
-  verifierProvider: AgentProviderSchema.nullable(),
-  verifierModel: z.string().nullable(),
+  // The legacy/deprecated provider+model overrides are serialized by the Go
+  // daemon with `omitempty`, so the keys are absent (not null) when unset.
+  // They must be `.optional()` here or the whole response fails validation
+  // and gets silently dropped by the client.
+  model: z.string().optional().nullable(),
+  workerProvider: AgentProviderSchema.optional().nullable(),
+  workerModel: z.string().optional().nullable(),
+  verifierProvider: AgentProviderSchema.optional().nullable(),
+  verifierModel: z.string().optional().nullable(),
   verifyPrompt: z.string().nullable(),
   verifyChecks: z.array(z.string()),
   archive: z.boolean(),
@@ -70,6 +75,9 @@ export const LoopRecordSchema = z.object({
   activeIteration: z.number().int().positive().nullable(),
   activeWorkerAgentId: z.string().nullable(),
   activeVerifierAgentId: z.string().nullable(),
+  agentTemplate: AgentSessionConfigSchema.optional().nullable(),
+  workerAgentTemplate: AgentSessionConfigSchema.optional().nullable(),
+  verifierAgentTemplate: AgentSessionConfigSchema.optional().nullable(),
 });
 
 export const LoopListItemSchema = z.object({
@@ -77,6 +85,10 @@ export const LoopListItemSchema = z.object({
   name: z.string().nullable(),
   status: z.enum(["running", "succeeded", "failed", "stopped"]),
   cwd: z.string(),
+  provider: AgentProviderSchema,
+  // `model` is serialized with `omitempty` by the Go daemon (key absent when
+  // unset), so it must be `.optional()` and not just `.nullable()`.
+  model: z.string().optional().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
   activeIteration: z.number().int().positive().nullable(),
@@ -100,6 +112,9 @@ export const LoopRunRequestSchema = z.object({
   sleepMs: z.number().int().nonnegative().optional(),
   maxIterations: z.number().int().positive().optional(),
   maxTimeMs: z.number().int().positive().optional(),
+  agentTemplate: AgentSessionConfigSchema.optional().nullable(),
+  workerAgentTemplate: AgentSessionConfigSchema.optional().nullable(),
+  verifierAgentTemplate: AgentSessionConfigSchema.optional().nullable(),
 });
 
 export const LoopListRequestSchema = z.object({

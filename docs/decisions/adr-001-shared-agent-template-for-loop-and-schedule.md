@@ -1,204 +1,278 @@
 # ADR-001: Shared Agent Template for Loop and Schedule
 
-## Status
+|              |                                                               |
+|--------------|---------------------------------------------------------------|
+| **Status**   | Accepted                                                      |
+| **Date**     | 2026-06-29                                                    |
+| **Author**   | Solo Agent                                                    |
+| **Scope**    | `protocol/`, `daemon/internal/loop/`, `daemon/internal/schedule/`, `daemon/internal/server/`, `app-bridge/src/shared/` |
+| **Related**  | [Loop Schedule Spec](../product/loop-schedule-spec.md), [Loop Schedule Deep Dive](../product/loop-schedule-deep-dive.md), [App-Bridge Schedule Module](../analysis/app-bridge-schedule-module.md) |
 
-Accepted
+---
 
-## Date
+## 1. Context
 
-2026-06-28
+Solo has two independent subsystems that create and run AI agents on behalf of the user:
 
-## Context
+1. **Loop** (`daemon/internal/loop/`): repeatedly spawns worker and verifier agents until a goal is reached or a limit is hit.
+2. **Schedule** (`daemon/internal/schedule/` + `daemon/internal/server/schedule_runner.go`): periodically triggers a single agent run.
 
-Solo has two features that need to spin up ephemeral agents with pre-selected provider settings:
+Both subsystems ultimately call `agent.AgentManager.CreateAgent(ctx, *protocol.AgentSessionConfig, labels)`, but each carries its own configuration shape into that call:
 
-1. **Schedule** — runs a prompt on a cadence, optionally creating a brand-new agent per run via `ScheduleTarget.Type == "new-agent"`. Its agent configuration is captured today in `ScheduleAgentConfig` (`protocol/message_schedule.go`).
-2. **Loop** — runs a worker agent repeatedly and optionally a verifier agent, retrying until success or max iterations. Its agent configuration is captured today as flat optional fields (`Provider`, `Model`, `WorkerProvider`, `WorkerModel`, `VerifierProvider`, `VerifierModel`) in `protocol/message_loop.go`.
+- Loop stores agent parameters directly on `protocol.LoopRecord`: `Provider`, `Model`, `WorkerProvider`, `WorkerModel`, `VerifierProvider`, `VerifierModel`, `Cwd`.
+- Schedule stores them in `protocol.ScheduleAgentConfig` inside `protocol.ScheduleTarget` for `"new-agent"` targets, and in `protocol.ProviderID` for `"provider"` targets.
 
-Both features conceptually ask the same question: *"When I need a new agent, what provider/model/mode/approval policy/etc. should it use?"* However, they currently express this with different shapes and at different levels of fidelity:
+`protocol.AgentSessionConfig` already contains the canonical agent configuration fields: `Provider`, `Cwd`, `Model`, `ModeID`, `ThinkingOptionID`, `ApprovalPolicy`, `SandboxMode`, `NetworkAccess`, `WebSearch`, `SystemPrompt`, `McpServers`, `Extra`, etc. Neither Loop nor Schedule uses the full surface today.
 
-- Schedule supports provider, model, mode, thinking option, approval policy, sandbox, network, web search, system prompt, MCP servers, and extra provider options.
-- Loop supports only provider and model for worker/verifier.
+This ADR is a prerequisite for the broader Loop-as-a-Schedule-type unification documented in [Loop Schedule Spec](../product/loop-schedule-spec.md). Before we can merge the execution paths, we must first merge the *configuration* path.
 
-Meanwhile, the runtime agent creation API uses `AgentSessionConfig` (`protocol/message_common.go`), which includes additional runtime-only fields such as `Cwd`, `FeatureValues`, and `OutputSchema`.
+---
 
-This duplication and mismatch creates several problems:
+## 2. Problem Statement (from first principles)
 
-- **Feature parity gaps**: Loop cannot configure mode, approval policy, system prompt, or MCP servers for its worker/verifier agents.
-- **Code duplication**: Provider/model/mode selection logic is implemented or partially implemented in multiple places (schedule create/edit modals, loop create screen, agent creation flow).
-- **Inconsistent UX**: Users learn different configuration patterns for essentially the same "configure a new agent" task.
-- **Maintenance burden**: Adding a new agent capability requires updating `AgentSessionConfig`, `ScheduleAgentConfig`, and then Loop's flat fields separately.
+1. **Single responsibility / single source of truth.** The definition of "how to configure an agent" should live in one place. Today it is split across `LoopRecord`, `ScheduleAgentConfig`, and `AgentSessionConfig`.
+2. **Don’t repeat yourself.** Adding a new agent capability—such as MCP servers, a system prompt, or sandbox mode—requires touching Loop, Schedule, and the conversion logic in at least two runners. In practice one path is often forgotten.
+3. **Protocol-first.** The wire format should describe intent in the same vocabulary everywhere. A schedule "new-agent target" and a loop "worker agent" are both requests for a new agent with a given configuration; they should use the same message shape.
+4. **Type erasure is a symptom, not a solution.** The current `ScheduleAgentConfig.Extra map[string]interface{}` and the Loop record’s flat fields are both partial workarounds for not committing to a shared typed configuration.
 
-Related documents:
+---
 
-- [`docs/product/loop-schedule-spec.md`](../product/loop-schedule-spec.md)
-- [`docs/product/loop-schedule-design.md`](../product/loop-schedule-design.md)
-- [`docs/analysis/app-bridge-schedule-module.md`](../analysis/app-bridge-schedule-module.md)
-- [`docs/architecture/components.md`](../architecture/components.md) § Agent / Daemon
+## 3. Decision
 
-## Decision
+Adopt `protocol.AgentSessionConfig` as the **shared agent template** for both Loop and Schedule.
 
-Introduce a shared, user-facing abstraction called **`AgentTemplate`** that represents a preset for creating a new agent. Both Loop and Schedule will use `AgentTemplate` to configure their agent targets. The template is converted into a runtime `AgentSessionConfig` at execution time.
+- A new exported type alias `AgentTemplate = AgentSessionConfig` is introduced in `protocol/` to make intent explicit on the wire: this is a *template* used to instantiate an agent, not an already-running session.
+- `protocol.ScheduleAgentConfig` is **deprecated** and replaced by `AgentTemplate` inside `ScheduleTarget.Config`.
+- `protocol.LoopRecord` gains explicit template fields for the worker and verifier, while the existing flat provider/model fields are retained for backward compatibility but marked deprecated.
+- A single helper `agentTemplateToConfig(t AgentTemplate) AgentSessionConfig` (or direct use of the alias) is used by both `loop.Engine` and `schedule.daemonRunner` when calling `AgentManager.CreateAgent`.
 
-### 1. `AgentTemplate` is distinct from `AgentSessionConfig`
-
-| Concern | `AgentTemplate` | `AgentSessionConfig` |
-|---|---|---|
-| Semantics | User-defined preset for "what kind of agent to create" | Runtime parameter for `AgentManager.CreateAgent` |
-| Scope | Shared by Loop, Schedule, and future features | Used by chat/agent creation and runtime execution |
-| `cwd` | Not included; injected from Loop/Schedule context | Included; the actual working directory for this session |
-| Lifecycle | Persisted in Loop/Schedule records | Ephemeral; built per execution |
-| Fields | Provider, model, mode, thinking option, approval policy, sandbox, network, web search, system prompt, MCP servers, extra | Template-derived fields + `cwd` + `featureValues` + `outputSchema` + runtime labels |
-
-### 2. `AgentTemplate` fields
+### 3.1 Concrete shape
 
 ```go
-// protocol/agent_template.go
-type AgentTemplate struct {
-    Provider         string
-    Model            *string
-    ModeID           *string
-    ThinkingOptionID *string
-    Title            *string
-    ApprovalPolicy   string
-    SandboxMode      string
-    NetworkAccess    bool
-    WebSearch        bool
-    SystemPrompt     string
-    Extra            map[string]interface{}
-    McpServers       map[string]McpServerConfig
-}
+// protocol/message_common.go
+
+// AgentTemplate is a reusable configuration for instantiating an agent.
+// It is intentionally identical to AgentSessionConfig so that any field
+// available to a chat agent is also available to loop/schedule agents.
+type AgentTemplate = AgentSessionConfig
 ```
 
-`Cwd` is intentionally excluded because it is a property of the execution context (Loop or Schedule), not of the agent preset.
-
-### 3. Runtime conversion
-
-A single helper converts a template into a runtime session config:
-
 ```go
-func NewAgentSessionConfigFromTemplate(t *AgentTemplate, cwd string) *AgentSessionConfig
-```
+// protocol/message_schedule.go
 
-Loop and Schedule call this helper before `agentMgr.CreateAgent`, passing their own `cwd`.
-
-### 4. Loop uses `AgentTemplate` for worker and verifier
-
-`LoopRecord` and `LoopRunRequest` replace the flat provider/model fields with:
-
-```go
-type LoopRecord struct {
-    // ... prompt, cwd, maxIterations, etc.
-    Worker   AgentTemplate  `json:"worker"`
-    Verifier *AgentTemplate `json:"verifier,omitempty"`
-}
-```
-
-The verifier is optional. When omitted, the engine may fall back to the worker template for prompt-based verification.
-
-### 5. Schedule replaces `ScheduleAgentConfig` with `AgentTemplate`
-
-```go
 type ScheduleTarget struct {
-    Type       string          `json:"type"` // "agent" | "new-agent" | "provider"
-    AgentID    string          `json:"agentId,omitempty"`
-    ProviderID string          `json:"providerId,omitempty"`
-    Config     *AgentTemplate  `json:"config,omitempty"`
+    Type       string         `json:"type"`                 // "agent" | "new-agent" | "provider"
+    AgentID    string         `json:"agentId,omitempty"`    // existing agent id when Type == "agent"
+    ProviderID string         `json:"providerId,omitempty"` // provider id when Type == "provider"
+    Config     *AgentTemplate `json:"config,omitempty"`     // template when Type == "new-agent"
+}
+
+// ScheduleAgentConfig is kept as a deprecated alias for one release cycle.
+// Deprecated: use AgentTemplate instead.
+type ScheduleAgentConfig = AgentTemplate
+```
+
+```go
+// protocol/message_loop.go
+
+type LoopRecord struct {
+    // ... existing fields ...
+
+    // AgentTemplate is the base template for any agent this loop creates.
+    // It replaces Provider/Model for new code.
+    AgentTemplate *AgentTemplate `json:"agentTemplate,omitempty"`
+
+    // WorkerAgentTemplate overrides AgentTemplate for the worker agent.
+    WorkerAgentTemplate *AgentTemplate `json:"workerAgentTemplate,omitempty"`
+
+    // VerifierAgentTemplate overrides AgentTemplate for the verifier agent.
+    VerifierAgentTemplate *AgentTemplate `json:"verifierAgentTemplate,omitempty"`
+
+    // Legacy fields retained for backward compatibility. They are ignored
+    // when the corresponding *AgentTemplate field is non-nil.
+    Provider         string  `json:"provider"`
+    Model            *string `json:"model,omitempty"`
+    WorkerProvider   *string `json:"workerProvider,omitempty"`
+    WorkerModel      *string `json:"workerModel,omitempty"`
+    VerifierProvider *string `json:"verifierProvider,omitempty"`
+    VerifierModel    *string `json:"verifierModel,omitempty"`
 }
 ```
 
-`ScheduleAgentConfig` is removed; `AgentTemplate` is its semantic replacement.
+### 3.2 Resolution rules
 
-### 6. Shared UI component
+When Loop or Schedule needs an `AgentSessionConfig`:
 
-The App layer introduces a reusable **`AgentTemplateEditor`** component that is used by:
+1. If an explicit template is provided, use it as-is.
+2. Else, fall back to legacy flat fields (`Provider`, `Model`, etc.) converted into an `AgentSessionConfig`.
+3. Else, for Schedule `"provider"` targets, use `ProviderID` with an empty/default `AgentSessionConfig`.
+4. Else, fail fast with a clear validation error.
 
-- Loop create/edit screens (worker section + verifier section)
-- Schedule create/edit modals for `new-agent` targets
+This preserves existing persisted data and wire clients while making the new template shape the source of truth going forward.
 
-The editor encapsulates provider, model, mode, thinking option, approval policy, sandbox, network, web search, system prompt, and MCP server selection. It operates on a partial `AgentTemplate` value.
+---
 
-### 7. Backwards compatibility
-
-- **Schedule**: `AgentTemplate` is field-compatible with the old `ScheduleAgentConfig`, so existing persisted JSON deserializes without a breaking change. The old `config.cwd` field, if present, is migrated to `Schedule.Cwd`.
-- **Loop**: Existing persisted `LoopRecord` entries with flat provider/model fields are migrated at load time into `Worker` and `Verifier` templates.
-
-## Alternatives Considered
-
-### Alternative A: Reuse `AgentSessionConfig` directly
-
-Both Loop and Schedule would store `AgentSessionConfig` instead of introducing `AgentTemplate`.
-
-- **Pros**: One fewer type; no conversion function.
-- **Cons**:
-  - `AgentSessionConfig` contains runtime-only concerns (`cwd`, `outputSchema`, `featureValues`) that do not belong in a persisted user preset.
-  - It blurs the line between "what agent to create" and "how to create it this time", making future refactors harder.
-  - Persisting runtime fields can lead to stale or context-leaking data.
-
-**Rejected**: The distinction between user preset and runtime config is worth preserving.
-
-### Alternative B: Keep Loop and Schedule separate
-
-Leave Loop's flat fields and Schedule's `ScheduleAgentConfig` unchanged.
-
-- **Pros**: No refactoring risk; minimal immediate churn.
-- **Cons**:
-  - Loop cannot support mode, approval policy, system prompt, MCP servers, etc.
-  - Every new agent capability must be added in three places.
-  - Users face inconsistent configuration UX.
-
-**Rejected**: The duplication and feature-parity gap are unacceptable long term.
-
-### Alternative C: Make `AgentTemplate` include `cwd`
-
-Allow the template to override the working directory.
-
-- **Pros**: More flexible; a single template can be reused across different directories.
-- **Cons**:
-  - Complicates the execution model: which wins, template `cwd` or Loop/Schedule `cwd`?
-  - Makes templates less portable and harder to reason about.
-
-**Rejected**: `cwd` is execution context, not agent preset. If directory-specific presets are needed later, they can be added as an explicit override without changing the core model.
-
-## Consequences
+## 4. Consequences
 
 ### Positive
 
-- **Feature parity**: Loop's worker and verifier agents gain access to the full set of agent capabilities (mode, approval policy, system prompt, MCP servers, etc.).
-- **Single source of truth**: One protocol type, one app-bridge schema, and one UI component for "configure a new agent".
-- **Easier maintenance**: Adding a new agent capability requires updating `AgentTemplate`, the conversion helper, and the editor — not three or more separate structs.
-- **Consistent UX**: Users configure agents the same way in Loop, Schedule, and future features.
-- **Clear separation of concerns**: User preset vs. runtime config is explicit.
+- One place to add new agent capabilities.
+- Loop and Schedule can both set system prompts, MCP servers, sandbox mode, approval policy, network access, etc.
+- Existing tests and persisted JSON continue to work during the deprecation window.
+- Unblocks the Loop-as-Schedule-type work described in the Loop Schedule Spec.
 
 ### Negative / Risks
 
-- **Migration cost**: Loop persisted records need a one-time migration from flat fields to `AgentTemplate`.
-- **Coordination cost**: This change touches protocol, daemon, app-bridge, and app; it must land in a coordinated PR or feature branch.
-- **UI scope**: `AgentTemplateEditor` is a non-trivial component; it must handle provider loading, model/mode availability, and validation.
+- `AgentTemplate` and `AgentSessionConfig` are the same type; callers must not confuse a not-yet-created template with a live session config. The alias name makes intent explicit, but the compiler will not enforce it.
+- Schedule target validation changes shape; older app versions that send `ScheduleAgentConfig` will still work because the alias preserves JSON field names, but new fields will be ignored by old code.
+- Loop records grow new optional fields; we must be careful that old `loops.json` files deserialize cleanly.
 
-## Implementation Notes
+---
 
-Recommended file changes:
+## 5. TDD-First Acceptance Criteria
 
-- `protocol/agent_template.go` — new `AgentTemplate` type and conversion helper.
-- `protocol/message_schedule.go` — replace `ScheduleAgentConfig` with `AgentTemplate`.
-- `protocol/message_loop.go` — replace flat provider/model fields with `Worker`/`Verifier AgentTemplate`.
-- `daemon/internal/server/schedule_runner.go` — convert template to `AgentSessionConfig`.
-- `daemon/internal/loop/engine.go` — worker/verifier both use `NewAgentSessionConfigFromTemplate`.
-- `daemon/internal/loop/store.go` — migrate old Loop records on load.
-- `app-bridge/src/server/agent/agent-template-schema.ts` — shared Zod schema.
-- `app-bridge/src/server/schedule/types.ts` — reuse `AgentTemplateSchema`.
-- `app-bridge/src/server/loop/rpc-schemas.ts` — reuse `AgentTemplateSchema` for worker/verifier.
-- `app/src/components/agent-template-editor.tsx` — new reusable editor.
-- `app/src/screens/loop-create-screen.tsx` and `loop-detail-screen.tsx` — use editor.
-- `app/src/components/schedule-create-modal.tsx` and `schedule-edit-modal.tsx` — use editor for `new-agent` targets.
+The following tests must exist and pass **before** the implementation is considered complete. They are listed in dependency order.
 
-## References
+### 5.1 Protocol unit tests
 
-- [`protocol/message_common.go`](../../protocol/message_common.go) — `AgentSessionConfig`
-- [`protocol/message_schedule.go`](../../protocol/message_schedule.go) — `ScheduleTarget`, `ScheduleAgentConfig`
-- [`protocol/message_loop.go`](../../protocol/message_loop.go) — `LoopRecord`, `LoopRunRequest`
-- [`daemon/internal/loop/engine.go`](../../daemon/internal/loop/engine.go) — Loop worker/verifier agent creation
-- [`daemon/internal/server/schedule_runner.go`](../../daemon/internal/server/schedule_runner.go) — Schedule execution
-- [`app-bridge/src/server/schedule/types.ts`](../../app-bridge/src/server/schedule/types.ts) — Schedule schemas
-- [`app-bridge/src/server/loop/rpc-schemas.ts`](../../app-bridge/src/server/loop/rpc-schemas.ts) — Loop schemas
+1. `TestAgentTemplateAlias` — `protocol.AgentTemplate` serializes/deserializes as `AgentSessionConfig`.
+2. `TestScheduleTargetWithAgentTemplate` — a `ScheduleTarget{Type:"new-agent", Config: &AgentTemplate{...}}` round-trips through JSON and all `AgentSessionConfig` fields are preserved.
+3. `TestScheduleAgentConfigDeprecatedAlias` — a JSON object previously decoded as `ScheduleAgentConfig` still decodes into the new `AgentTemplate` field.
+4. `TestLoopRecordLegacyCompatibility` — a `LoopRecord` JSON without `agentTemplate`/`workerAgentTemplate`/`verifierAgentTemplate` decodes successfully and legacy provider/model fields are populated.
+5. `TestLoopRecordTemplateRoundTrip` — a `LoopRecord` with `AgentTemplate`/`WorkerAgentTemplate`/`VerifierAgentTemplate` round-trips through JSON preserving all template fields.
+
+### 5.2 Daemon unit tests
+
+6. `TestLoopEngineUsesAgentTemplate` — given a `LoopRecord` with `WorkerAgentTemplate`, the engine calls `AgentManager.CreateAgent` with an `AgentSessionConfig` that has `Provider`, `Cwd`, `Model`, `SystemPrompt`, and `McpServers` matching the template.
+7. `TestLoopEngineFallsBackToLegacyProviderModel` — given a `LoopRecord` without templates but with `Provider`/`Model`, the engine still creates an agent with the correct provider/model.
+8. `TestScheduleRunnerUsesAgentTemplate` — given a `StoredSchedule` with `Target.Type == "new-agent"` and a full `AgentTemplate`, `daemonRunner.Run` creates an agent using all template fields.
+9. `TestScheduleRunnerRejectsEmptyTemplate` — a `"new-agent"` target with a nil/empty config returns a failed `RunResult` without panicking.
+
+### 5.3 Integration tests
+
+10. `TestScheduleRunWithSystemPrompt` — a schedule run whose template contains `SystemPrompt` produces an agent whose snapshot/config reflects that system prompt.
+11. `TestLoopRunWithMcpServers` — a loop run whose `WorkerAgentTemplate` contains `McpServers` creates a worker agent with those servers configured.
+
+### 5.4 App-Bridge type tests
+
+12. `TestScheduleAgentConfigSchemaMatchesAgentSessionConfig` — the Zod/schema shape for schedule new-agent config in `app-bridge/src/server/schedule/rpc-schemas.ts` includes the same fields as `AgentSessionConfigSchema`.
+13. `TestLoopRecordSchemaIncludesAgentTemplate` — the loop record schema in `app-bridge/src/server/loop/rpc-schemas.ts` includes optional `agentTemplate`, `workerAgentTemplate`, and `verifierAgentTemplate` fields typed as `AgentSessionConfigSchema`.
+
+---
+
+## 6. Implementation Plan
+
+### Phase 1 — Protocol (1 day)
+
+1. Add `type AgentTemplate = AgentSessionConfig` to `protocol/message_common.go`.
+2. Change `ScheduleTarget.Config` from `*ScheduleAgentConfig` to `*AgentTemplate` in `protocol/message_schedule.go`.
+3. Add `// Deprecated: use AgentTemplate.` alias `type ScheduleAgentConfig = AgentTemplate`.
+4. Add `AgentTemplate`, `WorkerAgentTemplate`, `VerifierAgentTemplate` to `protocol.LoopRecord` in `protocol/message_loop.go`.
+5. Mark legacy `Provider`/`Model`/`WorkerProvider`/`WorkerModel`/`VerifierProvider`/`VerifierModel` as deprecated in comments.
+6. Write the protocol unit tests from §5.1.
+
+### Phase 2 — Daemon helpers (1 day)
+
+7. Add a small package `daemon/internal/agent/template` (or a helper in `daemon/internal/agent`) with:
+   - `func FromTemplate(t protocol.AgentTemplate) protocol.AgentSessionConfig`
+   - `func LoopRecordToWorkerConfig(r protocol.LoopRecord) (protocol.AgentSessionConfig, error)`
+   - `func LoopRecordToVerifierConfig(r protocol.LoopRecord) (protocol.AgentSessionConfig, error)`
+   - `func ScheduleTargetToConfig(t protocol.ScheduleTarget, fallbackCwd string) (protocol.AgentSessionConfig, error)`
+8. Write unit tests for each helper covering template precedence and legacy fallback.
+
+### Phase 3 — Adopt in runners (1 day)
+
+9. Update `daemon/internal/loop/engine.go`:
+   - `runWorker` uses `LoopRecordToWorkerConfig`.
+   - `runVerifyPrompt` uses `LoopRecordToVerifierConfig`.
+10. Update `daemon/internal/server/schedule_runner.go`:
+    - `"new-agent"` path uses `ScheduleTargetToConfig`.
+    - `"provider"` path continues to use `ProviderID` with an empty/default config.
+11. Run all daemon tests with `-short -race`.
+
+### Phase 4 — App-Bridge types (1 day)
+
+12. Mirror the new optional fields in `app-bridge/src/shared/messages.ts` and the loop/schedule RPC schemas.
+13. Add schema tests that assert `AgentTemplateSchema` equals `AgentSessionConfigSchema`.
+14. Run `npm test` in `app-bridge` and `cd app && npx expo lint && npx tsc --noEmit`.
+
+### Phase 5 — Documentation and deprecation notice (0.5 day)
+
+15. Update this ADR status to **Accepted** once CI is green.
+16. Add a note to `docs/product/loop-schedule-spec.md` §3.1/§3.2 that agent configuration now uses the shared `AgentTemplate`.
+17. Open a follow-up ticket to remove `ScheduleAgentConfig` and Loop legacy provider fields after the deprecation window.
+
+---
+
+## 7. Migration Path
+
+### Server-side persisted data
+
+- `~/.solo/schedules.json`: existing `"config"` objects deserialize as `AgentTemplate` because the JSON field names and types are unchanged. No migration needed.
+- `~/.solo/loops.json`: existing records have no template fields, so they fall back to legacy provider/model fields. No migration needed.
+
+### Wire clients
+
+- Old clients sending `ScheduleAgentConfig` continue to work.
+- New clients may send `AgentTemplate` with extra fields; old servers that do not yet understand those fields will ignore them at the JSON level.
+
+### Code cleanup timeline
+
+| Release | Action |
+|---------|--------|
+| v0.7.x (this ADR) | Introduce `AgentTemplate`; keep deprecated aliases and legacy fields. |
+| v0.8.x | Migrate UI and CLI to emit `AgentTemplate` only. |
+| v0.9.x | Remove deprecated `ScheduleAgentConfig` alias and Loop legacy provider/model fields. |
+
+---
+
+## 8. Implementation Notes
+
+The decision has been implemented as described above. Key files and deviations:
+
+- `protocol/message_common.go` — added `type AgentTemplate = AgentSessionConfig`.
+- `protocol/message_schedule.go` — `ScheduleTarget.Config` is now `*AgentTemplate`; `ScheduleAgentConfig` is a deprecated alias.
+- `protocol/message_loop.go` — `LoopRecord` and `LoopRunRequest` gained `AgentTemplate`, `WorkerAgentTemplate`, and `VerifierAgentTemplate` while retaining legacy provider/model fields.
+- `daemon/internal/agent/template.go` — new helper functions `AgentTemplate`, `LoopRecordToWorkerConfig`, `LoopRecordToVerifierConfig`, and `ScheduleTargetToConfig` centralize template resolution.
+- `daemon/internal/loop/engine.go` — worker and verifier agents now use the helpers; `Engine` accepts an `agentManager` interface to enable unit testing.
+- `daemon/internal/loop/store.go` — `Create` populates both template and legacy fields for backward compatibility during the deprecation window.
+- `daemon/internal/server/schedule_runner.go` — `"new-agent"` and `"provider"` targets now share a single code path via `ScheduleTargetToConfig`.
+- `app-bridge/src/shared/agent-session-config.ts` — extracted `AgentSessionConfigSchema` and `McpServerConfigSchema` to avoid a circular import with loop/schedule schemas.
+- `app-bridge/src/client/daemon-client.ts` / `schedule-rpc.ts` — `RunLoopOptions` and `UpdateLoopOptions` expose template fields.
+- `app/src/screens/loop-create-screen.tsx` — added an expandable "Agent Template" section with provider, model, and system prompt.
+- `app/src/screens/loop-detail-screen.tsx` — displays the resolved agent and system prompt, and the edit modal supports updating the agent template.
+- `app/src/screens/loops-screen.tsx` — loop cards show provider and model.
+- `app-bridge/src/server/schedule/types.ts` — `ScheduleNewAgentConfigSchema` is now `AgentSessionConfigSchema`.
+- `app-bridge/src/server/loop/rpc-schemas.ts` — `LoopRecordSchema` and `LoopRunRequestSchema` include optional nullable template fields.
+
+### Test coverage
+
+- Protocol: `protocol/agent_template_test.go` covers alias identity, schedule target round-trip, deprecated alias decoding, and loop record legacy/template compatibility.
+- Daemon helpers: `daemon/internal/agent/template_test.go` covers all resolution paths and error cases.
+- Loop engine: `daemon/internal/loop/engine_test.go` covers template use and legacy fallback with a fake agent manager.
+- Schedule runner: `daemon/internal/server/schedule_runner_test.go` covers full template propagation and empty-template rejection.
+- Loop store: extended `daemon/internal/loop/store_test.go` covers template updates and list-item provider/model propagation.
+- App-Bridge: `app-bridge/src/server/loop/rpc-schemas.test.ts` and extended `app-bridge/src/server/schedule/rpc-schemas.test.ts` cover schema shape and parsing.
+
+### Known pre-existing test flakiness
+
+`app/src/terminal/runtime/terminal-emulator-runtime.browser.test.ts` occasionally times out in local runs. It is unrelated to this change.
+
+---
+
+## 9. References
+
+- `protocol/message_common.go` — `AgentSessionConfig`
+- `protocol/message_schedule.go` — `ScheduleTarget`, `ScheduleAgentConfig`
+- `protocol/message_loop.go` — `LoopRecord`
+- `daemon/internal/agent/template.go` — template resolution helpers
+- `daemon/internal/loop/engine.go` — worker/verifier agent creation
+- `daemon/internal/loop/store.go` — loop record creation
+- `daemon/internal/server/schedule_runner.go` — schedule agent creation
+- `daemon/internal/schedule/executor.go` — schedule executor tick
+- `app-bridge/src/shared/agent-session-config.ts` — canonical agent config schema
+- `app/src/screens/loop-create-screen.tsx` — loop creation UI with agent template
+- `app/src/screens/loop-detail-screen.tsx` — loop detail/edit UI with agent template
+- `app/src/screens/loops-screen.tsx` — loop list UI showing agent provider/model
+- `docs/product/loop-schedule-spec.md` — Loop-as-Schedule unification spec
+- `docs/product/loop-schedule-deep-dive.md` — Loop Controller and Step Executor deep dive

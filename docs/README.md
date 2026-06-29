@@ -1,7 +1,7 @@
 # Solo — Documentation Index
 
 > **Purpose**: Persistent context base for Solo development, CI/CD, and architecture decisions.
-> **Last updated**: 2026-06-28
+> **Last updated**: 2026-06-29
 
 ---
 
@@ -68,6 +68,16 @@ docs/
     ├── tmux-pane-first-principles-2026-06-20.md # Tmux pane first-principles analysis
     └── tmux-transport-disposed-race.md      # Tmux Transport disposed race analysis
 ```
+
+---
+
+## 0 · Decisions
+
+Architecture Decision Records (ADRs) capture significant design decisions that shape the codebase.
+
+| Document | Type | Summary |
+|----------|------|---------|
+| [ADR-001: Shared Agent Template for Loop and Schedule](decisions/adr-001-shared-agent-template-for-loop-and-schedule.md) | ADR | Unify Loop and Schedule agent configuration on `protocol.AgentSessionConfig` (the shared `AgentTemplate`) to eliminate duplication and unblock Loop-as-Schedule unification. |
 
 ---
 

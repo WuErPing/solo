@@ -152,6 +152,15 @@ type StoredSchedule struct {
 }
 ```
 
+> **Agent configuration unification (ADR-001)**
+>
+> Both Schedule `"new-agent"` targets and Loop worker/verifier agents now use
+> `protocol.AgentSessionConfig` as the shared `AgentTemplate`. This means any
+> agent capability exposed to chat agents—`systemPrompt`, `mcpServers`,
+> `approvalPolicy`, `sandboxMode`, `networkAccess`, `webSearch`, etc.—is also
+> available to scheduled and loop agents. See
+> [ADR-001: Shared Agent Template for Loop and Schedule](../decisions/adr-001-shared-agent-template-for-loop-and-schedule.md).
+
 ### 3.2 新增 Loop 类型
 
 ```go

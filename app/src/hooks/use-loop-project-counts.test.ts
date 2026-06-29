@@ -8,6 +8,8 @@ function makeLoop(cwd: string, serverId: string): LoopListItem & { serverId: str
     name: null,
     status: "running",
     cwd,
+    provider: "claude",
+    model: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     activeIteration: null,

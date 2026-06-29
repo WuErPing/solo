@@ -47,12 +47,6 @@ type LoopRecord struct {
 	Name                  *string               `json:"name"`
 	Prompt                string                `json:"prompt"`
 	Cwd                   string                `json:"cwd"`
-	Provider              string                `json:"provider"`
-	Model                 *string               `json:"model"`
-	WorkerProvider        *string               `json:"workerProvider"`
-	WorkerModel           *string               `json:"workerModel"`
-	VerifierProvider      *string               `json:"verifierProvider"`
-	VerifierModel         *string               `json:"verifierModel"`
 	VerifyPrompt          *string               `json:"verifyPrompt"`
 	VerifyChecks          []string              `json:"verifyChecks"`
 	Archive               bool                  `json:"archive"`
@@ -71,6 +65,46 @@ type LoopRecord struct {
 	ActiveIteration       *int                  `json:"activeIteration"`
 	ActiveWorkerAgentID   *string               `json:"activeWorkerAgentId"`
 	ActiveVerifierAgentID *string               `json:"activeVerifierAgentId"`
+
+	// AgentTemplate is the base template for any agent this loop creates.
+	// It replaces Provider/Model for new code.
+	AgentTemplate *AgentTemplate `json:"agentTemplate,omitempty"`
+
+	// WorkerAgentTemplate overrides AgentTemplate for the worker agent.
+	WorkerAgentTemplate *AgentTemplate `json:"workerAgentTemplate,omitempty"`
+
+	// VerifierAgentTemplate overrides AgentTemplate for the verifier agent.
+	VerifierAgentTemplate *AgentTemplate `json:"verifierAgentTemplate,omitempty"`
+
+	// Provider is the legacy default provider for the loop. It is ignored when
+	// AgentTemplate or WorkerAgentTemplate is set.
+	// Deprecated: use AgentTemplate instead.
+	Provider string `json:"provider"`
+
+	// Model is the legacy default model for the loop. It is ignored when
+	// AgentTemplate or WorkerAgentTemplate is set.
+	// Deprecated: use AgentTemplate instead.
+	Model *string `json:"model,omitempty"`
+
+	// WorkerProvider is the legacy worker provider override. It is ignored when
+	// WorkerAgentTemplate is set.
+	// Deprecated: use WorkerAgentTemplate instead.
+	WorkerProvider *string `json:"workerProvider,omitempty"`
+
+	// WorkerModel is the legacy worker model override. It is ignored when
+	// WorkerAgentTemplate is set.
+	// Deprecated: use WorkerAgentTemplate instead.
+	WorkerModel *string `json:"workerModel,omitempty"`
+
+	// VerifierProvider is the legacy verifier provider override. It is ignored
+	// when VerifierAgentTemplate is set.
+	// Deprecated: use VerifierAgentTemplate instead.
+	VerifierProvider *string `json:"verifierProvider,omitempty"`
+
+	// VerifierModel is the legacy verifier model override. It is ignored when
+	// VerifierAgentTemplate is set.
+	// Deprecated: use VerifierAgentTemplate instead.
+	VerifierModel *string `json:"verifierModel,omitempty"`
 }
 
 type LoopListItem struct {
@@ -78,6 +112,8 @@ type LoopListItem struct {
 	Name            *string `json:"name"`
 	Status          string  `json:"status"`
 	Cwd             string  `json:"cwd"`
+	Provider        string  `json:"provider"`
+	Model           *string `json:"model,omitempty"`
 	CreatedAt       string  `json:"createdAt"`
 	UpdatedAt       string  `json:"updatedAt"`
 	ActiveIteration *int    `json:"activeIteration"`
@@ -86,23 +122,56 @@ type LoopListItem struct {
 // --- Inbound Requests ---
 
 type LoopRunRequest struct {
-	Type             string   `json:"type"`
-	RequestID        string   `json:"requestId"`
-	Prompt           string   `json:"prompt"`
-	Cwd              string   `json:"cwd"`
-	Provider         *string  `json:"provider,omitempty"`
-	Model            *string  `json:"model,omitempty"`
-	WorkerProvider   *string  `json:"workerProvider,omitempty"`
-	WorkerModel      *string  `json:"workerModel,omitempty"`
-	VerifierProvider *string  `json:"verifierProvider,omitempty"`
-	VerifierModel    *string  `json:"verifierModel,omitempty"`
-	VerifyPrompt     *string  `json:"verifyPrompt,omitempty"`
-	VerifyChecks     []string `json:"verifyChecks,omitempty"`
-	Archive          *bool    `json:"archive,omitempty"`
-	Name             *string  `json:"name,omitempty"`
-	SleepMs          *int     `json:"sleepMs,omitempty"`
-	MaxIterations    *int     `json:"maxIterations,omitempty"`
-	MaxTimeMs        *int     `json:"maxTimeMs,omitempty"`
+	Type          string   `json:"type"`
+	RequestID     string   `json:"requestId"`
+	Prompt        string   `json:"prompt"`
+	Cwd           string   `json:"cwd"`
+	VerifyPrompt  *string  `json:"verifyPrompt,omitempty"`
+	VerifyChecks  []string `json:"verifyChecks,omitempty"`
+	Archive       *bool    `json:"archive,omitempty"`
+	Name          *string  `json:"name,omitempty"`
+	SleepMs       *int     `json:"sleepMs,omitempty"`
+	MaxIterations *int     `json:"maxIterations,omitempty"`
+	MaxTimeMs     *int     `json:"maxTimeMs,omitempty"`
+
+	// AgentTemplate is the base template for any agent this loop creates.
+	AgentTemplate *AgentTemplate `json:"agentTemplate,omitempty"`
+
+	// WorkerAgentTemplate overrides AgentTemplate for the worker agent.
+	WorkerAgentTemplate *AgentTemplate `json:"workerAgentTemplate,omitempty"`
+
+	// VerifierAgentTemplate overrides AgentTemplate for the verifier agent.
+	VerifierAgentTemplate *AgentTemplate `json:"verifierAgentTemplate,omitempty"`
+
+	// Provider is the legacy default provider for the loop. It is ignored when
+	// AgentTemplate or WorkerAgentTemplate is set.
+	// Deprecated: use AgentTemplate instead.
+	Provider *string `json:"provider,omitempty"`
+
+	// Model is the legacy default model for the loop. It is ignored when
+	// AgentTemplate or WorkerAgentTemplate is set.
+	// Deprecated: use AgentTemplate instead.
+	Model *string `json:"model,omitempty"`
+
+	// WorkerProvider is the legacy worker provider override. It is ignored when
+	// WorkerAgentTemplate is set.
+	// Deprecated: use WorkerAgentTemplate instead.
+	WorkerProvider *string `json:"workerProvider,omitempty"`
+
+	// WorkerModel is the legacy worker model override. It is ignored when
+	// WorkerAgentTemplate is set.
+	// Deprecated: use WorkerAgentTemplate instead.
+	WorkerModel *string `json:"workerModel,omitempty"`
+
+	// VerifierProvider is the legacy verifier provider override. It is ignored
+	// when VerifierAgentTemplate is set.
+	// Deprecated: use VerifierAgentTemplate instead.
+	VerifierProvider *string `json:"verifierProvider,omitempty"`
+
+	// VerifierModel is the legacy verifier model override. It is ignored when
+	// VerifierAgentTemplate is set.
+	// Deprecated: use VerifierAgentTemplate instead.
+	VerifierModel *string `json:"verifierModel,omitempty"`
 }
 
 func (m LoopRunRequest) MsgType() string { return "loop/run" }
@@ -140,15 +209,18 @@ type LoopStopRequest struct {
 func (m LoopStopRequest) MsgType() string { return "loop/stop" }
 
 type LoopUpdateRequest struct {
-	Type          string    `json:"type"`
-	RequestID     string    `json:"requestId"`
-	ID            string    `json:"id"`
-	Name          *string   `json:"name,omitempty"`
-	Archive       *bool     `json:"archive,omitempty"`
-	Prompt        *string   `json:"prompt,omitempty"`
-	Cwd           *string   `json:"cwd,omitempty"`
-	VerifyChecks  *[]string `json:"verifyChecks,omitempty"`
-	MaxIterations *int      `json:"maxIterations,omitempty"`
+	Type                  string         `json:"type"`
+	RequestID             string         `json:"requestId"`
+	ID                    string         `json:"id"`
+	Name                  *string        `json:"name,omitempty"`
+	Archive               *bool          `json:"archive,omitempty"`
+	Prompt                *string        `json:"prompt,omitempty"`
+	Cwd                   *string        `json:"cwd,omitempty"`
+	VerifyChecks          *[]string      `json:"verifyChecks,omitempty"`
+	MaxIterations         *int           `json:"maxIterations,omitempty"`
+	AgentTemplate         *AgentTemplate `json:"agentTemplate,omitempty"`
+	WorkerAgentTemplate   *AgentTemplate `json:"workerAgentTemplate,omitempty"`
+	VerifierAgentTemplate *AgentTemplate `json:"verifierAgentTemplate,omitempty"`
 }
 
 func (m LoopUpdateRequest) MsgType() string { return "loop/update" }
