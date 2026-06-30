@@ -8,7 +8,7 @@
     "packages/highlight"
   ],
   "scripts": {
-    "postinstall": "patch-package",
+    "postinstall": "patch-package && npm run build --workspace=@getsolo/highlight",
     "lint": "npm run lint --workspaces --if-present"
   },
   "overrides": {

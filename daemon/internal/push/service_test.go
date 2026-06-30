@@ -4,11 +4,14 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/WuErPing/solo/daemon/internal/httpx"
 )
 
 func TestExpoPushService_Send(t *testing.T) {
@@ -261,6 +264,66 @@ func TestExpoPushService_NoRetryOn4xx(t *testing.T) {
 	}
 	if calls.Load() != 1 {
 		t.Errorf("expected 1 call (no retry for 4xx), got %d", calls.Load())
+	}
+}
+
+func TestExpoPushService_TimeoutDoesNotLeak(t *testing.T) {
+	// Simulate a target that accepts the TCP connection but never sends a
+	// response. With the old bare &http.Client{}, Send would hang forever
+	// and leak a goroutine per batch; with httpx.Standard() the overall
+	// request timeout aborts it.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	// Accept one connection and do nothing so the client waits for headers.
+	connCh := make(chan net.Conn, 1)
+	go func() {
+		conn, _ := ln.Accept()
+		if conn != nil {
+			connCh <- conn
+		}
+	}()
+	defer func() {
+		select {
+		case c := <-connCh:
+			_ = c.Close()
+		default:
+		}
+	}()
+
+	tokenStore := NewInMemoryTokenStore()
+	svc := newTestService("http://"+ln.Addr().String(), tokenStore)
+	svc.MaxRetries = 1
+	svc.RetryDelay = 10 * time.Millisecond
+
+	// Use a short-timeout client so the suite stays fast; the production
+	// client is verified by TestExpoPushService_UsesStandardClient and the
+	// httpx package tests.
+	svc.client = httpx.NewClient(httpx.Config{
+		ConnectTimeout:        50 * time.Millisecond,
+		ResponseHeaderTimeout: 100 * time.Millisecond,
+		IdleConnTimeout:       90 * time.Second,
+		RequestTimeout:        200 * time.Millisecond,
+	})
+
+	start := time.Now()
+	payload := NotificationPayload{Title: "T", Body: "B"}
+	_ = svc.Send([]string{"tok-1"}, payload)
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("Send hung too long; elapsed=%v (want ≤ 2s)", elapsed)
+	}
+}
+
+func TestExpoPushService_UsesStandardClient(t *testing.T) {
+	svc := NewExpoPushService("", NewInMemoryTokenStore(), nil)
+	if svc.client == nil {
+		t.Fatal("ExpoPushService.client is nil")
+	}
+	if svc.client != httpx.Standard() {
+		t.Errorf("ExpoPushService should use httpx.Standard()")
 	}
 }
 

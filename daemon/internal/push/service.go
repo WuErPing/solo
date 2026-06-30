@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/WuErPing/solo/daemon/internal/httpx"
 )
 
 const defaultExpoPushURL = "https://exp.host/--/api/v2/push/send"
@@ -62,7 +64,7 @@ func NewExpoPushService(baseURL string, tokenStore TokenStore, logger *slog.Logg
 	return &ExpoPushService{
 		baseURL:    baseURL,
 		tokenStore: tokenStore,
-		client:     &http.Client{},
+		client:     httpx.Standard(),
 		logger:     logger,
 		MaxRetries: defaultMaxRetries,
 		RetryDelay: defaultRetryDelay,

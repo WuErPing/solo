@@ -1076,6 +1076,9 @@ func TestWaitForFinishReturnsCompletedAgentSnapshot(t *testing.T) {
 }
 
 func TestClearAgentAttentionResponseAndUpdate(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode due to async goroutine timing")
+	}
 	_, ts := newTestWSServer(t)
 	conn := dialAndHello(t, ts.URL, "test-clear-attention")
 	defer conn.Close()

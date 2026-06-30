@@ -12,6 +12,7 @@ import (
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/agent/base"
+	"github.com/WuErPing/solo/daemon/internal/httpx"
 	"github.com/WuErPing/solo/protocol"
 )
 
@@ -83,7 +84,7 @@ func (s *openCodeSession) consumeSSE(ctx context.Context, turnID string) (*agent
 	}
 	req.Header.Set("Accept", "text/event-stream")
 
-	client := &http.Client{}
+	client := httpx.Streaming()
 	resp, err := client.Do(req)
 	if err != nil {
 		connCancel()
