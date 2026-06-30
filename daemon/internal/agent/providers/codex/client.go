@@ -15,6 +15,7 @@ import (
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/agent/base"
+	"github.com/WuErPing/solo/daemon/internal/agent/providers/streamevents"
 	"github.com/WuErPing/solo/protocol"
 )
 
@@ -172,7 +173,7 @@ func (s *codexSession) Run(ctx context.Context, text string, _ []protocol.ImageA
 	pump := base.NewEventPump(s.base.Logger(), s.dispatcher)
 	pump.SetProvider(codexProviderName)
 	translator := newCodexTranslator(s.base.Logger(), messageID, text)
-	detector := &codexTerminalDetector{}
+	detector := streamevents.TerminalDetector{}
 
 	result, err := pump.RunBlocking(runCtx, s.stdoutPipe, translator, detector)
 	if err != nil {
@@ -222,7 +223,7 @@ func (s *codexSession) StartTurn(ctx context.Context, text string, _ []protocol.
 	pump := base.NewEventPump(s.base.Logger(), s.dispatcher)
 	pump.SetProvider(codexProviderName)
 	translator := newCodexTranslator(s.base.Logger(), "", text)
-	detector := &codexTerminalDetector{}
+	detector := streamevents.TerminalDetector{}
 
 	go func() {
 		_, _ = pump.RunBlocking(runCtx, s.stdoutPipe, translator, detector)
@@ -440,7 +441,7 @@ func (t *codexTranslator) lastUsage() *protocol.AgentUsage {
 	return t.usage
 }
 
-func (t *codexTranslator) Translate(raw []byte, _ time.Time) ([]interface{}, bool, error) {
+func (t *codexTranslator) Translate(raw []byte, now time.Time) ([]interface{}, bool, error) {
 	var event map[string]interface{}
 	if err := json.Unmarshal(raw, &event); err != nil {
 		return nil, false, fmt.Errorf("parse codex JSON: %w", err)
@@ -451,23 +452,16 @@ func (t *codexTranslator) Translate(raw []byte, _ time.Time) ([]interface{}, boo
 		return nil, false, nil
 	}
 
-	var events []interface{}
-	isTerminal := false
+	b := streamevents.New(codexProviderName, now)
 
 	switch typ {
 	case "TurnStartedNotification":
-		events = append(events, protocol.ThreadStartedStreamEvent{})
+		b.ThreadStarted("")
 		t.threadStarted = true
 
 		// Synthesize user_message event (codex exec does not echo the prompt)
 		if !t.userMsgEmitted && t.messageID != "" {
-			events = append(events, protocol.TimelineStreamEvent{
-				Item: protocol.TimelineItem{
-					Type:      "user_message",
-					MessageID: t.messageID,
-					Text:      t.prompt,
-				},
-			})
+			b.UserMessage(t.prompt, t.messageID)
 			t.userMsgEmitted = true
 		}
 
@@ -475,24 +469,12 @@ func (t *codexTranslator) Translate(raw []byte, _ time.Time) ([]interface{}, boo
 		delta, _ := event["delta"].(string)
 		if delta != "" {
 			t.textBuf += delta
-			events = append(events, protocol.TimelineStreamEvent{
-				Item: protocol.TimelineItem{
-					Type: "assistant_message",
-					Text: delta,
-				},
-			})
+			b.AssistantMessage(delta)
 		}
 
 	case "ReasoningTextDeltaNotification":
 		delta, _ := event["delta"].(string)
-		if delta != "" {
-			events = append(events, protocol.TimelineStreamEvent{
-				Item: protocol.TimelineItem{
-					Type: "reasoning",
-					Text: delta,
-				},
-			})
-		}
+		b.Reasoning(delta)
 
 	case "LocalShellCall", "FunctionCall":
 		callID, _ := event["call_id"].(string)
@@ -501,25 +483,11 @@ func (t *codexTranslator) Translate(raw []byte, _ time.Time) ([]interface{}, boo
 		if a, ok := event["arguments"]; ok {
 			args = a
 		}
-		events = append(events, protocol.TimelineStreamEvent{
-			Item: protocol.TimelineItem{
-				Type:   "tool_call",
-				CallID: callID,
-				Name:   name,
-				Status: "running",
-				Detail: buildCodexToolCallDetail(args),
-			},
-		})
+		b.ToolCall(callID, name, buildCodexToolCallDetail(args), "running")
 
 	case "FunctionCallOutput", "CustomToolCallOutput":
 		callID, _ := event["call_id"].(string)
-		events = append(events, protocol.TimelineStreamEvent{
-			Item: protocol.TimelineItem{
-				Type:   "tool_call",
-				CallID: callID,
-				Status: "completed",
-			},
-		})
+		b.ToolCall(callID, "", nil, "completed")
 
 	case "ThreadTokenUsageUpdatedNotification":
 		usage := &protocol.AgentUsage{}
@@ -533,38 +501,23 @@ func (t *codexTranslator) Translate(raw []byte, _ time.Time) ([]interface{}, boo
 			usage.CachedInputTokens = &v
 		}
 		t.usage = usage
-		events = append(events, protocol.UsageUpdatedStreamEvent{Usage: usage})
+		b.Usage(usage)
 
 	case "TurnCompletedNotification":
-		isTerminal = true
-		// Emit final text if no deltas were seen
-		if t.textBuf == "" && t.prompt != "" {
-			events = append(events, protocol.TimelineStreamEvent{
-				Item: protocol.TimelineItem{
-					Type: "assistant_message",
-					Text: t.textBuf,
-				},
-			})
-		}
-		completedEvt := protocol.TurnCompletedStreamEvent{}
-		if t.usage != nil {
-			completedEvt.Usage = t.usage
-		}
-		events = append(events, completedEvt)
+		b.TurnCompleted(t.usage)
 
 	case "TurnAbortedNotification":
-		isTerminal = true
 		reason, _ := event["reason"].(string)
 		if reason == "" {
 			reason = "turn aborted"
 		}
-		events = append(events, protocol.TurnFailedStreamEvent{Error: reason})
+		b.TurnFailed(reason)
 
 	default:
 		// Unknown event type — ignore gracefully
 	}
 
-	return events, isTerminal, nil
+	return b.Events(), b.Terminal(), nil
 }
 
 func buildCodexToolCallDetail(args interface{}) protocol.ToolCallDetail {
@@ -584,29 +537,5 @@ func buildCodexToolCallDetail(args interface{}) protocol.ToolCallDetail {
 }
 
 // --- Terminal Detector ---
-
-type codexTerminalDetector struct{}
-
-func (d *codexTerminalDetector) IsTerminal(evt interface{}) (*base.AgentRunResult, bool, error) {
-	se, ok := evt.(agent.AgentStreamEvent)
-	if !ok {
-		return nil, false, nil
-	}
-	switch e := se.Event.(type) {
-	case protocol.TurnCompletedStreamEvent:
-		return &base.AgentRunResult{
-			SessionID: se.AgentID,
-			Usage:     e.Usage,
-		}, true, nil
-	case protocol.TurnFailedStreamEvent:
-		return &base.AgentRunResult{
-			SessionID: se.AgentID,
-		}, true, fmt.Errorf("turn failed: %s", e.Error)
-	case protocol.TurnCanceledStreamEvent:
-		return &base.AgentRunResult{
-			SessionID: se.AgentID,
-			Canceled:  true,
-		}, true, nil
-	}
-	return nil, false, nil
-}
+//
+// Terminal detection is handled by the shared streamevents.TerminalDetector.

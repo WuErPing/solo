@@ -10,6 +10,7 @@ import type {
   CaptureTerminalResponse,
 } from "../shared/messages.js";
 import type { DaemonClient, TerminalStreamEvent } from "./daemon-client.js";
+import { getDefaultLogger, toErrorInfo } from "../shared/logger.js";
 import {
   decodeTerminalSnapshotPayload,
   decodeTerminalStreamFrame,
@@ -766,8 +767,11 @@ export class TerminalRpc {
     for (const listener of this.terminalStreamListeners) {
       try {
         listener(event);
-      } catch {
-        // no-op
+      } catch (error) {
+        getDefaultLogger().warn(
+          { err: toErrorInfo(error) },
+          "terminal_stream_listener_failed",
+        );
       }
     }
   }

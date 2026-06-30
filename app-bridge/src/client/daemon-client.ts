@@ -99,19 +99,9 @@ import { WorkspaceRpc } from "./workspace-rpc.js";
 import { GitRpc } from "./git-rpc.js";
 import { TerminalRpc } from "./terminal-rpc.js";
 
-export interface Logger {
-  debug(obj: object, msg?: string): void;
-  info(obj: object, msg?: string): void;
-  warn(obj: object, msg?: string): void;
-  error(obj: object, msg?: string): void;
-}
+import { consoleLogger, toErrorInfo, type Logger } from "../shared/logger.js";
 
-const consoleLogger: Logger = {
-  debug: () => {},
-  info: (obj, msg) => console.log(msg, obj),
-  warn: (obj, msg) => console.warn(msg, obj),
-  error: (obj, msg) => console.error(msg, obj),
-};
+export type { Logger } from "../shared/logger.js";
 
 const perfNow: () => number =
   typeof performance !== "undefined" && typeof performance.now === "function"
@@ -1031,7 +1021,11 @@ export class DaemonClient {
 
   subscribeConnectionStatus(listener: (status: ConnectionState) => void): () => void {
     this.connectionListeners.add(listener);
-    listener(this.connectionState);
+    try {
+      listener(this.connectionState);
+    } catch (error) {
+      this.logger.warn({ err: toErrorInfo(error) }, "connection_listener_failed");
+    }
     return () => {
       this.connectionListeners.delete(listener);
     };
@@ -2121,8 +2115,8 @@ export class DaemonClient {
     if (this.transport) {
       try {
         this.transport.close(code, reason);
-      } catch {
-        // no-op
+      } catch (error) {
+        this.logger.debug({ err: toErrorInfo(error) }, "transport_close_failed");
       }
       this.transport = null;
     }
@@ -2137,8 +2131,8 @@ export class DaemonClient {
     for (const cleanup of this.transportCleanup) {
       try {
         cleanup();
-      } catch {
-        // no-op
+      } catch (error) {
+        this.logger.warn({ err: toErrorInfo(error) }, "transport_cleanup_handler_failed");
       }
     }
     this.transportCleanup = [];
@@ -2190,7 +2184,8 @@ export class DaemonClient {
     let parsedJson: unknown;
     try {
       parsedJson = JSON.parse(payload);
-    } catch {
+    } catch (error) {
+      this.logger.debug({ err: toErrorInfo(error) }, "json_parse_failed");
       return;
     }
 
@@ -2241,8 +2236,8 @@ export class DaemonClient {
     for (const listener of this.connectionListeners) {
       try {
         listener(next);
-      } catch {
-        // no-op
+      } catch (error) {
+        this.logger.warn({ err: toErrorInfo(error) }, "connection_listener_failed");
       }
     }
   }
@@ -2344,8 +2339,8 @@ export class DaemonClient {
       for (const handler of this.rawMessageListeners) {
         try {
           handler(msg);
-        } catch {
-          // no-op
+        } catch (error) {
+          this.logger.warn({ err: toErrorInfo(error) }, "raw_message_listener_failed");
         }
       }
     }
@@ -2355,8 +2350,8 @@ export class DaemonClient {
       for (const handler of handlers) {
         try {
           handler(msg);
-        } catch {
-          // no-op
+        } catch (error) {
+          this.logger.warn({ err: toErrorInfo(error) }, "message_handler_failed");
         }
       }
     }

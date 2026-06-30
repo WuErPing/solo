@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/WuErPing/solo/daemon/internal/agent/base"
+	"github.com/WuErPing/solo/daemon/internal/agent/providers/streamevents"
 	"github.com/WuErPing/solo/protocol"
 )
 
@@ -55,7 +56,7 @@ func TestPiIntegration_PumpDebug(t *testing.T) {
 	pump := base.NewEventPump(logger, dispatcher)
 	pump.SetProvider("pi")
 	translator := &piTranslator{session: &piSession{base: base.NewBaseSession("pi", &protocol.AgentSessionConfig{}, logger)}}
-	detector := &piTerminalDetector{session: &piSession{}}
+	detector := streamevents.TerminalDetector{}
 
 	start = time.Now()
 	t.Logf("start pump at %v", time.Now().Format("15:04:05.000"))

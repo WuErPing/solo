@@ -3,6 +3,7 @@ import type {
   WebSocketFactory,
   WebSocketLike,
 } from "./daemon-client-transport-types.js";
+import { getDefaultLogger, toErrorInfo } from "../shared/logger.js";
 
 export function defaultWebSocketFactory(
   url: string,
@@ -21,8 +22,8 @@ export function createWebSocketTransportFactory(factory: WebSocketFactory): Daem
     if ("binaryType" in ws) {
       try {
         ws.binaryType = "arraybuffer";
-      } catch {
-        // no-op
+      } catch (error) {
+        getDefaultLogger().debug({ err: toErrorInfo(error) }, "ws_binarytype_unsupported");
       }
     }
     return {
@@ -54,7 +55,9 @@ export function createWebSocketTransportFactory(factory: WebSocketFactory): Daem
 }
 
 function bindTemporaryEarlyCloseErrorHandler(ws: WebSocketLike): () => void {
-  const noop = () => {};
+  const noop = () => {
+    /* no-op */
+  };
 
   if (typeof ws.addEventListener === "function") {
     ws.addEventListener("error", noop);
@@ -96,7 +99,9 @@ function bindTemporaryEarlyCloseErrorHandler(ws: WebSocketLike): () => void {
     };
   }
 
-  return () => {};
+  return () => {
+    /* no-op */
+  };
 }
 
 export function bindWsHandler(

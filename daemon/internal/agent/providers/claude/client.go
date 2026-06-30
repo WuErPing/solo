@@ -15,6 +15,7 @@ import (
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/agent/base"
+	"github.com/WuErPing/solo/daemon/internal/agent/providers/streamevents"
 	"github.com/WuErPing/solo/protocol"
 )
 
@@ -233,7 +234,7 @@ func (s *claudeSession) Run(ctx context.Context, text string, _ []protocol.Image
 		threadStartedEmitted:  true,
 		userMessageEmitted:    text != "",
 	}
-	detector := &claudeTerminalDetector{session: s}
+	detector := streamevents.TerminalDetector{}
 
 	result, err := pump.RunBlocking(runCtx, stdoutPipe, translator, detector)
 	if err != nil {
@@ -288,7 +289,7 @@ func (s *claudeSession) StartTurn(ctx context.Context, text string, _ []protocol
 	pump := base.NewEventPump(s.base.Logger(), s.dispatcher)
 	pump.SetProvider(claudeProviderName)
 	translator := &claudeTranslator{session: s, streamedContentBlocks: make(map[int]int), messageID: ""}
-	detector := &claudeTerminalDetector{session: s}
+	detector := streamevents.TerminalDetector{}
 	pump.RunBackground(runCtx, stdoutPipe, translator, detector)
 
 	return ch, nil
@@ -554,37 +555,28 @@ func (t *claudeTranslator) Translate(raw []byte, timestamp time.Time) ([]interfa
 }
 
 func (t *claudeTranslator) translateMessage(msg sdkMessage, now time.Time) []interface{} {
-	var events []interface{}
-
 	switch msg.Type {
 	case "system":
-		events = t.translateSystemMessage(msg, now)
+		return t.translateSystemMessage(msg, now)
 	case "user":
-		events = t.translateUserMessage(msg, now, t.messageID)
+		return t.translateUserMessage(msg, now, t.messageID)
 	case "assistant":
-		events = t.translateAssistantMessage(msg, now)
+		return t.translateAssistantMessage(msg, now)
 	case "stream_event":
-		events = t.translateStreamEvent(msg, now)
+		return t.translateStreamEvent(msg, now)
 	case "result":
-		events = t.translateResultMessage(msg, now)
+		return t.translateResultMessage(msg, now)
 	case "tool_progress":
-		events = append(events, agent.AgentStreamEvent{
-			Event: protocol.TimelineStreamEvent{
-				Item:     protocol.TimelineItem{Type: "tool_call", CallID: msg.ToolUseID, Name: msg.ToolName, Status: "running"},
-				Provider: claudeProviderName,
-			},
-			Timestamp: now,
-		})
-
+		return streamevents.New(claudeProviderName, now).
+			ToolCall(msg.ToolUseID, msg.ToolName, nil, "running").Events()
 	case "permission_request":
-		events = t.translatePermissionRequest(msg, now)
+		return t.translatePermissionRequest(msg, now)
 	}
-
-	return events
+	return nil
 }
 
 func (t *claudeTranslator) translateSystemMessage(msg sdkMessage, now time.Time) []interface{} {
-	var events []interface{}
+	b := streamevents.New(claudeProviderName, now)
 
 	switch msg.Subtype {
 	case "init":
@@ -593,24 +585,12 @@ func (t *claudeTranslator) translateSystemMessage(msg sdkMessage, now time.Time)
 		t.session.base.SetCurrentMode(msg.PermissionMode)
 
 		if !t.threadStartedEmitted {
-			events = append(events, agent.AgentStreamEvent{
-				Event: protocol.ThreadStartedStreamEvent{
-					SessionID: msg.SessionID,
-					Provider:  claudeProviderName,
-				},
-				Timestamp: now,
-			})
+			b.ThreadStarted(msg.SessionID)
 		}
 
 	case "status":
 		if msg.Status == "compacting" {
-			events = append(events, agent.AgentStreamEvent{
-				Event: protocol.TimelineStreamEvent{
-					Item:     protocol.TimelineItem{Type: "compaction", CompactionStatus: "loading"},
-					Provider: claudeProviderName,
-				},
-				Timestamp: now,
-			})
+			b.Timeline(protocol.TimelineItem{Type: "compaction", CompactionStatus: "loading"})
 		}
 
 	case "compact_boundary":
@@ -620,39 +600,21 @@ func (t *claudeTranslator) translateSystemMessage(msg sdkMessage, now time.Time)
 			trigger = msg.CompactMetadata.Trigger
 			preTokens = msg.CompactMetadata.PreTokens
 		}
-		events = append(events, agent.AgentStreamEvent{
-			Event: protocol.TimelineStreamEvent{
-				Item:     protocol.TimelineItem{Type: "compaction", CompactionStatus: "completed", Trigger: trigger, PreTokens: preTokens},
-				Provider: claudeProviderName,
-			},
-			Timestamp: now,
-		})
+		b.Timeline(protocol.TimelineItem{Type: "compaction", CompactionStatus: "completed", Trigger: trigger, PreTokens: preTokens})
 
 	case "task_notification":
 		status := "completed"
 		if msg.TaskStatus == "failed" {
 			status = "failed"
 		}
-		events = append(events, agent.AgentStreamEvent{
-			Event: protocol.TimelineStreamEvent{
-				Item:     protocol.TimelineItem{Type: "tool_call", CallID: msg.TaskID, Name: "task", Detail: protocol.PlainTextDetail{Type: "plain_text", Text: msg.Summary}, Status: status},
-				Provider: claudeProviderName,
-			},
-			Timestamp: now,
-		})
+		b.Timeline(protocol.TimelineItem{Type: "tool_call", CallID: msg.TaskID, Name: "task", Detail: protocol.PlainTextDetail{Type: "plain_text", Text: msg.Summary}, Status: status})
 		// Also emit as a todo item (matches OpenCode's todo.updated behavior)
 		if msg.Summary != "" {
-			events = append(events, agent.AgentStreamEvent{
-				Event: protocol.TimelineStreamEvent{
-					Item:     protocol.TimelineItem{Type: "todo", TodoItems: []protocol.TodoItem{{Text: msg.Summary, Completed: status == "completed"}}},
-					Provider: claudeProviderName,
-				},
-				Timestamp: now,
-			})
+			b.Timeline(protocol.TimelineItem{Type: "todo", TodoItems: []protocol.TodoItem{{Text: msg.Summary, Completed: status == "completed"}}})
 		}
 	}
 
-	return events
+	return b.Events()
 }
 
 func (t *claudeTranslator) translateUserMessage(msg sdkMessage, now time.Time, messageID string) []interface{} {
@@ -678,13 +640,8 @@ func (t *claudeTranslator) translateUserMessage(msg sdkMessage, now time.Time, m
 		return nil
 	}
 
-	return []interface{}{agent.AgentStreamEvent{
-		Event: protocol.TimelineStreamEvent{
-			Item:     protocol.TimelineItem{Type: "user_message", Text: strings.Join(textParts, "\n"), MessageID: messageID},
-			Provider: claudeProviderName,
-		},
-		Timestamp: now,
-	}}
+	return streamevents.New(claudeProviderName, now).
+		UserMessage(strings.Join(textParts, "\n"), messageID).Events()
 }
 
 func (t *claudeTranslator) translateAssistantMessage(msg sdkMessage, now time.Time) []interface{} {
@@ -697,7 +654,7 @@ func (t *claudeTranslator) translateAssistantMessage(msg sdkMessage, now time.Ti
 		return nil
 	}
 
-	var events []interface{}
+	b := streamevents.New(claudeProviderName, now)
 	for i, block := range assistantMsg.Content {
 		streamedLen := t.streamedContentBlocks[i]
 		delete(t.streamedContentBlocks, i)
@@ -709,44 +666,18 @@ func (t *claudeTranslator) translateAssistantMessage(msg sdkMessage, now time.Ti
 				// via deltas, emit the remaining difference as a recovery.
 				// If content matches (or is shorter), skip to avoid duplication.
 				if streamedLen > 0 && streamedLen < len(block.Text) {
-					diff := block.Text[streamedLen:]
-					events = append(events, agent.AgentStreamEvent{
-						Event: protocol.TimelineStreamEvent{
-							Item:     protocol.TimelineItem{Type: "assistant_message", Text: diff},
-							Provider: claudeProviderName,
-						},
-						Timestamp: now,
-					})
+					b.AssistantMessage(block.Text[streamedLen:])
 				} else if streamedLen == 0 {
-					events = append(events, agent.AgentStreamEvent{
-						Event: protocol.TimelineStreamEvent{
-							Item:     protocol.TimelineItem{Type: "assistant_message", Text: block.Text},
-							Provider: claudeProviderName,
-						},
-						Timestamp: now,
-					})
+					b.AssistantMessage(block.Text)
 				}
 			}
 		case "thinking":
 			if block.Thinking != "" {
 				// Same recovery logic for thinking blocks.
 				if streamedLen > 0 && streamedLen < len(block.Thinking) {
-					diff := block.Thinking[streamedLen:]
-					events = append(events, agent.AgentStreamEvent{
-						Event: protocol.TimelineStreamEvent{
-							Item:     protocol.TimelineItem{Type: "reasoning", Text: diff},
-							Provider: claudeProviderName,
-						},
-						Timestamp: now,
-					})
+					b.Reasoning(block.Thinking[streamedLen:])
 				} else if streamedLen == 0 {
-					events = append(events, agent.AgentStreamEvent{
-						Event: protocol.TimelineStreamEvent{
-							Item:     protocol.TimelineItem{Type: "reasoning", Text: block.Thinking},
-							Provider: claudeProviderName,
-						},
-						Timestamp: now,
-					})
+					b.Reasoning(block.Thinking)
 				}
 			}
 		case "tool_use":
@@ -756,17 +687,11 @@ func (t *claudeTranslator) translateAssistantMessage(msg sdkMessage, now time.Ti
 				_ = json.Unmarshal(block.Input, &toolInput)
 			}
 			detail := base.DeriveToolCallDetail(block.Name, toolInput, nil)
-			events = append(events, agent.AgentStreamEvent{
-				Event: protocol.TimelineStreamEvent{
-					Item:     protocol.TimelineItem{Type: "tool_call", CallID: block.ID, Name: block.Name, Detail: detail, Status: "completed"},
-					Provider: claudeProviderName,
-				},
-				Timestamp: now,
-			})
+			b.ToolCall(block.ID, block.Name, detail, "completed")
 		}
 	}
 
-	return events
+	return b.Events()
 }
 
 func (t *claudeTranslator) translateStreamEvent(msg sdkMessage, now time.Time) []interface{} {
@@ -779,7 +704,7 @@ func (t *claudeTranslator) translateStreamEvent(msg sdkMessage, now time.Time) [
 		return nil
 	}
 
-	var events []interface{}
+	b := streamevents.New(claudeProviderName, now)
 
 	switch streamEvt.Type {
 	case "content_block_start":
@@ -788,33 +713,15 @@ func (t *claudeTranslator) translateStreamEvent(msg sdkMessage, now time.Time) [
 			case "text":
 				if streamEvt.ContentBlock.Text != "" {
 					t.streamedContentBlocks[streamEvt.Index] += len(streamEvt.ContentBlock.Text)
-					events = append(events, agent.AgentStreamEvent{
-						Event: protocol.TimelineStreamEvent{
-							Item:     protocol.TimelineItem{Type: "assistant_message", Text: streamEvt.ContentBlock.Text},
-							Provider: claudeProviderName,
-						},
-						Timestamp: now,
-					})
+					b.AssistantMessage(streamEvt.ContentBlock.Text)
 				}
 			case "thinking":
 				if streamEvt.ContentBlock.Thinking != "" {
 					t.streamedContentBlocks[streamEvt.Index] += len(streamEvt.ContentBlock.Thinking)
-					events = append(events, agent.AgentStreamEvent{
-						Event: protocol.TimelineStreamEvent{
-							Item:     protocol.TimelineItem{Type: "reasoning", Text: streamEvt.ContentBlock.Thinking},
-							Provider: claudeProviderName,
-						},
-						Timestamp: now,
-					})
+					b.Reasoning(streamEvt.ContentBlock.Thinking)
 				}
 			case "tool_use":
-				events = append(events, agent.AgentStreamEvent{
-					Event: protocol.TimelineStreamEvent{
-						Item:     protocol.TimelineItem{Type: "tool_call", CallID: streamEvt.ContentBlock.ID, Name: streamEvt.ContentBlock.Name, Status: "running"},
-						Provider: claudeProviderName,
-					},
-					Timestamp: now,
-				})
+				b.ToolCall(streamEvt.ContentBlock.ID, streamEvt.ContentBlock.Name, nil, "running")
 			}
 		}
 
@@ -824,24 +731,12 @@ func (t *claudeTranslator) translateStreamEvent(msg sdkMessage, now time.Time) [
 			case "text_delta":
 				if streamEvt.Delta.Text != "" {
 					t.streamedContentBlocks[streamEvt.Index] += len(streamEvt.Delta.Text)
-					events = append(events, agent.AgentStreamEvent{
-						Event: protocol.TimelineStreamEvent{
-							Item:     protocol.TimelineItem{Type: "assistant_message", Text: streamEvt.Delta.Text},
-							Provider: claudeProviderName,
-						},
-						Timestamp: now,
-					})
+					b.AssistantMessage(streamEvt.Delta.Text)
 				}
 			case "thinking_delta":
 				if streamEvt.Delta.Thinking != "" {
 					t.streamedContentBlocks[streamEvt.Index] += len(streamEvt.Delta.Thinking)
-					events = append(events, agent.AgentStreamEvent{
-						Event: protocol.TimelineStreamEvent{
-							Item:     protocol.TimelineItem{Type: "reasoning", Text: streamEvt.Delta.Thinking},
-							Provider: claudeProviderName,
-						},
-						Timestamp: now,
-					})
+					b.Reasoning(streamEvt.Delta.Thinking)
 				}
 			case "input_json_delta":
 				// Partial tool input - wait for full block
@@ -852,20 +747,17 @@ func (t *claudeTranslator) translateStreamEvent(msg sdkMessage, now time.Time) [
 		// Turn completed naturally when Delta.StopReason == "end_turn"; nothing to emit.
 
 	case "content_block_stop":
-		events = append(events, agent.AgentStreamEvent{
-			Event:     protocol.FlushSignalStreamEvent{Type: "flush_signal"},
-			Timestamp: now,
-		})
+		b.Raw(protocol.FlushSignalStreamEvent{Type: "flush_signal"})
 
 	case "message_start", "message_stop":
 		// No action needed
 	}
 
-	return events
+	return b.Events()
 }
 
 func (t *claudeTranslator) translateResultMessage(msg sdkMessage, now time.Time) []interface{} {
-	var events []interface{}
+	b := streamevents.New(claudeProviderName, now)
 
 	if msg.Subtype == "success" {
 		var usage *protocol.AgentUsage
@@ -883,39 +775,20 @@ func (t *claudeTranslator) translateResultMessage(msg sdkMessage, now time.Time)
 
 			// Accumulate usage across turns (matches OpenCode behavior)
 			t.session.accumulateUsage(usage)
-			accumulated := t.session.accumulatedUsage
 
 			// Emit usage_updated event (matches OpenCode behavior)
-			events = append(events, agent.AgentStreamEvent{
-				Event: protocol.UsageUpdatedStreamEvent{
-					Provider: claudeProviderName,
-					Usage:    accumulated,
-				},
-				Timestamp: now,
-			})
+			b.Usage(t.session.accumulatedUsage)
 		}
-		events = append(events, agent.AgentStreamEvent{
-			Event: protocol.TurnCompletedStreamEvent{
-				Provider: claudeProviderName,
-				Usage:    usage,
-			},
-			Timestamp: now,
-		})
+		b.TurnCompleted(usage)
 	} else {
 		errMsg := "unknown error"
 		if len(msg.Errors) > 0 {
 			errMsg = strings.Join(msg.Errors, "; ")
 		}
-		events = append(events, agent.AgentStreamEvent{
-			Event: protocol.TurnFailedStreamEvent{
-				Provider: claudeProviderName,
-				Error:    errMsg,
-			},
-			Timestamp: now,
-		})
+		b.TurnFailed(errMsg)
 	}
 
-	return events
+	return b.Events()
 }
 
 // translatePermissionRequest handles permission_request events from the Claude SDK.
@@ -966,41 +839,12 @@ func (t *claudeTranslator) translatePermissionRequest(msg sdkMessage, now time.T
 		Detail:   detail,
 	}
 
-	return []interface{}{agent.AgentStreamEvent{
-		Event: protocol.PermissionRequestedStreamEvent{
-			Provider: claudeProviderName,
-			Request:  request,
-		},
-		Timestamp: now,
-	}}
+	return streamevents.New(claudeProviderName, now).PermissionRequested(request).Events()
 }
 
 // --- Terminal Detector ---
-
-type claudeTerminalDetector struct {
-	session *claudeSession
-}
-
-func (d *claudeTerminalDetector) IsTerminal(evt interface{}) (*base.AgentRunResult, bool, error) {
-	streamEvt, ok := evt.(agent.AgentStreamEvent)
-	if !ok {
-		return nil, false, nil
-	}
-
-	result := &base.AgentRunResult{
-		SessionID: d.session.base.SessionID(),
-	}
-
-	switch e := streamEvt.Event.(type) {
-	case protocol.TurnCompletedStreamEvent:
-		result.Canceled = false
-		result.Usage = e.Usage
-		return result, true, nil
-	case protocol.TurnFailedStreamEvent:
-		return result, true, fmt.Errorf("%s", e.Error)
-	}
-	return nil, false, nil
-}
+//
+// Terminal detection is handled by the shared streamevents.TerminalDetector.
 
 // --- SDK Types ---
 

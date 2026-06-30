@@ -17,6 +17,7 @@ import (
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/agent/base"
+	"github.com/WuErPing/solo/daemon/internal/agent/providers/streamevents"
 	"github.com/WuErPing/solo/protocol"
 )
 
@@ -280,7 +281,7 @@ func (s *kimiSession) Run(ctx context.Context, text string, _ []protocol.ImageAt
 	pump := base.NewEventPump(s.base.Logger(), s.dispatcher)
 	pump.SetProvider(kimiProviderName)
 	translator := &kimiWireTranslator{session: s, threadStartedEmitted: true}
-	detector := &kimiWireTerminalDetector{session: s}
+	detector := streamevents.TerminalDetector{}
 
 	result, err := pump.RunBlocking(runCtx, stdoutPipe, translator, detector)
 	if err != nil {
@@ -326,7 +327,7 @@ func (s *kimiSession) StartTurn(ctx context.Context, text string, _ []protocol.I
 	pump := base.NewEventPump(s.base.Logger(), s.dispatcher)
 	pump.SetProvider(kimiProviderName)
 	translator := &kimiWireTranslator{session: s}
-	detector := &kimiWireTerminalDetector{session: s}
+	detector := streamevents.TerminalDetector{}
 	go func() {
 		_, _ = pump.RunBlocking(runCtx, stdoutPipe, translator, detector)
 		s.dispatcher.Unsubscribe(baseCh)
@@ -600,19 +601,12 @@ func (t *kimiWireTranslator) Translate(raw []byte, timestamp time.Time) ([]inter
 		return nil, false, nil
 	}
 
-	var events []interface{}
-	isTerminal := false
+	b := streamevents.New(kimiProviderName, timestamp)
 
 	switch msg.Params.Type {
 	case "TurnBegin":
 		if !t.threadStartedEmitted {
-			events = append(events, agent.AgentStreamEvent{
-				Event: protocol.ThreadStartedStreamEvent{
-					Provider:  kimiProviderName,
-					SessionID: t.session.base.SessionID(),
-				},
-				Timestamp: timestamp,
-			})
+			b.ThreadStarted(t.session.base.SessionID())
 		}
 
 	case "ContentPart":
@@ -623,20 +617,10 @@ func (t *kimiWireTranslator) Translate(raw []byte, timestamp time.Time) ([]inter
 		}
 		_ = json.Unmarshal(msg.Params.Payload, &payload)
 
-		itemType := "assistant_message"
-		text := payload.Text
 		if payload.Type == "think" {
-			itemType = "reasoning"
-			text = payload.Think
-		}
-		if text != "" {
-			events = append(events, agent.AgentStreamEvent{
-				Event: protocol.TimelineStreamEvent{
-					Item:     protocol.TimelineItem{Type: itemType, Text: text},
-					Provider: kimiProviderName,
-				},
-				Timestamp: timestamp,
-			})
+			b.Reasoning(payload.Think)
+		} else {
+			b.AssistantMessage(payload.Text)
 		}
 
 	case "ToolCall":
@@ -649,13 +633,7 @@ func (t *kimiWireTranslator) Translate(raw []byte, timestamp time.Time) ([]inter
 			} `json:"function"`
 		}
 		_ = json.Unmarshal(msg.Params.Payload, &payload)
-		events = append(events, agent.AgentStreamEvent{
-			Event: protocol.TimelineStreamEvent{
-				Item:     protocol.TimelineItem{Type: "tool_call", CallID: payload.ID, Name: payload.Function.Name, Status: "running"},
-				Provider: kimiProviderName,
-			},
-			Timestamp: timestamp,
-		})
+		b.ToolCall(payload.ID, payload.Function.Name, nil, "running")
 
 	case "ToolResult":
 		var payload struct {
@@ -669,22 +647,10 @@ func (t *kimiWireTranslator) Translate(raw []byte, timestamp time.Time) ([]inter
 		if payload.ReturnValue.IsError {
 			status = "failed"
 		}
-		events = append(events, agent.AgentStreamEvent{
-			Event: protocol.TimelineStreamEvent{
-				Item:     protocol.TimelineItem{Type: "tool_call", CallID: payload.ToolCallID, Status: status},
-				Provider: kimiProviderName,
-			},
-			Timestamp: timestamp,
-		})
+		b.ToolCall(payload.ToolCallID, "", nil, status)
 
 	case "TurnEnd":
-		isTerminal = true
-		events = append(events, agent.AgentStreamEvent{
-			Event: protocol.TurnCompletedStreamEvent{
-				Provider: kimiProviderName,
-			},
-			Timestamp: timestamp,
-		})
+		b.TurnCompleted(nil)
 
 	case "ApprovalRequest":
 		var payload struct {
@@ -695,7 +661,7 @@ func (t *kimiWireTranslator) Translate(raw []byte, timestamp time.Time) ([]inter
 			Description string `json:"description"`
 		}
 		_ = json.Unmarshal(msg.Params.Payload, &payload)
-		request := protocol.PermissionRequest{
+		b.PermissionRequested(protocol.PermissionRequest{
 			ID:       payload.ID,
 			Provider: kimiProviderName,
 			Name:     payload.Sender,
@@ -709,32 +675,13 @@ func (t *kimiWireTranslator) Translate(raw []byte, timestamp time.Time) ([]inter
 				"type":        payload.Sender,
 				"description": payload.Description,
 			},
-		}
-		events = append(events, agent.AgentStreamEvent{
-			Event: protocol.PermissionRequestedStreamEvent{
-				Provider: kimiProviderName,
-				Request:  request,
-			},
-			Timestamp: timestamp,
 		})
 
 	case "CompactionBegin":
-		events = append(events, agent.AgentStreamEvent{
-			Event: protocol.TimelineStreamEvent{
-				Item:     protocol.TimelineItem{Type: "compaction", CompactionStatus: "loading"},
-				Provider: kimiProviderName,
-			},
-			Timestamp: timestamp,
-		})
+		b.Timeline(protocol.TimelineItem{Type: "compaction", CompactionStatus: "loading"})
 
 	case "CompactionEnd":
-		events = append(events, agent.AgentStreamEvent{
-			Event: protocol.TimelineStreamEvent{
-				Item:     protocol.TimelineItem{Type: "compaction", CompactionStatus: "completed"},
-				Provider: kimiProviderName,
-			},
-			Timestamp: timestamp,
-		})
+		b.Timeline(protocol.TimelineItem{Type: "compaction", CompactionStatus: "completed"})
 
 	case "StepRetry":
 		var payload struct {
@@ -745,32 +692,12 @@ func (t *kimiWireTranslator) Translate(raw []byte, timestamp time.Time) ([]inter
 			ErrorType   string `json:"error_type"`
 		}
 		_ = json.Unmarshal(msg.Params.Payload, &payload)
-		events = append(events, agent.AgentStreamEvent{
-			Event: protocol.TimelineStreamEvent{
-				Item:     protocol.TimelineItem{Type: "error", Text: fmt.Sprintf("Step %d retry %d/%d after %ds: %s", payload.N, payload.NextAttempt, payload.MaxAttempts, payload.WaitS, payload.ErrorType)},
-				Provider: kimiProviderName,
-			},
-			Timestamp: timestamp,
-		})
+		b.Timeline(protocol.TimelineItem{Type: "error", Text: fmt.Sprintf("Step %d retry %d/%d after %ds: %s", payload.N, payload.NextAttempt, payload.MaxAttempts, payload.WaitS, payload.ErrorType)})
 	}
 
-	return events, isTerminal, nil
+	return b.Events(), b.Terminal(), nil
 }
 
 // --- Terminal Detector ---
-
-type kimiWireTerminalDetector struct {
-	session *kimiSession
-}
-
-func (d *kimiWireTerminalDetector) IsTerminal(evt interface{}) (*base.AgentRunResult, bool, error) {
-	streamEvt, ok := evt.(agent.AgentStreamEvent)
-	if !ok {
-		return nil, false, nil
-	}
-	switch streamEvt.Event.(type) {
-	case protocol.TurnCompletedStreamEvent:
-		return &base.AgentRunResult{}, true, nil
-	}
-	return nil, false, nil
-}
+//
+// Terminal detection is handled by the shared streamevents.TerminalDetector.

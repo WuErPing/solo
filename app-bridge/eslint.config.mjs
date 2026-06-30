@@ -6,6 +6,8 @@ export default tseslint.config(
   tseslint.configs.recommended,
   {
     rules: {
+      "no-empty": ["error", { allowEmptyCatch: false }],
+      "no-empty-function": "error",
       "@typescript-eslint/no-unused-vars": [
         "error",
         {

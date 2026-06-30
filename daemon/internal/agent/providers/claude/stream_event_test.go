@@ -10,6 +10,7 @@ import (
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/agent/base"
+	"github.com/WuErPing/solo/daemon/internal/agent/providers/streamevents"
 	"github.com/WuErPing/solo/protocol"
 )
 
@@ -240,9 +241,7 @@ outer:
 // terminal detector recognises typed TurnCompletedStreamEvent and
 // TurnFailedStreamEvent values.
 func TestClaudeTerminalDetector_RecognisesTypedTerminalEvents(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	sess := newTestClaudeSession(logger)
-	detector := &claudeTerminalDetector{session: sess}
+	detector := streamevents.TerminalDetector{}
 
 	t.Run("turn_completed", func(t *testing.T) {
 		evt := agent.AgentStreamEvent{Event: protocol.TurnCompletedStreamEvent{Provider: claudeProviderName}}

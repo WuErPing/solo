@@ -15,6 +15,7 @@ import (
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/agent/base"
 	"github.com/WuErPing/solo/daemon/internal/agent/providers/contracttest"
+	"github.com/WuErPing/solo/daemon/internal/agent/providers/streamevents"
 	"github.com/WuErPing/solo/protocol"
 )
 
@@ -315,9 +316,7 @@ func TestPiTranslator_TurnEnd_NoUsage(t *testing.T) {
 
 // TestPiTerminalDetector_TurnEnd detects turn_completed as terminal.
 func TestPiTerminalDetector_TurnEnd(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	sess := newTestPiSession(logger)
-	detector := &piTerminalDetector{session: sess}
+	detector := streamevents.TerminalDetector{}
 
 	evt := agent.AgentStreamEvent{
 		Event: protocol.TurnCompletedStreamEvent{Provider: "pi"},

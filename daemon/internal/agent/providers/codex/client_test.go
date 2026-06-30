@@ -10,6 +10,7 @@ import (
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/agent/base"
 	"github.com/WuErPing/solo/daemon/internal/agent/providers/contracttest"
+	"github.com/WuErPing/solo/daemon/internal/agent/providers/streamevents"
 	"github.com/WuErPing/solo/protocol"
 )
 
@@ -182,6 +183,7 @@ func TestCodexTranslator(t *testing.T) {
 		if isTerminal {
 			t.Error("turn_started should not be terminal")
 		}
+		events = unwrapStreamEvents(events)
 		if len(events) == 0 {
 			t.Fatal("expected at least 1 event")
 		}
@@ -204,6 +206,7 @@ func TestCodexTranslator(t *testing.T) {
 		if isTerminal {
 			t.Error("agent_message_delta should not be terminal")
 		}
+		events = unwrapStreamEvents(events)
 		found := false
 		for _, evt := range events {
 			if te, ok := evt.(protocol.TimelineStreamEvent); ok {
@@ -227,6 +230,7 @@ func TestCodexTranslator(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
+		events = unwrapStreamEvents(events)
 		found := false
 		for _, evt := range events {
 			if te, ok := evt.(protocol.TimelineStreamEvent); ok {
@@ -250,6 +254,7 @@ func TestCodexTranslator(t *testing.T) {
 		if !isTerminal {
 			t.Error("turn_completed should be terminal")
 		}
+		events = unwrapStreamEvents(events)
 		if len(events) == 0 {
 			t.Fatal("expected at least 1 event")
 		}
@@ -270,6 +275,7 @@ func TestCodexTranslator(t *testing.T) {
 		if !isTerminal {
 			t.Error("turn_aborted should be terminal")
 		}
+		events = unwrapStreamEvents(events)
 		if len(events) == 0 {
 			t.Fatal("expected at least 1 event")
 		}
@@ -286,6 +292,7 @@ func TestCodexTranslator(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
+		events = unwrapStreamEvents(events)
 		found := false
 		for _, evt := range events {
 			if _, ok := evt.(protocol.UsageUpdatedStreamEvent); ok {
@@ -324,7 +331,7 @@ func TestCodexTranslator(t *testing.T) {
 // -----------------------------------------------------------------------
 
 func TestCodexTerminalDetector(t *testing.T) {
-	detector := &codexTerminalDetector{}
+	detector := streamevents.TerminalDetector{}
 
 	t.Run("turn_completed_is_terminal", func(t *testing.T) {
 		evt := agent.AgentStreamEvent{Event: protocol.TurnCompletedStreamEvent{}}
@@ -416,6 +423,20 @@ func eventTypesListFromInterface(events []interface{}) []string {
 		}
 	}
 	return types
+}
+
+// unwrapStreamEvents unwraps agent.AgentStreamEvent envelopes into their inner
+// protocol stream-event payloads so the assertions can match on concrete types.
+func unwrapStreamEvents(events []interface{}) []interface{} {
+	out := make([]interface{}, len(events))
+	for i, evt := range events {
+		if se, ok := evt.(agent.AgentStreamEvent); ok {
+			out[i] = se.Event
+		} else {
+			out[i] = evt
+		}
+	}
+	return out
 }
 
 func jsonType(v interface{}) string {

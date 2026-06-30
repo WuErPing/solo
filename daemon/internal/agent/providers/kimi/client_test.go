@@ -414,52 +414,6 @@ func TestKimiWireTranslator_EmitsStreamEvents(t *testing.T) {
 	}
 }
 
-// --- RED Phase: kimiWireTerminalDetector tests ---
-
-func TestKimiWireTerminalDetector_IsTerminal_TurnCompleted(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	sess := newKimiSession("fake-kimi", &protocol.AgentSessionConfig{}, logger)
-	det := &kimiWireTerminalDetector{session: sess}
-
-	evt := agent.AgentStreamEvent{
-		Event: protocol.TurnCompletedStreamEvent{
-			Provider: kimiProviderName,
-		},
-	}
-
-	result, isTerm, err := det.IsTerminal(evt)
-	if !isTerm {
-		t.Fatal("expected terminal")
-	}
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if result == nil {
-		t.Fatal("expected non-nil result")
-	}
-	if result.Canceled {
-		t.Error("expected Canceled=false")
-	}
-}
-
-func TestKimiWireTerminalDetector_IsTerminal_NonTerminal(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	sess := newKimiSession("fake-kimi", &protocol.AgentSessionConfig{}, logger)
-	det := &kimiWireTerminalDetector{session: sess}
-
-	evt := agent.AgentStreamEvent{
-		Event: protocol.TimelineStreamEvent{
-			Provider: kimiProviderName,
-			Item:     protocol.TimelineItem{Type: "assistant_message", Text: "hi"},
-		},
-	}
-
-	_, isTerm, _ := det.IsTerminal(evt)
-	if isTerm {
-		t.Error("expected non-terminal")
-	}
-}
-
 // --- RED Phase: kimiSession JSON-RPC communication tests ---
 
 // fakeWriteCloser is a test double that captures writes without blocking.

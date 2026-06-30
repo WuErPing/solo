@@ -3,6 +3,7 @@ import {
   type EncryptedChannel,
   type Transport as RelayTransport,
 } from "../relay/e2ee.js";
+import { getDefaultLogger } from "../shared/logger.js";
 import type {
   DaemonTransport,
   DaemonTransportFactory,
@@ -182,8 +183,8 @@ function emitHandlers<TArgs extends unknown[]>(
 function invokeHandler<TArgs extends unknown[]>(handler: (...args: TArgs) => void, ...args: TArgs) {
   try {
     handler(...args);
-  } catch {
-    // no-op
+  } catch (error) {
+    getDefaultLogger().warn({ err: normalizeTransportError(error) }, "relay_handler_failed");
   }
 }
 

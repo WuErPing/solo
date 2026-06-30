@@ -15,6 +15,7 @@ import (
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/agent/base"
+	"github.com/WuErPing/solo/daemon/internal/agent/providers/streamevents"
 	"github.com/WuErPing/solo/protocol"
 )
 
@@ -191,7 +192,7 @@ func (s *piSession) Run(ctx context.Context, text string, _ []protocol.ImageAtta
 	pump := base.NewEventPump(s.base.Logger(), s.dispatcher)
 	pump.SetProvider(piProviderName)
 	translator := &piTranslator{session: s, messageID: messageID}
-	detector := &piTerminalDetector{session: s}
+	detector := streamevents.TerminalDetector{}
 
 	result, err := pump.RunBlocking(runCtx, stdoutPipe, translator, detector)
 	if err != nil {
@@ -246,7 +247,7 @@ func (s *piSession) StartTurn(ctx context.Context, text string, _ []protocol.Ima
 	pump := base.NewEventPump(s.base.Logger(), s.dispatcher)
 	pump.SetProvider(piProviderName)
 	translator := &piTranslator{session: s, messageID: ""}
-	detector := &piTerminalDetector{session: s}
+	detector := streamevents.TerminalDetector{}
 	go func() {
 		_, _ = pump.RunBlocking(runCtx, stdoutPipe, translator, detector)
 		s.dispatcher.Unsubscribe(baseCh)
@@ -470,26 +471,18 @@ func (t *piTranslator) Translate(raw []byte, timestamp time.Time) ([]interface{}
 		return nil, false, fmt.Errorf("parse pi event: %w", err)
 	}
 
-	events := t.translateEvent(msg, timestamp)
-	isTerminal := msg.Type == "turn_end" && (msg.Message == nil || msg.Message.StopReason != "toolUse")
-	return events, isTerminal, nil
+	b := streamevents.New(piProviderName, timestamp)
+	t.translateEvent(b, msg)
+	return b.Events(), b.Terminal(), nil
 }
 
-func (t *piTranslator) translateEvent(msg piEvent, now time.Time) []interface{} {
-	var events []interface{}
-
+func (t *piTranslator) translateEvent(b *streamevents.Builder, msg piEvent) {
 	switch msg.Type {
 	case "session":
 		if msg.ID != "" {
 			t.session.base.SetSessionID(msg.ID)
 		}
-		events = append(events, agent.AgentStreamEvent{
-			Event: protocol.ThreadStartedStreamEvent{
-				SessionID: msg.ID,
-				Provider:  piProviderName,
-			},
-			Timestamp: now,
-		})
+		b.ThreadStarted(msg.ID)
 
 	case "agent_start", "turn_start":
 		// Reset per-turn text tracking so the second turn (after a tool call)
@@ -508,13 +501,7 @@ func (t *piTranslator) translateEvent(msg piEvent, now time.Time) []interface{} 
 				}
 			}
 			if len(textParts) > 0 {
-				events = append(events, agent.AgentStreamEvent{
-					Event: protocol.TimelineStreamEvent{
-						Item:     protocol.TimelineItem{Type: "user_message", Text: strings.Join(textParts, "\n"), MessageID: t.messageID},
-						Provider: piProviderName,
-					},
-					Timestamp: now,
-				})
+				b.UserMessage(strings.Join(textParts, "\n"), t.messageID)
 			}
 		}
 
@@ -522,37 +509,19 @@ func (t *piTranslator) translateEvent(msg piEvent, now time.Time) []interface{} 
 		if msg.Message != nil && msg.Message.Role == "assistant" {
 			// Emit the full text if no text_delta was seen for this message.
 			if !t.textEmitted {
-				text := extractAssistantText(msg.Message)
-				if text != "" {
-					events = append(events, agent.AgentStreamEvent{
-						Event: protocol.TimelineStreamEvent{
-							Item:     protocol.TimelineItem{Type: "assistant_message", Text: text},
-							Provider: piProviderName,
-						},
-						Timestamp: now,
-					})
-				}
+				b.AssistantMessage(extractAssistantText(msg.Message))
 			}
 			t.textEmitted = false
 
 			// Accumulate usage from the assistant message_end event.
 			if msg.Message.Usage != nil {
-				usage := t.buildUsage(msg.Message.Usage)
-				if usage != nil {
-					events = append(events, agent.AgentStreamEvent{
-						Event: protocol.UsageUpdatedStreamEvent{
-							Provider: piProviderName,
-							Usage:    usage,
-						},
-						Timestamp: now,
-					})
-				}
+				b.Usage(t.buildUsage(msg.Message.Usage))
 			}
 		}
 
 	case "message_update":
 		if msg.AssistantMessageEvent != nil {
-			events = t.translateAssistantMessageEvent(msg.AssistantMessageEvent, now)
+			t.translateAssistantMessageEvent(b, msg.AssistantMessageEvent)
 		}
 
 	case "turn_end":
@@ -566,16 +535,7 @@ func (t *piTranslator) translateEvent(msg piEvent, now time.Time) []interface{} 
 
 		// Emit the full text if no text_delta was seen for the final assistant message.
 		if !t.textEmitted && msg.Message != nil {
-			text := extractAssistantText(msg.Message)
-			if text != "" {
-				events = append(events, agent.AgentStreamEvent{
-					Event: protocol.TimelineStreamEvent{
-						Item:     protocol.TimelineItem{Type: "assistant_message", Text: text},
-						Provider: piProviderName,
-					},
-					Timestamp: now,
-				})
-			}
+			b.AssistantMessage(extractAssistantText(msg.Message))
 		}
 		t.textEmitted = false
 
@@ -583,38 +543,20 @@ func (t *piTranslator) translateEvent(msg piEvent, now time.Time) []interface{} 
 		if usage == nil && msg.Message != nil {
 			usage = t.buildUsage(msg.Message.Usage)
 		}
-		events = append(events, agent.AgentStreamEvent{
-			Event: protocol.TurnCompletedStreamEvent{
-				Provider: piProviderName,
-				Usage:    usage,
-			},
-			Timestamp: now,
-		})
+		b.TurnCompleted(usage)
 
 	case "agent_end":
 		// No-op; turn_end already emitted turn_completed.
 	}
-
-	return events
 }
 
-func (t *piTranslator) translateAssistantMessageEvent(evt *piAssistantMessageEvent, now time.Time) []interface{} {
-	var events []interface{}
-
+func (t *piTranslator) translateAssistantMessageEvent(b *streamevents.Builder, evt *piAssistantMessageEvent) {
 	switch evt.Type {
 	case "thinking_start":
 		// No-op; wait for delta.
 
 	case "thinking_delta":
-		if evt.Delta != "" {
-			events = append(events, agent.AgentStreamEvent{
-				Event: protocol.TimelineStreamEvent{
-					Item:     protocol.TimelineItem{Type: "reasoning", Text: evt.Delta},
-					Provider: piProviderName,
-				},
-				Timestamp: now,
-			})
-		}
+		b.Reasoning(evt.Delta)
 
 	case "text_start":
 		// No-op; wait for delta.
@@ -622,13 +564,7 @@ func (t *piTranslator) translateAssistantMessageEvent(evt *piAssistantMessageEve
 	case "text_delta":
 		if evt.Delta != "" {
 			t.textEmitted = true
-			events = append(events, agent.AgentStreamEvent{
-				Event: protocol.TimelineStreamEvent{
-					Item:     protocol.TimelineItem{Type: "assistant_message", Text: evt.Delta},
-					Provider: piProviderName,
-				},
-				Timestamp: now,
-			})
+			b.AssistantMessage(evt.Delta)
 		}
 
 	case "toolcall_start":
@@ -638,13 +574,7 @@ func (t *piTranslator) translateAssistantMessageEvent(evt *piAssistantMessageEve
 			tc = evt.Partial
 		}
 		if tc != nil {
-			events = append(events, agent.AgentStreamEvent{
-				Event: protocol.TimelineStreamEvent{
-					Item:     protocol.TimelineItem{Type: "tool_call", CallID: tc.ID, Name: tc.Name, Detail: t.buildToolCallDetail(tc), Status: "running"},
-					Provider: piProviderName,
-				},
-				Timestamp: now,
-			})
+			b.ToolCall(tc.ID, tc.Name, t.buildToolCallDetail(tc), "running")
 		}
 
 	case "toolcall_delta":
@@ -656,17 +586,9 @@ func (t *piTranslator) translateAssistantMessageEvent(evt *piAssistantMessageEve
 	case "toolcall_end":
 		// Pi uses 'toolcall_end' (no underscore) with 'toolCall' field.
 		if evt.ToolCall != nil {
-			events = append(events, agent.AgentStreamEvent{
-				Event: protocol.TimelineStreamEvent{
-					Item:     protocol.TimelineItem{Type: "tool_call", CallID: evt.ToolCall.ID, Name: evt.ToolCall.Name, Detail: t.buildToolCallDetail(evt.ToolCall), Status: "completed"},
-					Provider: piProviderName,
-				},
-				Timestamp: now,
-			})
+			b.ToolCall(evt.ToolCall.ID, evt.ToolCall.Name, t.buildToolCallDetail(evt.ToolCall), "completed")
 		}
 	}
-
-	return events
 }
 
 func (t *piTranslator) buildUsage(u *piUsage) *protocol.AgentUsage {
@@ -708,22 +630,8 @@ func (t *piTranslator) buildToolCallDetail(tc *piToolCall) protocol.ToolCallDeta
 }
 
 // --- Terminal Detector ---
-
-type piTerminalDetector struct {
-	session *piSession
-}
-
-func (d *piTerminalDetector) IsTerminal(evt interface{}) (*base.AgentRunResult, bool, error) {
-	streamEvt, ok := evt.(agent.AgentStreamEvent)
-	if !ok {
-		return nil, false, nil
-	}
-	switch e := streamEvt.Event.(type) {
-	case protocol.TurnCompletedStreamEvent:
-		return &base.AgentRunResult{Usage: e.Usage}, true, nil
-	}
-	return nil, false, nil
-}
+//
+// Terminal detection is handled by the shared streamevents.TerminalDetector.
 
 // --- Pi JSON Event Types ---
 
