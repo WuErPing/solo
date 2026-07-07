@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-07-07
+
+### Added
+
+- **Loop**: template/instance model with `templateID` grouping, template list/get/delete RPCs, and log file separation
+- **Loop**: shared `AgentTemplate` for loop and schedule agents with verify feedback loop
+- **Loop**: default worker to provider's most autonomous mode
+- **App**: template hooks, instance detail screen, and template-grouped loop list
+- **App**: loop logs view and re-run action on detail screen
+- **App**: permission-mode picker on loop create screen
+- **App**: derive workspace slug from prompt, PR title, or project name
+- **Schedule**: provider schedule target with auto-close for spawned agents
+- **Settings**: LLM provider configuration backend and UI with custom provider support
+- **Daemon**: shared HTTP clients with bounded timeouts to prevent goroutine leaks
+- **Daemon**: shared structured logger with error logging for swallowed handler errors
+- **Protocol**: `LoopTemplateSummary` type and template RPC message types
+
+### Fixed
+
+- **Daemon**: use bounded HTTP clients in push/opencode to prevent goroutine leaks
+- **Daemon**: implement worktree archive request with persistent removal
+- **Daemon**: correct DeleteWorktree safety check and repo-root resolution
+- **App-bridge**: accept omitempty loop fields to prevent dropped responses
+- **App-bridge**: tolerate malformed schedule targets in list responses
+- **App-bridge**: harden schema-first infrastructure
+- **App**: show schedule query errors with optimistic cache update on create
+- **App**: remove duplicate plus from New Loop button
+
+### Changed
+
+- **Daemon**: extract shared streamevents builder across providers
+- **Daemon**: build schedule agents from shared `AgentTemplate`
+- **App**: remove existing-agent tab from schedule modals
+- **App**: rename sidebar labels "Dashboard" → "Agents", "Tmux Dashboard" → "Tmux"
+- **Settings**: present provider form in `AdaptiveModalSheet`
+
 ## [0.9.0] - 2026-06-24
 
 ### Added
