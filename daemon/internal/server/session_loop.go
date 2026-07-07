@@ -14,7 +14,16 @@ func (s *Session) handleLoopRun(m *protocol.LoopRunRequest) {
 		return
 	}
 
-	record, err := s.loopStore.Create(*m, s.defaultLoopProvider)
+	var record *protocol.LoopRecord
+	var err error
+
+	// If TemplateID is provided, create an instance from existing template
+	if m.TemplateID != "" {
+		record, err = s.loopStore.CreateInstance(m.TemplateID, *m, s.defaultLoopProvider)
+	} else {
+		record, err = s.loopStore.Create(*m, s.defaultLoopProvider)
+	}
+
 	if err != nil {
 		s.sendLoopRunResponse(m.RequestID, nil, err.Error())
 		return
@@ -132,6 +141,45 @@ func (s *Session) handleLoopDelete(m *protocol.LoopDeleteRequest) {
 	s.sendLoopDeleteResponse(m.RequestID, m.ID, "")
 }
 
+func (s *Session) handleLoopTemplateList(m *protocol.LoopTemplateListRequest) {
+	if s.loopStore == nil {
+		s.sendLoopTemplateListResponse(m.RequestID, nil, "loop module not initialized")
+		return
+	}
+	templates := s.loopStore.ListTemplates()
+	s.sendLoopTemplateListResponse(m.RequestID, templates, "")
+}
+
+func (s *Session) handleLoopTemplateGet(m *protocol.LoopTemplateGetRequest) {
+	if s.loopStore == nil {
+		s.sendLoopTemplateGetResponse(m.RequestID, nil, nil, nil, "loop module not initialized")
+		return
+	}
+	template, err := s.loopStore.GetTemplate(m.TemplateID)
+	if err != nil {
+		s.sendLoopTemplateGetResponse(m.RequestID, nil, nil, nil, err.Error())
+		return
+	}
+	instances := s.loopStore.ListInstances(m.TemplateID)
+	var latestRecord *protocol.LoopRecord
+	if len(instances) > 0 {
+		latestRecord, _ = s.loopStore.Get(instances[0].ID)
+	}
+	s.sendLoopTemplateGetResponse(m.RequestID, template, instances, latestRecord, "")
+}
+
+func (s *Session) handleLoopTemplateDelete(m *protocol.LoopTemplateDeleteRequest) {
+	if s.loopStore == nil {
+		s.sendLoopTemplateDeleteResponse(m.RequestID, "", "loop module not initialized")
+		return
+	}
+	if err := s.loopStore.DeleteTemplate(m.TemplateID); err != nil {
+		s.sendLoopTemplateDeleteResponse(m.RequestID, m.TemplateID, err.Error())
+		return
+	}
+	s.sendLoopTemplateDeleteResponse(m.RequestID, m.TemplateID, "")
+}
+
 // defaultLoopProvider returns the first currently available provider.
 // In test/E2E environments that enable the mock provider, prefer it so loops
 // run quickly and without external API calls.
@@ -218,4 +266,28 @@ func (s *Session) sendLoopDeleteResponse(requestID, id, errMsg string) {
 		payload.Error = &errMsg
 	}
 	s.sendMessage(protocol.NewSessionMessage(&protocol.LoopDeleteResponse{Type: "loop/delete/response", Payload: payload}))
+}
+
+func (s *Session) sendLoopTemplateListResponse(requestID string, templates []protocol.LoopTemplateSummary, errMsg string) {
+	payload := protocol.LoopTemplateListResponsePayload{RequestID: requestID, Templates: templates}
+	if errMsg != "" {
+		payload.Error = &errMsg
+	}
+	s.sendMessage(protocol.NewSessionMessage(&protocol.LoopTemplateListResponse{Type: "loop/template/list/response", Payload: payload}))
+}
+
+func (s *Session) sendLoopTemplateGetResponse(requestID string, template *protocol.LoopTemplateSummary, instances []protocol.LoopListItem, latestRecord *protocol.LoopRecord, errMsg string) {
+	payload := protocol.LoopTemplateGetResponsePayload{RequestID: requestID, Template: template, Instances: instances, LatestRecord: latestRecord}
+	if errMsg != "" {
+		payload.Error = &errMsg
+	}
+	s.sendMessage(protocol.NewSessionMessage(&protocol.LoopTemplateGetResponse{Type: "loop/template/get/response", Payload: payload}))
+}
+
+func (s *Session) sendLoopTemplateDeleteResponse(requestID string, templateID string, errMsg string) {
+	payload := protocol.LoopTemplateDeleteResponsePayload{RequestID: requestID, TemplateID: templateID}
+	if errMsg != "" {
+		payload.Error = &errMsg
+	}
+	s.sendMessage(protocol.NewSessionMessage(&protocol.LoopTemplateDeleteResponse{Type: "loop/template/delete/response", Payload: payload}))
 }

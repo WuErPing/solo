@@ -2,6 +2,8 @@ import type {
   CreateScheduleOptions,
   DaemonClient,
   DeleteLoopOptions,
+  DeleteLoopTemplateOptions,
+  GetLoopTemplateOptions,
   InspectLoopOptions,
   InspectScheduleOptions,
   LoopLogsOptions,
@@ -27,6 +29,9 @@ type LoopLogsPayload = Extract<SessionOutboundMessage, { type: "loop/logs/respon
 type LoopStopPayload = Extract<SessionOutboundMessage, { type: "loop/stop/response" }>["payload"];
 type LoopUpdatePayload = Extract<SessionOutboundMessage, { type: "loop/update/response" }>["payload"];
 type LoopDeletePayload = Extract<SessionOutboundMessage, { type: "loop/delete/response" }>["payload"];
+type LoopTemplateListPayload = Extract<SessionOutboundMessage, { type: "loop/template/list/response" }>["payload"];
+type LoopTemplateGetPayload = Extract<SessionOutboundMessage, { type: "loop/template/get/response" }>["payload"];
+type LoopTemplateDeletePayload = Extract<SessionOutboundMessage, { type: "loop/template/delete/response" }>["payload"];
 
 export class ScheduleRpc {
   constructor(private readonly client: DaemonClient) {}
@@ -254,6 +259,43 @@ export class ScheduleRpc {
         id: normalized.id,
       },
       responseType: "loop/delete/response",
+      timeout: 10000,
+    });
+  }
+
+  async loopTemplateList(requestId?: string): Promise<LoopTemplateListPayload> {
+    return this.client.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "loop/template/list",
+      },
+      responseType: "loop/template/list/response",
+      timeout: 10000,
+    });
+  }
+
+  async loopTemplateGet(options: string | GetLoopTemplateOptions): Promise<LoopTemplateGetPayload> {
+    const normalized = typeof options === "string" ? { templateID: options } : options;
+    return this.client.sendCorrelatedSessionRequest({
+      requestId: normalized.requestId,
+      message: {
+        type: "loop/template/get",
+        templateID: normalized.templateID,
+      },
+      responseType: "loop/template/get/response",
+      timeout: 10000,
+    });
+  }
+
+  async loopTemplateDelete(options: string | DeleteLoopTemplateOptions): Promise<LoopTemplateDeletePayload> {
+    const normalized = typeof options === "string" ? { templateID: options } : options;
+    return this.client.sendCorrelatedSessionRequest({
+      requestId: normalized.requestId,
+      message: {
+        type: "loop/template/delete",
+        templateID: normalized.templateID,
+      },
+      responseType: "loop/template/delete/response",
       timeout: 10000,
     });
   }

@@ -44,6 +44,7 @@ export const LoopIterationRecordSchema = z.object({
 
 export const LoopRecordSchema = z.object({
   id: z.string(),
+  templateID: z.string().optional(),
   name: z.string().nullable(),
   prompt: z.string(),
   cwd: z.string(),
@@ -82,6 +83,7 @@ export const LoopRecordSchema = z.object({
 
 export const LoopListItemSchema = z.object({
   id: z.string(),
+  templateID: z.string().optional(),
   name: z.string().nullable(),
   status: z.enum(["running", "succeeded", "failed", "stopped"]),
   cwd: z.string(),
@@ -112,6 +114,7 @@ export const LoopRunRequestSchema = z.object({
   sleepMs: z.number().int().nonnegative().optional(),
   maxIterations: z.number().int().positive().optional(),
   maxTimeMs: z.number().int().positive().optional(),
+  templateID: z.string().trim().min(1).optional(),
   agentTemplate: AgentSessionConfigSchema.optional().nullable(),
   workerAgentTemplate: AgentSessionConfigSchema.optional().nullable(),
   verifierAgentTemplate: AgentSessionConfigSchema.optional().nullable(),
@@ -224,12 +227,70 @@ export const LoopDeleteResponseSchema = z.object({
   }),
 });
 
+export const LoopTemplateSummarySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  cwd: z.string(),
+  provider: z.string().optional(),
+  model: z.string().optional(),
+  instanceCount: z.number().int().nonnegative(),
+  lastRunAt: z.string().optional(),
+  latestStatus: z.string().optional(),
+});
+
+export const LoopTemplateListRequestSchema = z.object({
+  type: z.literal("loop/template/list"),
+  requestId: z.string(),
+});
+
+export const LoopTemplateListResponseSchema = z.object({
+  type: z.literal("loop/template/list/response"),
+  payload: z.object({
+    requestId: z.string(),
+    templates: z.array(LoopTemplateSummarySchema),
+    error: z.string().nullable(),
+  }),
+});
+
+export const LoopTemplateGetRequestSchema = z.object({
+  type: z.literal("loop/template/get"),
+  requestId: z.string(),
+  templateID: z.string().trim().min(1),
+});
+
+export const LoopTemplateGetResponseSchema = z.object({
+  type: z.literal("loop/template/get/response"),
+  payload: z.object({
+    requestId: z.string(),
+    template: LoopTemplateSummarySchema.nullable(),
+    instances: z.array(LoopListItemSchema),
+    latestRecord: LoopRecordSchema.nullable().optional(),
+    error: z.string().nullable(),
+  }),
+});
+
+export const LoopTemplateDeleteRequestSchema = z.object({
+  type: z.literal("loop/template/delete"),
+  requestId: z.string(),
+  templateID: z.string(),
+});
+
+export const LoopTemplateDeleteResponseSchema = z.object({
+  type: z.literal("loop/template/delete/response"),
+  payload: z.object({
+    requestId: z.string(),
+    templateID: z.string(),
+    error: z.string().nullable(),
+  }),
+});
+
 export type LoopLogEntry = z.infer<typeof LoopLogEntrySchema>;
 export type LoopVerifyCheckResult = z.infer<typeof LoopVerifyCheckResultSchema>;
 export type LoopVerifyPromptResult = z.infer<typeof LoopVerifyPromptResultSchema>;
 export type LoopIterationRecord = z.infer<typeof LoopIterationRecordSchema>;
 export type LoopRecord = z.infer<typeof LoopRecordSchema>;
 export type LoopListItem = z.infer<typeof LoopListItemSchema>;
+export type LoopTemplateSummary = z.infer<typeof LoopTemplateSummarySchema>;
 export type LoopRunRequest = z.infer<typeof LoopRunRequestSchema>;
 export type LoopListRequest = z.infer<typeof LoopListRequestSchema>;
 export type LoopInspectRequest = z.infer<typeof LoopInspectRequestSchema>;
@@ -244,3 +305,9 @@ export type LoopUpdateRequest = z.infer<typeof LoopUpdateRequestSchema>;
 export type LoopDeleteRequest = z.infer<typeof LoopDeleteRequestSchema>;
 export type LoopUpdateResponse = z.infer<typeof LoopUpdateResponseSchema>;
 export type LoopDeleteResponse = z.infer<typeof LoopDeleteResponseSchema>;
+export type LoopTemplateListRequest = z.infer<typeof LoopTemplateListRequestSchema>;
+export type LoopTemplateListResponse = z.infer<typeof LoopTemplateListResponseSchema>;
+export type LoopTemplateGetRequest = z.infer<typeof LoopTemplateGetRequestSchema>;
+export type LoopTemplateGetResponse = z.infer<typeof LoopTemplateGetResponseSchema>;
+export type LoopTemplateDeleteRequest = z.infer<typeof LoopTemplateDeleteRequestSchema>;
+export type LoopTemplateDeleteResponse = z.infer<typeof LoopTemplateDeleteResponseSchema>;

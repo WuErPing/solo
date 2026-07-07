@@ -63,6 +63,12 @@ import {
   LoopStopRequestSchema,
   LoopUpdateRequestSchema,
   LoopDeleteRequestSchema,
+  LoopTemplateListRequestSchema,
+  LoopTemplateListResponseSchema,
+  LoopTemplateGetRequestSchema,
+  LoopTemplateGetResponseSchema,
+  LoopTemplateDeleteRequestSchema,
+  LoopTemplateDeleteResponseSchema,
   LoopRunResponseSchema,
   LoopListResponseSchema,
   LoopInspectResponseSchema,
@@ -1743,6 +1749,9 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   LoopStopRequestSchema,
   LoopUpdateRequestSchema,
   LoopDeleteRequestSchema,
+  LoopTemplateListRequestSchema,
+  LoopTemplateGetRequestSchema,
+  LoopTemplateDeleteRequestSchema,
 ]);
 
 export type SessionInboundMessage = z.infer<typeof SessionInboundMessageSchema>;
@@ -3279,7 +3288,10 @@ export type SessionOutboundMessage =
   | z.infer<typeof LoopLogsResponseSchema>
   | z.infer<typeof LoopStopResponseSchema>
   | z.infer<typeof LoopUpdateResponseSchema>
-  | z.infer<typeof LoopDeleteResponseSchema>;
+  | z.infer<typeof LoopDeleteResponseSchema>
+  | z.infer<typeof LoopTemplateListResponseSchema>
+  | z.infer<typeof LoopTemplateGetResponseSchema>
+  | z.infer<typeof LoopTemplateDeleteResponseSchema>;
 
 export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   ActivityLogMessageSchema,
@@ -3405,6 +3417,9 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   LoopStopResponseSchema,
   LoopUpdateResponseSchema,
   LoopDeleteResponseSchema,
+  LoopTemplateListResponseSchema,
+  LoopTemplateGetResponseSchema,
+  LoopTemplateDeleteResponseSchema,
 ]) as z.ZodType<SessionOutboundMessage, z.ZodTypeDef, unknown>;
 
 
@@ -3513,6 +3528,12 @@ export type LoopLogsResponse = z.infer<typeof LoopLogsResponseSchema>;
 export type LoopStopResponse = z.infer<typeof LoopStopResponseSchema>;
 export type LoopUpdateResponse = z.infer<typeof LoopUpdateResponseSchema>;
 export type LoopDeleteResponse = z.infer<typeof LoopDeleteResponseSchema>;
+export type LoopTemplateListRequest = z.infer<typeof LoopTemplateListRequestSchema>;
+export type LoopTemplateGetRequest = z.infer<typeof LoopTemplateGetRequestSchema>;
+export type LoopTemplateDeleteRequest = z.infer<typeof LoopTemplateDeleteRequestSchema>;
+export type LoopTemplateListResponse = z.infer<typeof LoopTemplateListResponseSchema>;
+export type LoopTemplateGetResponse = z.infer<typeof LoopTemplateGetResponseSchema>;
+export type LoopTemplateDeleteResponse = z.infer<typeof LoopTemplateDeleteResponseSchema>;
 
 // Type exports for payload types
 export type ActivityLogPayload = z.infer<typeof ActivityLogPayloadSchema>;

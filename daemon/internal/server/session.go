@@ -499,11 +499,24 @@ func (s *Session) handleSessionMessage(raw json.RawMessage) {
 	msg, err := protocol.DecodeSessionInboundMessage(raw)
 	if err != nil {
 		s.logger.Warn("invalid session message", "error", err)
-		s.sendRPCError("", "", err.Error(), nil)
+		// Try to extract requestId from raw JSON for error correlation
+		requestID := extractRequestID(raw)
+		s.sendRPCError("", requestID, err.Error(), nil)
 		return
 	}
 
 	s.handlerRegistry.Handle(s, msg)
+}
+
+// extractRequestID attempts to extract requestId from raw JSON message
+func extractRequestID(raw json.RawMessage) string {
+	var envelope struct {
+		RequestID string `json:"requestId"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return ""
+	}
+	return envelope.RequestID
 }
 
 // --- Message Handlers ---

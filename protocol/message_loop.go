@@ -44,6 +44,7 @@ type LoopIterationRecord struct {
 
 type LoopRecord struct {
 	ID                    string                `json:"id"`
+	TemplateID            string                `json:"templateID,omitempty"`
 	Name                  *string               `json:"name"`
 	Prompt                string                `json:"prompt"`
 	Cwd                   string                `json:"cwd"`
@@ -109,6 +110,7 @@ type LoopRecord struct {
 
 type LoopListItem struct {
 	ID              string  `json:"id"`
+	TemplateID      string  `json:"templateID,omitempty"`
 	Name            *string `json:"name"`
 	Status          string  `json:"status"`
 	Cwd             string  `json:"cwd"`
@@ -117,6 +119,19 @@ type LoopListItem struct {
 	CreatedAt       string  `json:"createdAt"`
 	UpdatedAt       string  `json:"updatedAt"`
 	ActiveIteration *int    `json:"activeIteration"`
+}
+
+// LoopTemplateSummary represents a reusable loop configuration.
+// Multiple LoopRecords (instances) can share the same TemplateID.
+type LoopTemplateSummary struct {
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Cwd           string `json:"cwd"`
+	Provider      string `json:"provider,omitempty"`
+	Model         string `json:"model,omitempty"`
+	InstanceCount int    `json:"instanceCount"`
+	LastRunAt     string `json:"lastRunAt,omitempty"`
+	LatestStatus  string `json:"latestStatus,omitempty"`
 }
 
 // --- Inbound Requests ---
@@ -133,6 +148,7 @@ type LoopRunRequest struct {
 	SleepMs       *int     `json:"sleepMs,omitempty"`
 	MaxIterations *int     `json:"maxIterations,omitempty"`
 	MaxTimeMs     *int     `json:"maxTimeMs,omitempty"`
+	TemplateID    string   `json:"templateID,omitempty"`
 
 	// AgentTemplate is the base template for any agent this loop creates.
 	AgentTemplate *AgentTemplate `json:"agentTemplate,omitempty"`
@@ -326,4 +342,70 @@ type LoopDeleteResponsePayload struct {
 	RequestID string  `json:"requestId"`
 	ID        string  `json:"id"`
 	Error     *string `json:"error"`
+}
+
+// --- Template RPC Types ---
+
+type LoopTemplateListRequest struct {
+	Type      string `json:"type"`
+	RequestID string `json:"requestId"`
+}
+
+func (m LoopTemplateListRequest) MsgType() string { return "loop/template/list" }
+
+type LoopTemplateListResponse struct {
+	Type    string                         `json:"type"`
+	Payload LoopTemplateListResponsePayload `json:"payload"`
+}
+
+func (m LoopTemplateListResponse) MsgType() string { return "loop/template/list/response" }
+
+type LoopTemplateListResponsePayload struct {
+	RequestID string                  `json:"requestId"`
+	Templates []LoopTemplateSummary   `json:"templates"`
+	Error     *string                 `json:"error"`
+}
+
+type LoopTemplateGetRequest struct {
+	Type       string `json:"type"`
+	RequestID  string `json:"requestId"`
+	TemplateID string `json:"templateID"`
+}
+
+func (m LoopTemplateGetRequest) MsgType() string { return "loop/template/get" }
+
+type LoopTemplateGetResponse struct {
+	Type    string                       `json:"type"`
+	Payload LoopTemplateGetResponsePayload `json:"payload"`
+}
+
+func (m LoopTemplateGetResponse) MsgType() string { return "loop/template/get/response" }
+
+type LoopTemplateGetResponsePayload struct {
+	RequestID    string                  `json:"requestId"`
+	Template     *LoopTemplateSummary    `json:"template"`
+	Instances    []LoopListItem          `json:"instances"`
+	LatestRecord *LoopRecord             `json:"latestRecord,omitempty"`
+	Error        *string                 `json:"error"`
+}
+
+type LoopTemplateDeleteRequest struct {
+	Type       string `json:"type"`
+	RequestID  string `json:"requestId"`
+	TemplateID string `json:"templateID"`
+}
+
+func (m LoopTemplateDeleteRequest) MsgType() string { return "loop/template/delete" }
+
+type LoopTemplateDeleteResponse struct {
+	Type    string                        `json:"type"`
+	Payload LoopTemplateDeleteResponsePayload `json:"payload"`
+}
+
+func (m LoopTemplateDeleteResponse) MsgType() string { return "loop/template/delete/response" }
+
+type LoopTemplateDeleteResponsePayload struct {
+	RequestID  string  `json:"requestId"`
+	TemplateID string  `json:"templateID"`
+	Error      *string `json:"error"`
 }

@@ -7,10 +7,10 @@ import { ArrowLeft, Loader, Plus, Trash2 } from "lucide-react-native";
 import { BackHeader } from "@/components/headers/back-header";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { useLoops } from "@/hooks/use-loops";
+import { useLoopTemplates } from "@/hooks/use-loop-templates";
 import { useLoopMutations } from "@/hooks/use-loop-mutations";
 import { buildHostLoopCreateRoute, buildHostLoopDetailRoute, buildHostOpenProjectRoute } from "@/utils/host-routes";
-import type { LoopListItem } from "@server/server/loop/rpc-schemas";
+import type { LoopListItem, LoopTemplateSummary } from "@server/server/loop/rpc-schemas";
 
 export function LoopsScreen({ serverId }: { serverId: string }) {
   const isFocused = useIsFocused();
@@ -22,7 +22,7 @@ export function LoopsScreen({ serverId }: { serverId: string }) {
   return <LoopsScreenContent serverId={serverId} />;
 }
 
-function LoopStatusBadge({ status }: { status: LoopListItem["status"] }) {
+function LoopStatusBadge({ status }: { status: string }) {
   const { theme } = useUnistyles();
   const color = useMemo(() => {
     switch (status) {
@@ -53,21 +53,21 @@ function LoopStatusBadge({ status }: { status: LoopListItem["status"] }) {
 
 function LoopCard({
   serverId,
-  loop,
+  template,
   onDelete,
   isDeleting,
 }: {
   serverId: string;
-  loop: LoopListItem;
+  template: LoopTemplateSummary;
   onDelete: (id: string) => void;
   isDeleting: boolean;
 }) {
   const { theme } = useUnistyles();
-  const name = loop.name ?? "Untitled";
+  const name = template.name || "Untitled";
 
   const handleOpenDetail = useCallback(() => {
-    router.navigate(buildHostLoopDetailRoute(serverId, loop.id));
-  }, [serverId, loop.id]);
+    router.navigate(buildHostLoopDetailRoute(serverId, template.id));
+  }, [serverId, template.id]);
 
   return (
     <Pressable style={styles.card} onPress={handleOpenDetail}>
@@ -76,16 +76,21 @@ function LoopCard({
           <Text style={styles.cardTitle} numberOfLines={1}>
             {name}
           </Text>
+          <View style={styles.instanceCountBadge}>
+            <Text style={styles.instanceCountText}>{template.instanceCount}</Text>
+          </View>
         </View>
-        <LoopStatusBadge status={loop.status} />
+        {template.latestStatus ? (
+          <LoopStatusBadge status={template.latestStatus} />
+        ) : null}
       </View>
 
       <View style={styles.cardMetaRow}>
-        <Text style={styles.cardMetaText}>{loop.cwd}</Text>
-        {loop.provider ? (
+        <Text style={styles.cardMetaText}>{template.cwd}</Text>
+        {template.provider ? (
           <Text style={styles.cardMetaText}>
-            · {loop.provider}
-            {loop.model ? ` / ${loop.model}` : ""}
+            · {template.provider}
+            {template.model ? ` / ${template.model}` : ""}
           </Text>
         ) : null}
       </View>
@@ -93,7 +98,7 @@ function LoopCard({
       <View style={styles.cardActions}>
         <Pressable
           style={styles.actionButton}
-          onPress={() => onDelete(loop.id)}
+          onPress={() => onDelete(template.id)}
           disabled={isDeleting}
         >
           <Trash2 size={16} color={theme.colors.palette.red[500]} />
@@ -108,8 +113,8 @@ function LoopCard({
 
 function LoopsScreenContent({ serverId }: { serverId: string }) {
   const { theme } = useUnistyles();
-  const { loops, isInitialLoad, isRevalidating, error, refreshAll } = useLoops({ serverId });
-  const { deleteLoop, isDeleting } = useLoopMutations({ serverId });
+  const { templates, isInitialLoad, isRevalidating, error, refreshAll } = useLoopTemplates({ serverId });
+  const { deleteTemplate, isDeletingTemplate } = useLoopMutations({ serverId });
 
   const [isManualRefresh, setIsManualRefresh] = useState(false);
 
@@ -135,12 +140,12 @@ function LoopsScreenContent({ serverId }: { serverId: string }) {
   const handleDelete = useCallback(
     async (id: string) => {
       try {
-        await deleteLoop(id);
+        await deleteTemplate(id);
       } catch {
         // Error is surfaced by mutation
       }
     },
-    [deleteLoop],
+    [deleteTemplate],
   );
 
   return (
@@ -161,7 +166,7 @@ function LoopsScreenContent({ serverId }: { serverId: string }) {
         </View>
       ) : null}
 
-      {!isInitialLoad && loops.length === 0 ? (
+      {!isInitialLoad && templates.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>No loops found.</Text>
           <Button variant="ghost" leftIcon={ArrowLeft} onPress={handleBack}>
@@ -170,7 +175,7 @@ function LoopsScreenContent({ serverId }: { serverId: string }) {
         </View>
       ) : null}
 
-      {!isInitialLoad && loops.length > 0 ? (
+      {!isInitialLoad && templates.length > 0 ? (
         <ScrollView
           style={styles.list}
           contentContainerStyle={styles.listContent}
@@ -187,13 +192,13 @@ function LoopsScreenContent({ serverId }: { serverId: string }) {
               <Text style={styles.errorText}>{error}</Text>
             </View>
           ) : null}
-          {loops.map((loop) => (
+          {templates.map((template) => (
             <LoopCard
-              key={loop.id}
+              key={template.id}
               serverId={serverId}
-              loop={loop}
+              template={template}
               onDelete={handleDelete}
-              isDeleting={isDeleting}
+              isDeleting={isDeletingTemplate}
             />
           ))}
         </ScrollView>
@@ -255,6 +260,19 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: theme.fontSize.lg,
     fontWeight: "600",
     flexShrink: 1,
+  },
+  instanceCountBadge: {
+    backgroundColor: theme.colors.surface2,
+    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: theme.spacing[1],
+    minWidth: 20,
+    alignItems: "center",
+  },
+  instanceCountText: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.xs,
+    fontWeight: "500",
   },
   cardMetaRow: {
     flexDirection: "row",

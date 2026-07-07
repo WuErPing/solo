@@ -322,6 +322,9 @@ type LoopLogsPayload = Extract<SessionOutboundMessage, { type: "loop/logs/respon
 type LoopStopPayload = Extract<SessionOutboundMessage, { type: "loop/stop/response" }>["payload"];
 type LoopUpdatePayload = Extract<SessionOutboundMessage, { type: "loop/update/response" }>["payload"];
 type LoopDeletePayload = Extract<SessionOutboundMessage, { type: "loop/delete/response" }>["payload"];
+type LoopTemplateListPayload = Extract<SessionOutboundMessage, { type: "loop/template/list/response" }>["payload"];
+type LoopTemplateGetPayload = Extract<SessionOutboundMessage, { type: "loop/template/get/response" }>["payload"];
+type LoopTemplateDeletePayload = Extract<SessionOutboundMessage, { type: "loop/template/delete/response" }>["payload"];
 type ScheduleCreatePayload = Extract<
   SessionOutboundMessage,
   { type: "schedule/create/response" }
@@ -506,6 +509,14 @@ export interface UpdateLoopOptions {
 }
 export interface DeleteLoopOptions {
   id: string;
+  requestId?: string;
+}
+export interface GetLoopTemplateOptions {
+  templateID: string;
+  requestId?: string;
+}
+export interface DeleteLoopTemplateOptions {
+  templateID: string;
   requestId?: string;
 }
 export interface CreateScheduleOptions {
@@ -2049,6 +2060,18 @@ export class DaemonClient {
 
   async loopDelete(options: string | DeleteLoopOptions): Promise<LoopDeletePayload> {
     return this.scheduleRpc.loopDelete(options);
+  }
+
+  async loopTemplateList(requestId?: string): Promise<LoopTemplateListPayload> {
+    return this.scheduleRpc.loopTemplateList(requestId);
+  }
+
+  async loopTemplateGet(options: string | GetLoopTemplateOptions): Promise<LoopTemplateGetPayload> {
+    return this.scheduleRpc.loopTemplateGet(options);
+  }
+
+  async loopTemplateDelete(options: string | DeleteLoopTemplateOptions): Promise<LoopTemplateDeletePayload> {
+    return this.scheduleRpc.loopTemplateDelete(options);
   }
 
   onTerminalStreamEvent(handler: (event: TerminalStreamEvent) => void): () => void {

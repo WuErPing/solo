@@ -25,6 +25,13 @@ func WithDataPath(path string) StoreOption {
 	}
 }
 
+// WithLogPath sets the base directory for log files. Empty disables separate log storage.
+func WithLogPath(path string) StoreOption {
+	return func(s *Store) {
+		s.logPath = path
+	}
+}
+
 // WithLogger sets the logger.
 func WithLogger(logger *slog.Logger) StoreOption {
 	return func(s *Store) {
@@ -37,6 +44,7 @@ type Store struct {
 	mu       sync.RWMutex
 	records  map[string]*protocol.LoopRecord
 	dataPath string
+	logPath  string
 	logger   *slog.Logger
 }
 
@@ -140,6 +148,7 @@ func (s *Store) Create(req protocol.LoopRunRequest, defaultProvider func() (stri
 	now := nowISO()
 	record := &protocol.LoopRecord{
 		ID:                    generateID(),
+		TemplateID:            generateID(),
 		Prompt:                req.Prompt,
 		Cwd:                   req.Cwd,
 		Provider:              provider,
@@ -213,7 +222,24 @@ func (s *Store) Get(id string) (*protocol.LoopRecord, bool) {
 	if !ok {
 		return nil, false
 	}
-	return copyRecord(r), true
+
+	record := copyRecord(r)
+
+	// Load logs from separate file if logPath is configured
+	if s.logPath != "" {
+		logs, err := s.ReadLogs(id)
+		if err != nil {
+			if s.logger != nil {
+				s.logger.Warn("failed to read logs from file", "id", id, "error", err)
+			}
+			// Continue with empty logs rather than failing the entire Get operation
+			record.Logs = []protocol.LoopLogEntry{}
+		} else {
+			record.Logs = logs
+		}
+	}
+
+	return record, true
 }
 
 // Update modifies the mutable fields of a loop record.
@@ -298,6 +324,68 @@ func (s *Store) Delete(id string) error {
 	err := s.saveLocked()
 	s.mu.Unlock()
 
+	// Remove log file if separate log storage is enabled
+	if err == nil && s.logPath != "" {
+		logFile := s.getLogFilePath(id)
+		if removeErr := os.Remove(logFile); removeErr != nil && !os.IsNotExist(removeErr) {
+			if s.logger != nil {
+				s.logger.Warn("failed to remove log file", "id", id, "error", removeErr)
+			}
+		}
+	}
+
+	return err
+}
+
+// DeleteTemplate deletes all instances that share the same templateID.
+func (s *Store) DeleteTemplate(templateID string) error {
+	s.mu.Lock()
+
+	// Find all records with this templateID
+	var idsToDelete []string
+	var hasRunning bool
+	for id, r := range s.records {
+		tid := r.TemplateID
+		if tid == "" {
+			// Legacy record without templateID - treat ID as templateID
+			tid = id
+		}
+		if tid == templateID {
+			if r.Status == string(StatusRunning) {
+				hasRunning = true
+			}
+			idsToDelete = append(idsToDelete, id)
+		}
+	}
+
+	if len(idsToDelete) == 0 {
+		s.mu.Unlock()
+		return fmt.Errorf("template not found: %s", templateID)
+	}
+	if hasRunning {
+		s.mu.Unlock()
+		return fmt.Errorf("cannot delete template with running instances")
+	}
+
+	// Delete all matching records
+	for _, id := range idsToDelete {
+		delete(s.records, id)
+	}
+	err := s.saveLocked()
+	s.mu.Unlock()
+
+	// Remove log files if separate log storage is enabled
+	if err == nil && s.logPath != "" {
+		for _, id := range idsToDelete {
+			logFile := s.getLogFilePath(id)
+			if removeErr := os.Remove(logFile); removeErr != nil && !os.IsNotExist(removeErr) {
+				if s.logger != nil {
+					s.logger.Warn("failed to remove log file", "id", id, "error", removeErr)
+				}
+			}
+		}
+	}
+
 	return err
 }
 
@@ -339,12 +427,116 @@ func (s *Store) AppendLog(id string, entry protocol.LoopLogEntry) error {
 	}
 	entry.Seq = r.NextLogSeq
 	r.NextLogSeq++
-	r.Logs = append(r.Logs, entry)
 	r.UpdatedAt = nowISO()
+
+	// Write to separate log file if logPath is configured
+	if s.logPath != "" {
+		if err := s.appendLogToFile(id, entry); err != nil {
+			s.mu.Unlock()
+			return fmt.Errorf("append log to file: %w", err)
+		}
+	} else {
+		// Fallback to in-memory storage
+		r.Logs = append(r.Logs, entry)
+	}
+
 	err := s.saveLocked()
 	s.mu.Unlock()
 
 	return err
+}
+
+// appendLogToFile appends a log entry to a separate file for the given loop.
+func (s *Store) appendLogToFile(id string, entry protocol.LoopLogEntry) error {
+	if s.logPath == "" {
+		return fmt.Errorf("log path not configured")
+	}
+
+	logFile := s.getLogFilePath(id)
+	logDir := filepath.Dir(logFile)
+
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return fmt.Errorf("create log directory: %w", err)
+	}
+
+	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("open log file: %w", err)
+	}
+	defer f.Close()
+
+	b, err := json.Marshal(entry)
+	if err != nil {
+		return fmt.Errorf("marshal log entry: %w", err)
+	}
+
+	if _, err := f.Write(append(b, '\n')); err != nil {
+		return fmt.Errorf("write log entry: %w", err)
+	}
+
+	return nil
+}
+
+// getLogFilePath returns the path to the log file for a given loop ID.
+func (s *Store) getLogFilePath(id string) string {
+	return filepath.Join(s.logPath, id+".log")
+}
+
+// ReadLogs reads all log entries from the log file for a given loop.
+func (s *Store) ReadLogs(id string) ([]protocol.LoopLogEntry, error) {
+	if s.logPath == "" {
+		// Fallback to in-memory storage
+		s.mu.RLock()
+		r, ok := s.records[id]
+		s.mu.RUnlock()
+		if !ok {
+			return nil, fmt.Errorf("loop not found")
+		}
+		return r.Logs, nil
+	}
+
+	logFile := s.getLogFilePath(id)
+	b, err := os.ReadFile(logFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []protocol.LoopLogEntry{}, nil
+		}
+		return nil, fmt.Errorf("read log file: %w", err)
+	}
+
+	var logs []protocol.LoopLogEntry
+	lines := splitLines(b)
+	for _, line := range lines {
+		if len(line) == 0 {
+			continue
+		}
+		var entry protocol.LoopLogEntry
+		if err := json.Unmarshal(line, &entry); err != nil {
+			if s.logger != nil {
+				s.logger.Warn("failed to unmarshal log entry", "error", err, "line", string(line))
+			}
+			continue
+		}
+		logs = append(logs, entry)
+	}
+
+	return logs, nil
+}
+
+// splitLines splits a byte slice into lines.
+func splitLines(b []byte) [][]byte {
+	var lines [][]byte
+	start := 0
+	for i, c := range b {
+		if c == '\n' {
+			lines = append(lines, b[start:i])
+			start = i + 1
+		}
+	}
+	if start < len(b) {
+		lines = append(lines, b[start:])
+	}
+	return lines
 }
 
 // AppendIteration appends an iteration and updates active pointers.
@@ -453,7 +645,8 @@ func (s *Store) saveLocked() error {
 
 	data := make(map[string]*protocol.LoopRecord, len(s.records))
 	for k, v := range s.records {
-		data[k] = v
+		record := s.truncateForStorage(v)
+		data[k] = record
 	}
 
 	b, err := json.MarshalIndent(data, "", "  ")
@@ -469,6 +662,45 @@ func (s *Store) saveLocked() error {
 		return fmt.Errorf("rename loops file: %w", err)
 	}
 	return nil
+}
+
+// truncateForStorage creates a copy of the record with logs excluded (if logPath configured)
+// and verify check output truncated to 4KB.
+func (s *Store) truncateForStorage(r *protocol.LoopRecord) *protocol.LoopRecord {
+	// Create shallow copy
+	record := *r
+
+	// Exclude logs when logPath is configured
+	if s.logPath != "" {
+		record.Logs = nil
+	}
+
+	// Truncate verify check output to 4KB
+	if len(record.Iterations) > 0 {
+		record.Iterations = make([]protocol.LoopIterationRecord, len(r.Iterations))
+		for i, iter := range r.Iterations {
+			record.Iterations[i] = iter
+			if len(iter.VerifyChecks) > 0 {
+				record.Iterations[i].VerifyChecks = make([]protocol.LoopVerifyCheckResult, len(iter.VerifyChecks))
+				for j, check := range iter.VerifyChecks {
+					record.Iterations[i].VerifyChecks[j] = check
+					record.Iterations[i].VerifyChecks[j].Stdout = truncateString(check.Stdout, 4096)
+					record.Iterations[i].VerifyChecks[j].Stderr = truncateString(check.Stderr, 4096)
+				}
+			}
+		}
+	}
+
+	return &record
+}
+
+// truncateString keeps the last maxBytes of s, prepending "[truncated] " if truncated.
+func truncateString(s string, maxBytes int) string {
+	if len(s) <= maxBytes {
+		return s
+	}
+	truncated := s[len(s)-maxBytes:]
+	return "[truncated] " + truncated
 }
 
 func (s *Store) load() error {
@@ -489,7 +721,116 @@ func (s *Store) load() error {
 		return fmt.Errorf("unmarshal loops: %w", err)
 	}
 
+	// Migrate legacy records without templateID
+	// Group records by name+cwd to identify templates
+	needsSave := false
+	templateGroups := make(map[string]string) // key: name|cwd -> templateID
+	
+	// First pass: collect existing template assignments by name+cwd
+	existingTemplates := make(map[string]string) // key: name|cwd -> existing templateID
+	for _, record := range data {
+		if record.TemplateID != "" {
+			name := ""
+			if record.Name != nil {
+				name = *record.Name
+			}
+			key := name + "|" + record.Cwd
+			// Use the first templateID we see for this name+cwd
+			if _, exists := existingTemplates[key]; !exists {
+				existingTemplates[key] = record.TemplateID
+			}
+		}
+	}
+	
+	// Second pass: assign or fix templateIDs
+	for _, record := range data {
+		name := ""
+		if record.Name != nil {
+			name = *record.Name
+		}
+		key := name + "|" + record.Cwd
+		
+		if record.TemplateID == "" {
+			// Record has no templateID, assign one
+			templateID, exists := templateGroups[key]
+			if !exists {
+				// Check if there's an existing template for this name+cwd
+				if existingTID, hasExisting := existingTemplates[key]; hasExisting {
+					templateID = existingTID
+				} else {
+					templateID = generateID()
+				}
+				templateGroups[key] = templateID
+			}
+			record.TemplateID = templateID
+			needsSave = true
+			if s.logger != nil {
+				s.logger.Info("migrated legacy loop record", "id", record.ID, "templateID", record.TemplateID, "name", name)
+			}
+		} else {
+			// Record has templateID, check if it should be regrouped
+			expectedTID, exists := templateGroups[key]
+			if !exists {
+				// First time seeing this name+cwd with a templateID
+				templateGroups[key] = record.TemplateID
+			} else if record.TemplateID != expectedTID {
+				// Record has different templateID, regroup it
+				if s.logger != nil {
+					s.logger.Info("regrouping loop record", "id", record.ID, "oldTemplateID", record.TemplateID, "newTemplateID", expectedTID, "name", name)
+				}
+				record.TemplateID = expectedTID
+				needsSave = true
+			}
+		}
+	}
+
+	// Migrate logs from JSON to separate files when logPath is configured
+	if s.logPath != "" {
+		for _, record := range data {
+			if len(record.Logs) > 0 {
+				// Write all log entries to separate log file
+				for _, entry := range record.Logs {
+					if err := s.appendLogToFile(record.ID, entry); err != nil {
+						if s.logger != nil {
+							s.logger.Warn("failed to migrate log entry", "id", record.ID, "error", err)
+						}
+					}
+				}
+				// Clear logs from record
+				record.Logs = nil
+				needsSave = true
+				if s.logger != nil {
+					s.logger.Info("migrated logs to separate file", "id", record.ID)
+				}
+			}
+		}
+	}
+
+	// Truncate oversized verify check output
+	for _, record := range data {
+		for i := range record.Iterations {
+			for j := range record.Iterations[i].VerifyChecks {
+				check := &record.Iterations[i].VerifyChecks[j]
+				if len(check.Stdout) > 4096 || len(check.Stderr) > 4096 {
+					check.Stdout = truncateString(check.Stdout, 4096)
+					check.Stderr = truncateString(check.Stderr, 4096)
+					needsSave = true
+				}
+			}
+		}
+	}
+
 	s.records = data
+
+	// Save migrated data back to disk
+	if needsSave {
+		if err := s.saveLocked(); err != nil {
+			if s.logger != nil {
+				s.logger.Warn("failed to save migrated loops", "error", err)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -502,6 +843,7 @@ func toListItem(r *protocol.LoopRecord) protocol.LoopListItem {
 	}
 	return protocol.LoopListItem{
 		ID:              r.ID,
+		TemplateID:      r.TemplateID,
 		Name:            r.Name,
 		Status:          r.Status,
 		Cwd:             r.Cwd,
@@ -633,4 +975,237 @@ func copyRecord(r *protocol.LoopRecord) *protocol.LoopRecord {
 	}
 
 	return &c
+}
+
+// CreateInstance creates a new loop instance from an existing template.
+// It copies the template configuration but assigns a new ID and fresh state.
+func (s *Store) CreateInstance(templateID string, req protocol.LoopRunRequest, defaultProvider func() (string, error)) (*protocol.LoopRecord, error) {
+	s.mu.RLock()
+	var template *protocol.LoopRecord
+	for _, r := range s.records {
+		if r.TemplateID == templateID {
+			template = r
+			break
+		}
+	}
+	s.mu.RUnlock()
+
+	if template == nil {
+		return nil, fmt.Errorf("template not found: %s", templateID)
+	}
+
+	// Override request with template config where not explicitly provided
+	if req.Prompt == "" {
+		req.Prompt = template.Prompt
+	}
+	if req.Cwd == "" {
+		req.Cwd = template.Cwd
+	}
+	if req.VerifyChecks == nil {
+		req.VerifyChecks = template.VerifyChecks
+	}
+	if req.VerifyPrompt == nil {
+		req.VerifyPrompt = template.VerifyPrompt
+	}
+	if req.MaxIterations == nil {
+		req.MaxIterations = template.MaxIterations
+	}
+	if req.AgentTemplate == nil {
+		req.AgentTemplate = template.AgentTemplate
+	}
+	if req.WorkerAgentTemplate == nil {
+		req.WorkerAgentTemplate = template.WorkerAgentTemplate
+	}
+	if req.VerifierAgentTemplate == nil {
+		req.VerifierAgentTemplate = template.VerifierAgentTemplate
+	}
+
+	record, err := s.Create(req, defaultProvider)
+	if err != nil {
+		return nil, err
+	}
+
+	// Re-assign the templateID to link this instance to the template
+	s.mu.Lock()
+	record.TemplateID = templateID
+	s.records[record.ID] = record
+	err = s.saveLocked()
+	s.mu.Unlock()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return copyRecord(record), nil
+}
+
+// ListTemplates returns a summary of each unique template.
+func (s *Store) ListTemplates() []protocol.LoopTemplateSummary {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	templates := make(map[string]*templateAccumulator)
+	for _, r := range s.records {
+		tid := r.TemplateID
+		if tid == "" {
+			// Legacy: group by name+cwd
+			name := ""
+			if r.Name != nil {
+				name = *r.Name
+			}
+			tid = "legacy:" + name + "|" + r.Cwd
+		}
+
+		acc, exists := templates[tid]
+		if !exists {
+			name := ""
+			if r.Name != nil {
+				name = *r.Name
+			}
+			acc = &templateAccumulator{
+				id:       tid,
+				name:     name,
+				cwd:      r.Cwd,
+				provider: r.Provider,
+				model:    nil,
+			}
+			if r.Model != nil {
+				m := *r.Model
+				acc.model = &m
+			}
+			templates[tid] = acc
+		}
+
+		acc.instanceCount++
+		if r.UpdatedAt > acc.lastRunAt {
+			acc.lastRunAt = r.UpdatedAt
+			acc.latestStatus = r.Status
+		}
+	}
+
+	result := make([]protocol.LoopTemplateSummary, 0, len(templates))
+	for _, acc := range templates {
+		model := ""
+		if acc.model != nil {
+			model = *acc.model
+		}
+		result = append(result, protocol.LoopTemplateSummary{
+			ID:            acc.id,
+			Name:          acc.name,
+			Cwd:           acc.cwd,
+			Provider:      acc.provider,
+			Model:         model,
+			InstanceCount: acc.instanceCount,
+			LastRunAt:     acc.lastRunAt,
+			LatestStatus:  acc.latestStatus,
+		})
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].LastRunAt != result[j].LastRunAt {
+			return result[i].LastRunAt > result[j].LastRunAt
+		}
+		return result[i].ID < result[j].ID
+	})
+
+	return result
+}
+
+type templateAccumulator struct {
+	id            string
+	name          string
+	cwd           string
+	provider      string
+	model         *string
+	instanceCount int
+	lastRunAt     string
+	latestStatus  string
+}
+
+// ListInstances returns all loop instances for a given template, sorted by UpdatedAt descending.
+func (s *Store) ListInstances(templateID string) []protocol.LoopListItem {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var result []protocol.LoopListItem
+	for _, r := range s.records {
+		tid := r.TemplateID
+		if tid == "" {
+			tid = r.ID // Legacy
+		}
+		if tid == templateID {
+			result = append(result, toListItem(r))
+		}
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].UpdatedAt != result[j].UpdatedAt {
+			return result[i].UpdatedAt > result[j].UpdatedAt
+		}
+		return result[i].ID < result[j].ID
+	})
+
+	return result
+}
+
+// GetTemplate returns the summary for a specific template.
+func (s *Store) GetTemplate(templateID string) (*protocol.LoopTemplateSummary, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var acc *templateAccumulator
+	for _, r := range s.records {
+		tid := r.TemplateID
+		if tid == "" {
+			name := ""
+			if r.Name != nil {
+				name = *r.Name
+			}
+			tid = "legacy:" + name + "|" + r.Cwd
+		}
+		if tid != templateID {
+			continue
+		}
+
+		if acc == nil {
+			name := ""
+			if r.Name != nil {
+				name = *r.Name
+			}
+			acc = &templateAccumulator{
+				id:       tid,
+				name:     name,
+				cwd:      r.Cwd,
+				provider: r.Provider,
+			}
+			if r.Model != nil {
+				m := *r.Model
+				acc.model = &m
+			}
+		}
+		acc.instanceCount++
+		if r.UpdatedAt > acc.lastRunAt {
+			acc.lastRunAt = r.UpdatedAt
+			acc.latestStatus = r.Status
+		}
+	}
+
+	if acc == nil {
+		return nil, fmt.Errorf("template not found: %s", templateID)
+	}
+
+	model := ""
+	if acc.model != nil {
+		model = *acc.model
+	}
+	return &protocol.LoopTemplateSummary{
+		ID:            acc.id,
+		Name:          acc.name,
+		Cwd:           acc.cwd,
+		Provider:      acc.provider,
+		Model:         model,
+		InstanceCount: acc.instanceCount,
+		LastRunAt:     acc.lastRunAt,
+		LatestStatus:  acc.latestStatus,
+	}, nil
 }

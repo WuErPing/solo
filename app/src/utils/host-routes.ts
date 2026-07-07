@@ -381,6 +381,19 @@ export function buildHostLoopDetailRoute(serverId: string, loopId: string) {
   return `${base}/${encodeSegment(normalizedLoopId)}` as const;
 }
 
+export function buildHostLoopInstanceDetailRoute(
+  serverId: string,
+  loopId: string,
+  instanceId: string,
+) {
+  const base = buildHostLoopDetailRoute(serverId, loopId);
+  const normalizedInstanceId = trimNonEmpty(instanceId);
+  if (base === "/" || !normalizedInstanceId) {
+    return "/" as const;
+  }
+  return `${base}/instances/${encodeSegment(normalizedInstanceId)}` as const;
+}
+
 export function buildHostLoopCreateRoute(serverId: string) {
   const base = buildHostLoopsRoute(serverId);
   if (base === "/") {

@@ -5,6 +5,7 @@ import type { AgentSessionConfig } from "@server/shared/agent-session-config";
 import { useHostRuntimeClient } from "@/runtime/host-runtime";
 import { loopsQueryKey } from "./use-loops";
 import { loopInspectQueryKey } from "./use-loop-inspect";
+import { loopTemplatesQueryKey, loopTemplateDetailQueryKey } from "./use-loop-templates";
 
 export interface LoopMutationsInput {
   serverId: string;
@@ -26,9 +27,11 @@ export interface UpdateLoopInput {
 export interface LoopMutationsResult {
   updateLoop: (input: UpdateLoopInput) => Promise<LoopRecord>;
   deleteLoop: (loopId: string) => Promise<string>;
+  deleteTemplate: (templateId: string) => Promise<string>;
   stopLoop: (loopId: string) => Promise<LoopRecord>;
   isUpdating: boolean;
   isDeleting: boolean;
+  isDeletingTemplate: boolean;
   isStopping: boolean;
 }
 
@@ -96,6 +99,29 @@ export function useLoopMutations({ serverId }: LoopMutationsInput): LoopMutation
     },
   });
 
+  const deleteTemplateMutation = useMutation({
+    mutationFn: async (templateId: string): Promise<string> => {
+      if (!client) {
+        throw new Error("Daemon client not available");
+      }
+      const payload = await client.loopTemplateDelete({ templateID: templateId });
+      if (payload.error) {
+        throw new Error(payload.error);
+      }
+      return payload.templateID;
+    },
+    onSuccess: async (_data, templateId) => {
+      await queryClient.invalidateQueries({
+        queryKey: loopTemplatesQueryKey(serverId),
+        refetchType: "all",
+      });
+      await queryClient.invalidateQueries({
+        queryKey: loopTemplateDetailQueryKey(serverId, templateId),
+        refetchType: "all",
+      });
+    },
+  });
+
   const stopMutation = useMutation({
     mutationFn: async (loopId: string): Promise<LoopRecord> => {
       if (!client) {
@@ -136,6 +162,13 @@ export function useLoopMutations({ serverId }: LoopMutationsInput): LoopMutation
     [deleteMutation],
   );
 
+  const deleteTemplate = useCallback(
+    async (templateId: string): Promise<string> => {
+      return deleteTemplateMutation.mutateAsync(templateId);
+    },
+    [deleteTemplateMutation],
+  );
+
   const stopLoop = useCallback(
     async (loopId: string): Promise<LoopRecord> => {
       return stopMutation.mutateAsync(loopId);
@@ -146,9 +179,11 @@ export function useLoopMutations({ serverId }: LoopMutationsInput): LoopMutation
   return {
     updateLoop,
     deleteLoop,
+    deleteTemplate,
     stopLoop,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
+    isDeletingTemplate: deleteTemplateMutation.isPending,
     isStopping: stopMutation.isPending,
   };
 }

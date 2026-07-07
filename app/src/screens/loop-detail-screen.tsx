@@ -17,10 +17,10 @@ import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { AdaptiveModalSheet, AdaptiveTextInput } from "@/components/adaptive-modal-sheet";
 import { useCreateLoop } from "@/hooks/use-create-loop";
-import { useLoopInspect } from "@/hooks/use-loop-inspect";
+import { useLoopTemplateDetail } from "@/hooks/use-loop-templates";
 import { useLoopMutations } from "@/hooks/use-loop-mutations";
 import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
-import { buildHostLoopDetailRoute, buildHostLoopsRoute } from "@/utils/host-routes";
+import { buildHostLoopDetailRoute, buildHostLoopInstanceDetailRoute, buildHostLoopsRoute } from "@/utils/host-routes";
 import type { AgentProvider } from "@server/server/agent/agent-sdk-types";
 
 export function LoopDetailScreen({ serverId, loopId }: { serverId: string; loopId: string }) {
@@ -69,9 +69,12 @@ function LoopStatusBadge({ status }: { status: string }) {
 
 function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopId: string }) {
   const { theme } = useUnistyles();
-  const { loop, isLoading, error } = useLoopInspect({ serverId, loopId });
+  const { template, instances, latestRecord, isLoading, error } = useLoopTemplateDetail({ serverId, templateId: loopId });
   const { updateLoop, deleteLoop, isUpdating, isDeleting } = useLoopMutations({ serverId });
   const { createLoop, isCreating } = useCreateLoop({ serverId });
+
+  // Use latestRecord for detailed config (prompt, verifyChecks, etc.)
+  const loop = latestRecord;
 
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const { entries: providers, isLoading: isProvidersLoading } = useProvidersSnapshot(serverId, {
@@ -87,6 +90,8 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
   const [editModel, setEditModel] = useState("");
   const [editSystemPrompt, setEditSystemPrompt] = useState("");
   const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
+  const [isInstanceDeleteModalVisible, setIsInstanceDeleteModalVisible] = useState(false);
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [retryError, setRetryError] = useState<string | null>(null);
 
@@ -215,6 +220,27 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
     }
   }, [deleteLoop, loopId, serverId]);
 
+  const handleOpenInstanceDelete = useCallback((instanceId: string) => {
+    setSelectedInstanceId(instanceId);
+    setIsInstanceDeleteModalVisible(true);
+  }, []);
+
+  const handleCloseInstanceDelete = useCallback(() => {
+    setIsInstanceDeleteModalVisible(false);
+    setSelectedInstanceId(null);
+  }, []);
+
+  const handleConfirmInstanceDelete = useCallback(async () => {
+    if (!selectedInstanceId) return;
+    try {
+      await deleteLoop(selectedInstanceId);
+      setIsInstanceDeleteModalVisible(false);
+      setSelectedInstanceId(null);
+    } catch {
+      // Error surfaced by mutation
+    }
+  }, [deleteLoop, selectedInstanceId]);
+
   const handleRetry = useCallback(async () => {
     if (!loop) {
       return;
@@ -276,7 +302,7 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
     );
   }
 
-  if (!loop) {
+  if (!template) {
     return (
       <View style={styles.container}>
         <BackHeader title="Loop" onBack={handleBack} />
@@ -290,7 +316,7 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
     );
   }
 
-  const name = loop.name ?? "Untitled";
+  const name = template.name || "Untitled";
 
   return (
     <View style={styles.container}>
@@ -299,7 +325,7 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
         onBack={handleBack}
         rightContent={
           <View style={styles.headerActions}>
-            {loop.status !== "running" ? (
+            {template.latestStatus !== "running" ? (
               <Button
                 variant="ghost"
                 size="sm"
@@ -331,66 +357,108 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
             <Text style={styles.sectionTitle} testID="loop-detail-name">
               {name}
             </Text>
-            <LoopStatusBadge status={loop.status} />
+            <LoopStatusBadge status={template.latestStatus || "unknown"} />
           </View>
 
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Status:</Text>
             <Text style={styles.detailValue} testID="loop-detail-status">
-              {loop.status}
+              {template.latestStatus || "unknown"}
             </Text>
           </View>
 
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Prompt</Text>
-            <Text style={styles.detailValue}>{loop.prompt}</Text>
+            <Text style={styles.detailLabel}>Instances:</Text>
+            <Text style={styles.detailValue}>{template.instanceCount}</Text>
           </View>
 
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Working Directory</Text>
-            <Text style={styles.detailValue}>{loop.cwd}</Text>
-          </View>
+          {loop ? (
+            <>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Prompt</Text>
+                <Text style={styles.detailValue}>{loop.prompt}</Text>
+              </View>
 
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Agent</Text>
-            <Text style={styles.detailValue}>
-              {loop.agentTemplate?.provider ?? loop.provider ?? "default"}
-              {loop.agentTemplate?.model ?? loop.model
-                ? ` / ${loop.agentTemplate?.model ?? loop.model}`
-                : ""}
-            </Text>
-          </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Working Directory</Text>
+                <Text style={styles.detailValue}>{loop.cwd}</Text>
+              </View>
 
-          {loop.agentTemplate?.systemPrompt ? (
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>System Prompt</Text>
-              <Text style={styles.detailValue}>{loop.agentTemplate.systemPrompt}</Text>
-            </View>
-          ) : null}
-
-          {loop.verifyChecks && loop.verifyChecks.length > 0 ? (
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Verify Checks</Text>
-              {loop.verifyChecks.map((check, idx) => (
-                <Text key={idx} style={styles.detailValue}>
-                  {check}
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Agent</Text>
+                <Text style={styles.detailValue}>
+                  {loop.agentTemplate?.provider ?? loop.provider ?? "default"}
+                  {loop.agentTemplate?.model ?? loop.model
+                    ? ` / ${loop.agentTemplate?.model ?? loop.model}`
+                    : ""}
                 </Text>
-              ))}
-            </View>
-          ) : null}
+              </View>
 
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Max Iterations</Text>
-            <Text style={styles.detailValue}>{loop.maxIterations ?? "unlimited"}</Text>
-          </View>
+              {loop.agentTemplate?.systemPrompt ? (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>System Prompt</Text>
+                  <Text style={styles.detailValue}>{loop.agentTemplate.systemPrompt}</Text>
+                </View>
+              ) : null}
+
+              {loop.verifyChecks && loop.verifyChecks.length > 0 ? (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Verify Checks</Text>
+                  {loop.verifyChecks.map((check, idx) => (
+                    <Text key={idx} style={styles.detailValue}>
+                      {check}
+                    </Text>
+                  ))}
+                </View>
+              ) : null}
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Max Iterations</Text>
+                <Text style={styles.detailValue}>{loop.maxIterations ?? "unlimited"}</Text>
+              </View>
+            </>
+          ) : null}
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Iterations</Text>
-          {loop.iterations.length === 0 ? (
-            <Text style={styles.emptyText}>No iterations yet</Text>
+          <Text style={styles.sectionTitle}>Instances ({instances.length})</Text>
+          {instances.length === 0 ? (
+            <Text style={styles.emptyText}>No instances yet</Text>
           ) : (
-            loop.iterations.map((iteration) => (
+            instances.map((instance) => (
+              <View key={instance.id} style={styles.iterationCard}>
+                <Pressable
+                  style={styles.iterationContent}
+                  onPress={() => {
+                    router.navigate(
+                      buildHostLoopInstanceDetailRoute(serverId, loopId, instance.id)
+                    );
+                  }}
+                >
+                  <View style={styles.iterationHeader}>
+                    <Text style={styles.iterationTitle}>{instance.name || "Run"}</Text>
+                    <LoopStatusBadge status={instance.status} />
+                  </View>
+                  <Text style={styles.detailValue}>
+                    Created: {instance.createdAt}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={styles.instanceDeleteButton}
+                  onPress={() => handleOpenInstanceDelete(instance.id)}
+                  disabled={isDeleting}
+                >
+                  <Trash2 size={16} color={theme.colors.palette.red[500]} />
+                </Pressable>
+              </View>
+            ))
+          )}
+        </View>
+
+        {loop && loop.iterations.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Latest Iterations</Text>
+            {loop.iterations.map((iteration) => (
               <View key={iteration.index} style={styles.iterationCard}>
                 <View style={styles.iterationHeader}>
                   <Text style={styles.iterationTitle}>Iteration {iteration.index}</Text>
@@ -421,15 +489,13 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
                   );
                 })}
               </View>
-            ))
-          )}
-        </View>
+            ))}
+          </View>
+        ) : null}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Logs</Text>
-          {loop.logs.length === 0 ? (
-            <Text style={styles.emptyText}>No logs yet</Text>
-          ) : (
+        {loop && loop.logs.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Logs</Text>
             <View style={styles.logList}>
               {loop.logs.map((log) => (
                 <View key={log.seq} style={styles.logRow}>
@@ -443,8 +509,8 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
                 </View>
               ))}
             </View>
-          )}
-        </View>
+          </View>
+        ) : null}
       </ScrollView>
 
       <AdaptiveModalSheet title="Edit Loop" visible={isEditModalVisible} onClose={handleCloseEdit}>
@@ -624,6 +690,26 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
           </View>
         </View>
       </AdaptiveModalSheet>
+
+      <AdaptiveModalSheet
+        title="Delete Instance"
+        visible={isInstanceDeleteModalVisible}
+        onClose={handleCloseInstanceDelete}
+      >
+        <View style={styles.modalContent}>
+          <Text style={styles.confirmText}>
+            Are you sure you want to delete this instance? This cannot be undone.
+          </Text>
+          <View style={styles.confirmButtons}>
+            <Button variant="ghost" onPress={handleCloseInstanceDelete}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onPress={handleConfirmInstanceDelete} disabled={isDeleting}>
+              Delete
+            </Button>
+          </View>
+        </View>
+      </AdaptiveModalSheet>
     </View>
   );
 }
@@ -711,10 +797,19 @@ const styles = StyleSheet.create((theme) => ({
     textTransform: "capitalize",
   },
   iterationCard: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: theme.colors.surface2,
     borderRadius: theme.borderRadius.md,
     padding: theme.spacing[3],
     gap: theme.spacing[2],
+  },
+  iterationContent: {
+    flex: 1,
+    gap: theme.spacing[2],
+  },
+  instanceDeleteButton: {
+    padding: theme.spacing[2],
   },
   iterationHeader: {
     flexDirection: "row",

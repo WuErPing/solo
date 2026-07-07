@@ -1,13 +1,13 @@
 import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
-import type { LoopListItem } from "@server/server/loop/rpc-schemas";
+import type { LoopTemplateSummary } from "@server/server/loop/rpc-schemas";
 import type { SidebarProjectEntry } from "./use-sidebar-workspaces-list";
 import {
   getHostRuntimeStore,
   useHosts,
   isHostRuntimeConnected,
 } from "@/runtime/host-runtime";
-import { loopsQueryKey } from "./use-loops";
+import { loopTemplatesQueryKey } from "./use-loop-templates";
 import {
   matchCwdToProjects,
   type CwdItem,
@@ -16,12 +16,13 @@ import {
   buildProjectPathSources,
 } from "./use-tmux-project-counts";
 
-export interface AggregatedLoop extends LoopListItem {
+interface AggregatedTemplate {
+  template: LoopTemplateSummary;
   serverId: string;
 }
 
-export function buildLoopCwdItems(loops: AggregatedLoop[]): CwdItem[] {
-  return loops.map((loop) => ({ cwd: loop.cwd, serverId: loop.serverId }));
+function buildTemplateCwdItems(items: AggregatedTemplate[]): CwdItem[] {
+  return items.map(({ template, serverId }) => ({ cwd: template.cwd, serverId }));
 }
 
 export function useLoopProjectCounts(
@@ -46,16 +47,16 @@ export function useLoopProjectCounts(
       const isConnected = isHostRuntimeConnected(snapshot);
 
       return {
-        queryKey: loopsQueryKey(host.serverId),
+        queryKey: loopTemplatesQueryKey(host.serverId),
         enabled: Boolean(client && isConnected),
         staleTime: 30_000,
         queryFn: async () => {
           if (!client) {
             throw new Error("Daemon client not available");
           }
-          const payload = await client.loopList();
+          const payload = await client.loopTemplateList();
           return {
-            loops: payload.loops ?? [],
+            templates: payload.templates ?? [],
             serverId: host.serverId,
           };
         },
@@ -68,22 +69,22 @@ export function useLoopProjectCounts(
       return new Map<string, number>();
     }
 
-    const allLoops: AggregatedLoop[] = [];
+    const allTemplates: AggregatedTemplate[] = [];
     for (let i = 0; i < queries.length; i++) {
       const query = queries[i];
-      if (!query?.data?.loops) continue;
+      if (!query?.data?.templates) continue;
       const host = connectedHosts[i];
       if (!host) continue;
-      for (const loop of query.data.loops) {
-        allLoops.push({ ...loop, serverId: host.serverId });
+      for (const template of query.data.templates) {
+        allTemplates.push({ template, serverId: host.serverId });
       }
     }
 
-    if (allLoops.length === 0) {
+    if (allTemplates.length === 0) {
       return new Map<string, number>();
     }
 
-    const cwdItems = buildLoopCwdItems(allLoops);
+    const cwdItems = buildTemplateCwdItems(allTemplates);
     const projectSources = buildProjectPathSources(projects, serverId);
     return matchCwdToProjects(cwdItems, projectSources);
   }, [queries, connectedHosts, projects, serverId]);

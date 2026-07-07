@@ -113,6 +113,9 @@ func (s *Session) registerHandlers() {
 	r.Register("loop/stop", typeHandler(s.handleLoopStop))
 	r.Register("loop/update", typeHandler(s.handleLoopUpdate))
 	r.Register("loop/delete", typeHandler(s.handleLoopDelete))
+	r.Register("loop/template/list", typeHandler(s.handleLoopTemplateList))
+	r.Register("loop/template/get", typeHandler(s.handleLoopTemplateGet))
+	r.Register("loop/template/delete", typeHandler(s.handleLoopTemplateDelete))
 
 	// --- Tmux handlers (session_tmux.go) ---
 	r.Register("tmux/list_agents", typeHandler(s.handleTmuxListAgents))

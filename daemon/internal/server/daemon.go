@@ -161,6 +161,7 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 	// Create shared loop store (single instance for all sessions)
 	loopStore := loop.NewStore(
 		loop.WithDataPath(filepath.Join(cfg.SoloHome, "loops.json")),
+		loop.WithLogPath(filepath.Join(cfg.SoloHome, "logs")),
 		loop.WithLogger(logger),
 	)
 
