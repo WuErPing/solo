@@ -592,6 +592,24 @@ function TmuxDashboardScreenInner() {
       ) : error ? (
         <View style={styles.centerContent}>
           <Text style={styles.errorText}>{error}</Text>
+          <View style={styles.emptyActionsRow}>
+            {firstConnectedServerId ? (
+              <Pressable
+                style={[styles.refreshButton, { backgroundColor: theme.colors.primary }]}
+                onPress={() => setShowNewSessionInput(true)}
+              >
+                <Plus size={16} color={theme.colors.background} />
+                <Text style={[styles.refreshButtonText, { color: theme.colors.background }]}>New tmux</Text>
+              </Pressable>
+            ) : null}
+            <Pressable
+              style={styles.refreshButton}
+              onPress={refreshAll}
+            >
+              <RefreshCw size={16} color={theme.colors.primary} />
+              <Text style={styles.refreshButtonText}>Refresh</Text>
+            </Pressable>
+          </View>
         </View>
       ) : !hasData ? (
         <View style={styles.centerContent}>

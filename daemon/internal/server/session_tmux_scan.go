@@ -3,6 +3,7 @@ package server
 import (
 	"bufio"
 	"context"
+	"errors"
 	"os/exec"
 	"sort"
 	"strconv"
@@ -200,10 +201,26 @@ func scanTmuxAgents(agentNames map[string]bool) ([]protocol.TmuxAgentInfo, []pro
 		"#{pane_id}|#{pane_index}|#{pane_pid}|#{pane_current_command}|#{session_name}|#{window_name}|#{pane_current_path}|#{pane_title}|#{window_activity}")
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, friendlyTmuxError(err)
 	}
 	agents, otherPanes := parseTmuxPaneLines(string(output), agentNames)
 	return agents, otherPanes, nil
+}
+
+// friendlyTmuxError converts raw exec errors into user-facing messages.
+// Without this, a missing or not-running tmux shows as the cryptic "exit status 1".
+func friendlyTmuxError(err error) error {
+	if errors.Is(err, exec.ErrNotFound) {
+		return errors.New("tmux is not installed or not in PATH")
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		if stderr := strings.TrimSpace(string(exitErr.Stderr)); stderr != "" {
+			return errors.New(stderr)
+		}
+		return errors.New("tmux server is not running — start a tmux session first")
+	}
+	return err
 }
 
 func extractFirstPrompt(paneID string, paneTitle string, agentNames map[string]bool) string {

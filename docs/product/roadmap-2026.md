@@ -1,15 +1,13 @@
 # Solo 2026 产品/技术路线图（AI-Native 工位版）
 
 > **文档类型**：统一产品路线图
-> **版本**：v2.4
-> **日期**：2026-06-25
+> **版本**：v2.5
+> **日期**：2026-07-07
 > **基线版本**：Solo v0.6.3
 > **目标读者**：产品、技术负责人、核心开发者、投资者
 > **关联文档**：
 > - [Feature Directions 2026](feature-directions-2026.md)
 > - [Provider Hub / CC-Switch Migration Design](agent-profile-switch-export-design.md)
-> - [Loop Schedule Design](loop-schedule-design.md)
-> - [Loop Schedule Deep Dive](loop-schedule-deep-dive.md)
 > - [Loop Schedule Implementation Spec](loop-schedule-spec.md)
 > - [Solo Roadmap Architecture Mapping](../analysis/solo-roadmap-architecture-mapping.md)
 
@@ -64,7 +62,18 @@
 - **AGENTS.md / CLAUDE.md** 成为项目规则的通用载体：像 `README.md` 服务人类一样，服务 agent。
 - **多工具并行成为常态**：开发者同时使用 Cursor（IDE）、Claude Code（终端）、Devin（云端）、Aider（本地），但每换一次工具就要重新说明项目规则。
 
-**对 Solo 的启示**：Solo 的机会不是再做一个 agent，而是成为“项目级 AI 能力的聚合层与配置中枢”——让项目规则、记忆、工具、模型、工作流围绕工作目录一次配置，处处生效。
+**对 Solo 的启示**：Solo 的机会不是再做一个 agent，而是成为”项目级 AI 能力的聚合层与配置中枢”——让项目规则、记忆、工具、模型、工作流围绕工作目录一次配置，处处生效。
+
+### 0.7 Loop Engineering 成为行业共识
+
+2026 年中，”Loop Engineering”从 Claude Code 负责人 Boris Cherny 和 OpenClaw 创始人 Peter Steinberger 的公开讨论迅速演变为 AI 原生开发的核心范式。Andrew Ng 将其定义为”人不再写代码，而是设计让 AI 自主写代码的循环系统”，提出三层循环模型（内环分钟级编码迭代 → 中环小时级产品决策 → 外环天/周级用户验证）与六大构建块（Automation / Worktree / Skill / MCP / Sub-Agent / Memory）。Shubham Saboo 从 PM 视角提炼出循环五要素（Trigger / Action / Proof / Memory / Stop），强调 Stop condition 是最被低估的部分，并提出 artifact（可复用、可版本化、可评估的项目知识载体）是 PM 在 AI 时代的核心投资资产。Addy Osmani 则系统性地指出了三大暗面风险：验证债（”完成”是声明不是事实）、理解债（产出速度远超理解速度）、认知投降（用 Loop 替代思考而非放大思考）。
+
+**对 Solo 的启示**：
+
+- **三层循环模型直接映射 Solo 架构**：Solo 已有的 Loop Schedule 对应内环（agent 自治编码/测试/修复），Coordinator / Coordinator 对应中环（人提供 Spec 和决策），External Feedback Loop 对应外环（用户反馈纳回系统）。三层通过 Product Spec（项目规则 + AGENTS.md）统一接口。
+- **五要素框架验证 Solo 的 Stop 条件设计**：Solo Loop 的 `completed` / `failed` / `human_confirm` / `maxIterations` / 预算门控完整覆盖了 Saboo 所强调的”能说'不'的循环才是生产级循环”。
+- **Artifact 概念强化 Project Memory 定位**：Solo 的 AGENTS.md / CLAUDE.md / 代码地图 / ADR 不仅是配置，而是 Saboo 所说的”可投资资产”——被复用时产生复利，但需要版本化、评估、防 drift。
+- **三大暗面风险必须纳入设计**：验证债（Loop 声称”完成”但实际未达标）、理解债（开发者不阅读 Loop 产出导致系统认知退化）、认知投降（对 Loop 输出照单全收）是 Solo 的 Human Confirm Gate / Intervention Primitive 必须对抗的系统性风险。
 
 ---
 
@@ -109,7 +118,8 @@ AI coding agent 放大了这个问题：
 | **认知负荷理论** | John Sweller | 通过项目级预加载规则与记忆，减少工作记忆负担。 |
 | **心流理论** | Mihaly Csikszentmihalyi | 本地优先、低延迟、自动上下文注入，减少打断，延长深度工作时间。 |
 | **OODA 循环** | John Boyd | Loop Schedule 的 Observe-Orient-Decide-Act 循环：观察 workspace → 判断状态 → LLM 决策 → 执行 step。 |
-| **ReAct / Reflexion** | Yao et al. / Shinn et al. | agent 通过“推理→行动→观察”循环迭代，失败时反思并调整策略。 |
+| **ReAct / Reflexion** | Yao et al. / Shinn et al. | agent 通过”推理→行动→观察”循环迭代，失败时反思并调整策略。 |
+| **Loop Engineering** | Andrew Ng / Boris Cherny / Shubham Saboo | 三层循环（分钟/小时/天周）× 五要素（Trigger/Action/Proof/Memory/Stop）× 六大构建块；Solo Loop 是内环实现，Project Memory 是 artifact 载体，Human Confirm Gate 是 Stop 条件的工程化。 |
 
 ### 1.4 业界实践映射
 
@@ -422,7 +432,7 @@ Solo 的架构由两个正交维度构成：
   - 新建、拆分、销毁 pane（编排）
   - 捕获 pane 输出中的结构化事件（diff / tool_call / error）
 - **Solo Agent（轻量 fallback）**：仅用于简单问答与元操作，重任务一律委托外部 Agent。
-- **Loop Schedule**：基于项目目录的自治循环，Plan → Execute → Verify → Fix，step 类型新增 `external-agent`。
+- **Loop Schedule**：基于项目目录的自治循环，Plan → Execute → Verify → Fix，step 类型新增 `external-agent`。按 Loop Engineering 三层模型演进：内环（分钟级，Agent 自治编码/测试/修复，由 LoopController 驱动）、中环（小时级，人通过 Coordinator 更新 Product Spec 并审查产出）、外环（天/周级，用户反馈纳回系统调整 Spec）。三层通过 AGENTS.md / Product Spec 统一接口。
 - **A2A Specialist Agents**：把子任务委托给外部 specialist（如安全审查、文档生成）。
 - **Agent-to-Agent Handoff**：基于 A2A Task 语义在 Coordinator 与 Specialist 之间移交任务上下文、中间状态与执行结果，支持跨进程、跨厂商 agent 协作。
 
@@ -769,6 +779,10 @@ Project CWD
 | A2A Agent Card 信任模型不成熟 | 中 | 先支持自签名/本地 Agent Card，生产级依赖 Signed Agent Cards 待验证后启用。 |
 | 项目记忆过度膨胀导致上下文爆炸 | 中 | 分层记忆策略：活跃项目全量加载，归档项目按需检索；定期压缩与归档。 |
 | 多项目配置漂移 | 中 | 支持全局默认模板 + 项目级覆盖；提供 `solo project check` 一致性校验。 |
+| **验证债**（Loop 声称"完成"但实际未达标——"完成"是声明不是事实） | 高 | 分离审查 Agent（不让 worker 自评）；Human Confirm Gate 泛化为开发原语；In-App Diff Review / Test Runner 作为独立验证层；人保留定期独立审查习惯。 |
+| **理解债**（Loop 产出代码的速度远超开发者理解代码的速度） | 中 | Agent Execution Stream 实时渲染执行过程；In-App Diff Review 强制可读；项目记忆沉淀 ADR 与变更摘要；定期 "code comprehension review" 机制。 |
+| **认知投降**（开发者对 Loop 输出照单全收，停止主动判断） | 中 | Intervention Primitive 要求人在关键节点介入；审批策略默认 `dangerous-only` 而非 `auto`；推送通知在 Loop 完成/失败时主动提醒审查；文档化 "Build the loop, but stay the PM" 原则。 |
+| **Artifact Drift**（AGENTS.md / 项目规则 / eval rubric 随时间漂移而无人监控） | 中 | Project Memory 版本化每个 artifact 变更（Storage 只留最新版 ≠ Memory 留每一版）；定期 eval 对照测试（3 强 + 3 弱样本）；artifact 变更自动关联 decision log；CI 中校验 artifact 一致性。 |
 
 ---
 
@@ -811,9 +825,7 @@ Project CWD
 |------|------|
 | [Feature Directions 2026](feature-directions-2026.md) | 原始方向分析，含业界对标 |
 | [Provider Hub / CC-Switch Migration Design](agent-profile-switch-export-design.md) | Provider Hub 详细设计 |
-| [Loop Schedule Design](loop-schedule-design.md) | Loop Schedule 高层设计 |
-| [Loop Schedule Deep Dive](loop-schedule-deep-dive.md) | Loop 技术深度分析 |
-| [Loop Schedule Implementation Spec](loop-schedule-spec.md) | Loop Schedule 实现规范（protocol、模块、迁移计划） |
+| [Loop Schedule Implementation Spec](loop-schedule-spec.md) | Loop Schedule 实现规范（protocol、模块、迁移计划），含设计原理附录 |
 | [Solo Roadmap Architecture Mapping](../analysis/solo-roadmap-architecture-mapping.md) | 路线图到架构的映射 |
 | [Product Features](features.md) | 当前 Solo 完整功能清单 |
 | **（待撰写）AI-Native Workstation Design** | AI-Native 工位四层模型（Intent / Orchestration / Observable Execution / In-App Verification）的协议、UX、模块拆分实现规范 |
@@ -834,3 +846,4 @@ Project CWD
 | 2026-06-24 | v2.2 | **新增 Handoff 双特性**：补充 Human-Agent Handoff（2.1 / 4.4 / Q4 2026）与 Agent-to-Agent Handoff（2.1 / 4.3 / Q1 2027），覆盖人-机交接与基于 A2A 语义的 agent 间任务委托。 |
 | 2026-06-25 | v2.3 | **AI-Native 工位重构**。Solo 定位升级为外部 AI Coding Agent 的 **Meta-Agent 编排层**（§1.7）；新增 AI-Native 工位四层模型 Intent / Orchestration / Observable Execution / In-App Verification（§4.5）；Tmux Dashboard 升级为 External Agent Bus（§4.3 / §5.1）；重写三大支柱（§5）；季度路线图新增 Agent Bus 升级、Execution Stream、Intervention、Intent Normalizer、In-App Diff Review、Staging Preview、截图入 Agent；Config Exporter 降 P2；Solo 不自研 STT；新增 5 项 AI-Native KPI、3 项风险、5 项行动项 |
 | 2026-06-25 | v2.4 | **清晰度优化**：统一"Agent/agent"大小写规范（中文行文一律使用大写 Agent）；修复 §4 ASCII 图"交互层 (原)"等不规整标签；删除 §4 / §5 引言中的章节自指（"延续 §X–Y"、"新增 §X"）；§1.7.6 去除逐节前瞻；§8 KPIs 按主题分组为四类（项目上下文与记忆 / Provider 与工具治理 / Agent 执行与自治 / 平台健康与增长）；§10 近期行动项按主题分组为四类（架构决策 / Loop 与 Protocol / Provider 与 Agent 接入 / AI-Native 工位） |
+| 2026-07-07 | v2.5 | **Loop Engineering 行业趋势整合**：新增 §0.7 "Loop Engineering 成为行业共识"，引入 Andrew Ng 三层循环模型（内环/中环/外环）、Saboo 五要素框架（Trigger/Action/Proof/Memory/Stop）与 artifact 概念、Osmani 三大暗面风险（验证债/理解债/认知投降）；§1.3 思想框架表新增 Loop Engineering 行；§4.3 扩展 Loop Schedule 描述以映射三层循环模型；§9 新增验证债、理解债、认知投降、Artifact Drift 四项风险；合并 `loop-schedule-design.md` 和 `loop-schedule-deep-dive.md` 内容到 `loop-schedule-spec.md` 附录并删除原文档 |

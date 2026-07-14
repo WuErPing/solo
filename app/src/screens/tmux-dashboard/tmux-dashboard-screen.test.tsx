@@ -135,6 +135,7 @@ let otherPanesOverride: typeof mockOtherPanes = [];
 let commandHistoryOverride: { agentName: string; launchCmd: string; lastSeen: string }[] = [];
 let isInitialLoadOverride = false;
 let isLoadingOverride = false;
+let errorOverride: string | null = null;
 const mockRefreshAll = vi.fn();
 
 const mockStatusLines = [
@@ -148,7 +149,7 @@ vi.mock("@/hooks/use-tmux-agents", () => ({
     commandHistory: commandHistoryOverride,
     isLoading: isLoadingOverride,
     isInitialLoad: isInitialLoadOverride,
-    error: null,
+    error: errorOverride,
     refreshAll: mockRefreshAll,
   }),
 }));
@@ -192,6 +193,7 @@ describe("TmuxDashboardScreen", () => {
     commandHistoryOverride = [];
     isInitialLoadOverride = false;
     isLoadingOverride = false;
+    errorOverride = null;
   });
 
   it("refreshes tmux agents on launch to update command history storage", () => {
@@ -426,5 +428,15 @@ describe("TmuxDashboardScreen", () => {
     render(<TmuxDashboardScreen />);
     expect(screen.queryByText("busy")).toBeNull();
     expect(screen.getByText("exited")).toBeDefined();
+  });
+
+  it("shows error message with action buttons when error is present", () => {
+    errorOverride = "no server running on /tmp/tmux-501/default";
+    render(<TmuxDashboardScreen />);
+    expect(screen.getByText("no server running on /tmp/tmux-501/default")).toBeDefined();
+    expect(screen.getByText("New tmux")).toBeDefined();
+    expect(screen.getByText("Refresh")).toBeDefined();
+    fireEvent.click(screen.getByText("Refresh"));
+    expect(mockRefreshAll).toHaveBeenCalled();
   });
 });

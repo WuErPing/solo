@@ -5,8 +5,6 @@
 > **基线版本**：Solo v0.6.3
 > **目标读者**：后端、前端、CLI 开发者
 > **关联文档**：
-> - [Loop Schedule Design](loop-schedule-design.md)
-> - [Loop Schedule Deep Dive](loop-schedule-deep-dive.md)
 > - [Solo 2026 产品/技术路线图](roadmap-2026.md)
 > - [Solo Roadmap Architecture Mapping](../analysis/solo-roadmap-architecture-mapping.md)
 > - [Schedule Module Analysis](../analysis/app-bridge-schedule-module.md)
@@ -1015,10 +1013,144 @@ func (r *StepRegistry) Execute(ctx context.Context, stepType string, step LoopSt
 
 ---
 
+## 附录 A. 设计原理与技术背景
+
+> 本附录整合自原始设计方案（`loop-schedule-design.md`）与技术深度分析（`loop-schedule-deep-dive.md`），保留了本规范正文未涵盖的设计原理和概念参考。
+
+### A.1 Schedule 与 Loop 的定位差异
+
+| 维度 | 传统 Schedule | Loop Schedule |
+|---|---|---|
+| 触发 | 基于时间（cron/interval） | 基于状态（上一步完成即触发下一步） |
+| 决策 | 固定 prompt | LLM 根据上下文动态决策 |
+| 反馈 | 只记录日志 | 反馈回循环，影响下一步 |
+| 终止 | 时间/最大次数 | 目标完成、失败、人工确认、最大迭代 |
+| 能力 | 单次任务 | 多 step 自治工作流 |
+
+Schedule 适合**定时值守**（每晚跑 lint、定时备份），Loop 适合**需要多轮迭代的目标**（修复测试、重构代码、生成文档）。两者共享 `StoredSchedule` 持久化层，Loop 是 Schedule 的高级类型。
+
+### A.2 Controller 不是 Agent
+
+Loop Controller 与 Solo Agent 的关键区别：
+
+| | Solo Agent | Loop Controller |
+|---|---|---|
+| 目标 | 完成一次用户 prompt | 管理多轮循环的决策 |
+| 输出 | 流式文本/代码/思考 | 结构化决策（tool call） |
+| 生命周期 | 一次会话 | 跨越多个 step |
+| 工具 | provider 原生工具 | Loop 层定义的工具 |
+| 状态 | session timeline | loop state store |
+
+Controller 调用 LLM 时，必须输出结构化 JSON/tool call，禁止自由生成文本。
+
+### A.3 Controller Prompt 模板
+
+```markdown
+You are Loop Controller for Solo, an autonomous software development assistant.
+
+## Goal
+{{.Goal}}
+
+## Constraints
+- Max iterations: {{.MaxIterations}}
+- Current iteration: {{.CurrentIteration}}
+- Approval policy: {{.Policy}}
+- Available tools: {{.Tools}}
+
+## Workspace
+{{.Workspace}}
+
+## Recent Steps
+{{.LastSteps}}
+
+## Instructions
+Decide the next action. You must respond with a JSON object matching one of these schemas:
+
+1. next_step
+2. human_confirm
+3. completed
+4. failed
+
+Do not output explanations outside the JSON.
+```
+
+### A.4 决策输出 JSON Schema
+
+```json
+{
+  "$schema": "https://solo.sh/schemas/loop-decision-v1.json",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "decision": { "const": "next_step" },
+        "step": { "$ref": "#/definitions/Step" },
+        "reasoning": { "type": "string" }
+      },
+      "required": ["decision", "step"]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "decision": { "const": "human_confirm" },
+        "request": {
+          "type": "object",
+          "properties": {
+            "message": { "type": "string" },
+            "options": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "properties": {
+        "decision": { "const": "completed" },
+        "summary": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "properties": {
+        "decision": { "const": "failed" },
+        "reason": { "type": "string" }
+      }
+    }
+  ]
+}
+```
+
+### A.5 Provider 适配
+
+不同 provider 输出结构化数据的方式不同：
+
+| Provider | 结构化输出方式 | 备注 |
+|---|---|---|
+| Claude (Anthropic) | `tool_use` content block + 强制 JSON schema | 最稳定 |
+| OpenAI / Codex | `function_calling` with `response_format` | 支持 strict mode |
+| Kimi (Moonshot) | `function calling` | 兼容 OpenAI 格式 |
+| OpenCode | SSE stream + structured output | 需解析流 |
+| 本地 OSS 模型 | JSON mode / structured generation | 依赖模型能力 |
+
+Controller 应按 provider 选择最优适配路径；fallback 策略：JSON 解析失败 → 正则提取 → 重试一次 → 标记 `failed`。
+
+### A.6 设计边界（明确不做的事）
+
+- 不做 DAG 工作流引擎（只做线性 + 分支循环）。
+- 不做分布式执行（Solo 是本地优先）。
+- 不替代人对代码的 final review 和 merge。
+- 不把 agent 内部每一轮 tool call 暴露为 Loop step（一次 Agent step 是黑盒单元）。
+
+### A.7 成功标准
+
+- "fix all tests" 类任务 5–10 轮内自主完成率达到 70%+。
+- Loop 崩溃后从最后一次 step 恢复。
+- 危险操作 100% 经过配置的策略审批。
+
+---
+
 ## 参考文档
 
-- [Loop Schedule Design](loop-schedule-design.md)
-- [Loop Schedule Deep Dive](loop-schedule-deep-dive.md)
 - [Solo 2026 产品/技术路线图](roadmap-2026.md)
 - [Solo Roadmap Architecture Mapping](../analysis/solo-roadmap-architecture-mapping.md)
 - [Schedule Module Analysis](../analysis/app-bridge-schedule-module.md)

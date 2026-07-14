@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os/exec"
@@ -1219,4 +1220,31 @@ func TestWrapContentToCols(t *testing.T) {
 			t.Errorf("wrapContentToCols(%q, 0) = %q, want %q", input, got, input)
 		}
 	})
+}
+
+func TestFriendlyTmuxError(t *testing.T) {
+	// Build a real *exec.ExitError with stderr content by running sh.
+	_, exitErrWithStderr := exec.Command("sh", "-c", "printf 'no server running on /tmp/tmux-501/default' >&2; exit 1").Output()
+
+	// Build a real *exec.ExitError with empty stderr.
+	_, exitErrNoStderr := exec.Command("sh", "-c", "exit 1").Output()
+
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"binary not found", &exec.Error{Name: "tmux", Err: exec.ErrNotFound}, "tmux is not installed or not in PATH"},
+		{"exit error with stderr", exitErrWithStderr, "no server running on /tmp/tmux-501/default"},
+		{"exit error without stderr", exitErrNoStderr, "tmux server is not running — start a tmux session first"},
+		{"generic error passthrough", errors.New("something else"), "something else"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := friendlyTmuxError(tt.err)
+			if got.Error() != tt.want {
+				t.Errorf("friendlyTmuxError(%v) = %q, want %q", tt.err, got.Error(), tt.want)
+			}
+		})
+	}
 }
