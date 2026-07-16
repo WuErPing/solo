@@ -43,6 +43,9 @@ vi.mock("expo-router", () => ({
   router: {
     navigate,
   },
+}));
+
+vi.mock("@react-navigation/native", () => ({
   useIsFocused: () => true,
 }));
 

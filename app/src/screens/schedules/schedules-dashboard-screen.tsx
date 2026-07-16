@@ -8,7 +8,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { router , useIsFocused } from "expo-router";
+import { router } from "expo-router";
+import { useIsFocused } from "@react-navigation/native";
 import {
   Activity,
   Calendar,

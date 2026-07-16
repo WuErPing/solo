@@ -79,6 +79,9 @@ vi.mock("@/utils/cron-timezone", () => ({
 
 vi.mock("expo-router", () => ({
   router: { navigate: vi.fn() },
+}));
+
+vi.mock("@react-navigation/native", () => ({
   useIsFocused: () => true,
 }));
 

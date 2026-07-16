@@ -4,7 +4,8 @@ import {
   Text,
   ScrollView,
 } from "react-native";
-import { useIsFocused , router } from "expo-router";
+import { useIsFocused } from "@react-navigation/native";
+import { router } from "expo-router";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { ArrowLeft, Calendar, Clock, CheckCircle, XCircle, Loader, Globe } from "lucide-react-native";
 import { MenuHeader } from "@/components/headers/menu-header";
