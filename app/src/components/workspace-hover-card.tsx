@@ -28,7 +28,7 @@ import { useBottomSheetModalInternal } from "@gorhom/bottom-sheet";
 import type { SidebarWorkspaceEntry } from "@/hooks/use-sidebar-workspaces-list";
 import type { PrHint } from "@/hooks/use-checkout-pr-status-query";
 import { openExternalUrl } from "@/utils/open-external-url";
-import { PrBadge } from "@/components/sidebar-workspace-list";
+import { PrBadge } from "@/components/pr-badge";
 import { useHoverSafeZone } from "@/hooks/use-hover-safe-zone";
 
 interface Rect {

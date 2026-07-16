@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { View, Text } from "react-native";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "@/hooks/use-is-focused";
 import { router } from "expo-router";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { ChevronLeft } from "lucide-react-native";

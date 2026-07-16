@@ -2,7 +2,7 @@ import "@/styles/unistyles";
 import { PortalProvider } from "@gorhom/portal";
 import { QueryClientProvider } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
-import * as Notifications from "expo-notifications";
+import * as Notifications from "@/utils/notifications";
 import {
   Stack,
   useGlobalSearchParams,
@@ -47,7 +47,7 @@ import {
 } from "@/contexts/sidebar-animation-context";
 import { SidebarCalloutProvider } from "@/contexts/sidebar-callout-context";
 import { ToastProvider } from "@/contexts/toast-context";
-import { initializeHostRuntime, type StartupNavigationTarget } from "@/app/host-runtime-bootstrap";
+import { initializeHostRuntime, type StartupNavigationTarget } from "@/runtime/host-runtime-bootstrap";
 import { shouldUseDesktopDaemon } from "@/desktop/daemon/desktop-daemon";
 import { listenToDesktopEvent } from "@/desktop/electron/events";
 import { updateDesktopWindowControls } from "@/desktop/electron/window";

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Notifications from "expo-notifications";
+import * as Notifications from "@/utils/notifications";
 import Constants from "expo-constants";
 import type { DaemonClient } from "@server/client/daemon-client";
 import { isWeb } from "@/constants/platform";

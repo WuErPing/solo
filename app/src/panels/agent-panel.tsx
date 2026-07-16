@@ -1,6 +1,6 @@
 import type { DaemonClient } from "@server/client/daemon-client";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
+import { ActivityIndicator, Text, View, StyleSheet as RNStyleSheet } from "react-native";
 import ReanimatedAnimated from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -937,7 +937,7 @@ function ChatAgentContent({
   ]);
 
   const animatedContentStyle = useMemo(
-    () => [styles.content, animatedKeyboardStyle],
+    () => [staticStyles.content, animatedKeyboardStyle],
     [animatedKeyboardStyle],
   );
 
@@ -1348,6 +1348,14 @@ const foregroundColorMapping = (theme: Theme) => ({
   color: theme.colors.foreground,
 });
 
+// Static styles for the Reanimated Animated.View — must NOT use Unistyles styles:
+// on web they carry metadata that Reanimated's style validator rejects.
+const staticStyles = RNStyleSheet.create({
+  content: {
+    flex: 1,
+  },
+});
+
 const styles = StyleSheet.create((theme) => ({
   root: {
     flex: 1,
@@ -1360,9 +1368,6 @@ const styles = StyleSheet.create((theme) => ({
   contentContainer: {
     flex: 1,
     overflow: "hidden",
-  },
-  content: {
-    flex: 1,
   },
   inputAreaWrapper: {
     width: "100%",

@@ -21,7 +21,6 @@ import {
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { ICON_SIZE, type Theme } from "@/styles/theme";
 import { ArrowUp, CornerDownLeft, Plus } from "lucide-react-native";
-import Animated from "react-native-reanimated";
 import type { DaemonClient } from "@server/client/daemon-client";
 import {
   collectImageFilesFromClipboardData,
@@ -1223,7 +1222,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     return (
       <View ref={rootRef} style={styles.container} testID="message-input-root">
         {/* Regular input */}
-        <Animated.View ref={inputWrapperRef} style={inputWrapperCombinedStyle}>
+        <View ref={inputWrapperRef} style={inputWrapperCombinedStyle}>
           {/* Text input */}
           <View style={styles.textInputScrollWrapper}>
             <ThemedTextInput
@@ -1285,7 +1284,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               />
             </View>
           </View>
-        </Animated.View>
+        </View>
       </View>
     );
   },

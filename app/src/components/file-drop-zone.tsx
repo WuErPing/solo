@@ -1,4 +1,4 @@
-import { View, Text } from "react-native";
+import { View, Text, StyleSheet as RNStyleSheet } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import Animated, { useAnimatedStyle, withTiming, useSharedValue } from "react-native-reanimated";
 import { useEffect, useMemo } from "react";
@@ -34,7 +34,7 @@ export function FileDropZone({ children, onFilesDropped, disabled = false }: Fil
   }));
 
   const overlayStyle = useMemo(
-    () => [styles.overlay, overlayAnimatedStyle],
+    () => [staticStyles.overlay, overlayAnimatedStyle],
     [overlayAnimatedStyle],
   );
 
@@ -65,16 +65,25 @@ export function FileDropZone({ children, onFilesDropped, disabled = false }: Fil
   );
 }
 
+// Static styles for the Animated.View overlay — must NOT use Unistyles styles:
+// on web they carry metadata that Reanimated's style validator rejects.
+const staticStyles = RNStyleSheet.create({
+  overlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000,
+  },
+});
+
 const styles = StyleSheet.create((theme) => ({
   container: {
     flex: 1,
     position: "relative",
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1000,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,

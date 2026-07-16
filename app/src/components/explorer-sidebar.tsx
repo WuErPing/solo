@@ -7,7 +7,6 @@ import {
   StyleSheet as RNStyleSheet,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useIsFocused } from "@react-navigation/native";
 import Animated, { useAnimatedStyle, useSharedValue, runOnJS } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
@@ -40,6 +39,8 @@ interface ExplorerSidebarProps {
   workspaceRoot: string;
   isGit: boolean;
   onOpenFile?: (filePath: string) => void;
+  /** Whether the enclosing route/deck entry is focused; unfocused entries hide explorer surfaces. */
+  isRouteFocused: boolean;
 }
 
 export function ExplorerSidebar({
@@ -48,9 +49,9 @@ export function ExplorerSidebar({
   workspaceRoot,
   isGit,
   onOpenFile,
+  isRouteFocused,
 }: ExplorerSidebarProps) {
   const { theme } = useUnistyles();
-  const isScreenFocused = useIsFocused();
   const insets = useSafeAreaInsets();
   const isMobile = useIsCompactFormFactor();
   const isOpen = usePanelStore((state) => selectIsFileExplorerOpen(state, { isCompact: isMobile }));
@@ -293,7 +294,7 @@ export function ExplorerSidebar({
 
   // Navigation stacks can keep previous screens mounted; hide sidebars for unfocused
   // screens so only the active screen exposes explorer/terminal surfaces.
-  if (!isScreenFocused) {
+  if (!isRouteFocused) {
     return null;
   }
 

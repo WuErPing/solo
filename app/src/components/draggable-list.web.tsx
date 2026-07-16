@@ -90,6 +90,14 @@ function SortableItem<T>({
     [combinedTransform, transition, isDragging],
   );
 
+  // dnd-kit marks the activator with role="button". Rows spread these props onto
+  // an RN View that contains real buttons (Pressable row and action buttons), so
+  // a <button> activator would produce invalid nested-<button> HTML on web. Drop
+  // the role (the View then renders as a plain div); tabIndex and listeners are
+  // preserved, so pointer and keyboard dragging keep working.
+  const { role: _ignoredActivatorRole, ...activatorAttributes } =
+    attributes as unknown as Record<string, unknown>;
+
   const info: DraggableRenderItemInfo<T> = {
     item,
     index,
@@ -97,7 +105,7 @@ function SortableItem<T>({
     isActive: activeId === id,
     dragHandleProps: useDragHandle
       ? {
-          attributes: attributes as unknown as Record<string, unknown>,
+          attributes: activatorAttributes,
           listeners: listeners as unknown as Record<string, unknown>,
           setActivatorNodeRef: setActivatorNodeRef as unknown as (node: unknown) => void,
         }

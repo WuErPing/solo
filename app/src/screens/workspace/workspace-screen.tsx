@@ -1,6 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { useStoreWithEqualityFn } from "zustand/traditional";
-import { useIsFocused } from "@react-navigation/native";
 import { ActivityIndicator, BackHandler, Keyboard, Pressable, Text, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
@@ -164,7 +163,7 @@ const MENU_SETTINGS_ICON = <ThemedSettings size={16} uniProps={mutedColorMapping
 interface WorkspaceScreenProps {
   serverId: string;
   workspaceId: string;
-  isRouteFocused?: boolean;
+  isRouteFocused: boolean;
 }
 
 type WorkspaceScreenContentProps = WorkspaceScreenProps & {
@@ -676,15 +675,12 @@ function useStableTabDescriptorMap(tabDescriptors: WorkspaceTabDescriptor[]) {
 }
 
 export function WorkspaceScreen({ serverId, workspaceId, isRouteFocused }: WorkspaceScreenProps) {
-  const navigationFocused = useIsFocused();
-  const effectiveRouteFocused = isRouteFocused ?? navigationFocused;
-
   return (
     <ExplorerSidebarAnimationProvider>
       <WorkspaceScreenContent
         serverId={serverId}
         workspaceId={workspaceId}
-        isRouteFocused={effectiveRouteFocused}
+        isRouteFocused={isRouteFocused}
       />
     </ExplorerSidebarAnimationProvider>
   );
@@ -3003,6 +2999,7 @@ function WorkspaceScreenContent({
             workspaceRoot={workspaceDirectory}
             isGit={isGitCheckout}
             onOpenFile={handleOpenFileFromExplorer}
+            isRouteFocused={isRouteFocused}
           />
         ) : null}
       </View>

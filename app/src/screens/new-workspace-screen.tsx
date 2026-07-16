@@ -702,9 +702,23 @@ export function NewWorkspaceScreen({
     [isCompact, insets.bottom],
   );
 
+  // Plain theme-derived style object — must NOT be a Unistyles style: on web those
+  // carry metadata that Reanimated's style validator rejects.
+  const optionsRowStaticStyle = useMemo(
+    () => ({
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      flexWrap: "wrap" as const,
+      gap: theme.spacing[2],
+      paddingHorizontal: theme.spacing[4] + theme.spacing[4] - 6,
+      marginTop: -theme.spacing[2],
+    }),
+    [theme],
+  );
+
   const optionsRowStyle = useMemo(
-    () => [styles.optionsRow, keyboardAnimatedStyle],
-    [keyboardAnimatedStyle],
+    () => [optionsRowStaticStyle, keyboardAnimatedStyle],
+    [optionsRowStaticStyle, keyboardAnimatedStyle],
   );
 
   const statusControlsWithDisabled = useMemo(
@@ -853,14 +867,6 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: theme.fontSize.sm,
     color: theme.colors.destructive,
     lineHeight: 20,
-  },
-  optionsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: theme.spacing[2],
-    paddingHorizontal: theme.spacing[4] + theme.spacing[4] - 6,
-    marginTop: -theme.spacing[2],
   },
   badge: {
     flexDirection: "row",

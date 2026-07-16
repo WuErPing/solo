@@ -37,7 +37,13 @@ vi.mock("@dnd-kit/sortable", () => ({
   },
   sortableKeyboardCoordinates: vi.fn(),
   useSortable: () => ({
-    attributes: {},
+    // Realistic dnd-kit activator attributes (role="button", tabIndex, aria hints).
+    attributes: {
+      role: "button",
+      tabIndex: 0,
+      "aria-disabled": false,
+      "aria-roledescription": "sortable",
+    },
     listeners: {},
     setNodeRef: vi.fn(),
     setActivatorNodeRef: vi.fn(),
@@ -136,5 +142,32 @@ describe("DraggableList web", () => {
       latestDndContextProps?.onDragCancel?.();
     });
     expect(getItemActiveState("alpha")).toBe("false");
+  });
+
+  it("strips role from drag handle attributes so the activator is not a nested <button>", () => {
+    // Rows spread dragHandleProps onto an activator View that contains real
+    // buttons (Pressable row/actions). Keeping dnd-kit's role="button" would
+    // render the activator as a <button> wrapping <button>s — invalid HTML.
+    // tabIndex must be preserved so keyboard dragging keeps working.
+    let capturedAttributes: Record<string, unknown> | undefined;
+    act(() => {
+      root?.render(
+        <DraggableList
+          data={DATA}
+          keyExtractor={keyExtractor}
+          onDragEnd={vi.fn()}
+          useDragHandle
+          scrollEnabled={false}
+          renderItem={(info) => {
+            capturedAttributes = info.dragHandleProps?.attributes;
+            return <div data-testid={`item-${info.item}`}>{info.item}</div>;
+          }}
+        />,
+      );
+    });
+
+    expect(capturedAttributes).toBeDefined();
+    expect(capturedAttributes).not.toHaveProperty("role");
+    expect(capturedAttributes).toMatchObject({ tabIndex: 0 });
   });
 });

@@ -1,0 +1,13 @@
+diff --git a/node_modules/expo-router/build/react-navigation/elements/Screen.js b/node_modules/expo-router/build/react-navigation/elements/Screen.js
+index 9bc9083..2251cd3 100644
+--- a/node_modules/expo-router/build/react-navigation/elements/Screen.js
++++ b/node_modules/expo-router/build/react-navigation/elements/Screen.js
+@@ -65,7 +65,7 @@ function Screen(props) {
+         collapsable: false, children: [headerShown ? ((0, jsx_runtime_1.jsx)(native_1.NavigationProvider, { route: route, navigation: navigation, children: (0, jsx_runtime_1.jsx)(react_native_1.View, { ref: headerRef, onLayout: (e) => {
+                         const { height } = e.nativeEvent.layout;
+                         setHeaderHeight(height);
+-                    }, style: [styles.header, headerTransparent ? styles.absolute : null], children: header }) })) : null, (0, jsx_runtime_1.jsx)(react_native_1.View, { style: styles.content, children: (0, jsx_runtime_1.jsx)(HeaderShownContext_1.HeaderShownContext.Provider, { value: isParentHeaderShown || headerShown !== false, children: (0, jsx_runtime_1.jsx)(HeaderHeightContext_1.HeaderHeightContext.Provider, { value: headerShown ? headerHeight : (parentHeaderHeight ?? 0), children: children }) }) })] }));
++                    }, style: [styles.header, headerTransparent ? styles.absolute : null], children: header }) })) : null, (0, jsx_runtime_1.jsx)(native_1.NavigationProvider, { route: route, navigation: navigation, children: /* expo-router web also needs NavigationContext around screen content (matches NativeStackView.native) */ (0, jsx_runtime_1.jsx)(react_native_1.View, { style: styles.content, children: (0, jsx_runtime_1.jsx)(HeaderShownContext_1.HeaderShownContext.Provider, { value: isParentHeaderShown || headerShown !== false, children: (0, jsx_runtime_1.jsx)(HeaderHeightContext_1.HeaderHeightContext.Provider, { value: headerShown ? headerHeight : (parentHeaderHeight ?? 0), children: children }) }) }) })] }));
+ }
+ const styles = react_native_1.StyleSheet.create({
+     container: {

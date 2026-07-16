@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text } from "react-native";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "@/hooks/use-is-focused";
 import { StyleSheet } from "react-native-unistyles";
 import { settingsStyles } from "@/styles/settings";
 import { SettingsSection } from "@/screens/settings/settings-section";

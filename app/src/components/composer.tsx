@@ -4,6 +4,7 @@ import {
   Text,
   ActivityIndicator,
   Image,
+  StyleSheet as RNStyleSheet,
 } from "react-native";
 import { useState, useEffect, useRef, useCallback, useMemo, memo, type ReactElement } from "react";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -1324,7 +1325,7 @@ export function Composer({
   );
 
   const composerContainerStyle = useMemo(
-    () => [styles.container, keyboardAnimatedStyle],
+    () => [staticStyles.container, keyboardAnimatedStyle],
     [keyboardAnimatedStyle],
   );
   const inputAreaContainerStyle = useMemo(
@@ -1435,11 +1436,16 @@ export function Composer({
   );
 }
 
-const styles = StyleSheet.create((theme: Theme) => ({
+// Static styles for the Animated.View container — must NOT use Unistyles styles:
+// on web they carry metadata that Reanimated's style validator rejects.
+const staticStyles = RNStyleSheet.create({
   container: {
     flexDirection: "column",
     position: "relative",
   },
+});
+
+const styles = StyleSheet.create((theme: Theme) => ({
   borderSeparator: {
     height: theme.borderWidth[1],
     backgroundColor: theme.colors.border,

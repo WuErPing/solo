@@ -81,7 +81,7 @@ vi.mock("expo-router", () => ({
   router: { navigate: vi.fn() },
 }));
 
-vi.mock("@react-navigation/native", () => ({
+vi.mock("@/hooks/use-is-focused", () => ({
   useIsFocused: () => true,
 }));
 
