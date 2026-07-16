@@ -162,6 +162,16 @@ func (c *Client) connectControl() {
 	c.controlCancel = cancel
 	c.controlMu.Unlock()
 
+	// The previous control connection (if any) is gone, and the relay has
+	// dropped every data socket that was associated with it. Close our
+	// side now so a subsequent AttachSocket for a freshly-opened data
+	// socket starts from a clean slate — otherwise a stale data socket
+	// lingering in dataConns would race with the new one and leave the
+	// session stuck (observed 2026-07-14 after host wake-from-sleep:
+	// mobile socket attached for 2 ms then the session re-entered grace
+	// and the Android app stayed on "connecting" even after app restart).
+	c.closeAllDataConns()
+
 	c.reconnectMu.Lock()
 	c.reconnectAttempt = 0
 	if c.reconnectTimer != nil {

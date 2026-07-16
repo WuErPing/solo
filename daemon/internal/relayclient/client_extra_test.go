@@ -748,3 +748,156 @@ func TestStop_ClosesControlConn(t *testing.T) {
 		t.Error("expected controlConn to be nil after Stop")
 	}
 }
+
+// TestConnectControl_CleansUpStaleDataConnsOnReconnect verifies that when the
+// daemon re-establishes the relay control connection (e.g. after host wakes
+// from sleep and the relay dropped the previous control socket), any data
+// sockets associated with the prior control connection are closed.
+//
+// Rationale (2026-07-14 post-mortem): after host wake the relay drops both
+// control and data sockets on its side, but the daemon kept stale data sockets
+// in its map. When the mobile client reconnected via the fresh control socket,
+// the new data socket attached to the session while the stale one was still
+// alive in the daemon, and the attach returned within 2 ms — leaving the
+// Android app stuck on "connecting" even after app restart.
+func TestConnectControl_CleansUpStaleDataConnsOnReconnect(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
+
+	// Track per-control-connection close signals so the test can tear down
+	// individual control sockets and force a reconnect on demand.
+	var mu sync.Mutex
+	controlCloses := []chan struct{}{}
+	var controlCount atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		if r.URL.Path == "/ws" && r.URL.Query().Get("role") == "server" && r.URL.Query().Get("connectionId") == "" {
+			// Control connection.
+			idx := int(controlCount.Add(1)) - 1
+			closeCh := make(chan struct{})
+			mu.Lock()
+			controlCloses = append(controlCloses, closeCh)
+			mu.Unlock()
+			// Send sync so the control read pump has at least one activity tick.
+			_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"sync","connectionIds":[]}`))
+			// Hold the connection until the test tells us to drop it, or the
+			// client closes first.
+			select {
+			case <-closeCh:
+			}
+			_ = conn.Close()
+			_ = idx
+			return
+		}
+		// Data socket (or unknown): hold until client closes.
+		defer conn.Close()
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}))
+	defer srv.Close()
+
+	c := NewClient("srv-1", srv.Listener.Addr().String(), &mockWSServer{}, logger, nil, true)
+
+	// --- initial control connect ---
+	c.connectControl()
+
+	// Wait until the first control connection is up.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		mu.Lock()
+		n := len(controlCloses)
+		mu.Unlock()
+		if n >= 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("initial control connection did not come up")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// --- simulate an active data socket from the current control session ---
+	staleConn := &fakeWSConn{}
+	c.dataConnsMu.Lock()
+	c.dataConns["stale-conn-id"] = staleConn
+	c.dataConnsMu.Unlock()
+
+	// --- simulate host sleep: relay drops the control connection ---
+	mu.Lock()
+	close(controlCloses[0])
+	mu.Unlock()
+
+	// The control read pump will exit, scheduleReconnect will arm a timer.
+	// Force an immediate reconnect by clearing the timer and calling
+	// connectControl directly — equivalent to the timer firing.
+	deadline = time.Now().Add(2 * time.Second)
+	for {
+		c.reconnectMu.Lock()
+		pending := c.reconnectTimer != nil
+		c.reconnectMu.Unlock()
+		if pending {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("reconnect was not scheduled after control socket drop")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	c.reconnectMu.Lock()
+	if c.reconnectTimer != nil {
+		c.reconnectTimer.Stop()
+		c.reconnectTimer = nil
+	}
+	c.reconnectAttempt = 0
+	c.reconnectMu.Unlock()
+
+	c.connectControl()
+
+	// Wait until the second control connection is up.
+	deadline = time.Now().Add(2 * time.Second)
+	for {
+		mu.Lock()
+		n := len(controlCloses)
+		mu.Unlock()
+		if n >= 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("reconnect did not establish a new control connection")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Give the cleanup a moment to run (it is synchronous in connectControl,
+	// but allow a small window for any goroutine-based paths).
+	time.Sleep(50 * time.Millisecond)
+
+	// --- assertions ---
+	if !staleConn.closed.Load() {
+		t.Error("expected stale data socket to be closed after control reconnect")
+	}
+
+	c.dataConnsMu.Lock()
+	remaining := len(c.dataConns)
+	c.dataConnsMu.Unlock()
+	if remaining != 0 {
+		t.Errorf("expected dataConns map to be empty after reconnect, got %d entries", remaining)
+	}
+
+	// Tear down the second control connection.
+	mu.Lock()
+	if len(controlCloses) >= 2 {
+		close(controlCloses[1])
+	}
+	mu.Unlock()
+
+	c.Stop()
+}
