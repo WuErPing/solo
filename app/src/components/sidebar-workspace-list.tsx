@@ -1,3 +1,4 @@
+import { absoluteFillObject } from "@/utils/absolute-fill";
 import {
   View,
   Text,
@@ -2952,7 +2953,7 @@ const styles = StyleSheet.create((theme) => ({
     borderWidth: 1,
   },
   workspaceArchivingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...absoluteFillObject,
     borderRadius: theme.borderRadius.lg,
     backgroundColor: `${theme.colors.surface0}cc`,
     alignItems: "center",

@@ -382,7 +382,7 @@ function ProjectConfigForm({
           revision: result.revision,
           requestId: "local-cache",
           repoRoot,
-        });
+        } as ReadProjectConfigData);
         setWriteError(null);
         queryClient.invalidateQueries({ queryKey: ["projects"] });
         toast.show("Project saved", { variant: "success" });

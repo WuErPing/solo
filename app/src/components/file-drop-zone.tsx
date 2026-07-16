@@ -1,5 +1,6 @@
 import { View, Text } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
+import { absoluteFillObject } from "@/utils/absolute-fill";
 import Animated, { useAnimatedStyle, withTiming, useSharedValue } from "react-native-reanimated";
 import { useEffect, useMemo } from "react";
 import { Upload } from "lucide-react-native";
@@ -71,13 +72,13 @@ const styles = StyleSheet.create((theme) => ({
     position: "relative",
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1000,
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...absoluteFillObject,
     backgroundColor: theme.colors.surface0,
     opacity: 0.7,
   },

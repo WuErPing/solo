@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { absoluteFillObject } from "@/utils/absolute-fill";
 import {
   Modal,
   Pressable,
@@ -279,7 +280,7 @@ const styles = StyleSheet.create((theme) => ({
     paddingTop: theme.spacing[12],
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...absoluteFillObject,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   panel: {

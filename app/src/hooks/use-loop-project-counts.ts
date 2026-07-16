@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
-import type { LoopTemplateSummary } from "@server/server/loop/rpc-schemas";
+import type { LoopListItem, LoopTemplateSummary } from "@server/server/loop/rpc-schemas";
 import type { SidebarProjectEntry } from "./use-sidebar-workspaces-list";
 import {
   getHostRuntimeStore,
@@ -23,6 +23,12 @@ interface AggregatedTemplate {
 
 function buildTemplateCwdItems(items: AggregatedTemplate[]): CwdItem[] {
   return items.map(({ template, serverId }) => ({ cwd: template.cwd, serverId }));
+}
+
+export function buildLoopCwdItems(
+  loops: (LoopListItem & { serverId: string })[],
+): CwdItem[] {
+  return loops.map(({ cwd, serverId }) => ({ cwd, serverId }));
 }
 
 export function useLoopProjectCounts(

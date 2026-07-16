@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { absoluteFillObject } from "@/utils/absolute-fill";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -375,13 +376,13 @@ const styles = StyleSheet.create((theme) => ({
     position: "relative",
   },
   loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(0, 0, 0, 0.16)",
   },
   errorOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
     padding: 24,

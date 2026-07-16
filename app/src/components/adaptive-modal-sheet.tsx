@@ -20,11 +20,12 @@ import {
   useIsolatedBottomSheetVisibility,
 } from "@/components/ui/isolated-bottom-sheet-modal";
 import { isWeb } from "@/constants/platform";
+import { absoluteFillObject } from "@/utils/absolute-fill";
 
 type EscHandler = () => void;
 const escStack: EscHandler[] = [];
 let escListenerAttached = false;
-const ABSOLUTE_FILL_STYLE = { ...StyleSheet.absoluteFillObject };
+const ABSOLUTE_FILL_STYLE = absoluteFillObject;
 
 function handleEscKeyDown(event: KeyboardEvent) {
   if (event.key !== "Escape") return;
@@ -53,7 +54,7 @@ function pushEscHandler(handler: EscHandler): () => void {
 
 const styles = StyleSheet.create((theme) => ({
   desktopOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.55)",
     justifyContent: "center",
     alignItems: "center",
