@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation } from "expo-router";
 import { StyleSheet, View } from "react-native";
 import {
   useGlobalSearchParams,
