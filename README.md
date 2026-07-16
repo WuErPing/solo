@@ -189,7 +189,7 @@ Solo is an AI coding assistant platform that connects your local development env
 | Layer | Technology |
 |-------|------------|
 | Backend | Go 1.25 · gorilla/websocket · creack/pty · slog |
-| Frontend | Expo 54 · React Native 0.81 · React 19 · TypeScript |
+| Frontend | Expo 57 · React Native 0.86 · React 19 · TypeScript |
 | State Management | Zustand · @tanstack/react-query · React Context |
 | Styling | Unistyles (dynamic theming) |
 | Terminal | @xterm/xterm v6 |
@@ -446,7 +446,7 @@ The project uses GitHub Actions (`.github/workflows/ci.yml`) with the following 
 | Job | Trigger | Steps |
 |-----|---------|-------|
 | **Go** (matrix: protocol, cli, daemon, relay-go) | push/PR to main | `go mod verify` → `go build` → `go test -short -race -coverprofile` → `golangci-lint v2` → Codecov upload |
-| **JS** | push/PR to main | `npm ci` → lint (app, app-bridge, highlight) → typecheck → test (app 1663 tests, app-bridge 32 tests) → Codecov upload |
+| **JS** | push/PR to main | `npm ci` → lint (app, app-bridge, highlight) → typecheck → test (app 1839 tests, app-bridge 135 tests) → Codecov upload |
 | **E2E** (nightly) | daily 02:00 UTC + manual | Playwright E2E (38 specs) with daemon/relay/Metro globalSetup |
 
 ---

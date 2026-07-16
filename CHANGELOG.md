@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-07-16
+
+### Fixed
+
+- **App**: import `useIsFocused` from `@react-navigation/native` instead of `expo-router` (SDK 57 removed the re-export, causing runtime crash)
+- **App**: resolve lint and TypeScript errors blocking CI (`absoluteFillObject` spread type, `buildLoopCwdItems` export, `setQueryData` type cast, unused import)
+- **App**: merge duplicate expo-router imports and disable React Compiler lint rules
+- **Daemon**: close stale data sockets on control reconnect
+- **Tmux**: show user-friendly error messages and recovery actions
+
+### Changed
+
+- **App**: upgrade Expo SDK 54→57 (React Native 0.81→0.86)
+
 ## [0.10.0] - 2026-07-07
 
 ### Added

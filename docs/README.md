@@ -202,7 +202,7 @@ Deep dives into specific subsystems.
 | Workflow | Job | Steps |
 |----------|-----|-------|
 | `.github/workflows/ci.yml` | `go` (matrix: protocol, cli, daemon, relay-go) | `go mod verify` → `go build -v ./...` → `go test -short -race -coverprofile=coverage.out` → upload coverage (Codecov + artifact, 14 days) → `golangci-lint v2.10` (`--timeout=5m`) |
-| `.github/workflows/ci.yml` | `js` | `npm ci` → lint app / app-bridge / highlight → typecheck all three → test highlight → test app (unit, **1663 tests**) → test app-bridge (**32 tests**) → upload coverage (Codecov + artifacts) |
+| `.github/workflows/ci.yml` | `js` | `npm ci` → lint app / app-bridge / highlight → typecheck all three → test highlight → test app (unit, **1839 tests**) → test app-bridge (**135 tests**) → upload coverage (Codecov + artifacts) |
 | `.github/workflows/e2e-nightly.yml` | `e2e-nightly` | daily 02:00 UTC + manual; Playwright E2E (38 specs) with daemon/relay/Metro globalSetup; failure artifacts retained 7 days |
 
 ### Tech stack summary
@@ -210,7 +210,7 @@ Deep dives into specific subsystems.
 | Layer | Stack |
 |-------|-------|
 | Backend | Go 1.25 · gorilla/websocket · creack/pty · slog |
-| Frontend | Expo 54 · React Native 0.81 · React 19 · TypeScript |
+| Frontend | Expo 57 · React Native 0.86 · React 19 · TypeScript |
 | State | Zustand · @tanstack/react-query · React Context |
 | Crypto | X25519 + XSalsa20-Poly1305 (E2EE) |
 | Deploy | Systemd · Docker · Nginx + Let's Encrypt |
