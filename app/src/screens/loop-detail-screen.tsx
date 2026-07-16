@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { View, Text, ScrollView, Pressable } from "react-native";
-import { useIsFocused } from "@react-navigation/native";
-import { router } from "expo-router";
+import { useIsFocused , router } from "expo-router";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import {
   ArrowLeft,

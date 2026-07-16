@@ -56,12 +56,9 @@ vi.mock("react-native-unistyles", () => {
   };
 });
 
-vi.mock("@react-navigation/native", () => ({
-  useIsFocused: () => true,
-}));
-
 vi.mock("expo-router", () => ({
   router: { navigate: vi.fn(), back: vi.fn() },
+  useIsFocused: () => true,
 }));
 
 vi.mock("lucide-react-native", () => ({

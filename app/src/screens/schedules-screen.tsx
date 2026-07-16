@@ -6,8 +6,7 @@ import {
   RefreshControl,
   Pressable,
 } from "react-native";
-import { useIsFocused } from "@react-navigation/native";
-import { router } from "expo-router";
+import { useIsFocused , router } from "expo-router";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { Calendar, ChevronLeft, Pause, Pencil, Play, Plus, Trash2, Clock } from "lucide-react-native";
 import { BackHeader } from "@/components/headers/back-header";

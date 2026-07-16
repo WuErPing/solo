@@ -791,7 +791,7 @@ function MobileSidebar({
   );
 
   return (
-    <View style={StyleSheet.absoluteFillObject} pointerEvents={overlayPointerEvents}>
+    <View style={StyleSheet.absoluteFill} pointerEvents={overlayPointerEvents}>
       <Animated.View style={backdropStyle} />
 
       <GestureDetector gesture={closeGesture} touchAction="pan-y">
@@ -1074,7 +1074,11 @@ function DesktopSidebar({
 // tries to patch the native node that Reanimated also manages.
 const staticStyles = RNStyleSheet.create({
   backdrop: {
-    ...RNStyleSheet.absoluteFillObject,
+    position: "absolute" as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   mobileSidebar: {

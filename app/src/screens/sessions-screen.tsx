@@ -1,7 +1,6 @@
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { View, Text } from "react-native";
-import { useIsFocused } from "@react-navigation/native";
-import { router } from "expo-router";
+import { useIsFocused , router } from "expo-router";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { ChevronLeft } from "lucide-react-native";
 import { MenuHeader } from "@/components/headers/menu-header";

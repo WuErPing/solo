@@ -62,10 +62,6 @@ vi.mock("react-native-unistyles", () => {
   };
 });
 
-vi.mock("@react-navigation/native", () => ({
-  useIsFocused: () => true,
-}));
-
 vi.mock("@/utils/cron-timezone", () => ({
   detectTimezone: () => "UTC",
   cronFromUTC: (expr: string) => expr,
@@ -83,6 +79,7 @@ vi.mock("@/utils/cron-timezone", () => ({
 
 vi.mock("expo-router", () => ({
   router: { navigate: vi.fn() },
+  useIsFocused: () => true,
 }));
 
 vi.mock("lucide-react-native", () => ({

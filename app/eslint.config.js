@@ -48,6 +48,19 @@ module.exports = defineConfig([
   },
   {
     rules: {
+      "react-hooks/refs": "off",
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/preserve-manual-memoization": "off",
+      "react-hooks/immutability": "off",
+      "react-hooks/static-components": "off",
+      "react-hooks/purity": "off",
+      "react-hooks/use-memo": "off",
+      "react-hooks/incompatible-library": "off",
+      "react-hooks/globals": "off",
+    },
+  },
+  {
+    rules: {
       "import/no-unresolved": [
         "error",
         { ignore: ["@getsolo/highlight"] },

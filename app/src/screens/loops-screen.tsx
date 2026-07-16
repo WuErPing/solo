@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState, useEffect } from "react";
 import { View, Text, ScrollView, RefreshControl, Pressable } from "react-native";
-import { useIsFocused } from "@react-navigation/native";
-import { router } from "expo-router";
+import { useIsFocused , router } from "expo-router";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { ArrowLeft, Loader, Plus, Trash2 } from "lucide-react-native";
 import { BackHeader } from "@/components/headers/back-header";
@@ -10,7 +9,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useLoopTemplates } from "@/hooks/use-loop-templates";
 import { useLoopMutations } from "@/hooks/use-loop-mutations";
 import { buildHostLoopCreateRoute, buildHostLoopDetailRoute, buildHostOpenProjectRoute } from "@/utils/host-routes";
-import type { LoopListItem, LoopTemplateSummary } from "@server/server/loop/rpc-schemas";
+import type { LoopTemplateSummary } from "@server/server/loop/rpc-schemas";
 
 export function LoopsScreen({ serverId }: { serverId: string }) {
   const isFocused = useIsFocused();

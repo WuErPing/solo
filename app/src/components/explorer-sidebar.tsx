@@ -7,7 +7,7 @@ import {
   StyleSheet as RNStyleSheet,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "expo-router";
 import Animated, { useAnimatedStyle, useSharedValue, runOnJS } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
@@ -299,7 +299,7 @@ export function ExplorerSidebar({
 
   if (isMobile) {
     return (
-      <View style={StyleSheet.absoluteFillObject} pointerEvents={overlayPointerEvents}>
+      <View style={StyleSheet.absoluteFill} pointerEvents={overlayPointerEvents}>
         {/* Backdrop */}
         <Animated.View style={backdropCombinedStyle} />
 
@@ -504,7 +504,11 @@ function SidebarContent({
 // tries to patch the native node that Reanimated also manages.
 const explorerStaticStyles = RNStyleSheet.create({
   backdrop: {
-    ...RNStyleSheet.absoluteFillObject,
+    position: "absolute" as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   mobileSidebar: {
