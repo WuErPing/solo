@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   buildHostAgentDetailRoute,
+  buildHostDashboardRoute,
   buildHostRootRoute,
   buildHostScheduleDetailRoute,
   buildHostSchedulesRoute,
+  buildHostTmuxDashboardRoute,
   buildHostWorkspaceOpenRoute,
   buildHostWorkspaceRoute,
   buildProjectSettingsRoute,
@@ -17,6 +19,26 @@ import {
   parseHostWorkspaceRouteFromPathname,
   parseWorkspaceOpenIntent,
 } from "./host-routes";
+
+describe("buildHostDashboardRoute", () => {
+  it("builds an agents dashboard route for a server", () => {
+    expect(buildHostDashboardRoute("local")).toBe("/h/local/dashboard");
+  });
+
+  it("returns root for empty serverId", () => {
+    expect(buildHostDashboardRoute("")).toBe("/");
+  });
+});
+
+describe("buildHostTmuxDashboardRoute", () => {
+  it("builds a tmux dashboard route for a server", () => {
+    expect(buildHostTmuxDashboardRoute("local")).toBe("/h/local/tmux-dashboard");
+  });
+
+  it("returns root for empty serverId", () => {
+    expect(buildHostTmuxDashboardRoute("")).toBe("/");
+  });
+});
 
 describe("parseHostAgentRouteFromPathname", () => {
   it("continues parsing detail routes", () => {

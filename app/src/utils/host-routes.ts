@@ -347,6 +347,22 @@ export function buildHostSessionsRoute(serverId: string) {
   return `${base}/sessions` as const;
 }
 
+export function buildHostDashboardRoute(serverId: string) {
+  const base = buildHostRootRoute(serverId);
+  if (base === "/") {
+    return "/" as const;
+  }
+  return `${base}/dashboard` as const;
+}
+
+export function buildHostTmuxDashboardRoute(serverId: string) {
+  const base = buildHostRootRoute(serverId);
+  if (base === "/") {
+    return "/" as const;
+  }
+  return `${base}/tmux-dashboard` as const;
+}
+
 export function buildHostSchedulesRoute(serverId: string) {
   const base = buildHostRootRoute(serverId);
   if (base === "/") {

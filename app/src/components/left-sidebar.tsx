@@ -63,12 +63,12 @@ import { resolveActiveHost } from "@/utils/active-host";
 import { formatConnectionStatus } from "@/utils/daemons";
 import { useWindowControlsPadding } from "@/utils/desktop-window";
 import {
-  buildDashboardRoute,
+  buildHostDashboardRoute,
   buildHostLoopsRoute,
+  buildHostSchedulesRoute,
   buildHostSessionsRoute,
-  buildSchedulesRoute,
+  buildHostTmuxDashboardRoute,
   buildSettingsRoute,
-  buildTmuxDashboardRoute,
   mapPathnameToServer,
 } from "@/utils/host-routes";
 import { SidebarAgentListSkeleton } from "./sidebar-agent-list-skeleton";
@@ -275,8 +275,11 @@ export const LeftSidebar = memo(function LeftSidebar({
   }, [activeServerId]);
 
   const handleSchedulesNavigate = useCallback(() => {
-    router.push(buildSchedulesRoute());
-  }, []);
+    const serverId = resolveActiveHost({ hosts: daemons, pathname })?.serverId;
+    if (serverId) {
+      router.push(buildHostSchedulesRoute(serverId));
+    }
+  }, [daemons, pathname]);
 
   const handleLoopsNavigate = useCallback(() => {
     const activeServerId = resolveActiveHost({ hosts: daemons, pathname })?.serverId;
@@ -286,16 +289,33 @@ export const LeftSidebar = memo(function LeftSidebar({
   }, [daemons, pathname]);
 
   const handleDashboardNavigate = useCallback(() => {
-    router.push(buildDashboardRoute());
-  }, []);
+    const serverId = resolveActiveHost({ hosts: daemons, pathname })?.serverId;
+    if (serverId) {
+      router.push(buildHostDashboardRoute(serverId));
+    }
+  }, [daemons, pathname]);
 
   const handleTmuxDashboardNavigate = useCallback(() => {
-    router.push(buildTmuxDashboardRoute());
-  }, []);
+    const serverId = resolveActiveHost({ hosts: daemons, pathname })?.serverId;
+    if (serverId) {
+      router.push(buildHostTmuxDashboardRoute(serverId));
+    }
+  }, [daemons, pathname]);
 
-  const handlePaneBadgePress = useCallback((projectRootPath: string) => {
-    router.push((buildTmuxDashboardRoute() + "?dir=" + encodeURIComponent(projectRootPath)) as never);
-  }, []);
+  const handlePaneBadgePress = useCallback(
+    (projectRootPath: string) => {
+      const serverId = resolveActiveHost({ hosts: daemons, pathname })?.serverId;
+      if (!serverId) {
+        return;
+      }
+      router.push(
+        (buildHostTmuxDashboardRoute(serverId) +
+          "?dir=" +
+          encodeURIComponent(projectRootPath)) as never,
+      );
+    },
+    [daemons, pathname],
+  );
 
   const handleLoopBadgePress = useCallback(() => {
     if (activeServerId) {
@@ -304,8 +324,11 @@ export const LeftSidebar = memo(function LeftSidebar({
   }, [activeServerId]);
 
   const handleScheduleBadgePress = useCallback(() => {
-    router.push(buildSchedulesRoute());
-  }, []);
+    const serverId = resolveActiveHost({ hosts: daemons, pathname })?.serverId;
+    if (serverId) {
+      router.push(buildHostSchedulesRoute(serverId));
+    }
+  }, [daemons, pathname]);
 
   const handleHostSelect = useCallback(
     (nextServerId: string) => {
@@ -608,6 +631,9 @@ function MobileSidebar({
   const isSessionsActive = pathname.includes("/sessions");
   const isSchedulesActive = pathname.includes("/schedules");
   const isLoopsActive = pathname.includes("/loops");
+  const isDashboardActive = pathname === "/dashboard" || /^\/h\/[^/]+\/dashboard$/.test(pathname);
+  const isTmuxDashboardActive =
+    pathname === "/tmux-dashboard" || /^\/h\/[^/]+\/tmux-dashboard$/.test(pathname);
   const {
     translateX,
     backdropOpacity,
@@ -810,7 +836,7 @@ function MobileSidebar({
               iconColor={theme.colors.palette.amber[500]}
               label="Agents"
               onPress={handleDashboardNavigate}
-              isActive={pathname === "/dashboard"}
+              isActive={isDashboardActive}
               testID="sidebar-dashboard"
             />
             <SidebarHeaderRow
@@ -818,7 +844,7 @@ function MobileSidebar({
               iconColor={theme.colors.palette.orange[500]}
               label="Tmux"
               onPress={handleTmuxDashboardNavigate}
-              isActive={pathname === "/tmux-dashboard"}
+              isActive={isTmuxDashboardActive}
               testID="sidebar-tmux-dashboard"
             />
             <SidebarHeaderRow
@@ -917,6 +943,9 @@ function DesktopSidebar({
   const isSessionsActive = pathname.includes("/sessions");
   const isSchedulesActive = pathname.includes("/schedules");
   const isLoopsActive = pathname.includes("/loops");
+  const isDashboardActive = pathname === "/dashboard" || /^\/h\/[^/]+\/dashboard$/.test(pathname);
+  const isTmuxDashboardActive =
+    pathname === "/tmux-dashboard" || /^\/h\/[^/]+\/tmux-dashboard$/.test(pathname);
   const padding = useWindowControlsPadding("sidebar");
   const sidebarWidth = usePanelStore((state) => state.sidebarWidth);
   const setSidebarWidth = usePanelStore((state) => state.setSidebarWidth);
@@ -994,7 +1023,7 @@ function DesktopSidebar({
             icon={LayoutDashboard}
             label="Agents"
             onPress={handleDashboardNavigate}
-            isActive={pathname === "/dashboard"}
+            isActive={isDashboardActive}
             testID="sidebar-dashboard"
             iconColor={theme.colors.palette.amber[500]}
           />
@@ -1002,7 +1031,7 @@ function DesktopSidebar({
             icon={Terminal}
             label="Tmux"
             onPress={handleTmuxDashboardNavigate}
-            isActive={pathname === "/tmux-dashboard"}
+            isActive={isTmuxDashboardActive}
             testID="sidebar-tmux-dashboard"
             iconColor={theme.colors.palette.orange[500]}
           />
