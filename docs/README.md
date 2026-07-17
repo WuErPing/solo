@@ -1,7 +1,7 @@
 # Solo — Documentation Index
 
 > **Purpose**: Persistent context base for Solo development, CI/CD, and architecture decisions.
-> **Last updated**: 2026-06-29
+> **Last updated**: 2026-07-17
 
 ---
 
@@ -31,6 +31,7 @@ docs/
 ├── product/                               ← Product feature analysis
 │   ├── agent-profile-switch-export-design.md # Provider Hub / CC-Switch migration design
 │   ├── agent-send-presets-design.md       # Agent send button presets design
+│   ├── chat-schedule-assistant-design.md  # Chat-based schedule creation/editing via multi-LLM providers
 │   ├── feature-directions-2026.md         # Feature direction analysis with industry benchmark
 │   ├── features.md                        # Full product feature analysis + UI component catalogue
 │   ├── loop-schedule-deep-dive.md         # Loop Schedule deep-dive analysis
@@ -131,6 +132,7 @@ Feature inventory and UI/UX analysis.
 | [Loop Schedule Deep Dive](product/loop-schedule-deep-dive.md) | Analysis | Deep-dive into Loop Controller, Step Executor, state machine, persistence, security, and observability |
 | [Loop Schedule Implementation Spec](product/loop-schedule-spec.md) | Spec | Implementation-ready spec for merging Loop into Schedule: protocol changes, daemon modules, step executors, migration plan |
 | [Agent Send Presets Design](product/agent-send-presets-design.md) | Design | Agent-specific tmux send button presets |
+| [Chat Schedule Assistant Design](product/chat-schedule-assistant-design.md) | Design | Chat-based schedule creation/editing: NL → validated proposal → confirm, powered by existing multi-LLM providers |
 | [Session Memory Spec](product/session-memory-spec.md) | Spec | Phase-1 implementation spec: TurnRecorder interface, FileTurnRecorder, hooks, redaction, tests |
 
 **Current completion**: ~85-90 %. Main gaps: Chat system (multi-agent), Cursor-Agent / ACP providers.
