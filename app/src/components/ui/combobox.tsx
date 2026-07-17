@@ -12,6 +12,7 @@ import {
   useWindowDimensions,
   type LayoutChangeEvent,
   type PressableStateCallbackType,
+  type ViewStyle,
 } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useIsCompactFormFactor } from "@/constants/layout";
@@ -810,6 +811,7 @@ function buildFloatingMiddleware(input: FloatingMiddlewareInput) {
 }
 
 interface DesktopContainerStyleInput {
+  desktopContainerBaseStyle: ViewStyle;
   desktopMinWidth: number | undefined;
   referenceWidth: number | null;
   desktopFixedHeight: number | undefined;
@@ -820,6 +822,7 @@ interface DesktopContainerStyleInput {
 
 function buildDesktopContainerStyle(input: DesktopContainerStyleInput) {
   const {
+    desktopContainerBaseStyle,
     desktopMinWidth,
     referenceWidth,
     desktopFixedHeight,
@@ -837,7 +840,7 @@ function buildDesktopContainerStyle(input: DesktopContainerStyleInput) {
       ? { maxHeight: Math.min(availableHeight, desktopFixedHeight ?? 400) }
       : null;
   return [
-    styles.desktopContainer,
+    desktopContainerBaseStyle,
     {
       position: "absolute" as const,
       minWidth: desktopMinWidth ?? referenceWidth ?? 200,
@@ -1421,9 +1424,25 @@ export function Combobox({
     [theme.colors.palette.zinc],
   );
 
+  // Plain theme-derived style object — must NOT be a Unistyles style: on web those
+  // carry metadata that Reanimated's style validator rejects (entering/exiting).
+  const desktopContainerBaseStyle = useMemo<ViewStyle>(
+    () => ({
+      backgroundColor: theme.colors.surface0,
+      borderRadius: theme.borderRadius.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      ...theme.shadow.md,
+      maxHeight: 400,
+      overflow: "hidden",
+    }),
+    [theme],
+  );
+
   const desktopContainerStyle = useMemo(
     () =>
       buildDesktopContainerStyle({
+        desktopContainerBaseStyle,
         desktopMinWidth,
         referenceWidth,
         desktopFixedHeight,
@@ -1432,6 +1451,7 @@ export function Combobox({
         availableHeight: availableSize?.height,
       }),
     [
+      desktopContainerBaseStyle,
       desktopMinWidth,
       referenceWidth,
       desktopFixedHeight,
@@ -1624,15 +1644,6 @@ const styles = StyleSheet.create((theme) => ({
     right: 0,
     bottom: 0,
     left: 0,
-  },
-  desktopContainer: {
-    backgroundColor: theme.colors.surface0,
-    borderRadius: theme.borderRadius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    ...theme.shadow.md,
-    maxHeight: 400,
-    overflow: "hidden",
   },
   desktopScroll: {
     flexShrink: 1,

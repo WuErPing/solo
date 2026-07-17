@@ -505,6 +505,20 @@ export function ContextMenuContent({
     [],
   );
 
+  // Plain theme-derived style object — must NOT be a Unistyles style: on web those
+  // carry metadata that Reanimated's style validator rejects (entering/exiting).
+  const contentBaseStyle = useMemo(
+    () => ({
+      backgroundColor: theme.colors.surface0,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: theme.borderRadius.lg,
+      ...theme.shadow.md,
+      overflow: "hidden" as const,
+    }),
+    [theme],
+  );
+
   const animatedContentStyle = useMemo(() => {
     const { width: screenWidth } = Dimensions.get("window");
     const resolvedWidthStyle: ViewStyle = fullWidth
@@ -515,7 +529,7 @@ export function ContextMenuContent({
           ...(typeof maxWidth === "number" ? { maxWidth } : null),
         };
     return [
-      styles.content,
+      contentBaseStyle,
       resolvedWidthStyle,
       {
         position: "absolute" as const,
@@ -523,7 +537,7 @@ export function ContextMenuContent({
         left: position?.x ?? -9999,
       },
     ];
-  }, [fullWidth, horizontalPadding, width, minWidth, maxWidth, position?.y, position?.x]);
+  }, [contentBaseStyle, fullWidth, horizontalPadding, width, minWidth, maxWidth, position?.y, position?.x]);
 
   if (useMobileSheet) {
     return (
@@ -814,14 +828,6 @@ const styles = StyleSheet.create((theme) => ({
     right: 0,
     bottom: 0,
     left: 0,
-  },
-  content: {
-    backgroundColor: theme.colors.surface0,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.lg,
-    ...theme.shadow.md,
-    overflow: "hidden",
   },
   sheetBackground: {
     backgroundColor: theme.colors.surface0,

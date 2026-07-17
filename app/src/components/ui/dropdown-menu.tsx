@@ -330,6 +330,7 @@ export function DropdownMenuContent({
 }>): ReactElement | null {
   const { open, setOpen, triggerRef, flushPendingSelect } =
     useDropdownMenuContext("DropdownMenuContent");
+  const { theme } = useUnistyles();
   const [modalVisible, setModalVisible] = useState(false);
   const webScrollbarStyle = useWebScrollbarStyle();
   const [closing, setClosing] = useState(false);
@@ -430,6 +431,20 @@ export function DropdownMenuContent({
     [],
   );
 
+  // Plain theme-derived style object — must NOT be a Unistyles style: on web those
+  // carry metadata that Reanimated's style validator rejects (entering/exiting).
+  const contentBaseStyle = useMemo(
+    () => ({
+      backgroundColor: theme.colors.surface1,
+      borderWidth: 1,
+      borderColor: theme.colors.borderAccent,
+      borderRadius: theme.borderRadius.lg,
+      overflow: "hidden" as const,
+      ...theme.shadow.md,
+    }),
+    [theme],
+  );
+
   const contentStyle = useMemo(() => {
     const { width: screenWidth } = Dimensions.get("window");
     const resolvedWidthStyle: ViewStyle = fullWidth
@@ -440,7 +455,7 @@ export function DropdownMenuContent({
           ...(typeof maxWidth === "number" ? { maxWidth } : null),
         };
     return [
-      styles.content,
+      contentBaseStyle,
       resolvedWidthStyle,
       {
         position: "absolute" as const,
@@ -450,6 +465,7 @@ export function DropdownMenuContent({
       },
     ];
   }, [
+    contentBaseStyle,
     fullWidth,
     horizontalPadding,
     width,
@@ -744,14 +760,6 @@ const styles = StyleSheet.create((theme) => ({
     right: 0,
     bottom: 0,
     left: 0,
-  },
-  content: {
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.borderAccent,
-    borderRadius: theme.borderRadius.lg,
-    overflow: "hidden",
-    ...theme.shadow.md,
   },
   labelContainer: {
     paddingHorizontal: theme.spacing[3],

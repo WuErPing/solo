@@ -18,7 +18,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
-import { StyleSheet, withUnistyles } from "react-native-unistyles";
+import { StyleSheet, useUnistyles, withUnistyles } from "react-native-unistyles";
 import { ExternalLink } from "lucide-react-native";
 import { GitHubIcon } from "@/components/icons/github-icon";
 import type { Theme } from "@/styles/theme";
@@ -216,6 +216,7 @@ function WorkspaceHoverCardContent({
   contentRef: React.RefObject<View | null>;
 }): ReactElement | null {
   const bottomSheetInternal = useBottomSheetModalInternal(true);
+  const { theme } = useUnistyles();
   const [triggerRect, setTriggerRect] = useState<Rect | null>(null);
   const [contentSize, setContentSize] = useState<{ width: number; height: number } | null>(null);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
@@ -258,9 +259,28 @@ function WorkspaceHoverCardContent({
     [],
   );
 
+  // Plain theme-derived style object — must NOT be a Unistyles style: on web those
+  // carry metadata that Reanimated's style validator rejects (entering/exiting).
+  const cardBaseStyle = useMemo(
+    () => ({
+      backgroundColor: theme.colors.surface1,
+      borderWidth: 1,
+      borderColor: theme.colors.borderAccent,
+      borderRadius: theme.borderRadius.lg,
+      paddingTop: theme.spacing[2],
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.2,
+      shadowRadius: 8,
+      elevation: 8,
+      zIndex: 1000,
+    }),
+    [theme],
+  );
+
   const cardStyle = useMemo(
     () => [
-      styles.card,
+      cardBaseStyle,
       {
         width: HOVER_CARD_WIDTH,
         position: "absolute" as const,
@@ -268,7 +288,7 @@ function WorkspaceHoverCardContent({
         left: position?.x ?? -9999,
       },
     ],
-    [position?.x, position?.y],
+    [cardBaseStyle, position?.x, position?.y],
   );
 
   return (
@@ -396,19 +416,6 @@ const styles = StyleSheet.create((theme) => ({
     right: 0,
     bottom: 0,
     left: 0,
-    zIndex: 1000,
-  },
-  card: {
-    backgroundColor: theme.colors.surface1,
-    borderWidth: 1,
-    borderColor: theme.colors.borderAccent,
-    borderRadius: theme.borderRadius.lg,
-    paddingTop: theme.spacing[2],
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
     zIndex: 1000,
   },
   cardHeader: {

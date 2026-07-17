@@ -27,7 +27,7 @@ import {
 import { Portal } from "@gorhom/portal";
 import { useBottomSheetModalInternal } from "@gorhom/bottom-sheet";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
-import { StyleSheet } from "react-native-unistyles";
+import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { isWeb } from "@/constants/platform";
 
@@ -443,6 +443,7 @@ export function TooltipContent({
   maxWidth?: number;
 }>): ReactElement | null {
   const ctx = useTooltipContext("TooltipContent");
+  const { theme } = useUnistyles();
   const bottomSheetInternal = useBottomSheetModalInternal(true);
   const [triggerRect, setTriggerRect] = useState<Rect | null>(null);
   const [contentSize, setContentSize] = useState<{ width: number; height: number } | null>(null);
@@ -493,9 +494,25 @@ export function TooltipContent({
     [],
   );
 
+  // Plain theme-derived style object — must NOT be a Unistyles style: on web those
+  // carry metadata that Reanimated's style validator rejects (entering/exiting).
+  const contentBaseStyle = useMemo(
+    () => ({
+      paddingVertical: theme.spacing[1],
+      paddingHorizontal: theme.spacing[2],
+      borderRadius: theme.borderRadius.xl,
+      backgroundColor: theme.colors.popover,
+      borderWidth: theme.borderWidth[1],
+      borderColor: theme.colors.borderAccent,
+      ...theme.shadow.md,
+      zIndex: 1000,
+    }),
+    [theme],
+  );
+
   const contentStyle = useMemo(
     () => [
-      styles.content,
+      contentBaseStyle,
       { maxWidth },
       style,
       {
@@ -504,7 +521,7 @@ export function TooltipContent({
         left: position?.x ?? -9999,
       },
     ],
-    [maxWidth, style, position?.x, position?.y],
+    [contentBaseStyle, maxWidth, style, position?.x, position?.y],
   );
 
   const handleDismiss = useCallback(() => ctx.setOpen(false), [ctx]);
@@ -567,16 +584,6 @@ const styles = StyleSheet.create((theme) => ({
     right: 0,
     bottom: 0,
     left: 0,
-    zIndex: 1000,
-  },
-  content: {
-    paddingVertical: theme.spacing[1],
-    paddingHorizontal: theme.spacing[2],
-    borderRadius: theme.borderRadius.xl,
-    backgroundColor: theme.colors.popover,
-    borderWidth: theme.borderWidth[1],
-    borderColor: theme.colors.borderAccent,
-    ...theme.shadow.md,
     zIndex: 1000,
   },
 }));

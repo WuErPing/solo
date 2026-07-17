@@ -16,6 +16,7 @@ import {
   Pressable,
   Platform,
   ActivityIndicator,
+  StyleSheet as RNStyleSheet,
   type PressableStateCallbackType,
 } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -745,7 +746,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           </MessageOuterSpacingProvider>
           {!isNearBottom && (
             <Animated.View
-              style={stylesheet.scrollToBottomContainer}
+              style={staticStyles.scrollToBottomContainer}
               entering={scrollIndicatorFadeIn}
               exiting={scrollIndicatorFadeOut}
             >
@@ -1139,6 +1140,20 @@ function PermissionRequestCard({
   );
 }
 
+// Static styles for the Reanimated entering/exiting container — must NOT use
+// Unistyles styles: on web they carry metadata that Reanimated's style
+// validator rejects.
+const staticStyles = RNStyleSheet.create({
+  scrollToBottomContainer: {
+    position: "absolute",
+    bottom: 16,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    pointerEvents: "box-none",
+  },
+});
+
 const stylesheet = StyleSheet.create((theme) => ({
   container: {
     flex: 1,
@@ -1234,14 +1249,6 @@ const stylesheet = StyleSheet.create((theme) => ({
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.sm,
     textAlign: "center",
-  },
-  scrollToBottomContainer: {
-    position: "absolute",
-    bottom: 16,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    pointerEvents: "box-none",
   },
   scrollToBottomInner: {
     width: "100%",
