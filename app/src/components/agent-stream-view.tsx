@@ -18,8 +18,9 @@ import {
   ActivityIndicator,
   StyleSheet as RNStyleSheet,
   type PressableStateCallbackType,
+  type ViewStyle,
 } from "react-native";
-import { StyleSheet, withUnistyles } from "react-native-unistyles";
+import { StyleSheet, useUnistyles, withUnistyles } from "react-native-unistyles";
 import { useIsCompactFormFactor , MAX_CONTENT_WIDTH } from "@/constants/layout";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
@@ -773,6 +774,7 @@ export const AgentStreamView = memo(AgentStreamViewComponent);
 AgentStreamView.displayName = "AgentStreamView";
 
 function WorkingIndicator() {
+  const { theme } = useUnistyles();
   const progress = useSharedValue(0);
 
   useEffect(() => {
@@ -817,11 +819,22 @@ function WorkingIndicator() {
     };
   });
 
-  const dotOneCombinedStyle = useMemo(() => [stylesheet.workingDot, dotOneStyle], [dotOneStyle]);
-  const dotTwoCombinedStyle = useMemo(() => [stylesheet.workingDot, dotTwoStyle], [dotTwoStyle]);
+  // Plain theme-derived style object — must NOT be a Unistyles style: on web
+  // those carry metadata that Reanimated's style validator rejects.
+  const dotBaseStyle = useMemo(
+    (): ViewStyle => ({
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: theme.colors.foregroundMuted,
+    }),
+    [theme],
+  );
+  const dotOneCombinedStyle = useMemo(() => [dotBaseStyle, dotOneStyle], [dotBaseStyle, dotOneStyle]);
+  const dotTwoCombinedStyle = useMemo(() => [dotBaseStyle, dotTwoStyle], [dotBaseStyle, dotTwoStyle]);
   const dotThreeCombinedStyle = useMemo(
-    () => [stylesheet.workingDot, dotThreeStyle],
-    [dotThreeStyle],
+    () => [dotBaseStyle, dotThreeStyle],
+    [dotBaseStyle, dotThreeStyle],
   );
 
   return (
@@ -1223,12 +1236,6 @@ const stylesheet = StyleSheet.create((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[1],
-  },
-  workingDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: theme.colors.foregroundMuted,
   },
   syncingIndicator: {
     flexDirection: "row",

@@ -21,7 +21,7 @@ interface AggregatedTemplate {
   serverId: string;
 }
 
-function buildTemplateCwdItems(items: AggregatedTemplate[]): CwdItem[] {
+export function buildTemplateCwdItems(items: AggregatedTemplate[]): CwdItem[] {
   return items.map(({ template, serverId }) => ({ cwd: template.cwd, serverId }));
 }
 

@@ -376,13 +376,17 @@ function ProjectConfigForm({
     },
     onSuccess: (result) => {
       if (result.ok) {
-        queryClient.setQueryData<ReadProjectConfigData>(queryKey, {
+        // Pre-typed: an inline literal here fails to compile — TS cannot
+        // discriminate the ReadProjectConfigData union through setQueryData's
+        // Updater<T> (object | function) contextual type.
+        const updated: ReadProjectConfigData = {
           ok: true,
           config: result.config,
           revision: result.revision,
           requestId: "local-cache",
           repoRoot,
-        });
+        };
+        queryClient.setQueryData<ReadProjectConfigData>(queryKey, updated);
         setWriteError(null);
         queryClient.invalidateQueries({ queryKey: ["projects"] });
         toast.show("Project saved", { variant: "success" });

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { View, Text } from "react-native";
+import { View, Text, type ViewStyle } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import Animated from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -14,6 +14,13 @@ interface ArchivedAgentCalloutProps {
   agentId: string;
 }
 
+// Plain style object — must NOT be a Unistyles style: on web those carry
+// metadata that Reanimated's style validator rejects on Animated.View.
+const CONTAINER_BASE_STYLE: ViewStyle = {
+  flexDirection: "column",
+  position: "relative",
+};
+
 export function ArchivedAgentCallout({ serverId, agentId }: ArchivedAgentCalloutProps) {
   const insets = useSafeAreaInsets();
   const client = useHostRuntimeClient(serverId);
@@ -23,7 +30,7 @@ export function ArchivedAgentCallout({ serverId, agentId }: ArchivedAgentCallout
   const { style: keyboardAnimatedStyle } = useKeyboardShiftStyle({ mode: "translate" });
 
   const containerStyle = useMemo(
-    () => [styles.container, { paddingBottom: insets.bottom }, keyboardAnimatedStyle],
+    () => [CONTAINER_BASE_STYLE, { paddingBottom: insets.bottom }, keyboardAnimatedStyle],
     [insets.bottom, keyboardAnimatedStyle],
   );
 
@@ -60,10 +67,6 @@ export function ArchivedAgentCallout({ serverId, agentId }: ArchivedAgentCallout
 }
 
 const styles = StyleSheet.create((theme: Theme) => ({
-  container: {
-    flexDirection: "column",
-    position: "relative",
-  },
   inputAreaContainer: {
     position: "relative",
     minHeight: FOOTER_HEIGHT,

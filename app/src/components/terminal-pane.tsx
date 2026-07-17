@@ -6,6 +6,7 @@ import {
   Text,
   View,
   type PressableStateCallbackType,
+  type ViewStyle,
 } from "react-native";
 import Animated, { runOnJS, useAnimatedReaction } from "react-native-reanimated";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
@@ -603,9 +604,19 @@ export function TerminalPane({
     ],
   );
 
+  // Plain theme-derived style object — must NOT be a Unistyles style: on web
+  // those carry metadata that Reanimated's style validator rejects.
+  const containerBaseStyle = useMemo(
+    (): ViewStyle => ({
+      flex: 1,
+      minHeight: 0,
+      backgroundColor: theme.colors.surface0,
+    }),
+    [theme],
+  );
   const containerStyle = useMemo(
-    () => [styles.container, keyboardPaddingStyle],
-    [keyboardPaddingStyle],
+    () => [containerBaseStyle, keyboardPaddingStyle],
+    [containerBaseStyle, keyboardPaddingStyle],
   );
 
   const handleSwipeRight = useCallback(() => {
@@ -700,11 +711,6 @@ export function TerminalPane({
 }
 
 const styles = StyleSheet.create((theme) => ({
-  container: {
-    flex: 1,
-    minHeight: 0,
-    backgroundColor: theme.colors.surface0,
-  },
   outputContainer: {
     flex: 1,
     minHeight: 0,

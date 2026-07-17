@@ -1,36 +1,33 @@
 import { describe, expect, it } from "vitest";
-import { buildLoopCwdItems } from "./use-loop-project-counts";
-import type { LoopListItem } from "@server/server/loop/rpc-schemas";
+import { buildTemplateCwdItems } from "./use-loop-project-counts";
+import type { LoopTemplateSummary } from "@server/server/loop/rpc-schemas";
 
-function makeLoop(cwd: string, serverId: string): LoopListItem & { serverId: string } {
+function makeTemplate(cwd: string): LoopTemplateSummary {
   return {
-    id: `loop-${Math.random().toString(36).slice(2)}`,
-    name: null,
-    status: "running",
+    id: `template-${cwd}`,
+    name: `Template ${cwd}`,
     cwd,
-    provider: "claude",
-    model: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    activeIteration: null,
-    serverId,
+    instanceCount: 1,
   };
 }
 
-describe("buildLoopCwdItems", () => {
-  it("returns empty array for empty loops", () => {
-    expect(buildLoopCwdItems([])).toEqual([]);
+describe("buildTemplateCwdItems", () => {
+  it("returns empty array for empty templates", () => {
+    expect(buildTemplateCwdItems([])).toEqual([]);
   });
 
-  it("maps loop cwd and serverId", () => {
-    const loops = [makeLoop("/repo", "host1")];
-    const result = buildLoopCwdItems(loops);
+  it("maps template cwd and serverId", () => {
+    const items = [{ template: makeTemplate("/repo"), serverId: "host1" }];
+    const result = buildTemplateCwdItems(items);
     expect(result).toEqual([{ cwd: "/repo", serverId: "host1" }]);
   });
 
-  it("maps multiple loops", () => {
-    const loops = [makeLoop("/repo1", "host1"), makeLoop("/repo2", "host2")];
-    const result = buildLoopCwdItems(loops);
+  it("maps multiple templates", () => {
+    const items = [
+      { template: makeTemplate("/repo1"), serverId: "host1" },
+      { template: makeTemplate("/repo2"), serverId: "host2" },
+    ];
+    const result = buildTemplateCwdItems(items);
     expect(result).toHaveLength(2);
     expect(result[0]).toEqual({ cwd: "/repo1", serverId: "host1" });
     expect(result[1]).toEqual({ cwd: "/repo2", serverId: "host2" });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View, type ViewStyle } from "react-native";
 import Animated, {
   cancelAnimation,
   Easing,
@@ -36,6 +36,14 @@ const DOCS_URL = "https://solo.sh/docs";
 const LOGO_SIZE = 96;
 const SHIMMER_PEAK_WIDTH = 120;
 const SHIMMER_DURATION_MS = 1800;
+
+// Plain style object — must NOT be a Unistyles style: on web those carry
+// metadata that Reanimated's style validator rejects on Animated.View.
+const NATIVE_SHIMMER_PEAK_BASE_STYLE: ViewStyle = {
+  position: "absolute",
+  top: 0,
+  bottom: 0,
+};
 
 function openGithubIssue(): void {
   void openExternalUrl(GITHUB_ISSUE_URL);
@@ -144,7 +152,11 @@ function NativeLogoShimmer({ color }: { color: string }) {
   );
 
   const peakCombinedStyle = useMemo(
-    () => [styles.nativeShimmerPeak, peakStyle, { width: SHIMMER_PEAK_WIDTH, height: LOGO_SIZE }],
+    () => [
+      NATIVE_SHIMMER_PEAK_BASE_STYLE,
+      peakStyle,
+      { width: SHIMMER_PEAK_WIDTH, height: LOGO_SIZE },
+    ],
     [peakStyle],
   );
 
@@ -288,11 +300,6 @@ const styles = StyleSheet.create((theme) => ({
     top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
-  },
-  nativeShimmerPeak: {
-    position: "absolute",
-    top: 0,
     bottom: 0,
   },
 }));

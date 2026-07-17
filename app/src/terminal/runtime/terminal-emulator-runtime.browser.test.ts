@@ -21,6 +21,7 @@ type BrowserTerminal = TerminalSize & {
 };
 
 interface MountedTerminal {
+  outer: HTMLDivElement;
   host: HTMLDivElement;
   root: HTMLDivElement;
   runtime: TerminalEmulatorRuntime;
@@ -109,7 +110,7 @@ function createTerminalHost(input: {
     ...(input.fitToWidth != null ? { fitToWidth: input.fitToWidth } : {}),
   });
 
-  const mounted = { host, root, runtime, inputs, sizes };
+  const mounted = { outer, host, root, runtime, inputs, sizes };
   mountedTerminals.push(mounted);
   return mounted;
 }
@@ -145,8 +146,10 @@ describe("terminal emulator runtime in a real browser", () => {
     await waitFor({ predicate: () => mounted.sizes.length > 0 });
     const initialSize = latestSize(mounted.sizes);
 
-    mounted.root.style.width = "720px";
-    mounted.root.style.height = "360px";
+    // Grow the outer fixed-size container, not the root: the runtime owns
+    // root.style.width and resets it to "100%" on every resize.
+    mounted.outer.style.width = "720px";
+    mounted.outer.style.height = "360px";
     await nextFrame();
     mounted.runtime.resize({ force: true });
 

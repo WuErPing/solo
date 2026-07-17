@@ -28,6 +28,10 @@ const THUMB = 16;
 
 const TIMING = { duration: 180, easing: Easing.inOut(Easing.ease) };
 
+// Plain style objects — must NOT be Unistyles styles: on web those carry
+// metadata that Reanimated's style validator rejects on Animated.View.
+const TRACK_BASE_STYLE: ViewStyle = { justifyContent: "center" };
+
 export function Switch({
   value,
   onValueChange,
@@ -70,9 +74,20 @@ export function Switch({
     () => [disabled ? styles.disabled : null, style],
     [disabled, style],
   );
+  const thumbBaseStyle = useMemo(
+    (): ViewStyle => ({
+      backgroundColor: theme.colors.palette.white,
+      shadowColor: "rgba(0, 0, 0, 0.25)",
+      shadowOffset: { width: 0, height: 1 },
+      shadowRadius: 2,
+      shadowOpacity: 1,
+      elevation: 2,
+    }),
+    [theme],
+  );
   const trackStyle = useMemo(
     () => [
-      styles.track,
+      TRACK_BASE_STYLE,
       {
         width: track.width,
         height: track.height,
@@ -85,11 +100,11 @@ export function Switch({
   );
   const thumbStyle = useMemo(
     () => [
-      styles.thumb,
+      thumbBaseStyle,
       { width: thumb, height: thumb, borderRadius: thumb / 2 },
       thumbAnimatedStyle,
     ],
-    [thumb, thumbAnimatedStyle],
+    [thumbBaseStyle, thumb, thumbAnimatedStyle],
   );
 
   return (
@@ -111,17 +126,6 @@ export function Switch({
 }
 
 const styles = StyleSheet.create((theme) => ({
-  track: {
-    justifyContent: "center",
-  },
-  thumb: {
-    backgroundColor: theme.colors.palette.white,
-    shadowColor: "rgba(0, 0, 0, 0.25)",
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 2,
-    shadowOpacity: 1,
-    elevation: 2,
-  },
   disabled: {
     opacity: theme.opacity[50],
   },

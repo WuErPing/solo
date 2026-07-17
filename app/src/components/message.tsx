@@ -1118,13 +1118,16 @@ const expandableBadgeStylesheet = StyleSheet.create((theme) => ({
     left: 0,
     overflow: "hidden",
   },
-  nativeShimmerPeak: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    left: 0,
-  },
 }));
+
+// Plain style object — must NOT be a Unistyles style: on web those carry
+// metadata that Reanimated's style validator rejects on Animated.View.
+const nativeShimmerPeakBaseStyle: ViewStyle = {
+  position: "absolute",
+  top: 0,
+  bottom: 0,
+  left: 0,
+};
 
 interface NativeExpandableBadgeShimmerProps {
   label: string;
@@ -1190,7 +1193,7 @@ const NativeExpandableBadgeShimmer = memo(function NativeExpandableBadgeShimmer(
 
   const nativeShimmerPeakCombinedStyle = useMemo(
     () => [
-      expandableBadgeStylesheet.nativeShimmerPeak,
+      nativeShimmerPeakBaseStyle,
       nativeShimmerPeakStyle,
       { width: peakWidth, height: rowHeight },
     ],
