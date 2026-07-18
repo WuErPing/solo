@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  ScheduleAssistRequestSchema,
+  ScheduleAssistResponseSchema,
   ScheduleCreateRequestSchema,
   ScheduleCreateResponseSchema,
   ScheduleListResponseSchema,
@@ -150,5 +152,177 @@ describe("ScheduleNewAgentConfigSchema", () => {
       },
     });
     expect(result.success).toBe(true);
+  });
+});
+
+describe("ScheduleAssistRequestSchema", () => {
+  it("accepts a minimal valid request", () => {
+    const result = ScheduleAssistRequestSchema.safeParse({
+      type: "schedule/assist",
+      requestId: "req-1",
+      message: "Every weekday at 9am, summarize the nightly test runs",
+      timezone: "Asia/Shanghai",
+      clientNow: "2026-07-18T09:00:00+08:00",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts a full request with contextScheduleId and transcript", () => {
+    const result = ScheduleAssistRequestSchema.safeParse({
+      type: "schedule/assist",
+      requestId: "req-2",
+      message: "Move it to 7:30",
+      timezone: "Asia/Shanghai",
+      clientNow: "2026-07-18T09:00:00+08:00",
+      contextScheduleId: "sched-1",
+      transcript: [
+        { role: "user", content: "Every weekday at 9am, summarize the nightly test runs" },
+        { role: "assistant", content: "[proposal] create \"Nightly test summary\"" },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an empty message", () => {
+    const result = ScheduleAssistRequestSchema.safeParse({
+      type: "schedule/assist",
+      requestId: "req-3",
+      message: "",
+      timezone: "Asia/Shanghai",
+      clientNow: "2026-07-18T09:00:00+08:00",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a message over 2000 chars", () => {
+    const result = ScheduleAssistRequestSchema.safeParse({
+      type: "schedule/assist",
+      requestId: "req-4",
+      message: "a".repeat(2001),
+      timezone: "Asia/Shanghai",
+      clientNow: "2026-07-18T09:00:00+08:00",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a missing timezone", () => {
+    const result = ScheduleAssistRequestSchema.safeParse({
+      type: "schedule/assist",
+      requestId: "req-5",
+      message: "Every weekday at 9am, summarize the nightly test runs",
+      clientNow: "2026-07-18T09:00:00+08:00",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a transcript over 10 turns", () => {
+    const result = ScheduleAssistRequestSchema.safeParse({
+      type: "schedule/assist",
+      requestId: "req-6",
+      message: "Move it to 7:30",
+      timezone: "Asia/Shanghai",
+      clientNow: "2026-07-18T09:00:00+08:00",
+      transcript: Array.from({ length: 11 }, (_, i) => ({
+        role: i % 2 === 0 ? "user" : "assistant",
+        content: `turn ${i}`,
+      })),
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("ScheduleAssistResponseSchema", () => {
+  it("accepts a proposal response with a full proposal", () => {
+    const result = ScheduleAssistResponseSchema.safeParse({
+      type: "schedule/assist/response",
+      payload: {
+        requestId: "req-1",
+        kind: "proposal",
+        proposal: {
+          op: "create",
+          name: "Nightly test summary",
+          prompt: "Summarize the nightly test runs",
+          cadence: { type: "cron", expression: "0 9 * * 1-5", timezone: "Asia/Shanghai" },
+          target: { type: "agent", agentId: "agent-1" },
+          cwd: "/project",
+          maxRuns: 30,
+          expiresAt: "2026-08-31T00:00:00+08:00",
+          summary: "Create \"Nightly test summary\" every weekday at 09:00",
+          warnings: ["interpreted 'morning' as 09:00"],
+          nextRunAt: "2026-07-21T09:00:00+08:00",
+        },
+        error: null,
+        llmProvider: "openai",
+        model: "gpt-5",
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts a clarify response without a proposal", () => {
+    const result = ScheduleAssistResponseSchema.safeParse({
+      type: "schedule/assist/response",
+      payload: {
+        requestId: "req-2",
+        kind: "clarify",
+        message: "Which schedule do you mean — \"Nightly test summary\" or \"Disk cleanup\"?",
+        error: null,
+        llmProvider: "openai",
+        model: "gpt-5",
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts an answer response", () => {
+    const result = ScheduleAssistResponseSchema.safeParse({
+      type: "schedule/assist/response",
+      payload: {
+        requestId: "req-3",
+        kind: "answer",
+        message: "3 schedules run today: Nightly test summary (09:00), …",
+        error: null,
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts an error response with an error code", () => {
+    const result = ScheduleAssistResponseSchema.safeParse({
+      type: "schedule/assist/response",
+      payload: {
+        requestId: "req-4",
+        kind: "error",
+        message: "No LLM provider configured on this host.",
+        error: "no_llm_provider",
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts error: null (daemon sends null)", () => {
+    const result = ScheduleAssistResponseSchema.safeParse({
+      type: "schedule/assist/response",
+      payload: {
+        requestId: "req-5",
+        kind: "answer",
+        message: "Nothing runs today.",
+        proposal: null,
+        error: null,
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an unknown kind", () => {
+    const result = ScheduleAssistResponseSchema.safeParse({
+      type: "schedule/assist/response",
+      payload: {
+        requestId: "req-6",
+        kind: "apply",
+        error: null,
+      },
+    });
+    expect(result.success).toBe(false);
   });
 });

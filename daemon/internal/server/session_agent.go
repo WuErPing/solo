@@ -648,13 +648,20 @@ func buildDaemonConfigResponse(cfg *config.Config) map[string]interface{} {
 		entry["additionalModels"] = customModelsToResponse(models)
 	}
 
+	// Nil slices marshal to JSON null, which clients' array schemas reject —
+	// always emit an empty array instead.
+	tmuxAgentNames := cfg.TmuxAgentNames
+	if tmuxAgentNames == nil {
+		tmuxAgentNames = []string{}
+	}
+
 	return map[string]interface{}{
 		"mcp": map[string]interface{}{
 			"injectIntoAgents": cfg.MCPInjectIntoAgents,
 		},
 		"providers":      providers,
 		"llmProviders":   llmProvidersToResponse(cfg.LLMProviders),
-		"tmuxAgentNames": cfg.TmuxAgentNames,
+		"tmuxAgentNames": tmuxAgentNames,
 	}
 }
 

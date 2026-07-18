@@ -3,6 +3,7 @@ import {
   ScheduleCadenceSchema,
   ScheduleRunSchema,
   ScheduleSummarySchema,
+  ScheduleTargetSchema,
   StoredScheduleSchema,
   ScheduleNewAgentConfigSchema,
 } from "./types.js";
@@ -86,6 +87,36 @@ export const ScheduleUpdateRequestSchema = z.object({
   expiresAt: z.string().optional(),
 });
 
+export const ScheduleAssistTurnSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z.string(),
+});
+
+export const ScheduleAssistProposalSchema = z.object({
+  op: z.enum(["create", "update", "pause", "resume", "delete"]),
+  scheduleId: z.string().optional(),
+  name: z.string().optional(),
+  prompt: z.string().optional(),
+  cadence: ScheduleCadenceSchema.optional(),
+  target: ScheduleTargetSchema.optional(),
+  cwd: z.string().optional(),
+  maxRuns: z.number().int().positive().optional(),
+  expiresAt: z.string().optional(),
+  summary: z.string(),
+  warnings: z.array(z.string()).optional(),
+  nextRunAt: z.string().optional(),
+});
+
+export const ScheduleAssistRequestSchema = z.object({
+  type: z.literal("schedule/assist"),
+  requestId: z.string(),
+  message: z.string().min(1).max(2000),
+  timezone: z.string().min(1),
+  clientNow: z.string().min(1),
+  contextScheduleId: z.string().optional(),
+  transcript: z.array(ScheduleAssistTurnSchema).max(10).optional(),
+});
+
 export const ScheduleCreateResponseSchema = z.object({
   type: z.literal("schedule/create/response"),
   payload: z.object({
@@ -156,5 +187,18 @@ export const ScheduleDeleteResponseSchema = z.object({
     requestId: z.string(),
     scheduleId: z.string(),
     error: z.string().nullable(),
+  }),
+});
+
+export const ScheduleAssistResponseSchema = z.object({
+  type: z.literal("schedule/assist/response"),
+  payload: z.object({
+    requestId: z.string(),
+    kind: z.enum(["proposal", "clarify", "answer", "error"]),
+    message: z.string().optional(),
+    proposal: ScheduleAssistProposalSchema.nullable().optional(),
+    error: z.string().nullable(),
+    llmProvider: z.string().optional(),
+    model: z.string().optional(),
   }),
 });

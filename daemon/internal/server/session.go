@@ -47,6 +47,11 @@ type Session struct {
 	scheduleStore   *schedule.Store
 	loopStore       *loop.Store
 
+	// scheduleAssist is created lazily on the first schedule/assist request;
+	// per-session instance gives per-connection rate limiting.
+	scheduleAssist     *schedule.Assistant
+	scheduleAssistOnce sync.Once
+
 	workspaces   map[string]*protocol.WorkspaceDescriptor
 	workspacesMu sync.RWMutex
 

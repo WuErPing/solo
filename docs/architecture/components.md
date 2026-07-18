@@ -29,6 +29,7 @@
 - `src/hooks/` - Custom hooks
 - `src/stores/` - Zustand state stores
   - `src/stores/tmux-agent-store.ts` - Selected tmux agent state
+  - `src/stores/schedule-assistant-store.ts` - Schedule assistant thread state (session-only, keyed by serverId)
 - `src/styles/` - Theme and style definitions
 - `src/utils/` - Utility functions
 - `src/constants/` - App constants
@@ -36,6 +37,7 @@
 
 **Notable Components**:
 - `schedule-create-modal.tsx` / `schedule-edit-modal.tsx` — Schedule creation/editing modals
+- `schedule-assistant/` — Schedule Assistant chat panel (message list, proposal card, composer) with `use-schedule-assist` / `use-assistant-thread` / `use-proposal-confirm` hooks
 - `svg-preview.tsx` / `svg-preview.web.tsx` — SVG file preview (WebView for mobile, native for web)
 - `mermaid-preview.tsx` / `mermaid-preview.web.tsx` — Mermaid diagram rendering
 - `ansi-text-renderer.tsx` / `ansi-text-line.tsx` — ANSI escape sequence rendering
@@ -86,7 +88,7 @@
 | `agent/` | Agent management |
 | `chat/` | Chat functionality |
 | `loop/` | Main loop |
-| `schedule/` | Scheduler |
+| `schedule/` | Scheduler (incl. `schedule/assist` RPC schemas) |
 | `tmux/` | Tmux RPC schemas and types |
 
 ### 2.4 Shared & Utils
@@ -117,13 +119,14 @@ daemon/
     ├── agent/           # Agent management
     ├── config/          # Configuration (includes MemoryConfig)
     ├── loop/            # Loop automation engine (engine, store, types)
+    ├── llm/             # OpenAI-compatible chat completion client (schedule assistant)
     ├── memory/          # Session memory: TurnRecorder / bridge / filebackend / redact
     ├── memorysetup/     # Assembles recorder+redactor+bridge from MemoryConfig
     ├── metrics/         # Metrics
     ├── pidlock/         # PID lock
     ├── push/            # Push notifications
     ├── relayclient/     # Relay client
-    ├── schedule/        # Cron-based schedule automation (executor, store, runner)
+    ├── schedule/        # Cron-based schedule automation (executor, store, runner, assistant*)
     ├── server/          # WebSocket server
     ├── terminal/        # Terminal management
     ├── workspace/       # Workspace management
@@ -141,6 +144,7 @@ Core files:
 - `session_terminal.go` - Terminal sessions
 - `session_tmux.go` - Tmux subprocess management, agent scanning, pane capture, key injection
 - `session_schedule.go` - Schedule message handlers and session-bound schedule state
+- `session_schedule_assist.go` - `schedule/assist` handler; per-session Assistant (NL schedule parse) built lazily via `sync.Once`
 - `schedule_runner.go` - Schedule execution wiring
 - `session_register_handlers.go` - WebSocket handler registration (routes tmux/schedule messages)
 - `handler_registry.go` - Handler registry
@@ -243,6 +247,19 @@ Features:
 | `terminal-themes` | `styles/terminal-themes.ts` | 5 terminal theme presets (`system`, `dark`, `light`, `bash`, `auto`) |
 | `resolve-terminal-colors` | `utils/resolve-terminal-colors.ts` | Resolve effective terminal colors from theme + content + tmux theme |
 | `detect-ansi-colors` | `utils/detect-ansi-colors.ts` | 256-color palette detection from ANSI content |
+
+### 3.9 Schedule Assistant
+
+**Directories**: `internal/schedule/` (assistant files), `internal/llm/`
+
+Core files:
+- `internal/llm/client.go` - OpenAI-compatible chat completion client (`POST {baseURL}/chat/completions`, Bearer auth, non-streaming, 60s timeout; sentinel errors `ErrLLMAuth` / `ErrLLMRateLimited`)
+- `internal/schedule/assistant.go` - Orchestration: request guards, per-connection rate limit + single-flight, one validation retry, `nextRunAt` enrichment; never mutates the schedule store
+- `internal/schedule/assistant_resolve.go` - Default provider/model resolution from `config.llmProviders` (first enabled provider with baseURL+apiKey; `isDefault` model else first)
+- `internal/schedule/assistant_prompt.go` - System prompt (JSON-only contract) + context block (agents/schedules ≤50 each, ~8k cap)
+- `internal/schedule/assistant_extract.go` - Fenced/balanced-brace JSON extraction, per-op schema + semantic validation
+
+See [Schedule Assistant](schedule-assistant.md).
 
 ## 4. Relay (Relay Server)
 

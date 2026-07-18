@@ -80,6 +80,42 @@ interface WorkspaceSetupDaemonClient {
     requestId?: string;
   }): Promise<{ schedule: { id: string } | null; error: string | null }>;
   scheduleDelete(options: { id: string; requestId?: string }): Promise<{ error: string | null }>;
+  scheduleInspect(options: { id: string; requestId?: string }): Promise<{
+    schedule: {
+      id: string;
+      name: string | null;
+      prompt: string;
+      cadence:
+        | { type: "every"; everyMs: number; timezone?: string }
+        | { type: "cron"; expression: string; timezone?: string };
+      target: unknown;
+      status: "active" | "paused" | "completed";
+    } | null;
+    error: string | null;
+  }>;
+  scheduleList(requestId?: string): Promise<{
+    schedules: Array<{
+      id: string;
+      name: string | null;
+      cadence:
+        | { type: "every"; everyMs: number; timezone?: string }
+        | { type: "cron"; expression: string; timezone?: string };
+    }>;
+    error: string | null;
+  }>;
+  patchDaemonConfig(
+    config: {
+      llmProviders?: Array<{
+        id: string;
+        label?: string;
+        enabled?: boolean;
+        baseURL?: string;
+        apiKey?: string;
+        models?: Array<{ id: string; label?: string; isDefault?: boolean }>;
+      }>;
+    },
+    requestId?: string,
+  ): Promise<{ requestId: string; config: unknown }>;
 }
 
 export type WorkspaceSetupProgressPayload = Extract<

@@ -72,17 +72,20 @@ vi.mock("lucide-react-native", () => ({
   XCircle: () => React.createElement("span", { "data-icon": "XCircle" }),
   Loader: () => React.createElement("span", { "data-icon": "Loader" }),
   Globe: () => React.createElement("span", { "data-icon": "Globe" }),
+  Sparkles: () => React.createElement("span", { "data-icon": "Sparkles" }),
 }));
 
 vi.mock("@/components/headers/menu-header", () => ({
   MenuHeader: ({
     title,
     leftContent,
+    rightContent,
   }: {
     title: string;
     leftContent?: React.ReactNode;
+    rightContent?: React.ReactNode;
   }) =>
-    React.createElement("header", { "data-testid": "menu-header" }, leftContent, title),
+    React.createElement("header", { "data-testid": "menu-header" }, leftContent, title, rightContent),
 }));
 
 vi.mock("@/components/ui/button", () => ({
@@ -110,6 +113,11 @@ vi.mock("@/hooks/use-schedule-inspect", () => ({
     }
     return inspectResult.current;
   },
+}));
+
+vi.mock("@/components/schedule-assistant/schedule-assistant-panel", () => ({
+  ScheduleAssistantPanel: ({ visible }: { visible: boolean }) =>
+    visible ? React.createElement("div", { "data-testid": "schedule-assistant-panel" }) : null,
 }));
 
 vi.mock("@/utils/host-routes", () => ({
@@ -220,6 +228,26 @@ describe("ScheduleDetailScreen", () => {
 
     expect(container?.textContent).toContain("Daily Report");
     expect(container?.textContent).toContain("Generate the daily summary");
+  });
+
+  it("shows the Edit with AI button and opens the assistant panel", () => {
+    inspectResult.current = makeInspectResult({
+      schedule: makeStoredSchedule(),
+    });
+
+    act(() => {
+      root?.render(<ScheduleDetailScreen serverId="server-1" scheduleId="schedule-1" />);
+    });
+
+    const editButton = container?.querySelector('[data-testid="schedule-assistant-edit-button"]');
+    expect(editButton).not.toBeNull();
+    expect(container?.querySelector('[data-testid="schedule-assistant-panel"]')).toBeNull();
+
+    act(() => {
+      editButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container?.querySelector('[data-testid="schedule-assistant-panel"]')).not.toBeNull();
   });
 
   it("displays working directory when present", () => {

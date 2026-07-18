@@ -219,6 +219,54 @@ hasRunningAgentsWithProgress()?  ← Checks both LifecycleRunning and events wit
   └─ NO  → End grace, execute fullCleanup()
 ```
 
+## Schedule Assistant Flow
+
+Natural-language schedule parse uses one correlated RPC pair (`schedule/assist`) over the standard pipeline; the daemon then calls the host's configured LLM endpoint. The LLM only proposes — mutation happens on user confirm via the existing schedule RPCs.
+
+### Parse (schedule/assist)
+
+```
+App (ScheduleAssistantPanel)
+  │
+  ▼
+useScheduleAssist (stores thread in schedule-assistant-store, keyed by serverId)
+  │
+  ▼  WebSocket (schedule/assist, 120s timeout)
+App-Bridge scheduleAssist() → Relay → Daemon
+  │
+  ▼
+handleScheduleAssist → Assistant (per-session, lazy via sync.Once)
+  │
+  ├─ guards (message ≤2000 chars, timezone, transcript ≤10)
+  ├─ rate limit (10/min) + single-flight per connection
+  ├─ resolve default provider/model from config.llmProviders
+  ├─ build prompt (system contract + agents/schedules context block)
+  │
+  ▼  HTTPS chat completion (OpenAI-compatible, non-streaming)
+Configured LLM endpoint (Settings → General → LLM Providers)
+  │
+  ▼
+extract + validate (schema + semantic; one retry on failure)
+  │
+  ▼  WebSocket (schedule/assist/response)
+Return kind=proposal | clarify | answer | error (+ llmProvider/model echo)
+```
+
+### Confirm (existing RPCs — unchanged)
+
+```
+ProposalCard [Confirm]
+  │
+  ▼  op → schedule/create | update | pause | resume | delete
+  │    (cron cadence converted local→UTC via cronToUTC;
+  │     update merges proposal over schedule/inspect)
+Daemon schedule.Store ─ Executor ─ daemonRunner ─▶ Target Agent
+  (fire-time execution unchanged: agent → running agent;
+   new-agent/provider → ephemeral agent via AgentManager)
+```
+
+See [Schedule Assistant](schedule-assistant.md) for the full architecture.
+
 ## Tmux RPC Message Flow
 
 Tmux operations follow the standard Client → App-Bridge → Relay → Daemon pipeline using correlated request/response messages.

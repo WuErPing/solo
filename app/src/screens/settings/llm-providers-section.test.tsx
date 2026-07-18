@@ -319,6 +319,114 @@ describe("LlmProvidersSection", () => {
     });
   });
 
+  it("saves comma-separated models with the first marked default when creating a provider", async () => {
+    render();
+
+    const addButton = container?.querySelector<HTMLElement>('[data-testid="add-llm-provider-button"]');
+    act(() => {
+      addButton?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    });
+
+    const idInput = container?.querySelector<HTMLInputElement>('[data-testid="llm-provider-id"]');
+    const baseURLInput = container?.querySelector<HTMLInputElement>('[data-testid="llm-provider-baseurl"]');
+    const apiKeyInput = container?.querySelector<HTMLInputElement>('[data-testid="llm-provider-apikey"]');
+    const modelsInput = container?.querySelector<HTMLInputElement>('[data-testid="llm-provider-models"]');
+
+    act(() => {
+      fireEvent.change(idInput!, { target: { value: "deepseek" } });
+    });
+    act(() => {
+      fireEvent.change(baseURLInput!, { target: { value: "https://api.deepseek.com" } });
+    });
+    act(() => {
+      fireEvent.change(apiKeyInput!, { target: { value: "sk-test" } });
+    });
+    act(() => {
+      fireEvent.change(modelsInput!, { target: { value: "deepseek-chat, deepseek-reasoner" } });
+    });
+
+    const submitButton = container?.querySelector<HTMLElement>('[data-testid="llm-provider-submit"]');
+    await act(async () => {
+      submitButton?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(patchConfigMock).toHaveBeenCalledTimes(1);
+    const call = patchConfigMock.mock.calls[0][0] as unknown as { llmProviders: LLMProviderConfig[] };
+    expect(call.llmProviders[0].models).toEqual([
+      { id: "deepseek-chat", isDefault: true },
+      { id: "deepseek-reasoner" },
+    ]);
+  });
+
+  it("prefills models when editing and preserves an existing default marker", async () => {
+    configState.config = {
+      llmProviders: [
+        {
+          ...openAIProvider,
+          models: [{ id: "gpt-5" }, { id: "gpt-5-mini", isDefault: true }],
+        },
+      ],
+    };
+    render();
+
+    const editButton = container?.querySelector<HTMLElement>('[data-testid="edit-llm-provider-openai"]');
+    act(() => {
+      editButton?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    });
+
+    const modelsInput = container?.querySelector<HTMLInputElement>('[data-testid="llm-provider-models"]');
+    expect(modelsInput?.value).toBe("gpt-5, gpt-5-mini");
+
+    const submitButton = container?.querySelector<HTMLElement>('[data-testid="llm-provider-submit"]');
+    await act(async () => {
+      submitButton?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(patchConfigMock).toHaveBeenCalledTimes(1);
+    const call = patchConfigMock.mock.calls[0][0] as unknown as { llmProviders: LLMProviderConfig[] };
+    expect(call.llmProviders[0].models).toEqual([
+      { id: "gpt-5" },
+      { id: "gpt-5-mini", isDefault: true },
+    ]);
+  });
+
+  it("moves the default marker to the first model when the previous default is removed", async () => {
+    configState.config = {
+      llmProviders: [
+        {
+          ...openAIProvider,
+          models: [{ id: "gpt-5" }, { id: "gpt-5-mini", isDefault: true }],
+        },
+      ],
+    };
+    render();
+
+    const editButton = container?.querySelector<HTMLElement>('[data-testid="edit-llm-provider-openai"]');
+    act(() => {
+      editButton?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    });
+
+    const modelsInput = container?.querySelector<HTMLInputElement>('[data-testid="llm-provider-models"]');
+    act(() => {
+      fireEvent.change(modelsInput!, { target: { value: "gpt-5-nano, gpt-5" } });
+    });
+
+    const submitButton = container?.querySelector<HTMLElement>('[data-testid="llm-provider-submit"]');
+    await act(async () => {
+      submitButton?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(patchConfigMock).toHaveBeenCalledTimes(1);
+    const call = patchConfigMock.mock.calls[0][0] as unknown as { llmProviders: LLMProviderConfig[] };
+    expect(call.llmProviders[0].models).toEqual([
+      { id: "gpt-5-nano", isDefault: true },
+      { id: "gpt-5" },
+    ]);
+  });
+
   it("renders existing providers and allows deletion", async () => {
     configState.config = { llmProviders: [openAIProvider] };
     render();

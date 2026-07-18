@@ -168,6 +168,7 @@ func init() {
 	RegisterInbound("schedule/resume", func() SessionInboundMessage { return &ScheduleResumeRequest{} })
 	RegisterInbound("schedule/delete", func() SessionInboundMessage { return &ScheduleDeleteRequest{} })
 	RegisterInbound("schedule/update", func() SessionInboundMessage { return &ScheduleUpdateRequest{} })
+	RegisterInbound("schedule/assist", func() SessionInboundMessage { return &ScheduleAssistRequest{} })
 	RegisterInbound("loop/run", func() SessionInboundMessage { return &LoopRunRequest{} })
 	RegisterInbound("loop/list", func() SessionInboundMessage { return &LoopListRequest{} })
 	RegisterInbound("loop/inspect", func() SessionInboundMessage { return &LoopInspectRequest{} })

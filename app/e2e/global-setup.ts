@@ -239,10 +239,13 @@ function ensureAppBridgeBuildArtifact(repoRoot: string): void {
   }
 
   console.log("[e2e] Building app-bridge daemon-client...");
-  execSync("npx esbuild src/client/daemon-client.ts --bundle --platform=node --format=cjs --outdir=dist/client --external:zod", {
-    cwd: path.join(repoRoot, "app-bridge"),
-    stdio: "inherit",
-  });
+  execSync(
+    'npx esbuild src/client/daemon-client.ts --bundle --platform=node --format=esm --outdir=dist/client --external:zod --banner:js="import { createRequire } from \'node:module\'; const require = createRequire(import.meta.url);"',
+    {
+      cwd: path.join(repoRoot, "app-bridge"),
+      stdio: "inherit",
+    },
+  );
 }
 
 function decodeOfferFromFragmentUrl(url: string): OfferPayload {

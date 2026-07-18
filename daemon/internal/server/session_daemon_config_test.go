@@ -50,12 +50,14 @@ func TestBuildDaemonConfigResponse_EmptyTmuxAgentNames(t *testing.T) {
 	cfg := &config.Config{}
 	result := buildDaemonConfigResponse(cfg)
 
+	// Must serialize as an empty array, not null — clients validate the
+	// response against array schemas and drop messages containing null.
 	names, ok := result["tmuxAgentNames"].([]string)
 	if !ok {
 		t.Fatalf("expected 'tmuxAgentNames' ([]string), got %T", result["tmuxAgentNames"])
 	}
-	if names != nil {
-		t.Errorf("tmuxAgentNames: got %v, want nil", names)
+	if names == nil || len(names) != 0 {
+		t.Errorf("tmuxAgentNames: got %v, want empty non-nil slice", names)
 	}
 }
 

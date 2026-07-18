@@ -226,3 +226,82 @@ describe("ScheduleRpc — loop", () => {
     await cleanup();
   });
 });
+
+describe("ScheduleRpc — schedule assist", () => {
+  it("scheduleAssist sends schedule/assist and resolves with the payload", async () => {
+    const { client, transport, cleanup } = createConnectedClient();
+
+    const promise = client.scheduleAssist({
+      requestId: "req-sched-assist",
+      message: "Every weekday at 9am, summarize the nightly test runs",
+      timezone: "Asia/Shanghai",
+      clientNow: "2026-07-18T09:00:00+08:00",
+    });
+
+    const sent = findSentMessage(transport, "schedule/assist");
+    expect(sent).toBeDefined();
+    const wireMessage = (sent!.parsed as { message?: Record<string, unknown> }).message;
+    expect(wireMessage).toMatchObject({
+      type: "schedule/assist",
+      requestId: "req-sched-assist",
+      message: "Every weekday at 9am, summarize the nightly test runs",
+      timezone: "Asia/Shanghai",
+      clientNow: "2026-07-18T09:00:00+08:00",
+    });
+    expect(wireMessage).not.toHaveProperty("provider");
+    expect(wireMessage).not.toHaveProperty("llmProvider");
+    expect(wireMessage).not.toHaveProperty("model");
+
+    simulateServerResponse(transport, {
+      type: "schedule/assist/response",
+      payload: {
+        requestId: "req-sched-assist",
+        kind: "proposal",
+        proposal: {
+          op: "create",
+          name: "Nightly test summary",
+          prompt: "Summarize the nightly test runs",
+          cadence: { type: "cron", expression: "0 9 * * 1-5", timezone: "Asia/Shanghai" },
+          target: { type: "agent", agentId: "agent-1" },
+          summary: "Create \"Nightly test summary\" every weekday at 09:00",
+          nextRunAt: "2026-07-21T09:00:00+08:00",
+        },
+        error: null,
+        llmProvider: "openai",
+        model: "gpt-5",
+      },
+    });
+
+    const result = await promise;
+    expect(result.kind).toBe("proposal");
+    expect(result.proposal?.op).toBe("create");
+    expect(result.llmProvider).toBe("openai");
+    await cleanup();
+  });
+
+  it("scheduleAssist resolves (not rejects) a kind:error payload", async () => {
+    const { client, transport, cleanup } = createConnectedClient();
+
+    const promise = client.scheduleAssist({
+      requestId: "req-sched-assist-err",
+      message: "Pause everything",
+      timezone: "Asia/Shanghai",
+      clientNow: "2026-07-18T09:00:00+08:00",
+    });
+
+    simulateServerResponse(transport, {
+      type: "schedule/assist/response",
+      payload: {
+        requestId: "req-sched-assist-err",
+        kind: "error",
+        message: "No LLM provider configured on this host.",
+        error: "no_llm_provider",
+      },
+    });
+
+    const result = await promise;
+    expect(result.kind).toBe("error");
+    expect(result.error).toBe("no_llm_provider");
+    await cleanup();
+  });
+});

@@ -104,6 +104,7 @@ func (s *Session) registerHandlers() {
 	r.Register("schedule/resume", typeHandler(s.handleScheduleResume))
 	r.Register("schedule/delete", typeHandler(s.handleScheduleDelete))
 	r.Register("schedule/update", typeHandler(s.handleScheduleUpdate))
+	r.Register("schedule/assist", typeHandler(s.handleScheduleAssist))
 
 	// --- Loop handlers (session_loop.go) ---
 	r.Register("loop/run", typeHandler(s.handleLoopRun))

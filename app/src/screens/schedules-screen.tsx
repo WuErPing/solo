@@ -9,7 +9,7 @@ import {
 import { useIsFocused } from "@/hooks/use-is-focused";
 import { router } from "expo-router";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { Calendar, ChevronLeft, Pause, Pencil, Play, Plus, Trash2, Clock } from "lucide-react-native";
+import { Calendar, ChevronLeft, Pause, Pencil, Play, Plus, Sparkles, Trash2, Clock } from "lucide-react-native";
 import { BackHeader } from "@/components/headers/back-header";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -17,6 +17,7 @@ import { useSchedules } from "@/hooks/use-schedules";
 import { useScheduleMutations } from "@/hooks/use-schedule-mutations";
 import { ScheduleCreateModal } from "@/components/schedule-create-modal";
 import { ScheduleEditModal } from "@/components/schedule-edit-modal";
+import { ScheduleAssistantPanel } from "@/components/schedule-assistant/schedule-assistant-panel";
 import { buildHostOpenProjectRoute, buildHostScheduleDetailRoute } from "@/utils/host-routes";
 import { cronFromUTC, describeCron, detectTimezone } from "@/utils/cron-timezone";
 import type { ScheduleSummary, ScheduleCadence, ScheduleStatus } from "@server/server/schedule/types";
@@ -195,6 +196,7 @@ function SchedulesScreenContent({
   const [isManualRefresh, setIsManualRefresh] = useState(false);
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(initialCreateOpen);
   const [editingSchedule, setEditingSchedule] = useState<ScheduleSummary | null>(null);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
 
   const handleRefresh = useCallback(() => {
     setIsManualRefresh(true);
@@ -252,6 +254,14 @@ function SchedulesScreenContent({
     setIsCreateModalVisible(false);
   }, []);
 
+  const handleOpenAssistant = useCallback(() => {
+    setIsAssistantOpen(true);
+  }, []);
+
+  const handleCloseAssistant = useCallback(() => {
+    setIsAssistantOpen(false);
+  }, []);
+
   const handleOpenEditModal = useCallback((schedule: ScheduleSummary) => {
     setEditingSchedule(schedule);
   }, []);
@@ -266,15 +276,26 @@ function SchedulesScreenContent({
         title="Schedules"
         onBack={() => router.navigate("/")}
         rightContent={
-          <Button
-            variant="ghost"
-            size="sm"
-            leftIcon={Plus}
-            onPress={handleOpenCreateModal}
-            testID="new-schedule-button"
-          >
-            New
-          </Button>
+          <View style={styles.headerRight}>
+            <Button
+              variant="ghost"
+              size="sm"
+              leftIcon={Sparkles}
+              onPress={handleOpenAssistant}
+              testID="schedule-assistant-button"
+            >
+              Ask AI
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              leftIcon={Plus}
+              onPress={handleOpenCreateModal}
+              testID="new-schedule-button"
+            >
+              New
+            </Button>
+          </View>
         }
       />
 
@@ -337,6 +358,11 @@ function SchedulesScreenContent({
         serverId={serverId}
         schedule={editingSchedule}
       />
+      <ScheduleAssistantPanel
+        visible={isAssistantOpen}
+        onClose={handleCloseAssistant}
+        serverId={serverId}
+      />
     </View>
   );
 }
@@ -345,6 +371,11 @@ const styles = StyleSheet.create((theme) => ({
   container: {
     flex: 1,
     backgroundColor: theme.colors.surface0,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
   },
   loadingContainer: {
     flex: 1,

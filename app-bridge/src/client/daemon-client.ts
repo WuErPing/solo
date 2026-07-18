@@ -357,6 +357,10 @@ type ScheduleUpdatePayload = Extract<
   SessionOutboundMessage,
   { type: "schedule/update/response" }
 >["payload"];
+type ScheduleAssistPayload = Extract<
+  SessionOutboundMessage,
+  { type: "schedule/assist/response" }
+>["payload"];
 type TmuxListAgentsPayload = Extract<
   SessionOutboundMessage,
   { type: "tmux/list_agents/response" }
@@ -584,6 +588,14 @@ export interface UpdateScheduleOptions {
   target: CreateScheduleOptions["target"];
   maxRuns?: number;
   expiresAt?: string;
+  requestId?: string;
+}
+export interface ScheduleAssistOptions {
+  message: string;
+  timezone: string;
+  clientNow: string;
+  contextScheduleId?: string;
+  transcript?: Array<{ role: "user" | "assistant"; content: string }>;
   requestId?: string;
 }
 type ListAvailableEditorsPayload = ListAvailableEditorsResponseMessage["payload"];
@@ -1998,6 +2010,10 @@ export class DaemonClient {
 
   async scheduleUpdate(options: UpdateScheduleOptions): Promise<ScheduleUpdatePayload> {
     return this.scheduleRpc.scheduleUpdate(options);
+  }
+
+  async scheduleAssist(options: ScheduleAssistOptions): Promise<ScheduleAssistPayload> {
+    return this.scheduleRpc.scheduleAssist(options);
   }
 
   async tmuxListAgents(requestId?: string): Promise<TmuxListAgentsPayload> {

@@ -19,9 +19,11 @@ import {
   Play,
   Plus,
   Server,
+  Sparkles,
 } from "lucide-react-native";
 import { BackHeader } from "@/components/headers/back-header";
 import { Button } from "@/components/ui/button";
+import { ScheduleAssistantPanel } from "@/components/schedule-assistant/schedule-assistant-panel";
 import { useAggregatedSchedules } from "@/hooks/use-aggregated-schedules";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { buildHostSchedulesRoute } from "@/utils/host-routes";
@@ -163,6 +165,7 @@ export function SchedulesDashboardScreen() {
   } = useAggregatedSchedules();
 
   const [selectedStatus, setSelectedStatus] = useState<ScheduleStatus | null>(null);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
 
   useEffect(() => {
     if (isFocused) {
@@ -221,6 +224,14 @@ export function SchedulesDashboardScreen() {
     router.navigate(route as never);
   }, [connectedHosts]);
 
+  const handleOpenAssistant = useCallback(() => {
+    setIsAssistantOpen(true);
+  }, []);
+
+  const handleCloseAssistant = useCallback(() => {
+    setIsAssistantOpen(false);
+  }, []);
+
   return (
     <View style={styles.container}>
       <BackHeader
@@ -229,15 +240,26 @@ export function SchedulesDashboardScreen() {
         rightContent={
           <View style={styles.headerRight}>
             {connectedHosts.length > 0 ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                leftIcon={Plus}
-                onPress={handleNewSchedule}
-                testID="new-schedule-button"
-              >
-                New
-              </Button>
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  leftIcon={Sparkles}
+                  onPress={handleOpenAssistant}
+                  testID="schedule-assistant-fab"
+                >
+                  Ask AI
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  leftIcon={Plus}
+                  onPress={handleNewSchedule}
+                  testID="new-schedule-button"
+                >
+                  New
+                </Button>
+              </>
             ) : null}
             <View style={styles.headerBadge}>
               <Text style={styles.headerBadgeText}>
@@ -340,6 +362,17 @@ export function SchedulesDashboardScreen() {
           </View>
         )}
       </ScrollView>
+      {connectedHosts.length > 0 ? (
+        <ScheduleAssistantPanel
+          visible={isAssistantOpen}
+          onClose={handleCloseAssistant}
+          serverId={connectedHosts[0]?.serverId ?? ""}
+          availableHosts={connectedHosts.map((host) => ({
+            serverId: host.serverId,
+            label: host.serverLabel,
+          }))}
+        />
+      ) : null}
     </View>
   );
 }

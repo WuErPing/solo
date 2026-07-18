@@ -133,6 +133,16 @@ Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
 - **cronFromUTC**：UTC cron 转本地时区
 - **describeCron**：生成友好调度描述文本
 
+#### 5.5 日程助手 (Schedule Assistant)
+- **自然语言创建/编辑**：对话面板中用一句话创建、编辑、暂停、恢复、删除日程（"Ask AI" 入口位于日程列表/仪表盘，"Edit with AI" 位于日程详情页）
+- **确认卡片 (Confirm Cards)**：LLM 只产出提案（proposal），所有变更经结构化卡片确认后才走现有 `schedule/create|update|pause|resume|delete` RPC；update 卡片显示字段级 diff
+- **主机默认 LLM 提供商**：解析使用主机 Settings → General → LLM Providers 中的默认提供商（第一个启用的提供商 + 其 `isDefault` 模型）；设置表单现可编辑 models 列表（逗号分隔 ID）
+- **澄清循环 (Clarify Loop)**：名称歧义或信息不足时返回澄清问题与候选列表，绝不猜测
+- **提供商指示器**：面板头部显示当前解析的 provider + model（来自 `schedule/assist` 响应回显）
+- **无提供商引导**：未配置 LLM 提供商时显示设置卡片，深度链接至 `/settings/general`
+- **安全不变式**：daemon 解析路径不触碰日程存储；执行路径（Target Agent）完全不变
+- **E2E 覆盖**：Playwright + stub LLM endpoint 4 个用例（无提供商引导卡、创建+确认含 UTC 转换、更新 diff、歧义澄清）
+
 ### 6. Relay 中继系统
 
 #### 5.1 Go Relay (relay-go)

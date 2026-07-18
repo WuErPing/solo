@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -7,10 +7,11 @@ import {
 import { useIsFocused } from "@/hooks/use-is-focused";
 import { router } from "expo-router";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { ArrowLeft, Calendar, Clock, CheckCircle, XCircle, Loader, Globe } from "lucide-react-native";
+import { ArrowLeft, Calendar, Clock, CheckCircle, XCircle, Loader, Globe, Sparkles } from "lucide-react-native";
 import { MenuHeader } from "@/components/headers/menu-header";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { ScheduleAssistantPanel } from "@/components/schedule-assistant/schedule-assistant-panel";
 import { useScheduleInspect } from "@/hooks/use-schedule-inspect";
 import { buildHostSchedulesRoute } from "@/utils/host-routes";
 import { cronFromUTC, describeCron, detectTimezone } from "@/utils/cron-timezone";
@@ -163,10 +164,19 @@ function ScheduleDetailScreenContent({
 }) {
   const { theme } = useUnistyles();
   const { schedule, isLoading, error } = useScheduleInspect({ serverId, scheduleId });
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
 
   const handleBack = useCallback(() => {
     router.navigate(buildHostSchedulesRoute(serverId));
   }, [serverId]);
+
+  const handleOpenAssistant = useCallback(() => {
+    setIsAssistantOpen(true);
+  }, []);
+
+  const handleCloseAssistant = useCallback(() => {
+    setIsAssistantOpen(false);
+  }, []);
 
   const leftContent = useMemo(
     () => (
@@ -175,6 +185,21 @@ function ScheduleDetailScreenContent({
       </Button>
     ),
     [handleBack],
+  );
+
+  const rightContent = useMemo(
+    () => (
+      <Button
+        variant="ghost"
+        size="sm"
+        leftIcon={Sparkles}
+        onPress={handleOpenAssistant}
+        testID="schedule-assistant-edit-button"
+      >
+        Edit with AI
+      </Button>
+    ),
+    [handleOpenAssistant],
   );
 
   if (isLoading) {
@@ -221,7 +246,7 @@ function ScheduleDetailScreenContent({
 
   return (
     <View style={styles.container}>
-      <MenuHeader title={name} leftContent={leftContent} />
+      <MenuHeader title={name} leftContent={leftContent} rightContent={rightContent} />
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <View style={styles.section}>
@@ -292,6 +317,12 @@ function ScheduleDetailScreenContent({
           )}
         </View>
       </ScrollView>
+      <ScheduleAssistantPanel
+        visible={isAssistantOpen}
+        onClose={handleCloseAssistant}
+        serverId={serverId}
+        contextScheduleId={scheduleId}
+      />
     </View>
   );
 }

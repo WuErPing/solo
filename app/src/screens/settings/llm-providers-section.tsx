@@ -25,6 +25,7 @@ function LLMProviderModal({ provider, visible, onSave, onClose }: LLMProviderMod
   const [description, setDescription] = useState(provider?.description ?? "");
   const [baseURL, setBaseURL] = useState(provider?.baseURL ?? "");
   const [apiKey, setApiKey] = useState(provider?.apiKey ?? "");
+  const [modelsText, setModelsText] = useState((provider?.models ?? []).map((m) => m.id).join(", "));
 
   useEffect(() => {
     if (!visible) {
@@ -35,6 +36,7 @@ function LLMProviderModal({ provider, visible, onSave, onClose }: LLMProviderMod
     setDescription(provider?.description ?? "");
     setBaseURL(provider?.baseURL ?? "");
     setApiKey(provider?.apiKey ?? "");
+    setModelsText((provider?.models ?? []).map((m) => m.id).join(", "));
   }, [visible, provider]);
 
   const trimmedId = id.trim();
@@ -44,6 +46,15 @@ function LLMProviderModal({ provider, visible, onSave, onClose }: LLMProviderMod
     if (!canSubmit) {
       return;
     }
+    const existingModelsById = new Map((provider?.models ?? []).map((m) => [m.id, m]));
+    const models = modelsText
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0)
+      .map((modelId) => ({ ...existingModelsById.get(modelId), id: modelId }));
+    if (models.length > 0 && !models.some((m) => m.isDefault)) {
+      models[0] = { ...models[0], isDefault: true };
+    }
     onSave({
       id: trimmedId,
       label: label.trim() || trimmedId,
@@ -51,9 +62,9 @@ function LLMProviderModal({ provider, visible, onSave, onClose }: LLMProviderMod
       enabled: provider?.enabled ?? true,
       baseURL: baseURL.trim(),
       apiKey: apiKey.trim(),
-      models: provider?.models ?? [],
+      models,
     });
-  }, [canSubmit, trimmedId, label, description, baseURL, apiKey, provider, onSave]);
+  }, [canSubmit, trimmedId, label, description, baseURL, apiKey, modelsText, provider, onSave]);
 
   const inputStyle = useMemo(
     () => [styles.formInput, { color: theme.colors.foreground }],
@@ -66,7 +77,7 @@ function LLMProviderModal({ provider, visible, onSave, onClose }: LLMProviderMod
     onChangeText: (text: string) => void,
     placeholder: string,
     testID: string,
-    options?: { editable?: boolean; secureTextEntry?: boolean },
+    options?: { editable?: boolean; secureTextEntry?: boolean; hint?: string },
   ) => (
     <View style={styles.fieldColumn}>
       <Text style={styles.fieldLabel}>{fieldLabel}</Text>
@@ -82,6 +93,7 @@ function LLMProviderModal({ provider, visible, onSave, onClose }: LLMProviderMod
         style={[inputStyle, options?.editable === false && styles.disabledInput]}
         testID={testID}
       />
+      {options?.hint ? <Text style={styles.fieldHint}>{options.hint}</Text> : null}
     </View>
   );
 
@@ -102,6 +114,9 @@ function LLMProviderModal({ provider, visible, onSave, onClose }: LLMProviderMod
         {renderField("Base URL", baseURL, setBaseURL, "Base URL", "llm-provider-baseurl")}
         {renderField("API Key", apiKey, setApiKey, "API Key", "llm-provider-apikey", {
           secureTextEntry: true,
+        })}
+        {renderField("Models", modelsText, setModelsText, "deepseek-chat, deepseek-reasoner", "llm-provider-models", {
+          hint: "Comma-separated model IDs. The default model is used by the Schedule Assistant.",
         })}
       </View>
       <View style={styles.formActions}>
@@ -409,6 +424,10 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foreground,
     fontSize: theme.fontSize.sm,
     fontWeight: theme.fontWeight.medium,
+  },
+  fieldHint: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.xs,
   },
 }));
 

@@ -8,6 +8,7 @@ import type {
   InspectScheduleOptions,
   LoopLogsOptions,
   RunLoopOptions,
+  ScheduleAssistOptions,
   StopLoopOptions,
   UpdateLoopOptions,
   UpdateScheduleOptions,
@@ -22,6 +23,7 @@ type SchedulePausePayload = Extract<SessionOutboundMessage, { type: "schedule/pa
 type ScheduleResumePayload = Extract<SessionOutboundMessage, { type: "schedule/resume/response" }>["payload"];
 type ScheduleDeletePayload = Extract<SessionOutboundMessage, { type: "schedule/delete/response" }>["payload"];
 type ScheduleUpdatePayload = Extract<SessionOutboundMessage, { type: "schedule/update/response" }>["payload"];
+type ScheduleAssistPayload = Extract<SessionOutboundMessage, { type: "schedule/assist/response" }>["payload"];
 type LoopRunPayload = Extract<SessionOutboundMessage, { type: "loop/run/response" }>["payload"];
 type LoopListPayload = Extract<SessionOutboundMessage, { type: "loop/list/response" }>["payload"];
 type LoopInspectPayload = Extract<SessionOutboundMessage, { type: "loop/inspect/response" }>["payload"];
@@ -141,6 +143,24 @@ export class ScheduleRpc {
       },
       responseType: "schedule/update/response",
       timeout: 10000,
+    });
+  }
+
+  async scheduleAssist(options: ScheduleAssistOptions): Promise<ScheduleAssistPayload> {
+    return this.client.sendCorrelatedSessionRequest({
+      requestId: options.requestId,
+      message: {
+        type: "schedule/assist",
+        message: options.message,
+        timezone: options.timezone,
+        clientNow: options.clientNow,
+        ...(options.contextScheduleId ? { contextScheduleId: options.contextScheduleId } : {}),
+        ...(options.transcript && options.transcript.length > 0
+          ? { transcript: options.transcript }
+          : {}),
+      },
+      responseType: "schedule/assist/response",
+      timeout: 120000,
     });
   }
 

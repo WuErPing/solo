@@ -13,6 +13,7 @@
 - [Agent Stall Detection](agent-stall-detection.md) — Inactivity & repetition detection, grace-period fix, operational tuning
 - [Tmux Pane Content Loading](tmux-pane-content-loading.md) — Tmux agent detection, pane capture, polling, and key injection flow
 - [Push Notifications](push-notifications.md) — Push notification architecture and delivery flow
+- [Schedule Assistant](schedule-assistant.md) — NL schedule parse via configured LLM providers, proposal-only safety, confirm path
 - [Deployment](deployment.md) — Systemd, Docker, Nginx config, env vars
 
 See also [`../product/session-memory-spec.md`](../product/session-memory-spec.md) for the Phase 1 implementation spec (M1–M6 shipped 2026-05-28).

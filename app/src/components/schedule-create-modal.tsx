@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, Pressable, ScrollView } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { AdaptiveModalSheet, AdaptiveTextInput } from "@/components/adaptive-modal-sheet";
@@ -15,6 +15,18 @@ interface ScheduleCreateModalProps {
   visible: boolean;
   onClose: () => void;
   serverId: string;
+  initialValues?: ScheduleCreateInitialValues;
+}
+
+/** Prefill values for the assistant's "Edit in form" path. Cadence is LOCAL (pre-UTC-conversion). */
+export interface ScheduleCreateInitialValues {
+  name?: string | null;
+  prompt?: string;
+  cadence?: ScheduleCadence;
+  target?: ScheduleTarget;
+  cwd?: string | null;
+  maxRuns?: number;
+  expiresAt?: string;
 }
 
 type FrequencyPreset = "daily" | "hourly" | "weekly" | "custom";
@@ -33,9 +45,32 @@ function buildCronFromPreset(preset: FrequencyPreset, hour: number, minute: numb
   }
 }
 
+/** Try to detect which preset matches a local cron expression. */
+function detectPreset(expression: string): { preset: FrequencyPreset; hour: string; minute: string } {
+  const parts = expression.trim().split(/\s+/);
+  if (parts.length !== 5) return { preset: "custom", hour: "9", minute: "0" };
+  const [m, h, dom, mon, dow] = parts;
+
+  // daily: M H * * *
+  if (dom === "*" && mon === "*" && dow === "*") {
+    // hourly: M * * * *
+    if (h === "*") {
+      return { preset: "hourly", hour: "0", minute: m };
+    }
+    return { preset: "daily", hour: h, minute: m };
+  }
+
+  // weekly: M H * * 1 (Monday)
+  if (dom === "*" && mon === "*" && dow === "1") {
+    return { preset: "weekly", hour: h, minute: m };
+  }
+
+  return { preset: "custom", hour: "9", minute: "0" };
+}
 
 
-export function ScheduleCreateModal({ visible, onClose, serverId }: ScheduleCreateModalProps) {
+
+export function ScheduleCreateModal({ visible, onClose, serverId, initialValues }: ScheduleCreateModalProps) {
   const { theme } = useUnistyles();
   const { entries: providers, isLoading: isProvidersLoading } = useProvidersSnapshot(serverId, {
     enabled: visible,
@@ -54,6 +89,35 @@ export function ScheduleCreateModal({ visible, onClose, serverId }: ScheduleCrea
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const timezone = useMemo(() => detectTimezone(), []);
   const [error, setError] = useState<string | null>(null);
+  // Seeded from initialValues only — the form has no UI for these (yet); they pass through on submit.
+  const [maxRuns, setMaxRuns] = useState<number | undefined>(undefined);
+  const [expiresAt, setExpiresAt] = useState<string | undefined>(undefined);
+
+  // Seed fields when the assistant's "Edit in form" opens the modal with proposal values.
+  useEffect(() => {
+    if (!visible || !initialValues) return;
+    setName(initialValues.name ?? "");
+    if (initialValues.prompt !== undefined) setPrompt(initialValues.prompt);
+    setCwd(initialValues.cwd ?? "");
+    if (initialValues.cadence) {
+      if (initialValues.cadence.type === "cron") {
+        setCadenceType("cron");
+        const detected = detectPreset(initialValues.cadence.expression);
+        setFrequencyPreset(detected.preset);
+        setHour(detected.hour);
+        setMinute(detected.minute);
+        setCronExpression(initialValues.cadence.expression);
+      } else {
+        setCadenceType("every");
+        setEveryMs(String(initialValues.cadence.everyMs));
+      }
+    }
+    // Only provider targets map onto this form; agent/new-agent stay unselected for the user.
+    setSelectedProviderId(initialValues.target?.type === "provider" ? initialValues.target.providerId : null);
+    setMaxRuns(initialValues.maxRuns);
+    setExpiresAt(initialValues.expiresAt);
+    setError(null);
+  }, [visible, initialValues]);
 
   const providerOptions = useMemo(() => {
     return (providers ?? []).map((provider) => ({
@@ -105,6 +169,8 @@ export function ScheduleCreateModal({ visible, onClose, serverId }: ScheduleCrea
     setCronExpression("0 9 * * *");
     setEveryMs("3600000");
     setSelectedProviderId(null);
+    setMaxRuns(undefined);
+    setExpiresAt(undefined);
     setError(null);
     onClose();
   }, [onClose]);
@@ -146,12 +212,14 @@ export function ScheduleCreateModal({ visible, onClose, serverId }: ScheduleCrea
         cadence,
         target,
         cwd: cwd.trim() || null,
+        ...(maxRuns !== undefined ? { maxRuns } : {}),
+        ...(expiresAt ? { expiresAt } : {}),
       });
       handleClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create schedule");
     }
-  }, [prompt, selectedProviderId, cadenceType, localCron, everyMs, name, cwd, timezone, createSchedule, handleClose]);
+  }, [prompt, selectedProviderId, cadenceType, localCron, everyMs, name, cwd, timezone, maxRuns, expiresAt, createSchedule, handleClose]);
 
   return (
     <AdaptiveModalSheet title="New Schedule" visible={visible} onClose={handleClose} scrollable={false}>

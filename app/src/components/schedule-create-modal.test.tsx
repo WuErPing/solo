@@ -310,4 +310,109 @@ describe("ScheduleCreateModal", () => {
     expect(error?.textContent).toContain("provider");
     expect(createScheduleResult.current?.createSchedule).not.toHaveBeenCalled();
   });
+
+  it("seeds fields from initialValues", () => {
+    act(() => {
+      root?.render(
+        <ScheduleCreateModal
+          visible
+          serverId="server-1"
+          onClose={vi.fn()}
+          initialValues={{
+            name: "Nightly",
+            prompt: "Summarize the nightly test runs",
+            cadence: { type: "cron", expression: "30 7 * * *" },
+            target: { type: "provider", providerId: "claude" },
+            cwd: "/work/backend",
+            maxRuns: 10,
+            expiresAt: "2026-08-31T00:00:00.000Z",
+          }}
+        />,
+      );
+    });
+
+    const nameInput = container?.querySelector(
+      'input[data-testid="schedule-create-name-input"]',
+    ) as HTMLInputElement | null;
+    expect(nameInput?.value).toBe("Nightly");
+
+    const promptInput = container?.querySelector(
+      'input[data-testid="schedule-create-prompt-input"]',
+    ) as HTMLInputElement | null;
+    expect(promptInput?.value).toBe("Summarize the nightly test runs");
+
+    const cwdInput = container?.querySelector(
+      'input[data-testid="schedule-create-cwd-input"]',
+    ) as HTMLInputElement | null;
+    expect(cwdInput?.value).toBe("/work/backend");
+
+    // Cron expression appears in the local/UTC preview row
+    expect(container?.textContent).toContain("30 7 * * *");
+
+    // Provider target preselected
+    const selectedCard = container?.querySelector(
+      '[data-testid="schedule-create-provider-card"][data-selected="true"]',
+    );
+    expect(selectedCard).not.toBeNull();
+  });
+
+  it("leaves target unselected for non-provider initialValues targets", () => {
+    act(() => {
+      root?.render(
+        <ScheduleCreateModal
+          visible
+          serverId="server-1"
+          onClose={vi.fn()}
+          initialValues={{
+            prompt: "Summarize",
+            cadence: { type: "every", everyMs: 900000 },
+            target: { type: "agent", agentId: "agent-1" },
+          }}
+        />,
+      );
+    });
+
+    const selectedCard = container?.querySelector(
+      '[data-testid="schedule-create-provider-card"][data-selected="true"]',
+    );
+    expect(selectedCard).toBeNull();
+
+    const intervalInput = container?.querySelector(
+      'input[data-testid="schedule-create-interval-input"]',
+    ) as HTMLInputElement | null;
+    expect(intervalInput?.value).toBe("900000");
+  });
+
+  it("passes seeded maxRuns and expiresAt through on submit", async () => {
+    act(() => {
+      root?.render(
+        <ScheduleCreateModal
+          visible
+          serverId="server-1"
+          onClose={vi.fn()}
+          initialValues={{
+            name: "Nightly",
+            prompt: "Summarize the nightly test runs",
+            cadence: { type: "cron", expression: "0 9 * * *" },
+            target: { type: "provider", providerId: "claude" },
+            maxRuns: 10,
+            expiresAt: "2026-08-31T00:00:00.000Z",
+          }}
+        />,
+      );
+    });
+
+    await submit();
+
+    await vi.waitFor(() => {
+      expect(createScheduleResult.current?.createSchedule).toHaveBeenCalled();
+    });
+
+    expect(createScheduleResult.current?.createSchedule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        maxRuns: 10,
+        expiresAt: "2026-08-31T00:00:00.000Z",
+      }),
+    );
+  });
 });

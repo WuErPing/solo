@@ -102,6 +102,7 @@ func TestRegisterHandlers_RegistersAllTypes(t *testing.T) {
 		"schedule/resume",
 		"schedule/delete",
 		"schedule/update",
+		"schedule/assist",
 		"tmux/list_agents",
 		"tmux/capture_pane",
 		"tmux/send_keys",

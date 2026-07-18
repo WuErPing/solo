@@ -92,6 +92,7 @@ vi.mock("lucide-react-native", () => ({
   Pencil: () => React.createElement("span", { "data-icon": "Pencil" }),
   Play: () => React.createElement("span", { "data-icon": "Play" }),
   Plus: () => React.createElement("span", { "data-icon": "Plus" }),
+  Sparkles: () => React.createElement("span", { "data-icon": "Sparkles" }),
   Trash2: () => React.createElement("span", { "data-icon": "Trash2" }),
   Clock: () => React.createElement("span", { "data-icon": "Clock" }),
 }));
@@ -135,6 +136,11 @@ vi.mock("@/components/schedule-edit-modal", () => ({
     visible && schedule
       ? React.createElement("div", { "data-testid": "schedule-edit-modal" })
       : null,
+}));
+
+vi.mock("@/components/schedule-assistant/schedule-assistant-panel", () => ({
+  ScheduleAssistantPanel: ({ visible }: { visible: boolean }) =>
+    visible ? React.createElement("div", { "data-testid": "schedule-assistant-panel" }) : null,
 }));
 
 vi.mock("@/hooks/use-schedules", () => ({
@@ -399,5 +405,25 @@ describe("SchedulesScreen", () => {
 
     // Modal should be visible after clicking
     expect(container?.querySelector('[data-testid="schedule-create-modal"]')).not.toBeNull();
+  });
+
+  it("shows the Ask AI button and opens the assistant panel", () => {
+    schedulesResult.current = makeSchedulesResult({
+      schedules: [makeScheduleSummary()],
+    });
+
+    act(() => {
+      root?.render(<SchedulesScreen serverId="server-1" />);
+    });
+
+    const assistantButton = container?.querySelector('[data-testid="schedule-assistant-button"]');
+    expect(assistantButton).not.toBeNull();
+    expect(container?.querySelector('[data-testid="schedule-assistant-panel"]')).toBeNull();
+
+    act(() => {
+      assistantButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container?.querySelector('[data-testid="schedule-assistant-panel"]')).not.toBeNull();
   });
 });

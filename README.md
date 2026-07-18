@@ -403,6 +403,7 @@ Solo includes a timezone-aware cron scheduling system for running automated task
 - **Agent targeting** — assign schedules to existing agents or create new ones for each run
 - **Execution history** — full run record tracking for every scheduled task
 - **Self-healing** — stale `nextRunAt` values are automatically repaired on daemon load
+- **Schedule Assistant** — create and edit schedules in natural language from a chat panel ("Ask AI"), powered by the host's configured LLM providers; every change is a proposal applied only after explicit user confirm
 
 ---
 

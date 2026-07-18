@@ -1,7 +1,7 @@
 # Solo — Documentation Index
 
 > **Purpose**: Persistent context base for Solo development, CI/CD, and architecture decisions.
-> **Last updated**: 2026-07-17
+> **Last updated**: 2026-07-18
 
 ---
 
@@ -19,6 +19,7 @@ docs/
 │   ├── network-architecture.md            # Network paths, E2EE, Pairing Link
 │   ├── network-data-state-architecture.md # Network + data + state synthesis
 │   ├── push-notifications.md              # Push notification architecture
+│   ├── schedule-assistant.md              # Chat-based schedule assistant: NL parse, proposal/confirm, LLM provider resolution
 │   ├── session-memory-persistence.md      # Session turn recording & memory layer design
 │   ├── solo-system-architecture.png       # System architecture diagram (PNG)
 │   ├── solo-system-architecture.svg       # System architecture diagram (SVG)
@@ -31,11 +32,9 @@ docs/
 ├── product/                               ← Product feature analysis
 │   ├── agent-profile-switch-export-design.md # Provider Hub / CC-Switch migration design
 │   ├── agent-send-presets-design.md       # Agent send button presets design
-│   ├── chat-schedule-assistant-design.md  # Chat-based schedule creation/editing via multi-LLM providers
+│   ├── chat-schedule-assistant-design.md  # Chat-based schedule assistant design (Implemented 2026-07-18)
 │   ├── feature-directions-2026.md         # Feature direction analysis with industry benchmark
 │   ├── features.md                        # Full product feature analysis + UI component catalogue
-│   ├── loop-schedule-deep-dive.md         # Loop Schedule deep-dive analysis
-│   ├── loop-schedule-design.md            # LLM-driven Loop Schedule design
 │   ├── loop-schedule-spec.md              # Loop Schedule implementation spec
 │   ├── roadmap-2026.md                    # 2026 product/technical roadmap
 │   └── session-memory-spec.md             # Session memory Phase-1 implementation spec
@@ -97,6 +96,7 @@ System design, component contracts, and runtime behaviour.
 | [Agent Stall Detection](architecture/agent-stall-detection.md) | Design | Dev | Inactivity & repetition detection, grace-period tightening, operational tuning |
 | [Deployment](architecture/deployment.md) | Runbook | Infra / CI | Systemd, Docker, Nginx config, env vars, monitoring, troubleshooting |
 | [Tmux Pane Content Loading](architecture/tmux-pane-content-loading.md) | Design | Dev | Tmux agent detection, pane capture with ANSI rendering, lazy history loading, keystroke injection, terminal themes |
+| [Schedule Assistant](architecture/schedule-assistant.md) | Design | Dev | Chat-based NL schedule parse via the host's configured LLM Providers, proposal-only safety invariant, confirm path, `schedule/assist` RPC |
 | [System Architecture Diagram](architecture/solo-system-architecture.svg) | Diagram | All | Visual system architecture (SVG) — [PNG version](architecture/solo-system-architecture.png) |
 | [Detailed Architecture Diagram](architecture/solo-system-architecture-detailed.svg) | Diagram | All | Detailed component view (SVG) — [PNG version](architecture/solo-system-architecture-detailed.png) |
 
@@ -128,11 +128,9 @@ Feature inventory and UI/UX analysis.
 | [Product Features](product/features.md) | Analysis | Full feature tree + UI component catalogue + hooks/stores reference |
 | [Feature Directions 2026](product/feature-directions-2026.md) | Analysis | Original feature direction analysis with industry benchmark |
 | [Provider Hub / CC-Switch Migration Design](product/agent-profile-switch-export-design.md) | Design | Migrate farion1231/cc-switch into Solo: Provider Hub, Local API Proxy, MCP/Skills/Prompts management, and multi-agent config exporter |
-| [Loop Schedule Design](product/loop-schedule-design.md) | Design | LLM-driven Loop Schedule: evolve schedule into autonomous iteration loops using existing providers |
-| [Loop Schedule Deep Dive](product/loop-schedule-deep-dive.md) | Analysis | Deep-dive into Loop Controller, Step Executor, state machine, persistence, security, and observability |
 | [Loop Schedule Implementation Spec](product/loop-schedule-spec.md) | Spec | Implementation-ready spec for merging Loop into Schedule: protocol changes, daemon modules, step executors, migration plan |
 | [Agent Send Presets Design](product/agent-send-presets-design.md) | Design | Agent-specific tmux send button presets |
-| [Chat Schedule Assistant Design](product/chat-schedule-assistant-design.md) | Design | Chat-based schedule creation/editing: NL → validated proposal → confirm, powered by existing multi-LLM providers |
+| [Chat Schedule Assistant Design](product/chat-schedule-assistant-design.md) | Design | Chat-based schedule creation/editing: NL → validated proposal → confirm, powered by the host's configured LLM Providers (Settings → General). **Implemented 2026-07-18** |
 | [Session Memory Spec](product/session-memory-spec.md) | Spec | Phase-1 implementation spec: TurnRecorder interface, FileTurnRecorder, hooks, redaction, tests |
 
 **Current completion**: ~85-90 %. Main gaps: Chat system (multi-agent), Cursor-Agent / ACP providers.
