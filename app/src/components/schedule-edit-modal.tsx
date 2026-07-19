@@ -8,7 +8,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { useScheduleMutations } from "@/hooks/use-schedule-mutations";
 import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
 import { detectTimezone, cronToUTC, cronFromUTC } from "@/utils/cron-timezone";
-import { HelpCircle } from "lucide-react-native";
+import { HelpCircle, Sparkles } from "lucide-react-native";
 import type { ScheduleSummary, ScheduleCadence, ScheduleTarget } from "@server/server/schedule/types";
 
 interface ScheduleEditModalProps {
@@ -16,6 +16,7 @@ interface ScheduleEditModalProps {
   onClose: () => void;
   serverId: string;
   schedule: ScheduleSummary | null;
+  onOpenAssistant?: () => void;
 }
 
 type FrequencyPreset = "daily" | "hourly" | "weekly" | "custom";
@@ -57,7 +58,7 @@ function detectPreset(expression: string): { preset: FrequencyPreset; hour: stri
   return { preset: "custom", hour: "9", minute: "0" };
 }
 
-export function ScheduleEditModal({ visible, onClose, serverId, schedule }: ScheduleEditModalProps) {
+export function ScheduleEditModal({ visible, onClose, serverId, schedule, onOpenAssistant }: ScheduleEditModalProps) {
   const { theme } = useUnistyles();
   const { entries: providers, isLoading: isProvidersLoading } = useProvidersSnapshot(serverId, {
     enabled: visible,
@@ -198,7 +199,7 @@ export function ScheduleEditModal({ visible, onClose, serverId, schedule }: Sche
   const updating = schedule ? isUpdating(schedule.id) : false;
 
   return (
-    <AdaptiveModalSheet title="Edit Schedule" visible={visible} onClose={handleClose} scrollable={false}>
+    <AdaptiveModalSheet title="Edit Schedule" visible={visible} onClose={handleClose} scrollable={false} testID="schedule-edit-modal">
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         {error ? (
           <View style={styles.errorBanner} testID="schedule-edit-error">
@@ -407,6 +408,17 @@ export function ScheduleEditModal({ visible, onClose, serverId, schedule }: Sche
         </View>
 
         <View style={styles.actions}>
+          {onOpenAssistant ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              leftIcon={Sparkles}
+              onPress={onOpenAssistant}
+              testID="schedule-edit-ask-ai"
+            >
+              Ask AI
+            </Button>
+          ) : null}
           <Button variant="ghost" onPress={handleClose}>
             Cancel
           </Button>

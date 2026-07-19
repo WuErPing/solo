@@ -197,6 +197,7 @@ function SchedulesScreenContent({
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(initialCreateOpen);
   const [editingSchedule, setEditingSchedule] = useState<ScheduleSummary | null>(null);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+  const [assistantContextScheduleId, setAssistantContextScheduleId] = useState<string | null>(null);
 
   const handleRefresh = useCallback(() => {
     setIsManualRefresh(true);
@@ -260,7 +261,14 @@ function SchedulesScreenContent({
 
   const handleCloseAssistant = useCallback(() => {
     setIsAssistantOpen(false);
+    setAssistantContextScheduleId(null);
   }, []);
+
+  const handleOpenAssistantFromEdit = useCallback(() => {
+    setAssistantContextScheduleId(editingSchedule?.id ?? null);
+    setEditingSchedule(null);
+    setIsAssistantOpen(true);
+  }, [editingSchedule]);
 
   const handleOpenEditModal = useCallback((schedule: ScheduleSummary) => {
     setEditingSchedule(schedule);
@@ -357,11 +365,13 @@ function SchedulesScreenContent({
         onClose={handleCloseEditModal}
         serverId={serverId}
         schedule={editingSchedule}
+        onOpenAssistant={handleOpenAssistantFromEdit}
       />
       <ScheduleAssistantPanel
         visible={isAssistantOpen}
         onClose={handleCloseAssistant}
         serverId={serverId}
+        contextScheduleId={assistantContextScheduleId ?? undefined}
       />
     </View>
   );

@@ -132,15 +132,44 @@ vi.mock("@/components/schedule-create-modal", () => ({
 }));
 
 vi.mock("@/components/schedule-edit-modal", () => ({
-  ScheduleEditModal: ({ visible, schedule }: { visible: boolean; schedule: unknown }) =>
+  ScheduleEditModal: ({
+    visible,
+    schedule,
+    onOpenAssistant,
+  }: {
+    visible: boolean;
+    schedule: unknown;
+    onOpenAssistant?: () => void;
+  }) =>
     visible && schedule
-      ? React.createElement("div", { "data-testid": "schedule-edit-modal" })
+      ? React.createElement(
+          "div",
+          { "data-testid": "schedule-edit-modal" },
+          onOpenAssistant
+            ? React.createElement(
+                "button",
+                { type: "button", "data-testid": "schedule-edit-ask-ai", onClick: onOpenAssistant },
+                "Ask AI",
+              )
+            : null,
+        )
       : null,
 }));
 
 vi.mock("@/components/schedule-assistant/schedule-assistant-panel", () => ({
-  ScheduleAssistantPanel: ({ visible }: { visible: boolean }) =>
-    visible ? React.createElement("div", { "data-testid": "schedule-assistant-panel" }) : null,
+  ScheduleAssistantPanel: ({
+    visible,
+    contextScheduleId,
+  }: {
+    visible: boolean;
+    contextScheduleId?: string;
+  }) =>
+    visible
+      ? React.createElement("div", {
+          "data-testid": "schedule-assistant-panel",
+          "data-context-schedule-id": contextScheduleId ?? "",
+        })
+      : null,
 }));
 
 vi.mock("@/hooks/use-schedules", () => ({
@@ -425,5 +454,36 @@ describe("SchedulesScreen", () => {
     });
 
     expect(container?.querySelector('[data-testid="schedule-assistant-panel"]')).not.toBeNull();
+  });
+
+  it("opens assistant panel with contextScheduleId from edit modal Ask AI", () => {
+    schedulesResult.current = makeSchedulesResult({
+      schedules: [makeScheduleSummary({ id: "schedule-1" })],
+    });
+
+    act(() => {
+      root?.render(<SchedulesScreen serverId="server-1" />);
+    });
+
+    // Open the edit modal via the schedule card's edit button
+    const editButton = container?.querySelector('[data-action="edit-schedule-1"]');
+    expect(editButton).not.toBeNull();
+    act(() => {
+      editButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(container?.querySelector('[data-testid="schedule-edit-modal"]')).not.toBeNull();
+
+    // Click Ask AI inside the edit modal
+    const askAiButton = container?.querySelector('[data-testid="schedule-edit-ask-ai"]');
+    expect(askAiButton).not.toBeNull();
+    act(() => {
+      askAiButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    // Edit modal closes, assistant panel opens with the schedule id as context
+    expect(container?.querySelector('[data-testid="schedule-edit-modal"]')).toBeNull();
+    const panel = container?.querySelector('[data-testid="schedule-assistant-panel"]');
+    expect(panel).not.toBeNull();
+    expect(panel?.getAttribute("data-context-schedule-id")).toBe("schedule-1");
   });
 });

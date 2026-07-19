@@ -326,4 +326,64 @@ test.describe.serial("schedule assistant", () => {
       await stub.close();
     }
   });
+
+  test("updates a schedule via Ask AI from the edit modal", async ({ page }) => {
+    test.setTimeout(180_000);
+
+    const serverId = getRequiredEnv("E2E_SERVER_ID");
+    const stub = new StubLlmServer();
+    await stub.start();
+    const client = await connectWorkspaceSetupClient();
+    let scheduleId: string | null = null;
+
+    try {
+      await configureStubLlmProvider(client, stub);
+      scheduleId = await createScheduleViaApi(client, {
+        name: "Log rotation",
+        prompt: "Rotate application logs",
+        everyMs: 3_600_000,
+      });
+
+      stub.setContent(
+        fencedJson({
+          kind: "proposal",
+          op: "update",
+          scheduleId,
+          prompt: "Rotate and compress application logs",
+          summary: "Update 'Log rotation' prompt to include compression",
+        }),
+      );
+
+      await swallowMetroHmr(page);
+      await openSchedulesScreen(page, serverId);
+      await expect(page.getByText("Log rotation").first()).toBeVisible({ timeout: 30_000 });
+
+      // Open the edit modal for this schedule
+      await page.locator(`[data-action="edit-${scheduleId}"]`).click();
+      await expect(page.getByTestId("schedule-edit-modal")).toBeVisible({ timeout: 15_000 });
+
+      // Click Ask AI — edit modal closes, assistant panel opens
+      await page.getByTestId("schedule-edit-ask-ai").click();
+      await expect(page.getByTestId("schedule-edit-modal")).toHaveCount(0, { timeout: 10_000 });
+      const panel = page.getByTestId("schedule-assistant-panel");
+      await expect(panel).toBeVisible({ timeout: 15_000 });
+
+      await sendAssistantMessage(panel, "Also compress the logs after rotating");
+
+      const card = panel.getByTestId("proposal-card");
+      await expect(card).toBeVisible({ timeout: 30_000 });
+      await expect(card.getByText("update", { exact: true })).toBeVisible();
+
+      await card.getByTestId("proposal-confirm-button").click();
+
+      await expect(panel.getByText('Updated ✓ "Log rotation"')).toBeVisible({ timeout: 20_000 });
+
+      const inspected = await client.scheduleInspect({ id: scheduleId });
+      expect(inspected.schedule?.prompt).toBe("Rotate and compress application logs");
+    } finally {
+      await deleteScheduleQuietly(client, scheduleId);
+      await client.close();
+      await stub.close();
+    }
+  });
 });

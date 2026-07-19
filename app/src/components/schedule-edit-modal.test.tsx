@@ -179,6 +179,7 @@ vi.mock("@/utils/cron-timezone", () => ({
 
 vi.mock("lucide-react-native", () => ({
   HelpCircle: () => React.createElement("span", { "data-icon": "HelpCircle" }),
+  Sparkles: () => React.createElement("span", { "data-icon": "Sparkles" }),
 }));
 
 function makeSchedule(overrides: Partial<ScheduleSummary> = {}): ScheduleSummary {
@@ -310,5 +311,50 @@ describe("ScheduleEditModal", () => {
     expect(error).not.toBeNull();
     expect(error?.textContent).toContain("provider");
     expect(mutationsResult.current?.updateSchedule).not.toHaveBeenCalled();
+  });
+
+  it("renders Ask AI button when onOpenAssistant is provided", () => {
+    act(() => {
+      root?.render(
+        <ScheduleEditModal
+          visible
+          serverId="server-1"
+          onClose={vi.fn()}
+          schedule={makeSchedule()}
+          onOpenAssistant={vi.fn()}
+        />,
+      );
+    });
+
+    expect(container?.querySelector('[data-testid="schedule-edit-ask-ai"]')).not.toBeNull();
+  });
+
+  it("calls onOpenAssistant when Ask AI button is pressed", () => {
+    const onOpenAssistant = vi.fn();
+    act(() => {
+      root?.render(
+        <ScheduleEditModal
+          visible
+          serverId="server-1"
+          onClose={vi.fn()}
+          schedule={makeSchedule()}
+          onOpenAssistant={onOpenAssistant}
+        />,
+      );
+    });
+
+    act(() => {
+      container
+        ?.querySelector('[data-testid="schedule-edit-ask-ai"]')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onOpenAssistant).toHaveBeenCalledOnce();
+  });
+
+  it("does not render Ask AI button when onOpenAssistant is omitted", () => {
+    renderModal();
+
+    expect(container?.querySelector('[data-testid="schedule-edit-ask-ai"]')).toBeNull();
   });
 });
