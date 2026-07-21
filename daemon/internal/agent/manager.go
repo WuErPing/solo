@@ -559,6 +559,9 @@ func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, tex
 			return
 		}
 		agent.SetLifecycle(protocol.AgentIdle)
+		if result != nil && result.FinalText != "" {
+			agent.SetFinalText(result.FinalText)
+		}
 		agent.SetAttention(true, "finished")
 		if err := m.storage.ApplySnapshot(agent); err != nil {
 			m.logger.Warn("failed to persist agent idle state", "agentId", agent.ID, "error", err)

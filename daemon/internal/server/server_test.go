@@ -54,6 +54,10 @@ func newTestWSServer(t *testing.T) (*WSServer, *httptest.Server) {
 	pushTokenStore := push.NewInMemoryTokenStore()
 	pusher := push.NewExpoPushService("", pushTokenStore, logger)
 	activityTracker := NewClientActivityTracker()
+	loopStore := loop.NewStore()
+	loopEngine := loop.NewEngine(loopStore, agentMgr, logger)
+	loopEngine.Start(context.Background())
+	t.Cleanup(loopEngine.Stop)
 	ws := NewWSServerWithConfig(DaemonConfig{
 		Config:          cfg,
 		Logger:          logger,
@@ -71,7 +75,8 @@ func newTestWSServer(t *testing.T) (*WSServer, *httptest.Server) {
 		Pusher:          pusher,
 		ActivityTracker: activityTracker,
 		ScheduleStore:   schedule.NewStore(schedule.WithDataPath(filepath.Join(cfg.SoloHome, "schedules.json"))),
-		LoopStore:       loop.NewStore(),
+		LoopStore:       loopStore,
+		LoopEngine:      loopEngine,
 	})
 
 	mux := http.NewServeMux()

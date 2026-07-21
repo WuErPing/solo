@@ -87,102 +87,138 @@ func getTmuxPaneCols(paneID string) int {
 
 const tabWidth = 8
 
+// wideRanges lists Unicode ranges approximated as double-width for terminal
+// wrapping (CJK, Hangul, fullwidth forms, box drawing, common emoji). Sorted
+// ascending by start codepoint and non-overlapping, so runeDisplayWidth can
+// stop scanning once a rune falls below a range's start.
+var wideRanges = [][2]rune{
+	{0x1100, 0x115f},
+	{0x2329, 0x232a},
+	{0x2e80, 0xa4cf},
+	{0xac00, 0xd7a3},
+	{0xf900, 0xfaff},
+	{0xfe30, 0xfe6f},
+	{0xff00, 0xff60},
+	{0xffe0, 0xffe6},
+	{0x1f300, 0x1f64f},
+	{0x1f900, 0x1f9ff},
+}
+
+// runeDisplayWidth returns the approximate terminal column count for a rune:
+// 2 for wide characters (see wideRanges), 1 otherwise. Tab is context-dependent
+// and handled by the caller, not here.
+func runeDisplayWidth(r rune) int {
+	for _, rng := range wideRanges {
+		if r < rng[0] {
+			return 1
+		}
+		if r <= rng[1] {
+			return 2
+		}
+	}
+	return 1
+}
+
+// scanCSISequence scans a CSI escape sequence (\x1b[...<final byte>) starting at
+// line[i] and returns the full sequence plus the index just past it.
+func scanCSISequence(line string, i int) (string, int) {
+	end := i + 2
+	for end < len(line) {
+		c := line[end]
+		end++
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '~' {
+			break
+		}
+	}
+	return line[i:end], end
+}
+
+// sgrState tracks the active SGR (color/style) parameters so they can be closed
+// at a wrap point and reopened on the continuation line.
+type sgrState struct{ params string }
+
+// updateFromSeq folds a CSI sequence into the tracked state. Only SGR sequences
+// (\x1b[...m) matter; a reset ("" or "0") clears the state, other params append.
+func (s *sgrState) updateFromSeq(seq string) {
+	if len(seq) < 3 || seq[len(seq)-1] != 'm' {
+		return
+	}
+	params := seq[2 : len(seq)-1] // strip "\x1b[" and "m"
+	if params == "" || params == "0" {
+		s.params = ""
+		return
+	}
+	if s.params != "" {
+		s.params += ";"
+	}
+	s.params += params
+}
+
+func (s *sgrState) active() bool      { return s.params != "" }
+func (s *sgrState) reopenSeq() string { return "\x1b[" + s.params + "m" }
+
 // wrapContentToCols rewraps a terminal capture to a target column count.
 // It is ANSI-aware: CSI SGR escape sequences are preserved and carried across
 // wrapped lines so that colors/styles stay correct. Wide characters (CJK,
-// box drawing) are approximated as single columns, which is sufficient for
+// box drawing) are approximated via runeDisplayWidth, which is sufficient for
 // preventing xterm.js from wrapping already-wrapped ASCII box-drawing tables.
 func wrapContentToCols(content string, cols int) string {
 	if cols <= 0 {
 		return content
 	}
-
-	var result strings.Builder
 	lines := strings.Split(content, "\n")
-	for lineIdx, line := range lines {
-		if lineIdx > 0 {
-			result.WriteByte('\n')
-		}
-		if len(line) == 0 {
+	for i, line := range lines {
+		lines[i] = wrapLineToCols(line, cols)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// wrapLineToCols rewraps a single line (no embedded newlines) to cols columns,
+// closing and reopening the active SGR style at each wrap point.
+func wrapLineToCols(line string, cols int) string {
+	if len(line) == 0 {
+		return ""
+	}
+
+	var out, cur strings.Builder
+	var sgr sgrState
+	visible := 0
+
+	for i := 0; i < len(line); {
+		if line[i] == '\x1b' && i+1 < len(line) && line[i+1] == '[' {
+			seq, end := scanCSISequence(line, i)
+			sgr.updateFromSeq(seq)
+			cur.WriteString(seq)
+			i = end
 			continue
 		}
 
-		var lineOut strings.Builder
-		visible := 0
-		var activeSGR strings.Builder
-
-		for i := 0; i < len(line); {
-			// CSI escape sequence: \x1b[...<final byte>
-			if line[i] == '\x1b' && i+1 < len(line) && line[i+1] == '[' {
-				end := i + 2
-				for end < len(line) {
-					c := line[end]
-					if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '~' {
-						end++
-						break
-					}
-					end++
-				}
-				seq := line[i:end]
-				if len(seq) >= 3 && seq[len(seq)-1] == 'm' {
-					paramStart := 2 // skip "\x1b["
-					paramEnd := len(seq) - 1
-					params := seq[paramStart:paramEnd]
-					if params == "" || params == "0" {
-						activeSGR.Reset()
-					} else {
-						if activeSGR.Len() > 0 {
-							activeSGR.WriteByte(';')
-						}
-						activeSGR.WriteString(params)
-					}
-				}
-				lineOut.WriteString(seq)
-				i = end
-				continue
-			}
-
-			// Plain character.
-			r, size := utf8.DecodeRuneInString(line[i:])
-			if r == utf8.RuneError && size == 1 {
-				// Invalid UTF-8: treat as a single replacement column.
-				size = 1
-			}
-
-			var width int
-			switch {
-			case r == '\t':
-				width = tabWidth - (visible % tabWidth)
-			case r >= 0x1100 && (r <= 0x115f || r == 0x2329 || r == 0x232a || (r >= 0x2e80 && r <= 0xa4cf) || (r >= 0xac00 && r <= 0xd7a3) || (r >= 0xf900 && r <= 0xfaff) || (r >= 0xfe30 && r <= 0xfe6f) || (r >= 0xff00 && r <= 0xff60) || (r >= 0xffe0 && r <= 0xffe6) || (r >= 0x1f300 && r <= 0x1f64f) || (r >= 0x1f900 && r <= 0x1f9ff)):
-				width = 2
-			default:
-				width = 1
-			}
-
-			if visible+width > cols && visible > 0 {
-				// Wrap before this character. Close active styles on the
-				// current line and reopen them on the next line.
-				if activeSGR.Len() > 0 {
-					lineOut.WriteString("\x1b[0m")
-				}
-				result.WriteString(lineOut.String())
-				result.WriteByte('\n')
-				lineOut.Reset()
-				visible = 0
-				if activeSGR.Len() > 0 {
-					lineOut.WriteString("\x1b[")
-					lineOut.WriteString(activeSGR.String())
-					lineOut.WriteByte('m')
-				}
-			}
-
-			lineOut.WriteRune(r)
-			visible += width
-			i += size
+		r, size := utf8.DecodeRuneInString(line[i:])
+		width := runeDisplayWidth(r)
+		if r == '\t' {
+			width = tabWidth - (visible % tabWidth)
 		}
 
-		result.WriteString(lineOut.String())
+		if visible+width > cols && visible > 0 {
+			// Wrap before this character. Close active styles on the current
+			// line and reopen them on the next line.
+			if sgr.active() {
+				cur.WriteString("\x1b[0m")
+			}
+			out.WriteString(cur.String())
+			out.WriteByte('\n')
+			cur.Reset()
+			visible = 0
+			if sgr.active() {
+				cur.WriteString(sgr.reopenSeq())
+			}
+		}
+
+		cur.WriteRune(r)
+		visible += width
+		i += size
 	}
 
-	return result.String()
+	out.WriteString(cur.String())
+	return out.String()
 }

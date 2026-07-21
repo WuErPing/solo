@@ -46,6 +46,7 @@ type Session struct {
 	memoryBridge    MemoryBridge
 	scheduleStore   *schedule.Store
 	loopStore       *loop.Store
+	loopEngine      *loop.Engine
 
 	// scheduleAssist is created lazily on the first schedule/assist request;
 	// per-session instance gives per-connection rate limiting.
@@ -223,11 +224,12 @@ type SessionConfig struct {
 	Broadcast      func(protocol.WSOutboundMessage)
 	ScheduleStore  *schedule.Store
 	LoopStore      *loop.Store
+	LoopEngine     *loop.Engine
 }
 
 // NewSessionWithConfig creates a new session using a SessionConfig.
 func NewSessionWithConfig(clientID, clientType string, conn WSConn, cfg SessionConfig) *Session {
-	return NewSession(
+	sess := NewSession(
 		clientID,
 		clientType,
 		conn,
@@ -247,6 +249,8 @@ func NewSessionWithConfig(clientID, clientType string, conn WSConn, cfg SessionC
 		cfg.ScheduleStore,
 		cfg.LoopStore,
 	)
+	sess.loopEngine = cfg.LoopEngine
+	return sess
 }
 
 // Run starts reading messages from the WebSocket connection.

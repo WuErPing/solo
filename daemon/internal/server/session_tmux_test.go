@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/WuErPing/solo/protocol"
 )
@@ -1220,6 +1221,64 @@ func TestWrapContentToCols(t *testing.T) {
 			t.Errorf("wrapContentToCols(%q, 0) = %q, want %q", input, got, input)
 		}
 	})
+
+	t.Run("wraps wide chars counting two columns", func(t *testing.T) {
+		input := "中文中文"
+		got := wrapContentToCols(input, 4)
+		want := "中文\n中文"
+		if got != want {
+			t.Errorf("wrapContentToCols(%q, 4) = %q, want %q", input, got, want)
+		}
+	})
+
+	t.Run("counts tab width to next stop", func(t *testing.T) {
+		// 'a','b' occupy cols 0-1; the tab advances to col 8 (width 6), so the
+		// following 'c' (col 8) exceeds cols=8 and wraps.
+		input := "ab\tcd"
+		got := wrapContentToCols(input, 8)
+		want := "ab\t\ncd"
+		if got != want {
+			t.Errorf("wrapContentToCols(%q, 8) = %q, want %q", input, got, want)
+		}
+	})
+
+	t.Run("treats invalid utf8 as single replacement column", func(t *testing.T) {
+		// 0xff is invalid UTF-8: decoded as U+FFFD with width 1, and re-encoded
+		// as the 3-byte replacement character in the output.
+		input := "ab\xffcd"
+		got := wrapContentToCols(input, 3)
+		want := "ab\uFFFD\ncd"
+		if got != want {
+			t.Errorf("wrapContentToCols(%q, 3) = %q, want %q", input, got, want)
+		}
+	})
+}
+
+func TestRuneDisplayWidth(t *testing.T) {
+	tests := []struct {
+		name string
+		r    rune
+		want int
+	}{
+		{"ascii letter", 'a', 1},
+		{"space", ' ', 1},
+		{"tab is not wide", '\t', 1},
+		{"cjk ideograph", '中', 2},
+		{"hangul syllable", 0xac00, 2},
+		{"left angle bracket", 0x2329, 2},
+		{"right angle bracket", 0x232a, 2},
+		{"cjk radical low", 0x2e80, 2},
+		{"emoji", 0x1f300, 2},
+		{"just below wide range", 0x10ff, 1},
+		{"replacement rune", utf8.RuneError, 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := runeDisplayWidth(tt.r); got != tt.want {
+				t.Errorf("runeDisplayWidth(%U) = %d, want %d", tt.r, got, tt.want)
+			}
+		})
+	}
 }
 
 func TestFriendlyTmuxError(t *testing.T) {

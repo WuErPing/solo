@@ -27,55 +27,13 @@ func (s *openCodeSession) consumeSSE(ctx context.Context, turnID string) (*agent
 		timeout = opencodeSSEReadIdleTimeout
 	}
 
-	var result *agent.AgentRunResult
-	var resultErr error
-	terminalReached := false
-
 	// Per-connection idle watchdog
 	connCtx, connCancel := context.WithCancel(ctx)
 	defer connCancel() // stop the watchdog when consumeSSE returns
 	var lastEventTime atomic.Int64
 	lastEventTime.Store(time.Now().UnixNano())
 
-	go func() {
-		// Tick frequently enough to catch soft-timeout reliably even with
-		// small test timeouts, but cap at 5s in production.
-		tickInterval := timeout / 6
-		if tickInterval < 500*time.Millisecond {
-			tickInterval = 500 * time.Millisecond
-		}
-		if tickInterval > 5*time.Second {
-			tickInterval = 5 * time.Second
-		}
-		ticker := time.NewTicker(tickInterval)
-		defer ticker.Stop()
-		softTimeout := timeout / 2
-		if softTimeout <= 0 {
-			softTimeout = timeout
-		}
-		for {
-			select {
-			case <-ticker.C:
-				last := time.Unix(0, lastEventTime.Load())
-				idle := time.Since(last)
-				if idle > timeout {
-					s.base.Logger().Warn("SSE idle timeout — no events received, closing connection",
-						"timeout", timeout, "turnID", turnID)
-					connCancel()
-					return
-				}
-				if idle >= softTimeout {
-					if s.pingServer(ctx) {
-						s.base.Logger().Debug("SSE heartbeat succeeded, resetting idle timer",
-							"turnID", turnID)
-						lastEventTime.Store(time.Now().UnixNano())
-					}
-				}
-			case <-connCtx.Done():
-				return
-			}
-		}
-	}()
+	go s.startIdleWatchdog(ctx, connCtx, connCancel, timeout, turnID, &lastEventTime)
 
 	req, err := http.NewRequestWithContext(connCtx, "GET", url, nil)
 	if err != nil {
@@ -108,50 +66,16 @@ func (s *openCodeSession) consumeSSE(ctx context.Context, turnID string) (*agent
 			continue
 		}
 
-		// /global/event wraps events as:
-		// {"directory":"...","project":"...","payload":{"id":"...","type":"...","properties":{...}}}
-		// Server-level events (heartbeat, connected) have no directory/project wrapper:
-		// {"payload":{"id":"...","type":"server.connected","properties":{}}}
-		var rawEvent map[string]json.RawMessage
-		if err := json.Unmarshal([]byte(data), &rawEvent); err != nil {
-			s.base.Logger().Warn("SSE unmarshal error", "error", err, "line", data)
-			continue
-		}
-
-		// Extract payload (the actual event)
-		payloadBytes, hasPayload := rawEvent["payload"]
-		if !hasPayload {
-			s.base.Logger().Warn("SSE event missing payload", "line", data)
-			continue
-		}
-
-		var payload map[string]json.RawMessage
-		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-			s.base.Logger().Warn("SSE payload unmarshal error", "error", err)
-			continue
-		}
-
-		evtTypeBytes, ok := payload["type"]
+		eventType, payload, ok := s.parseSSEEnvelope(data)
 		if !ok {
-			s.base.Logger().Warn("SSE payload missing type")
-			continue
-		}
-		var eventType string
-		if err := json.Unmarshal(evtTypeBytes, &eventType); err != nil {
-			s.base.Logger().Warn("SSE type unmarshal error", "error", err)
 			continue
 		}
 
-		// Skip server-level events (heartbeat, connected)
-		if strings.HasPrefix(eventType, "server.") {
-			continue
-		}
-
-		// Filter by session ID: events include a sessionID in properties
-		if propsBytes, ok := payload["properties"]; ok {
+		// Filter by session ID: events include a sessionID in properties.
+		if propsBytes, has := payload["properties"]; has {
 			var props map[string]interface{}
 			if json.Unmarshal(propsBytes, &props) == nil {
-				if sid, ok := props["sessionID"].(string); ok && sid != "" && sid != s.base.SessionID() {
+				if sid, isStr := props["sessionID"].(string); isStr && sid != "" && sid != s.base.SessionID() {
 					continue // Event for a different session
 				}
 			}
@@ -160,41 +84,8 @@ func (s *openCodeSession) consumeSSE(ctx context.Context, turnID string) (*agent
 		s.base.Logger().Info("SSE event received", "type", eventType)
 		events := s.translateEvent(eventType, payload)
 		for _, evt := range events {
-			e := evt.Event
-			switch se := e.(type) {
-			case protocol.TurnCompletedStreamEvent:
-				s.base.Logger().Info("SSE translated event", "type", se.StreamEventType())
-				result = &agent.AgentRunResult{SessionID: s.base.SessionID(), Canceled: false}
-				resultErr = nil
-				terminalReached = true
-			case protocol.TurnFailedStreamEvent:
-				s.base.Logger().Info("SSE translated event", "type", se.StreamEventType())
-				result = &agent.AgentRunResult{SessionID: s.base.SessionID(), Canceled: false}
-				resultErr = fmt.Errorf("%v", se.Error)
-				terminalReached = true
-			case protocol.TurnCanceledStreamEvent:
-				s.base.Logger().Info("SSE translated event", "type", se.StreamEventType())
-				result = &agent.AgentRunResult{SessionID: s.base.SessionID(), Canceled: true}
-				resultErr = nil
-				terminalReached = true
-			case map[string]interface{}:
-				s.base.Logger().Info("SSE translated event", "type", se["type"])
-				switch se["type"] {
-				case "turn_completed":
-					result = &agent.AgentRunResult{SessionID: s.base.SessionID(), Canceled: false}
-					resultErr = nil
-					terminalReached = true
-				case "turn_failed":
-					result = &agent.AgentRunResult{SessionID: s.base.SessionID(), Canceled: false}
-					resultErr = fmt.Errorf("%v", se["error"])
-					terminalReached = true
-				case "turn_canceled":
-					result = &agent.AgentRunResult{SessionID: s.base.SessionID(), Canceled: true}
-					resultErr = nil
-					terminalReached = true
-				}
-			}
-			if terminalReached {
+			if result, resultErr, terminal := s.classifyTerminalEvent(evt.Event); terminal {
+				s.base.Logger().Info("SSE terminal event", "type", eventType)
 				s.finishForegroundTurn(evt, turnID)
 				return result, resultErr
 			}
@@ -202,20 +93,134 @@ func (s *openCodeSession) consumeSSE(ctx context.Context, turnID string) (*agent
 		}
 	}
 	scanErr := scanner.Err()
-	s.base.Logger().Info("SSE connection closed", "scanErr", scanErr, "terminated", terminalReached)
+	s.base.Logger().Info("SSE connection closed", "scanErr", scanErr)
 
-	if !terminalReached {
-		s.finishForegroundTurn(agent.AgentStreamEvent{
-			Event: protocol.TurnFailedStreamEvent{
-				Provider: opencodeProviderName,
-				Error:    "OpenCode event stream ended before the turn reached a terminal state",
-			},
-			Timestamp: time.Now(),
-		}, turnID)
-		return &agent.AgentRunResult{SessionID: s.base.SessionID()}, fmt.Errorf("OpenCode event stream ended before the turn reached a terminal state")
+	// Reaching here means the stream ended without a terminal event (a terminal
+	// event always returns early from the loop above), so synthesize a failure.
+	s.finishForegroundTurn(agent.AgentStreamEvent{
+		Event: protocol.TurnFailedStreamEvent{
+			Provider: opencodeProviderName,
+			Error:    "OpenCode event stream ended before the turn reached a terminal state",
+		},
+		Timestamp: time.Now(),
+	}, turnID)
+	return &agent.AgentRunResult{SessionID: s.base.SessionID()}, fmt.Errorf("OpenCode event stream ended before the turn reached a terminal state")
+}
+
+// startIdleWatchdog runs the per-connection idle watchdog. It hard-cancels the
+// connection (via connCancel) when no events arrive within timeout, and pings
+// the server to reset the timer once the soft timeout is reached.
+func (s *openCodeSession) startIdleWatchdog(ctx, connCtx context.Context, connCancel context.CancelFunc, timeout time.Duration, turnID string, lastEventTime *atomic.Int64) {
+	// Tick frequently enough to catch soft-timeout reliably even with
+	// small test timeouts, but cap at 5s in production.
+	tickInterval := timeout / 6
+	if tickInterval < 500*time.Millisecond {
+		tickInterval = 500 * time.Millisecond
+	}
+	if tickInterval > 5*time.Second {
+		tickInterval = 5 * time.Second
+	}
+	ticker := time.NewTicker(tickInterval)
+	defer ticker.Stop()
+	softTimeout := timeout / 2
+	if softTimeout <= 0 {
+		softTimeout = timeout
+	}
+	for {
+		select {
+		case <-ticker.C:
+			last := time.Unix(0, lastEventTime.Load())
+			idle := time.Since(last)
+			if idle > timeout {
+				s.base.Logger().Warn("SSE idle timeout — no events received, closing connection",
+					"timeout", timeout, "turnID", turnID)
+				connCancel()
+				return
+			}
+			if idle >= softTimeout {
+				if s.pingServer(ctx) {
+					s.base.Logger().Debug("SSE heartbeat succeeded, resetting idle timer",
+						"turnID", turnID)
+					lastEventTime.Store(time.Now().UnixNano())
+				}
+			}
+		case <-connCtx.Done():
+			return
+		}
+	}
+}
+
+// parseSSEEnvelope unwraps a /global/event SSE data payload into its event type
+// and payload map. It returns ok=false (caller should skip the line) for
+// malformed data, a missing payload/type, or server-level events (heartbeat,
+// connected).
+//
+// /global/event wraps events as:
+//
+//	{"directory":"...","project":"...","payload":{"id":"...","type":"...","properties":{...}}}
+//
+// Server-level events have no directory/project wrapper:
+//
+//	{"payload":{"id":"...","type":"server.connected","properties":{}}}
+func (s *openCodeSession) parseSSEEnvelope(data string) (string, map[string]json.RawMessage, bool) {
+	var rawEvent map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(data), &rawEvent); err != nil {
+		s.base.Logger().Warn("SSE unmarshal error", "error", err, "line", data)
+		return "", nil, false
 	}
 
-	return result, resultErr
+	payloadBytes, hasPayload := rawEvent["payload"]
+	if !hasPayload {
+		s.base.Logger().Warn("SSE event missing payload", "line", data)
+		return "", nil, false
+	}
+
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		s.base.Logger().Warn("SSE payload unmarshal error", "error", err)
+		return "", nil, false
+	}
+
+	evtTypeBytes, ok := payload["type"]
+	if !ok {
+		s.base.Logger().Warn("SSE payload missing type")
+		return "", nil, false
+	}
+	var eventType string
+	if err := json.Unmarshal(evtTypeBytes, &eventType); err != nil {
+		s.base.Logger().Warn("SSE type unmarshal error", "error", err)
+		return "", nil, false
+	}
+
+	if strings.HasPrefix(eventType, "server.") {
+		return "", nil, false
+	}
+	return eventType, payload, true
+}
+
+// classifyTerminalEvent reports whether a translated event terminates the turn
+// and, if so, the result and error to return. It mirrors streamevents.TerminalDetector
+// but also handles the legacy map[string]interface{} fallback events.
+func (s *openCodeSession) classifyTerminalEvent(e interface{}) (*agent.AgentRunResult, error, bool) {
+	sid := s.base.SessionID()
+	switch se := e.(type) {
+	case protocol.TurnCompletedStreamEvent:
+		return &agent.AgentRunResult{SessionID: sid}, nil, true
+	case protocol.TurnFailedStreamEvent:
+		return &agent.AgentRunResult{SessionID: sid}, fmt.Errorf("%v", se.Error), true
+	case protocol.TurnCanceledStreamEvent:
+		return &agent.AgentRunResult{SessionID: sid, Canceled: true}, nil, true
+	case map[string]interface{}:
+		switch se["type"] {
+		case "turn_completed":
+			return &agent.AgentRunResult{SessionID: sid}, nil, true
+		case "turn_failed":
+			return &agent.AgentRunResult{SessionID: sid}, fmt.Errorf("%v", se["error"]), true
+		case "turn_canceled":
+			return &agent.AgentRunResult{SessionID: sid, Canceled: true}, nil, true
+		}
+	}
+	return nil, nil, false
 }
 
 // pingServer sends a lightweight HTTP request to the OpenCode server to verify

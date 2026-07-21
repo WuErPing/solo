@@ -4,10 +4,12 @@ package loop
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
@@ -41,6 +43,10 @@ type Engine struct {
 	agentMgr      agentManager
 	logger        *slog.Logger
 	verifyTimeout time.Duration
+
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
 
 // NewEngine creates a new loop engine.
@@ -64,9 +70,38 @@ func NewEngineWithManager(store *Store, agentMgr agentManager, logger *slog.Logg
 	}
 }
 
-// Start begins executing a loop in a new goroutine.
-func (e *Engine) Start(ctx context.Context, id string) {
-	go e.run(ctx, id)
+// Start activates the engine and resumes any loops that were running when the
+// daemon last shut down.
+func (e *Engine) Start(ctx context.Context) {
+	e.ctx, e.cancel = context.WithCancel(ctx)
+	e.resumeAll()
+}
+
+// Stop cancels the engine context and waits for all in-flight loops to finish.
+func (e *Engine) Stop() {
+	if e.cancel != nil {
+		e.cancel()
+	}
+	e.wg.Wait()
+}
+
+// Run starts executing a loop in a tracked goroutine.
+func (e *Engine) Run(id string) {
+	e.wg.Add(1)
+	go func() {
+		defer e.wg.Done()
+		e.run(e.ctx, id)
+	}()
+}
+
+func (e *Engine) resumeAll() {
+	running := e.store.Running()
+	if len(running) > 0 {
+		e.logger.Info("resuming loops after restart", "count", len(running))
+	}
+	for _, rec := range running {
+		e.Run(rec.ID)
+	}
 }
 
 func (e *Engine) run(ctx context.Context, id string) {
@@ -142,7 +177,7 @@ func (e *Engine) run(ctx context.Context, id string) {
 		e.log(id, iterIndex, "loop", "info", fmt.Sprintf("Starting iteration %d", iterIndex))
 
 		workerPrompt := buildWorkerPrompt(record.Prompt, prevIter)
-		outcome, workerErr := e.runWorker(ctx, record, &iter, workerPrompt)
+		outcome, workerErr, workerOutput := e.runWorker(ctx, record, &iter, workerPrompt)
 		if outcome != nil {
 			iter.WorkerOutcome = outcome
 		}
@@ -155,7 +190,13 @@ func (e *Engine) run(ctx context.Context, id string) {
 			e.log(id, iterIndex, "worker", "info", fmt.Sprintf("Worker finished: %s", *outcome))
 		}
 
-		passed, reason := e.runVerifier(ctx, record, &iter)
+		if ctx.Err() != nil {
+			_ = e.store.UpdateIteration(id, iter)
+			e.finish(id, StatusStopped, "stopped by user")
+			return
+		}
+
+		passed, reason := e.runVerifier(ctx, record, &iter, workerOutput)
 		e.log(id, iterIndex, "verifier", "info", fmt.Sprintf("Verifier result: passed=%v reason=%s", passed, reason))
 
 		if err := e.store.UpdateIteration(id, iter); err != nil {
@@ -194,14 +235,14 @@ func (e *Engine) run(ctx context.Context, id string) {
 	e.finish(id, StatusFailed, "max iterations reached")
 }
 
-func (e *Engine) runWorker(ctx context.Context, record *protocol.LoopRecord, iter *protocol.LoopIterationRecord, prompt string) (*string, string) {
+func (e *Engine) runWorker(ctx context.Context, record *protocol.LoopRecord, iter *protocol.LoopIterationRecord, prompt string) (*string, string, string) {
 	config := agent.LoopRecordToWorkerConfig(*record)
 
 	ag, err := e.agentMgr.CreateAgent(ctx, &config, map[string]string{"source": "loop"})
 	if err != nil {
 		reason := fmt.Sprintf("create worker agent: %s", err.Error())
 		outcome := "failed"
-		return &outcome, reason
+		return &outcome, reason, ""
 	}
 	agentID := ag.ID
 	iter.WorkerAgentID = &agentID
@@ -215,10 +256,15 @@ func (e *Engine) runWorker(ctx context.Context, record *protocol.LoopRecord, ite
 	if err := e.agentMgr.SendAgentMessage(ctx, agentID, prompt, nil, nil, ""); err != nil {
 		reason := fmt.Sprintf("send worker message: %s", err.Error())
 		outcome := "failed"
-		return &outcome, reason
+		return &outcome, reason, ""
 	}
 
 	status, _ := e.waitForAgent(ctx, agentID)
+
+	var finalText string
+	if ag := e.agentMgr.GetAgent(agentID); ag != nil {
+		finalText = ag.GetFinalText()
+	}
 
 	var outcome string
 	switch status {
@@ -236,7 +282,7 @@ func (e *Engine) runWorker(ctx context.Context, record *protocol.LoopRecord, ite
 		outcome = "canceled"
 	}
 
-	return &outcome, ""
+	return &outcome, "", finalText
 }
 
 func (e *Engine) waitForAgent(ctx context.Context, agentID string) (protocol.AgentLifecycleStatus, error) {
@@ -287,12 +333,12 @@ func (e *Engine) waitForAgent(ctx context.Context, agentID string) (protocol.Age
 	}
 }
 
-func (e *Engine) runVerifier(ctx context.Context, record *protocol.LoopRecord, iter *protocol.LoopIterationRecord) (bool, string) {
+func (e *Engine) runVerifier(ctx context.Context, record *protocol.LoopRecord, iter *protocol.LoopIterationRecord, workerOutput string) (bool, string) {
 	if len(record.VerifyChecks) > 0 {
 		return e.runVerifyChecks(ctx, record, iter)
 	}
 	if record.VerifyPrompt != nil && *record.VerifyPrompt != "" {
-		return e.runVerifyPrompt(ctx, record, iter)
+		return e.runVerifyPrompt(ctx, record, iter, workerOutput)
 	}
 	return true, "no verification configured"
 }
@@ -329,7 +375,7 @@ func (e *Engine) runVerifyChecks(ctx context.Context, record *protocol.LoopRecor
 	return false, "one or more checks failed"
 }
 
-func (e *Engine) runVerifyPrompt(ctx context.Context, record *protocol.LoopRecord, iter *protocol.LoopIterationRecord) (bool, string) {
+func (e *Engine) runVerifyPrompt(ctx context.Context, record *protocol.LoopRecord, iter *protocol.LoopIterationRecord, workerOutput string) (bool, string) {
 	config := agent.LoopRecordToVerifierConfig(*record)
 
 	ag, err := e.agentMgr.CreateAgent(ctx, &config, map[string]string{"source": "loop-verifier"})
@@ -348,12 +394,10 @@ func (e *Engine) runVerifyPrompt(ctx context.Context, record *protocol.LoopRecor
 		}
 	}()
 
-	// Worker output is not directly exposed by the agent manager snapshot in this
-	// minimal implementation, so we pass an empty output placeholder.
 	prompt := fmt.Sprintf(
 		"Original goal: %s\nWorker output: %s\nVerification instruction: %s\nRespond with JSON {\"passed\":bool, \"reason\":string}.",
 		record.Prompt,
-		"",
+		workerOutput,
 		*record.VerifyPrompt,
 	)
 
@@ -370,15 +414,20 @@ func (e *Engine) runVerifyPrompt(ctx context.Context, record *protocol.LoopRecor
 
 	_, _ = e.waitForAgent(ctx, agentID)
 
-	// Final text is not exposed on the agent snapshot; mark as unable to verify.
+	var verifierText string
+	if ag := e.agentMgr.GetAgent(agentID); ag != nil {
+		verifierText = ag.GetFinalText()
+	}
+
+	passed, reason := parseVerifyResult(verifierText)
 	iter.VerifyPrompt = &protocol.LoopVerifyPromptResult{
-		Passed:          false,
-		Reason:          "verifier response unavailable in minimal implementation",
+		Passed:          passed,
+		Reason:          reason,
 		VerifierAgentID: &agentID,
 		StartedAt:       startedAt,
 		CompletedAt:     nowISO(),
 	}
-	return false, iter.VerifyPrompt.Reason
+	return passed, reason
 }
 
 func (e *Engine) log(id string, iteration int, source, level, text string) {
@@ -501,4 +550,24 @@ func truncateTail(s string, maxRunes int) string {
 		return s
 	}
 	return "...(truncated)\n" + string(r[len(r)-maxRunes:])
+}
+
+// parseVerifyResult extracts the pass/fail outcome from a verifier agent's
+// text response. It tolerates markdown code fences and surrounding prose.
+func parseVerifyResult(text string) (bool, string) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return false, "verifier produced no output"
+	}
+	if idx := strings.Index(text, "{"); idx >= 0 {
+		text = text[idx:]
+	}
+	if idx := strings.LastIndex(text, "}"); idx >= 0 {
+		text = text[:idx+1]
+	}
+	var vr VerifyResult
+	if err := json.Unmarshal([]byte(text), &vr); err != nil {
+		return false, fmt.Sprintf("verifier output not valid JSON: %s", truncateTail(text, 200))
+	}
+	return vr.Passed, vr.Reason
 }

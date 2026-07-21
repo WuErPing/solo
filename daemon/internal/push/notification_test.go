@@ -142,6 +142,56 @@ func TestStripMarkdown(t *testing.T) {
 			input:    "- item 1\n- item 2",
 			expected: "item 1\nitem 2",
 		},
+		{
+			name:     "star list",
+			input:    "* item",
+			expected: "item",
+		},
+		{
+			name:     "plus list",
+			input:    "+ item",
+			expected: "item",
+		},
+		{
+			name:     "horizontal rule dashes",
+			input:    "---",
+			expected: "",
+		},
+		{
+			name:     "horizontal rule not uniform",
+			input:    "a---b",
+			expected: "a---b",
+		},
+		{
+			name:     "image",
+			input:    "![alt](http://x.com/i.png)",
+			expected: "alt",
+		},
+		{
+			name:     "crlf normalization",
+			input:    "a\r\nb",
+			expected: "a\nb",
+		},
+		{
+			name:     "tilde fence",
+			input:    "~~~\ncode\n~~~",
+			expected: "\ncode\n",
+		},
+		{
+			name:     "underscore bold",
+			input:    "__bold__",
+			expected: "bold",
+		},
+		{
+			name:     "strikethrough",
+			input:    "~~gone~~",
+			expected: "gone",
+		},
+		{
+			name:     "header without space kept",
+			input:    "#Hello",
+			expected: "#Hello",
+		},
 	}
 
 	for _, tt := range tests {
@@ -149,6 +199,33 @@ func TestStripMarkdown(t *testing.T) {
 			result := stripMarkdown(tt.input)
 			if result != tt.expected {
 				t.Errorf("stripMarkdown(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsHorizontalRule(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+		want bool
+	}{
+		{"three dashes", "---", true},
+		{"five dashes", "-----", true},
+		{"three stars", "***", true},
+		{"three underscores", "___", true},
+		{"dashes with surrounding space", "  ---  ", true},
+		{"two dashes too short", "--", false},
+		{"non-uniform dashes", "a---b", false},
+		{"mixed rule chars", "-*-", false},
+		{"text line", "hello", false},
+		{"empty", "", false},
+		{"spaced dashes not a rule", "- - -", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isHorizontalRule(tt.line); got != tt.want {
+				t.Errorf("isHorizontalRule(%q) = %v, want %v", tt.line, got, tt.want)
 			}
 		})
 	}

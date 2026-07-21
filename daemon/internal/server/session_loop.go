@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"sort"
 
 	"github.com/WuErPing/solo/daemon/internal/loop"
@@ -29,9 +28,8 @@ func (s *Session) handleLoopRun(m *protocol.LoopRunRequest) {
 		return
 	}
 
-	// Start the loop engine in the background.
-	engine := loop.NewEngine(s.loopStore, s.agentMgr, s.logger)
-	engine.Start(context.Background(), record.ID)
+	// Run the loop on the shared daemon-level engine.
+	s.loopEngine.Run(record.ID)
 
 	s.sendLoopRunResponse(m.RequestID, record, "")
 }

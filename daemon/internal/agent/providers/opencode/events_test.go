@@ -464,3 +464,90 @@ func TestConsumeSSE_HeartbeatFailRespectsHardTimeout(t *testing.T) {
 		t.Fatalf("took too long (%v), hard timeout should have triggered earlier", elapsed)
 	}
 }
+
+// TestClassifyTerminalEvent covers the terminal-event classifier extracted from
+// consumeSSE: typed terminal events, the legacy map[string]interface{} fallback,
+// and non-terminal events.
+func TestClassifyTerminalEvent(t *testing.T) {
+	s := newTestOpenCodeSessionForTranslate(t)
+	sid := s.base.SessionID()
+
+	tests := []struct {
+		name       string
+		evt        interface{}
+		wantTerm   bool
+		wantCancel bool
+		wantErr    bool
+	}{
+		{"typed completed", protocol.TurnCompletedStreamEvent{Provider: opencodeProviderName}, true, false, false},
+		{"typed failed", protocol.TurnFailedStreamEvent{Provider: opencodeProviderName, Error: "boom"}, true, false, true},
+		{"typed canceled", protocol.TurnCanceledStreamEvent{Provider: opencodeProviderName}, true, true, false},
+		{"map completed", map[string]interface{}{"type": "turn_completed"}, true, false, false},
+		{"map failed", map[string]interface{}{"type": "turn_failed", "error": "boom"}, true, false, true},
+		{"map canceled", map[string]interface{}{"type": "turn_canceled"}, true, true, false},
+		{"map other type", map[string]interface{}{"type": "message.part.updated"}, false, false, false},
+		{"non-terminal timeline", protocol.TimelineStreamEvent{Provider: opencodeProviderName}, false, false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err, terminal := s.classifyTerminalEvent(tt.evt)
+			if terminal != tt.wantTerm {
+				t.Fatalf("terminal = %v, want %v", terminal, tt.wantTerm)
+			}
+			if !terminal {
+				if result != nil {
+					t.Errorf("expected nil result for non-terminal event, got %+v", result)
+				}
+				return
+			}
+			if result == nil {
+				t.Fatal("expected non-nil result for terminal event")
+			}
+			if result.SessionID != sid {
+				t.Errorf("result.SessionID = %q, want %q", result.SessionID, sid)
+			}
+			if result.Canceled != tt.wantCancel {
+				t.Errorf("result.Canceled = %v, want %v", result.Canceled, tt.wantCancel)
+			}
+			if (err != nil) != tt.wantErr {
+				t.Errorf("err = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestParseSSEEnvelope covers the SSE envelope parser extracted from consumeSSE.
+func TestParseSSEEnvelope(t *testing.T) {
+	s := newTestOpenCodeSessionForTranslate(t)
+
+	tests := []struct {
+		name     string
+		data     string
+		wantType string
+		wantOK   bool
+	}{
+		{"valid wrapped event", `{"directory":"/x","payload":{"id":"1","type":"message.part.updated","properties":{}}}`, "message.part.updated", true},
+		{"server event skipped", `{"payload":{"id":"1","type":"server.connected","properties":{}}}`, "", false},
+		{"missing payload", `{"directory":"/x"}`, "", false},
+		{"malformed json", `{not json`, "", false},
+		{"payload missing type", `{"payload":{"id":"1","properties":{}}}`, "", false},
+		{"malformed payload", `{"payload":"notobj"}`, "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			eventType, payload, ok := s.parseSSEEnvelope(tt.data)
+			if ok != tt.wantOK {
+				t.Fatalf("ok = %v, want %v", ok, tt.wantOK)
+			}
+			if !ok {
+				return
+			}
+			if eventType != tt.wantType {
+				t.Errorf("eventType = %q, want %q", eventType, tt.wantType)
+			}
+			if payload == nil {
+				t.Error("expected non-nil payload for ok envelope")
+			}
+		})
+	}
+}

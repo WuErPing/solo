@@ -416,6 +416,19 @@ func (s *Store) Stop(id string) (*protocol.LoopRecord, error) {
 	return copyRecord(r), nil
 }
 
+// Running returns all records with status "running".
+func (s *Store) Running() []*protocol.LoopRecord {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var result []*protocol.LoopRecord
+	for _, r := range s.records {
+		if r.Status == string(StatusRunning) {
+			result = append(result, copyRecord(r))
+		}
+	}
+	return result
+}
+
 // AppendLog appends a log entry, assigning the next sequence number.
 func (s *Store) AppendLog(id string, entry protocol.LoopLogEntry) error {
 	s.mu.Lock()

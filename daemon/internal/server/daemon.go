@@ -55,7 +55,9 @@ type Daemon struct {
 	scheduleStore    *schedule.Store
 	scheduleExecutor *schedule.Executor
 	loopStore        *loop.Store
+	loopEngine       *loop.Engine
 	executorCancel   context.CancelFunc
+	loopCancel       context.CancelFunc
 }
 
 // MemoryRecorder is the minimal contract the daemon needs to flush/close
@@ -165,6 +167,9 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 		loop.WithLogger(logger),
 	)
 
+	// Create shared loop engine (single instance for all sessions)
+	loopEngine := loop.NewEngine(loopStore, agentMgr, logger)
+
 	// Create WS server with dependencies
 	ws := NewWSServerWithConfig(DaemonConfig{
 		Config:          cfg,
@@ -185,6 +190,7 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 		MemoryBridge:    memoryBridge,
 		ScheduleStore:   scheduleStore,
 		LoopStore:       loopStore,
+		LoopEngine:      loopEngine,
 	})
 
 	mux := http.NewServeMux()
@@ -213,6 +219,7 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 		memoryBridge:   memoryBridge,
 		scheduleStore:  scheduleStore,
 		loopStore:      loopStore,
+		loopEngine:     loopEngine,
 		http: &http.Server{
 			Handler: mux,
 		},
@@ -287,6 +294,12 @@ func (d *Daemon) Start() error {
 	d.executorCancel = execCancel
 	d.scheduleExecutor.Start(execCtx)
 
+	// Start the loop engine at daemon level so loops survive session disconnects
+	// and resume after daemon restart.
+	loopCtx, loopCancel := context.WithCancel(context.Background())
+	d.loopCancel = loopCancel
+	d.loopEngine.Start(loopCtx)
+
 	return nil
 }
 
@@ -297,6 +310,12 @@ func (d *Daemon) Stop(ctx context.Context) error {
 	}
 	if d.scheduleExecutor != nil {
 		d.scheduleExecutor.Wait()
+	}
+	if d.loopCancel != nil {
+		d.loopCancel()
+	}
+	if d.loopEngine != nil {
+		d.loopEngine.Stop()
 	}
 	if d.relayClient != nil {
 		d.relayClient.Stop()
@@ -416,6 +435,7 @@ type WSServer struct {
 	memoryBridge    MemoryBridge
 	scheduleStore   *schedule.Store
 	loopStore       *loop.Store
+	loopEngine      *loop.Engine
 	done            chan struct{}
 	mu              sync.RWMutex
 	gracePeriod     time.Duration // override for SessionDisconnectGraceMs; 0 = use default
@@ -472,11 +492,12 @@ type DaemonConfig struct {
 	MemoryBridge    MemoryBridge
 	ScheduleStore   *schedule.Store
 	LoopStore       *loop.Store
+	LoopEngine      *loop.Engine
 }
 
 // NewWSServerWithConfig creates a new WebSocket server using a DaemonConfig.
 func NewWSServerWithConfig(cfg DaemonConfig) *WSServer {
-	return NewWSServer(
+	ws := NewWSServer(
 		cfg.Config,
 		cfg.Logger,
 		cfg.AgentMgr,
@@ -496,6 +517,8 @@ func NewWSServerWithConfig(cfg DaemonConfig) *WSServer {
 		cfg.ScheduleStore,
 		cfg.LoopStore,
 	)
+	ws.loopEngine = cfg.LoopEngine
+	return ws
 }
 
 func (s *WSServer) broadcast(msg protocol.WSOutboundMessage) {
@@ -734,6 +757,7 @@ func (s *WSServer) handleNewConnection(conn WSConn) {
 		Broadcast:      s.broadcast,
 		ScheduleStore:  s.scheduleStore,
 		LoopStore:      s.loopStore,
+		LoopEngine:     s.loopEngine,
 	})
 	if _, isRelay := conn.(*relayclient.E2EEConn); isRelay {
 		sess.SetIsRelay(true)

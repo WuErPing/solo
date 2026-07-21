@@ -37,6 +37,7 @@ type ManagedAgent struct {
 	LastUserMessageAt *time.Time
 	LastUsage         *protocol.AgentUsage
 	LastError         *string
+	LastFinalText     string
 	Attention         AttentionState
 	Internal          bool
 	Labels            map[string]string
@@ -141,6 +142,20 @@ func (a *ManagedAgent) ClearError() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.LastError = nil
+}
+
+// SetFinalText stores the final text output from the most recent completed turn.
+func (a *ManagedAgent) SetFinalText(text string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.LastFinalText = text
+}
+
+// GetFinalText returns the final text output from the most recent completed turn.
+func (a *ManagedAgent) GetFinalText() string {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.LastFinalText
 }
 
 // ToSnapshot projects the ManagedAgent into an AgentSnapshotPayload for the wire protocol.

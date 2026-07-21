@@ -476,78 +476,112 @@ func (t *piTranslator) Translate(raw []byte, timestamp time.Time) ([]interface{}
 	return b.Events(), b.Terminal(), nil
 }
 
+// piEventDispatch maps a Pi event type to its translator handler. Supporting a
+// new event type is a one-line table entry rather than a control-flow edit.
+// Unlisted types (e.g. "agent_end", a no-op) are ignored.
+var piEventDispatch = map[string]func(t *piTranslator, b *streamevents.Builder, msg piEvent){
+	"session":        (*piTranslator).onSession,
+	"agent_start":    (*piTranslator).onTurnLifecycle,
+	"turn_start":     (*piTranslator).onTurnLifecycle,
+	"message_start":  (*piTranslator).onMessageStart,
+	"message_end":    (*piTranslator).onMessageEnd,
+	"message_update": (*piTranslator).onMessageUpdate,
+	"turn_end":       (*piTranslator).onTurnEnd,
+}
+
 func (t *piTranslator) translateEvent(b *streamevents.Builder, msg piEvent) {
-	switch msg.Type {
-	case "session":
-		if msg.ID != "" {
-			t.session.base.SetSessionID(msg.ID)
-		}
-		b.ThreadStarted(msg.ID)
-
-	case "agent_start", "turn_start":
-		// Reset per-turn text tracking so the second turn (after a tool call)
-		// correctly detects whether text was emitted.
-		t.textEmitted = false
-
-	case "message_start":
-		if msg.Message != nil && msg.Message.Role == "assistant" {
-			t.textEmitted = false
-		}
-		if msg.Message != nil && msg.Message.Role == "user" {
-			var textParts []string
-			for _, c := range msg.Message.Content {
-				if c.Type == "text" && c.Text != "" {
-					textParts = append(textParts, c.Text)
-				}
-			}
-			if len(textParts) > 0 {
-				b.UserMessage(strings.Join(textParts, "\n"), t.messageID)
-			}
-		}
-
-	case "message_end":
-		if msg.Message != nil && msg.Message.Role == "assistant" {
-			// Emit the full text if no text_delta was seen for this message.
-			if !t.textEmitted {
-				b.AssistantMessage(extractAssistantText(msg.Message))
-			}
-			t.textEmitted = false
-
-			// Accumulate usage from the assistant message_end event.
-			if msg.Message.Usage != nil {
-				b.Usage(t.buildUsage(msg.Message.Usage))
-			}
-		}
-
-	case "message_update":
-		if msg.AssistantMessageEvent != nil {
-			t.translateAssistantMessageEvent(b, msg.AssistantMessageEvent)
-		}
-
-	case "turn_end":
-		// A turn_end with stopReason="toolUse" is an intermediate turn — Pi will
-		// start another turn with the actual assistant response after the tool runs.
-		// Do not emit turn_completed or text for intermediate turns.
-		if msg.Message != nil && msg.Message.StopReason == "toolUse" {
-			t.textEmitted = false
-			break
-		}
-
-		// Emit the full text if no text_delta was seen for the final assistant message.
-		if !t.textEmitted && msg.Message != nil {
-			b.AssistantMessage(extractAssistantText(msg.Message))
-		}
-		t.textEmitted = false
-
-		usage := t.buildUsage(msg.Usage)
-		if usage == nil && msg.Message != nil {
-			usage = t.buildUsage(msg.Message.Usage)
-		}
-		b.TurnCompleted(usage)
-
-	case "agent_end":
-		// No-op; turn_end already emitted turn_completed.
+	if handle, ok := piEventDispatch[msg.Type]; ok {
+		handle(t, b, msg)
 	}
+}
+
+func (t *piTranslator) onSession(b *streamevents.Builder, msg piEvent) {
+	if msg.ID != "" {
+		t.session.base.SetSessionID(msg.ID)
+	}
+	b.ThreadStarted(msg.ID)
+}
+
+// onTurnLifecycle resets per-turn text tracking so the second turn (after a tool
+// call) correctly detects whether text was emitted. Handles agent_start/turn_start.
+func (t *piTranslator) onTurnLifecycle(_ *streamevents.Builder, _ piEvent) {
+	t.textEmitted = false
+}
+
+func (t *piTranslator) onMessageStart(b *streamevents.Builder, msg piEvent) {
+	if msg.Message == nil {
+		return
+	}
+	if msg.Message.Role == "assistant" {
+		t.textEmitted = false
+	}
+	if msg.Message.Role == "user" {
+		if text := userMessageText(msg.Message); text != "" {
+			b.UserMessage(text, t.messageID)
+		}
+	}
+}
+
+func (t *piTranslator) onMessageEnd(b *streamevents.Builder, msg piEvent) {
+	if msg.Message == nil || msg.Message.Role != "assistant" {
+		return
+	}
+	// Emit the full text if no text_delta was seen for this message.
+	if !t.textEmitted {
+		b.AssistantMessage(extractAssistantText(msg.Message))
+	}
+	t.textEmitted = false
+
+	// Accumulate usage from the assistant message_end event.
+	if msg.Message.Usage != nil {
+		b.Usage(t.buildUsage(msg.Message.Usage))
+	}
+}
+
+func (t *piTranslator) onMessageUpdate(b *streamevents.Builder, msg piEvent) {
+	if msg.AssistantMessageEvent != nil {
+		t.translateAssistantMessageEvent(b, msg.AssistantMessageEvent)
+	}
+}
+
+func (t *piTranslator) onTurnEnd(b *streamevents.Builder, msg piEvent) {
+	// A turn_end with stopReason="toolUse" is an intermediate turn — Pi will start
+	// another turn with the actual assistant response after the tool runs. Do not
+	// emit turn_completed or text for intermediate turns.
+	if msg.Message != nil && msg.Message.StopReason == "toolUse" {
+		t.textEmitted = false
+		return
+	}
+
+	// Emit the full text if no text_delta was seen for the final assistant message.
+	if !t.textEmitted && msg.Message != nil {
+		b.AssistantMessage(extractAssistantText(msg.Message))
+	}
+	t.textEmitted = false
+
+	b.TurnCompleted(t.turnEndUsage(msg))
+}
+
+// turnEndUsage prefers turn-level usage, falling back to the assistant message's.
+func (t *piTranslator) turnEndUsage(msg piEvent) *protocol.AgentUsage {
+	if usage := t.buildUsage(msg.Usage); usage != nil {
+		return usage
+	}
+	if msg.Message != nil {
+		return t.buildUsage(msg.Message.Usage)
+	}
+	return nil
+}
+
+// userMessageText joins the non-empty text parts of a user message.
+func userMessageText(m *piMessage) string {
+	var parts []string
+	for _, c := range m.Content {
+		if c.Type == "text" && c.Text != "" {
+			parts = append(parts, c.Text)
+		}
+	}
+	return strings.Join(parts, "\n")
 }
 
 func (t *piTranslator) translateAssistantMessageEvent(b *streamevents.Builder, evt *piAssistantMessageEvent) {

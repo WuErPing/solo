@@ -92,105 +92,138 @@ func buildNotificationPreview(text string) string {
 	return truncateText(normalized, notificationPreviewLimit)
 }
 
+// fencedCodeMarkers are removed (content kept) before other processing.
+var fencedCodeMarkers = []string{"```", "~~~"}
+
+// inlineMarkers are removed in order; multi-char markers precede their
+// single-char subsets so "**" is stripped before "*" and "__" before "_".
+var inlineMarkers = []string{"**", "__", "*", "_", "~~", "`"}
+
+// linePrefixStrippers run in order on each line to remove leading markdown
+// syntax (headers, blockquotes, list bullets).
+var linePrefixStrippers = []func(string) string{
+	stripHeaderPrefix,
+	stripBlockquotePrefix,
+	stripListPrefix,
+}
+
 func stripMarkdown(text string) string {
-	// Normalize line endings
 	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = stripFencedCodeMarkers(text)
+	text = stripMarkdownLinks(text)
+	text = strings.ReplaceAll(text, "!", "")
+	text = stripLinePrefixes(text)
+	text = stripInlineFormatting(text)
+	text = stripHorizontalRules(text)
+	return text
+}
 
-	// Strip fenced code markers but keep content
-	text = strings.ReplaceAll(text, "```", "")
-	text = strings.ReplaceAll(text, "~~~", "")
+func stripFencedCodeMarkers(text string) string {
+	for _, m := range fencedCodeMarkers {
+		text = strings.ReplaceAll(text, m, "")
+	}
+	return text
+}
 
-	// Markdown links/images: [text](url) or ![alt](url)
-	// Simple regex-like replacement for common patterns
+// stripMarkdownLinks replaces [text](url) (and ![alt](url), once the leading
+// "!" is later removed) with just the link text.
+func stripMarkdownLinks(text string) string {
 	for {
 		start := strings.Index(text, "[")
 		if start == -1 {
-			break
+			return text
 		}
 		end := strings.Index(text[start:], "]")
 		if end == -1 {
-			break
+			return text
 		}
 		linkEnd := strings.Index(text[start+end:], ")")
 		if linkEnd == -1 {
-			break
+			return text
 		}
-		// Extract link text
 		linkText := text[start+1 : start+end]
 		text = text[:start] + linkText + text[start+end+linkEnd+1:]
 	}
+}
 
-	// Remove image markers ![alt](url)
-	text = strings.ReplaceAll(text, "!", "")
-
-	// Headers
+func stripLinePrefixes(text string) string {
 	lines := strings.Split(text, "\n")
 	for i, line := range lines {
-		trimmed := strings.TrimLeft(line, " ")
-		for j := 0; j < len(trimmed) && j < 6; j++ {
-			if trimmed[j] != '#' {
-				if j > 0 && trimmed[j] == ' ' {
-					lines[i] = trimmed[j+1:]
-				}
-				break
+		for _, strip := range linePrefixStrippers {
+			line = strip(line)
+		}
+		lines[i] = line
+	}
+	return strings.Join(lines, "\n")
+}
+
+// stripHeaderPrefix removes up to six leading '#' markers plus the following
+// space. A '#' run not followed by a space (e.g. "#Hello") is left intact.
+func stripHeaderPrefix(line string) string {
+	trimmed := strings.TrimLeft(line, " ")
+	for j := 0; j < len(trimmed) && j < 6; j++ {
+		if trimmed[j] != '#' {
+			if j > 0 && trimmed[j] == ' ' {
+				return trimmed[j+1:]
 			}
+			return line
 		}
 	}
+	return line
+}
 
-	// Blockquotes
-	for i, line := range lines {
-		trimmed := strings.TrimLeft(line, " ")
-		if strings.HasPrefix(trimmed, ">") {
-			lines[i] = strings.TrimPrefix(trimmed, ">")
-			lines[i] = strings.TrimLeft(lines[i], " ")
-		}
+// stripBlockquotePrefix removes a single leading '>' (and surrounding spaces).
+func stripBlockquotePrefix(line string) string {
+	trimmed := strings.TrimLeft(line, " ")
+	if strings.HasPrefix(trimmed, ">") {
+		return strings.TrimLeft(strings.TrimPrefix(trimmed, ">"), " ")
 	}
+	return line
+}
 
-	// Lists
-	for i, line := range lines {
-		trimmed := strings.TrimLeft(line, " ")
-		if len(trimmed) > 0 {
-			// Check for bullet or number list
-			if trimmed[0] == '-' || trimmed[0] == '*' || trimmed[0] == '+' {
-				if len(trimmed) > 1 && trimmed[1] == ' ' {
-					lines[i] = trimmed[2:]
-				}
-			}
-		}
+// stripListPrefix removes a leading bullet ('-', '*', or '+') followed by a space.
+func stripListPrefix(line string) string {
+	trimmed := strings.TrimLeft(line, " ")
+	if len(trimmed) > 1 && (trimmed[0] == '-' || trimmed[0] == '*' || trimmed[0] == '+') && trimmed[1] == ' ' {
+		return trimmed[2:]
 	}
-	text = strings.Join(lines, "\n")
+	return line
+}
 
-	// Inline formatting
-	text = strings.ReplaceAll(text, "**", "")
-	text = strings.ReplaceAll(text, "__", "")
-	text = strings.ReplaceAll(text, "*", "")
-	text = strings.ReplaceAll(text, "_", "")
-	text = strings.ReplaceAll(text, "~~", "")
-	text = strings.ReplaceAll(text, "`", "")
-
-	// Horizontal rules
-	lines = strings.Split(text, "\n")
-	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.Contains(trimmed, "---") || strings.Contains(trimmed, "***") || strings.Contains(trimmed, "___") {
-			if len(trimmed) >= 3 {
-				allSame := true
-				first := trimmed[0]
-				for _, ch := range trimmed {
-					if ch != rune(first) {
-						allSame = false
-						break
-					}
-				}
-				if allSame && (first == '-' || first == '*' || first == '_') {
-					lines[i] = ""
-				}
-			}
-		}
+func stripInlineFormatting(text string) string {
+	for _, m := range inlineMarkers {
+		text = strings.ReplaceAll(text, m, "")
 	}
-	text = strings.Join(lines, "\n")
-
 	return text
+}
+
+func stripHorizontalRules(text string) string {
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		if isHorizontalRule(line) {
+			lines[i] = ""
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// isHorizontalRule reports whether a line is a markdown horizontal rule: three
+// or more of a single '-', '*', or '_' character (after trimming whitespace).
+func isHorizontalRule(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	if len(trimmed) < 3 {
+		return false
+	}
+	first := trimmed[0]
+	if first != '-' && first != '*' && first != '_' {
+		return false
+	}
+	for i := 1; i < len(trimmed); i++ {
+		if trimmed[i] != first {
+			return false
+		}
+	}
+	return true
 }
 
 func normalizeWhitespace(text string) string {

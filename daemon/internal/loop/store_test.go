@@ -470,3 +470,31 @@ func TestStore_Persistence(t *testing.T) {
 		t.Errorf("prompt = %q, want persist me", got.Prompt)
 	}
 }
+
+func TestStoreRunning(t *testing.T) {
+	t.Parallel()
+
+	s := NewStore(WithLogger(slog.New(slog.NewTextHandler(os.Stderr, nil))))
+	defaultProv := func() (string, error) { return "mock", nil }
+
+	r1, err := s.Create(protocol.LoopRunRequest{Prompt: "a"}, defaultProv)
+	if err != nil {
+		t.Fatalf("create r1: %v", err)
+	}
+	r2, err := s.Create(protocol.LoopRunRequest{Prompt: "b"}, defaultProv)
+	if err != nil {
+		t.Fatalf("create r2: %v", err)
+	}
+
+	if _, err := s.Stop(r2.ID); err != nil {
+		t.Fatalf("stop r2: %v", err)
+	}
+
+	running := s.Running()
+	if len(running) != 1 {
+		t.Fatalf("expected 1 running, got %d", len(running))
+	}
+	if running[0].ID != r1.ID {
+		t.Errorf("expected %s, got %s", r1.ID, running[0].ID)
+	}
+}
