@@ -969,6 +969,7 @@ function MobileComboboxBody(props: MobileBodyProps): ReactElement {
   );
 
   return (
+    /* eslint-disable react-hooks/refs -- passing refs as props to child components is standard React practice */
     <IsolatedBottomSheetModal
       ref={props.bottomSheetRef}
       snapPoints={props.snapPoints}
@@ -1006,6 +1007,7 @@ function MobileComboboxBody(props: MobileBodyProps): ReactElement {
         {body}
       </BottomSheetScrollView>
     </IsolatedBottomSheetModal>
+    /* eslint-enable react-hooks/refs */
   );
 }
 
@@ -1085,6 +1087,7 @@ function DesktopComboboxOptionsBody(props: {
   );
 
   return (
+    /* eslint-disable react-hooks/refs -- passing refs as props to child components is standard React practice */
     <>
       {props.stickyHeader}
       {props.searchable ? (
@@ -1119,11 +1122,13 @@ function DesktopComboboxOptionsBody(props: {
         </ScrollView>
       )}
     </>
+    /* eslint-enable react-hooks/refs */
   );
 }
 
 function DesktopComboboxBody(props: DesktopBodyProps): ReactElement {
   return (
+    /* eslint-disable react-hooks/refs -- passing refs as props to child components is standard React practice */
     <Modal
       transparent
       animationType="none"
@@ -1170,6 +1175,7 @@ function DesktopComboboxBody(props: DesktopBodyProps): ReactElement {
         </Animated.View>
       </View>
     </Modal>
+    /* eslint-enable react-hooks/refs */
   );
 }
 
@@ -1257,6 +1263,7 @@ export function Combobox({
     middleware,
     sameScrollView: false,
     elements: {
+      // eslint-disable-next-line react-hooks/refs -- floating-ui requires the reference element during render for positioning
       reference: anchorRef.current ?? undefined,
     },
   });

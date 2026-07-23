@@ -154,6 +154,7 @@ function NativeStreamViewport(props: StreamRenderInput & { strategy: StreamStrat
     };
     scrollOffsetYRef.current = 0;
     clearNativeViewportSettling();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initialization: reset viewport settling on agent change
     setIsNativeViewportSettling(false);
   }, [agentId, clearNativeViewportSettling]);
 

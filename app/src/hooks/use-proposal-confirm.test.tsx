@@ -5,7 +5,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StoredSchedule } from "@server/server/schedule/types";
 
-import { useProposalConfirm } from "./use-proposal-confirm";
+import { useProposalConfirm, mergeUpdateProposal } from "./use-proposal-confirm";
 import {
   useScheduleAssistantStore,
   type ScheduleAssistProposal,
@@ -296,5 +296,65 @@ describe("useProposalConfirm", () => {
     expect(message?.proposal).toEqual(proposal);
     expect(message?.applying).toBe(false);
     expect(message?.applyError).toBe("invalid cadence");
+  });
+});
+
+describe("mergeUpdateProposal", () => {
+  it("falls back to current values for fields the proposal omits", () => {
+    const current = makeStoredSchedule();
+    const merged = mergeUpdateProposal(
+      { op: "update", scheduleId: "sched-1", summary: "no-op" },
+      current,
+      "Asia/Shanghai",
+    );
+    expect(merged).toEqual({
+      scheduleId: "sched-1",
+      prompt: current.prompt,
+      name: current.name,
+      cwd: null,
+      cadence: current.cadence,
+      target: current.target,
+    });
+  });
+
+  it("overrides current values with proposal fields and converts cron to UTC", () => {
+    const current = makeStoredSchedule();
+    const merged = mergeUpdateProposal(
+      {
+        op: "update",
+        scheduleId: "sched-1",
+        summary: "full override",
+        name: "Renamed",
+        prompt: "New prompt",
+        cwd: "/new",
+        cadence: { type: "cron", expression: "30 7 * * 1-5" },
+        target: { type: "provider", providerId: "claude" },
+      },
+      current,
+      "Asia/Shanghai",
+    );
+    expect(merged).toEqual({
+      scheduleId: "sched-1",
+      prompt: "New prompt",
+      name: "Renamed",
+      cwd: "/new",
+      cadence: { type: "cron", expression: "30 23 * * 1-5", timezone: "Asia/Shanghai" },
+      target: { type: "provider", providerId: "claude" },
+    });
+  });
+
+  it("passes every-cadence through unchanged", () => {
+    const current = makeStoredSchedule();
+    const merged = mergeUpdateProposal(
+      {
+        op: "update",
+        scheduleId: "sched-1",
+        summary: "interval",
+        cadence: { type: "every", everyMs: 60000 },
+      },
+      current,
+      "Asia/Shanghai",
+    );
+    expect(merged.cadence).toEqual({ type: "every", everyMs: 60000 });
   });
 });

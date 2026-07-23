@@ -207,10 +207,12 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       ? undefined
       : FadeOut.duration(200);
 
-    useEffect(() => {
+    const [prevAgentIdForReset, setPrevAgentIdForReset] = useState(agentId);
+    if (prevAgentIdForReset !== agentId) {
+      setPrevAgentIdForReset(agentId);
       setIsNearBottom(true);
       setExpandedInlineToolCallIds(new Set());
-    }, [agentId]);
+    }
 
     const handleInlinePathPress = useCallback(
       (target: InlinePathTarget) => {
@@ -1035,10 +1037,12 @@ function PermissionRequestCard({
 
   const [respondingActionId, setRespondingActionId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const [prevPermissionRequestId, setPrevPermissionRequestId] = useState(permission.request.id);
+  if (prevPermissionRequestId !== permission.request.id) {
+    setPrevPermissionRequestId(permission.request.id);
     resetPermissionMutation();
     setRespondingActionId(null);
-  }, [permission.request.id, resetPermissionMutation]);
+  }
   const handleResponse = useCallback(
     (response: AgentPermissionResponse) => {
       respondToPermission({

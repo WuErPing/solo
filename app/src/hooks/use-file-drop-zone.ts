@@ -98,6 +98,7 @@ export function useFileDropZone({
   // Reset drag state when disabled changes
   useEffect(() => {
     if (disabled) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset drag state when drop zone disabled
       setIsDragging(false);
       dragCounterRef.current = 0;
     }

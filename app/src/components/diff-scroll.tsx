@@ -77,6 +77,7 @@ export function DiffScroll({
       // The close gesture fails quickly on leftward swipes (failOffsetX=-10),
       // so scrolling left works normally. On rightward swipes, close gesture
       // activates and closes the sidebar.
+      // eslint-disable-next-line react-hooks/refs -- gesture coordination requires reading the ref to conditionally pass it as waitFor
       waitFor={isAtLeftEdge && closeGestureRef?.current ? closeGestureRef : undefined}
     >
       {children}

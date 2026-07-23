@@ -324,7 +324,7 @@ type rawEvent struct {
 
 // UnmarshalJSON implements tagged-union deserialization for AgentStreamPayload.
 // It supports both the new StreamEvent structs and legacy map[string]interface{}.
-func (p *AgentStreamPayload) UnmarshalJSON(data []byte) error {
+func (p *AgentStreamPayload) UnmarshalJSON(data []byte) error { //nolint:gocyclo // grandfathered CC=28; tracked for split
 	var raw struct {
 		AgentID   string          `json:"agentId"`
 		Event     json.RawMessage `json:"event"`

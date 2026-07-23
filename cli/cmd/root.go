@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/WuErPing/solo/cli/internal/client"
+	"github.com/WuErPing/solo/cli/internal/config"
 	"github.com/WuErPing/solo/cli/internal/output"
 )
 
@@ -28,6 +29,14 @@ var (
 
 // closeDaemonClient closes c, swallowing close errors; safe for defer cleanup.
 func closeDaemonClient(c *client.DaemonClient) { _ = c.Close() }
+
+// warnIfDropped prints a warning to stderr when the subscription dropped
+// messages because the consumer could not keep up.
+func warnIfDropped(sub *client.Subscription) {
+	if n := sub.DroppedCount(); n > 0 {
+		_, _ = fmt.Fprintf(cmdStderr, "warning: %d message(s) dropped due to slow consumption\n", n)
+	}
+}
 
 // errFprintf wraps fmt.Fprintf and returns its error, so callers cannot
 // accidentally discard the write result (satisfies errcheck).
@@ -51,7 +60,7 @@ func errFprint(w io.Writer, a ...any) error {
 var rootCmd = &cobra.Command{
 	Use:           "solo",
 	Short:         "Solo CLI - manage AI coding agents from the command line",
-	Version:       "0.2.0",
+	Version:       config.Version,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }

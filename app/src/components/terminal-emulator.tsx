@@ -210,27 +210,29 @@ export default function TerminalEmulator({
   const lastObservedOffsetRef = useRef<number | null>(null);
   const themeKey = useMemo(() => buildXtermThemeKey(xtermTheme), [xtermTheme]);
   const xtermThemeRef = useRef(xtermTheme);
-  xtermThemeRef.current = xtermTheme;
   const mountCallbacksRef = useRef({
     onInput,
     onResize,
     onTerminalKey,
     onPendingModifiersConsumed,
   });
-  mountCallbacksRef.current = {
-    onInput,
-    onResize,
-    onTerminalKey,
-    onPendingModifiersConsumed,
-  };
   const initialSnapshotRef = useRef(initialSnapshot);
-  initialSnapshotRef.current = initialSnapshot;
   const pendingModifiersRef = useRef(pendingModifiers);
-  pendingModifiersRef.current = pendingModifiers;
   const forceColsRef = useRef(forceCols);
-  forceColsRef.current = forceCols;
   const fitToWidthRef = useRef(fitToWidth);
-  fitToWidthRef.current = fitToWidth;
+  useEffect(() => {
+    xtermThemeRef.current = xtermTheme;
+    mountCallbacksRef.current = {
+      onInput,
+      onResize,
+      onTerminalKey,
+      onPendingModifiersConsumed,
+    };
+    initialSnapshotRef.current = initialSnapshot;
+    pendingModifiersRef.current = pendingModifiers;
+    forceColsRef.current = forceCols;
+    fitToWidthRef.current = fitToWidth;
+  });
   const [viewportMetrics, setViewportMetrics] = useState<ViewportMetrics>({
     offset: 0,
     viewportSize: 0,
@@ -570,6 +572,7 @@ export default function TerminalEmulator({
     const maxScrollOffset = Math.max(0, viewportMetrics.contentSize - viewportMetrics.viewportSize);
     const normalizedOffset = clamp(viewportMetrics.offset, 0, maxScrollOffset);
     if (maxScrollOffset <= 0 || viewportMetrics.viewportSize <= 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- measurement: sync scroll visibility from viewport metrics
       setIsScrollVisible(false);
       setIsScrollActive(false);
       lastObservedOffsetRef.current = null;

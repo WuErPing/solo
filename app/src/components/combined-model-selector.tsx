@@ -703,6 +703,7 @@ export function CombinedModelSelector({
     }
 
     if (!isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset content-ready flag when sheet closes
       setIsContentReady(false);
       return;
     }

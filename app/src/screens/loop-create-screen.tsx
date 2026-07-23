@@ -68,6 +68,7 @@ export function LoopCreateScreen({ serverId }: { serverId: string }) {
     if (!selectedProvider || modeOptions.length === 0) {
       return;
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-select mode when provider/options change
     setSelectedMode((current) => {
       if (current && modeOptions.some((m) => m.id === current)) {
         return current;

@@ -579,6 +579,7 @@ export function useAgentFormState(options: UseAgentFormStateOptions = {}): UseAg
   // Reset user modifications when form becomes invisible
   useEffect(() => {
     if (!isVisible) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- initialization: reset form modifications when hidden
       setUserModified(INITIAL_USER_MODIFIED);
       hasResolvedRef.current = false;
       hydrationPreferencesRef.current = null;
@@ -711,6 +712,7 @@ export function useAgentFormState(options: UseAgentFormStateOptions = {}): UseAg
     const candidate = onlineServerIds.find((id) => validServerIds.has(id)) ?? null;
     if (!candidate) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-select server when none chosen and candidates available
     setFormState((prev) => (prev.serverId ? prev : { ...prev, serverId: candidate }));
   }, [
     combinedInitialValues?.serverId,

@@ -28,6 +28,7 @@ export function useAutocomplete<TOption>(
   useEffect(() => {
     if (!input.isVisible) {
       previousQueryRef.current = input.query;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset selection when autocomplete hides
       setSelectedIndex(-1);
       return;
     }

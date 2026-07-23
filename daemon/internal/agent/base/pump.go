@@ -173,7 +173,9 @@ func (p *EventPump) pump(
 		return &AgentRunResult{Canceled: true}, ctx.Err()
 	}
 
-	// If stream ended without terminal state, emit turn_failed
+	// If stream ended without terminal state, emit turn_failed. With the
+	// context still alive this means the provider process died mid-turn, so
+	// wrap with ErrProviderCrashed for upstream crash recovery.
 	if !terminalReached {
 		p.logger.Warn("event stream ended before terminal state")
 		p.emitEvent(map[string]interface{}{
@@ -181,7 +183,7 @@ func (p *EventPump) pump(
 			"provider": p.provider,
 			"error":    "event stream ended before reaching terminal state",
 		})
-		return &AgentRunResult{}, fmt.Errorf("event stream ended before terminal state")
+		return &AgentRunResult{}, fmt.Errorf("%w: event stream ended before terminal state", ErrProviderCrashed)
 	}
 
 	return result, resultErr

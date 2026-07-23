@@ -1,6 +1,5 @@
 import type {
   CreateScheduleOptions,
-  DaemonClient,
   DeleteLoopOptions,
   DeleteLoopTemplateOptions,
   GetLoopTemplateOptions,
@@ -13,6 +12,7 @@ import type {
   UpdateLoopOptions,
   UpdateScheduleOptions,
 } from "./daemon-client.js";
+import type { ConnectionManager } from "./connection-manager.js";
 import type { SessionOutboundMessage } from "../shared/messages.js";
 
 type ScheduleCreatePayload = Extract<SessionOutboundMessage, { type: "schedule/create/response" }>["payload"];
@@ -36,7 +36,7 @@ type LoopTemplateGetPayload = Extract<SessionOutboundMessage, { type: "loop/temp
 type LoopTemplateDeletePayload = Extract<SessionOutboundMessage, { type: "loop/template/delete/response" }>["payload"];
 
 export class ScheduleRpc {
-  constructor(private readonly client: DaemonClient) {}
+  constructor(private readonly client: ConnectionManager) {}
 
   async scheduleCreate(options: CreateScheduleOptions): Promise<ScheduleCreatePayload> {
     return this.client.sendCorrelatedSessionRequest({

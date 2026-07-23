@@ -19,9 +19,11 @@ export function AttachmentLightbox({ metadata, onClose }: AttachmentLightboxProp
   const url = useAttachmentPreviewUrl(metadata);
   const [errored, setErrored] = useState(false);
 
-  useEffect(() => {
+  const [prevMetadataId, setPrevMetadataId] = useState(metadata?.id);
+  if (prevMetadataId !== metadata?.id) {
+    setPrevMetadataId(metadata?.id);
     setErrored(false);
-  }, [metadata?.id]);
+  }
 
   useEffect(() => {
     if (!isWeb || !metadata) return;

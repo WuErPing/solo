@@ -227,6 +227,7 @@ export function useAgentInputDraft(input: UseAgentInputDraftInput): AgentInputDr
     draftGenerationRef.current = generation;
     hydratedGenerationRef.current = 0;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initialization: reset draft state for new draft key
     setText("");
     setAttachmentsState([]);
     setCwd(input.initialCwd ?? "");

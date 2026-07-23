@@ -29,9 +29,12 @@ export function useClientActivity({
   const lastActivityAtRef = useRef<Date>(new Date());
   const appVisibleRef = useRef(AppState.currentState === "active");
   const appVisibilityChangedAtRef = useRef<Date>(new Date());
-  const backgroundedAtMsRef = useRef<number | null>(
-    AppState.currentState === "active" ? null : Date.now(),
-  );
+  const backgroundedAtMsRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (AppState.currentState !== "active" && backgroundedAtMsRef.current === null) {
+      backgroundedAtMsRef.current = Date.now();
+    }
+  }, []);
   const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevFocusedAgentIdRef = useRef<string | null>(focusedAgentId);
   const lastImmediateHeartbeatAtRef = useRef<number>(0);

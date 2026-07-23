@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { View, Text } from "react-native";
 import { useIsFocused } from "@/hooks/use-is-focused";
 import { router } from "expo-router";
@@ -37,11 +37,13 @@ function SessionsScreenContent({ serverId }: { serverId: string }) {
   }, [refreshAll]);
 
   // Reset manual refresh flag when revalidation completes
-  useEffect(() => {
+  const [prevRevalidating, setPrevRevalidating] = useState(isRevalidating);
+  if (prevRevalidating !== isRevalidating) {
+    setPrevRevalidating(isRevalidating);
     if (!isRevalidating && isManualRefresh) {
       setIsManualRefresh(false);
     }
-  }, [isRevalidating, isManualRefresh]);
+  }
 
   const sortedAgents = useMemo(() => {
     return [...agents].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());

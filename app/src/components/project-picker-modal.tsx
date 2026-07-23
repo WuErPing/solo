@@ -140,6 +140,7 @@ export function ProjectPickerModal() {
   // Reset state when opening/closing
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- initialization: reset form state when modal opens
       setQuery("");
       setActiveIndex(0);
       const id = setTimeout(() => inputRef.current?.focus(), 0);
@@ -151,6 +152,7 @@ export function ProjectPickerModal() {
   useEffect(() => {
     if (!open) return;
     if (activeIndex >= options.length) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- bounds clamp after options list changes
       setActiveIndex(options.length > 0 ? options.length - 1 : 0);
     }
   }, [activeIndex, options.length, open]);

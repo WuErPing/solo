@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useEffect } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { View, Text, ScrollView, RefreshControl, Pressable } from "react-native";
 import { useIsFocused } from "@/hooks/use-is-focused";
 import { router } from "expo-router";
@@ -123,11 +123,13 @@ function LoopsScreenContent({ serverId }: { serverId: string }) {
     refreshAll();
   }, [refreshAll]);
 
-  useEffect(() => {
+  const [prevRevalidating, setPrevRevalidating] = useState(isRevalidating);
+  if (prevRevalidating !== isRevalidating) {
+    setPrevRevalidating(isRevalidating);
     if (!isRevalidating && isManualRefresh) {
       setIsManualRefresh(false);
     }
-  }, [isRevalidating, isManualRefresh]);
+  }
 
   const handleBack = useCallback(() => {
     router.navigate(buildHostOpenProjectRoute(serverId));

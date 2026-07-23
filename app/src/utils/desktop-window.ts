@@ -80,6 +80,7 @@ function useRawWindowControlsPadding(): RawWindowControlsPadding {
   useEffect(() => {
     startFullscreenSubscription();
     // Sync to any value that resolved between render and effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- external sync: hydrate fullscreen state from cache on mount
     setIsFullscreen(cachedIsFullscreen);
     fullscreenSubscribers.add(setIsFullscreen);
     return () => {

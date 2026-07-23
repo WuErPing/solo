@@ -456,10 +456,14 @@ function AgentPanelBody({
   const [lookupState, setLookupState] = useState<AgentLookupState>({ tag: "idle" });
   const lookupAttemptTokenRef = useRef(0);
 
-  useEffect(() => {
+  const [prevLookupKey, setPrevLookupKey] = useState(`${serverId}:${agentId}`);
+  const currentLookupKey = `${serverId}:${agentId}`;
+  if (prevLookupKey !== currentLookupKey) {
+    setPrevLookupKey(currentLookupKey);
+    // eslint-disable-next-line react-hooks/refs -- token invalidation: must cancel in-flight lookups synchronously with state reset
     lookupAttemptTokenRef.current += 1;
     setLookupState({ tag: "idle" });
-  }, [agentId, serverId]);
+  }
 
   useEffect(() => {
     if (!agentId) {
@@ -467,6 +471,7 @@ function AgentPanelBody({
     }
     if (agentState.id) {
       if (lookupState.tag !== "idle") {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- reset lookup state when agent found in local state
         setLookupState({ tag: "idle" });
       }
       return;
@@ -801,6 +806,7 @@ function ChatAgentContent({
 
   const effectiveAgent = viewState.tag === "ready" ? viewState.agent : null;
   const routeEntryKey = agentId ? `${serverId}:${agentId}` : null;
+  /* eslint-disable react-hooks/refs -- deriving route anchor intent from cached intent during render (state machine pattern) */
   routeBottomAnchorRequestRef.current = deriveRouteBottomAnchorIntent({
     cachedIntent: routeBottomAnchorRequestRef.current,
     routeKey: routeEntryKey,
@@ -814,6 +820,7 @@ function ChatAgentContent({
       }),
     [effectiveAgent?.id],
   );
+  /* eslint-enable react-hooks/refs */
 
   const handleComposerHeightChange = useCallback(
     (height: number) => {
@@ -860,10 +867,14 @@ function ChatAgentContent({
     needsAuthoritativeSync,
   ]);
 
-  useEffect(() => {
+  const [prevInitKey, setPrevInitKey] = useState(`${serverId}:${agentId}`);
+  const currentInitKey = `${serverId}:${agentId}`;
+  if (prevInitKey !== currentInitKey) {
+    setPrevInitKey(currentInitKey);
+    // eslint-disable-next-line react-hooks/refs -- token invalidation: must cancel in-flight init synchronously with state reset
     initAttemptTokenRef.current += 1;
     setMissingAgentState({ kind: "idle" });
-  }, [agentId, serverId]);
+  }
 
   useEffect(() => {
     if (!agentId) {
@@ -871,6 +882,7 @@ function ChatAgentContent({
     }
     if (agentState.id || shouldUseOptimisticStream) {
       if (missingAgentState.kind !== "idle") {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- reset missing-agent state when agent becomes available
         setMissingAgentState({ kind: "idle" });
       }
       return;

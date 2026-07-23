@@ -241,11 +241,13 @@ export const LeftSidebar = memo(function LeftSidebar({
     refreshAll();
   }, [refreshAll]);
 
-  useEffect(() => {
+  const [prevRevalidating, setPrevRevalidating] = useState(isRevalidating);
+  if (prevRevalidating !== isRevalidating) {
+    setPrevRevalidating(isRevalidating);
     if (!isRevalidating && isManualRefresh) {
       setIsManualRefresh(false);
     }
-  }, [isRevalidating, isManualRefresh]);
+  }
 
   const openProjectPicker = useOpenProjectPicker(activeServerId);
 
@@ -750,6 +752,7 @@ function MobileSidebar({
             Extrapolation.CLAMP,
           );
         })
+        // eslint-disable-next-line react-hooks/refs -- Reanimated gesture callback accessing shared values, not React refs
         .onEnd((event) => {
           isGesturing.value = false;
           const shouldClose = event.translationX < -windowWidth / 3 || event.velocityX < -500;
@@ -966,10 +969,12 @@ function DesktopSidebar({
     () =>
       Gesture.Pan()
         .hitSlop({ left: 8, right: 8, top: 0, bottom: 0 })
+        // eslint-disable-next-line react-hooks/refs -- gesture callbacks only execute during user interaction, not render
         .onStart(() => {
           startWidthRef.current = sidebarWidth;
           resizeWidth.value = sidebarWidth;
         })
+        // eslint-disable-next-line react-hooks/refs -- gesture callbacks only execute during user interaction, not render
         .onUpdate((event) => {
           // Dragging right (positive translationX) increases width
           const newWidth = startWidthRef.current + event.translationX;

@@ -184,6 +184,7 @@ export function ExplorerSidebar({
           const progress = 1 - newTranslateX / windowWidth;
           backdropOpacity.value = Math.max(0, Math.min(1, progress));
         })
+        // eslint-disable-next-line react-hooks/refs -- Reanimated gesture callback accessing shared values, not React refs
         .onEnd((event) => {
           isGesturing.value = false;
           const shouldClose = event.translationX > windowWidth / 3 || event.velocityX > 500;
@@ -224,10 +225,12 @@ export function ExplorerSidebar({
       Gesture.Pan()
         .enabled(!isMobile)
         .hitSlop({ left: 8, right: 8, top: 0, bottom: 0 })
+        // eslint-disable-next-line react-hooks/refs -- gesture callbacks only execute during user interaction, not render
         .onStart(() => {
           startWidthRef.current = explorerWidth;
           resizeWidth.value = explorerWidth;
         })
+        // eslint-disable-next-line react-hooks/refs -- gesture callbacks only execute during user interaction, not render
         .onUpdate((event) => {
           // Dragging left (negative translationX) increases width
           const newWidth = startWidthRef.current - event.translationX;

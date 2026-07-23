@@ -273,6 +273,7 @@ export function DropdownMenuTrigger({
   return (
     <Pressable
       {...props}
+      // eslint-disable-next-line react-hooks/refs -- passing ref as prop is standard React practice
       ref={ctx.triggerRef}
       collapsable={false}
       disabled={disabled}
@@ -342,6 +343,7 @@ export function DropdownMenuContent({
   // Keep Modal mounted during exit animation
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- animation: manage modal visibility lifecycle
       setModalVisible(true);
       setClosing(false);
     } else if (modalVisible) {
@@ -419,6 +421,7 @@ export function DropdownMenuContent({
 
     // For fullWidth, x is simply the horizontal padding to center on screen
     const x = fullWidth ? horizontalPadding : result.x;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- position depends on async measurement result
     setPosition({ x, y: result.y });
     setActualPlacement(result.actualPlacement);
   }, [triggerRect, contentSize, side, align, offset, fullWidth, horizontalPadding]);

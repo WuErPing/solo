@@ -19,6 +19,19 @@ import (
 
 const version = "relay-go-v1"
 
+const (
+	// wsReadLimit bounds a single incoming WebSocket frame. Frames are E2EE
+	// payloads; 8 MB leaves headroom for base64 photo attachments while
+	// preventing unbounded-frame memory exhaustion on the public relay.
+	wsReadLimit = 8 << 20
+
+	// wsReadIdleTimeout is refreshed on every received frame. A connection
+	// that produces no traffic for this long is presumed dead (NAT drop,
+	// killed mobile app) and is reaped so its goroutine/FD/buffers are
+	// released. Clients reconnect automatically.
+	wsReadIdleTimeout = 5 * time.Minute
+)
+
 type Server struct {
 	Store           *SessionStore
 	MaxBuffer       int
@@ -102,6 +115,9 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		s.Logger.Error("websocket upgrade failed", "error", err)
 		return
 	}
+	// Bound per-connection read memory: a peer can otherwise send
+	// arbitrarily large frames and exhaust relay memory.
+	conn.SetReadLimit(wsReadLimit)
 
 	s.connCount.Add(1)
 	relaymetrics.Connections.Inc()
@@ -190,6 +206,7 @@ func (s *Server) readPump(sess *Session, serverID string, role ConnectionRole, c
 		s.Store.CleanupIfEmpty(serverID)
 	}()
 
+	_ = conn.SetReadDeadline(time.Now().Add(wsReadIdleTimeout))
 	for {
 		msgType, msg, err := conn.ReadMessage()
 		if err != nil {
@@ -198,6 +215,7 @@ func (s *Server) readPump(sess *Session, serverID string, role ConnectionRole, c
 			}
 			return
 		}
+		_ = conn.SetReadDeadline(time.Now().Add(wsReadIdleTimeout))
 
 		sess.mu.Lock()
 		s.handleMessage(sess, role, connectionID, conn, msgType, msg)

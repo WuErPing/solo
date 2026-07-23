@@ -8,7 +8,9 @@ export function useAttachmentPreviewUrl(
   const [url, setUrl] = useState<string | null>(null);
   const activeAttachmentRef = useRef<AttachmentMetadata | null>(null);
   const attachmentRef = useRef(attachment);
-  attachmentRef.current = attachment;
+  useEffect(() => {
+    attachmentRef.current = attachment;
+  });
 
   const id = attachment?.id;
   const storageType = attachment?.storageType;

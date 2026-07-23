@@ -132,6 +132,7 @@ export function useDesktopPermissions(): UseDesktopPermissionsReturn {
       return;
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- external sync: refresh permissions on mount
     void refreshPermissions();
   }, [isDesktopApp, refreshPermissions]);
 

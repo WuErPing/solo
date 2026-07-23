@@ -66,7 +66,10 @@ beforeEach(() => {
   mockAppVisible.value = true;
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // Flush React Query's notifyManager setTimeout(0) so it fires while the
+  // JSDOM window is still alive instead of after teardown.
+  await new Promise((resolve) => setTimeout(resolve, 0));
   vi.restoreAllMocks();
 });
 

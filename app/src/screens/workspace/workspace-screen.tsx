@@ -653,6 +653,7 @@ function useStableTabDescriptorMap(tabDescriptors: WorkspaceTabDescriptor[]) {
   const tabDescriptorMap = useMemo(() => {
     const next = new Map<string, WorkspaceTabDescriptor>();
     for (const tabDescriptor of tabDescriptors) {
+      /* eslint-disable react-hooks/refs -- stable-reference cache: reading ref inside useMemo to preserve object identity */
       const cachedDescriptor = cacheRef.current.get(tabDescriptor.tabId);
       if (
         cachedDescriptor &&
@@ -663,6 +664,7 @@ function useStableTabDescriptorMap(tabDescriptors: WorkspaceTabDescriptor[]) {
         next.set(tabDescriptor.tabId, cachedDescriptor);
         continue;
       }
+      /* eslint-enable react-hooks/refs */
       next.set(tabDescriptor.tabId, tabDescriptor);
     }
     return next;
@@ -1198,10 +1200,12 @@ function WorkspaceScreenContent({
     () => new Map(),
   );
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset pending script terminals on workspace change
     setPendingScriptTerminalIds(new Map());
   }, [normalizedServerId, normalizedWorkspaceId]);
   const terminalsDataUpdatedAt = terminalsQuery.dataUpdatedAt;
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reconcile pending terminals from query data
     setPendingScriptTerminalIds(
       reconcilePendingScriptTerminals(liveTerminalIds, terminalsDataUpdatedAt),
     );
@@ -1348,6 +1352,7 @@ function WorkspaceScreenContent({
 
     if (canCreateTerminalNow && !createTerminalMutation.isPending) {
       const pendingInput = pendingTerminalCreateInput;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- consume pending terminal create request
       setPendingTerminalCreateInput(null);
       createTerminalMutation.mutate(pendingInput);
       return;

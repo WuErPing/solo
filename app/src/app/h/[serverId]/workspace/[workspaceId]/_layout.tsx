@@ -205,17 +205,18 @@ function WorkspaceDeck({
     activeSelection ? [activeSelection] : [],
   );
 
-  useEffect(() => {
-    if (!activeSelection) {
-      return;
+  const [prevActiveSelection, setPrevActiveSelection] = useState(activeSelection);
+  if (prevActiveSelection !== activeSelection) {
+    setPrevActiveSelection(activeSelection);
+    if (activeSelection) {
+      setMountedSelections((current) => {
+        if (current.some((selection) => areWorkspaceSelectionsEqual(selection, activeSelection))) {
+          return current;
+        }
+        return [...current, activeSelection];
+      });
     }
-    setMountedSelections((current) => {
-      if (current.some((selection) => areWorkspaceSelectionsEqual(selection, activeSelection))) {
-        return current;
-      }
-      return [...current, activeSelection];
-    });
-  }, [activeSelection]);
+  }
 
   if (!activeSelection) {
     return null;

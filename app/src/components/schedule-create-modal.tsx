@@ -96,6 +96,7 @@ export function ScheduleCreateModal({ visible, onClose, serverId, initialValues 
   // Seed fields when the assistant's "Edit in form" opens the modal with proposal values.
   useEffect(() => {
     if (!visible || !initialValues) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initialization: seed form fields from proposal values
     setName(initialValues.name ?? "");
     if (initialValues.prompt !== undefined) setPrompt(initialValues.prompt);
     setCwd(initialValues.cwd ?? "");

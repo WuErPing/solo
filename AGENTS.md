@@ -2,109 +2,48 @@
 
 Behavioral guidelines and project rules for AI coding agents and human contributors.
 
-**Pre-load context:** Before starting any analysis or implementation, load the skill at `.agents/skills/solo-dev-base` to get the full architecture overview, repo map, tech stack, and build commands. For the documentation index, see `docs/README.md`.
-
-**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
-
-## 1. Think Before Coding
-
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
-
-Before implementing:
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
-- Please reason from first principles. Do not always assume I have full clarity on what I want and how to achieve it. Exercise prudence and start from the original requirements and core problems. If the underlying motivations and objectives remain ambiguous, pause the work and discuss them with me. If the goals are clear yet the proposed approach is suboptimal, point this out to me and offer superior alternatives.
-
-## 2. Simplicity First
-
-**Minimum code that solves the problem. Nothing speculative.**
-
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
-- No error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it.
-
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
-
-## 3. Surgical Changes
-
-**Touch only what you must. Clean up only your own mess.**
-
-When editing existing code:
-- Don't "improve" adjacent code, comments, or formatting.
-- Don't refactor things that aren't broken.
-- Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it - don't delete it.
-
-When your changes create orphans:
-- Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
-
-The test: Every changed line should trace directly to the user's request.
-
-## 4. Goal-Driven Execution
-
-**Define success criteria. Loop until verified.**
-
-Transform tasks into verifiable goals:
-- "Add validation" → "Write tests for invalid inputs, then make them pass"
-- "Fix the bug" → "Write a test that reproduces it, then make it pass"
-- "Refactor X" → "Ensure tests pass before and after"
-
-For multi-step tasks, state a brief plan:
-```
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
-```
-
-Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
-
----
-
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
-
-## Project Rules
-
-- [Go Backend](.agents/rules/go-backend.md) — context, errors, concurrency, logging, naming
-- [TypeScript & React Native](.agents/rules/ts-frontend.md) — type safety, components, state, styling
-- [Testing](.agents/rules/testing.md) — Go table-driven tests, Vitest, CI requirements
-- [Security](.agents/rules/security.md) — E2EE, credentials, input validation, network
-- [Architecture](.agents/rules/architecture.md) — module boundaries, layers, protocol, data flow
-
-## CI Enforcement
-
-These rules are automatically enforced in GitHub Actions on every PR and push to `main`/`master`.
-
-**Go pipeline** (per module: `protocol`, `cli`, `daemon`, `relay-go`):
-- `go mod verify` — checksum validation
-- `go build ./...` — must compile without errors
-- `go test -short -race -count=1 -timeout=10m` — all tests pass, race-free
-- `golangci-lint` — lint with 5m timeout
-- Coverage uploaded to Codecov
-
-**JavaScript / TypeScript pipeline:**
-- `npm ci` — lockfile-pinned install
-- Lint: `expo lint --max-warnings 0` (app), `eslint src/` (app-bridge, packages/highlight)
-- Typecheck: `tsc --noEmit` (all TS packages)
-- Test: `npm test -- --coverage` (app, app-bridge), `npm test` (packages/highlight)
-- Coverage uploaded to Codecov
-
-**E2E pipeline** (nightly via cron + manual dispatch):
-- Playwright tests in `app/e2e/`
-- Runs against built workspace dependencies
-
-> All checks above must pass before merging. Run them locally before pushing.
-
-## Quick Reference
-
-```
-make darwin          # build all Go binaries
-make dev             # daemon :17612 + Expo web :19000
-go test -short -race ./...   # Go tests
-cd app && npm test   # app unit tests
-cd app-bridge && npm test  # bridge unit tests
-```
+- **Pre-load context:**
+  - Before starting any analysis or implementation, load the skill at `.agents/skills/solo-dev-base` to get the full architecture overview, repo map, tech stack, and build commands. For the documentation index, see `docs/README.md`.
+- **Follow first principles**
+- **Follow these guidelines**:
+  - Architecture Design
+    - Low Cognitive Load
+      - Minimize the mental effort required for developers to understand, modify and debug modules. Interfaces and behaviors shall be intuitive and consistent with industry conventions.
+    - Complexity Reduction
+      - The overall complexity of a system (C) is determined by the complexity of each part p (cp) weighted by the fraction of time developers spend working on that part (tp). Isolating complexity in a place where it will never be seen is almost as good as eliminating the complexity entirely.
+      - Favor deep modules (thin, simple interfaces paired with rich internal implementations) over shallow modules to minimize exposed surface complexity.
+    - Open/Closed Principle (OCP)
+    - Separation of Concerns (SoC)
+    - Testability
+      - Design components to be verifiable in isolation, with clear boundaries, controllable dependencies and no hidden side effects.
+    - Operability & Maintainability
+      - Prioritize observability, debuggability, traceability, and the ease of deployment, rollback and incident response.
+    - High Stability & Resilience
+      - Design for failure: build in fault tolerance, graceful degradation and predictable failure modes to avoid cascading faults across components.
+    - Principle of Least Astonishment (POLA)
+      - System behavior shall align with developer expectations; avoid counter-intuitive design choices that increase cognitive load.
+    - Core Design Principles
+      - Principles of Package Cohesion
+        - `REP` Reuse-Release Equivalence Principle
+        - `CRP` Common-Reuse Principle
+        - `CCP` Common-Closure Principle
+      - Principles of Package Coupling
+        - `ADP` Acyclic Dependencies Principle
+        - `SDP` Stable-Dependencies Principle
+        - `SAP` Stable-Abstractions Principle
+      - SOLID Principles
+        - `SRP` Single Responsibility Principle
+        - `OCP` Open–Closed Principle
+        - `LSP` Liskov Substitution Principle
+        - `ISP` Interface Segregation Principle
+        - `DIP` Dependency Inversion Principle
+  - QA
+    - Test-Driven Development (TDD)
+    - End-to-End Testing (E2E Test)
+    - Static Code Analysis & Linting
+      - Enforce uniform code style, detect common defects, security vulnerabilities and architectural anti-patterns via automated tooling.
+    - Mandatory Code Review
+      - All code changes must undergo peer review to validate compliance with design guidelines, test adequacy and quality standards.
+    - Test Coverage Thresholds
+      - Maintain defined minimum unit & integration test coverage for core business logic and critical execution paths.
+    - Run `make ci` and resolve all issues until the pipeline passes fully

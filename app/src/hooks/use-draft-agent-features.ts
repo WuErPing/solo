@@ -88,12 +88,14 @@ export function useDraftAgentFeatures(input: {
   }, [availableFeatures, featureValues]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset local feature values when provider changes
     setLocalFeatureValues({});
   }, [provider]);
 
   useEffect(() => {
     const next = pruneFeatureValues(localFeatureValues, availableFeatures);
     if (next !== localFeatureValues) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- prune stale feature values when available features change
       setLocalFeatureValues(next);
     }
   }, [availableFeatures, localFeatureValues]);

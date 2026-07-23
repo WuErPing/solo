@@ -701,29 +701,33 @@ export function useBottomAnchorController(input: {
   const scrollToBottomRef = useRef(input.scrollToBottom);
   const driverRef = useRef<BottomAnchorControllerDriver | null>(null);
 
-  agentIdRef.current = input.agentId;
-  readinessRef.current = input.isAuthoritativeHistoryReady;
-  renderStrategyRef.current = input.renderStrategy;
-  transportBehaviorRef.current = input.transportBehavior;
-  getMeasurementStateRef.current = input.getMeasurementState;
-  isNearBottomRef.current = input.isNearBottom;
-  scrollToBottomRef.current = input.scrollToBottom;
+  useEffect(() => {
+    agentIdRef.current = input.agentId;
+    readinessRef.current = input.isAuthoritativeHistoryReady;
+    renderStrategyRef.current = input.renderStrategy;
+    transportBehaviorRef.current = input.transportBehavior;
+    getMeasurementStateRef.current = input.getMeasurementState;
+    isNearBottomRef.current = input.isNearBottom;
+    scrollToBottomRef.current = input.scrollToBottom;
+  });
 
-  if (!driverRef.current) {
-    driverRef.current = __private__.createBottomAnchorControllerDriver({
-      getAgentId: () => agentIdRef.current,
-      getIsAuthoritativeHistoryReady: () => readinessRef.current,
-      getRenderStrategy: () => renderStrategyRef.current,
-      getTransportBehavior: () => transportBehaviorRef.current,
-      getMeasurementState: () => getMeasurementStateRef.current(),
-      isNearBottom: () => isNearBottomRef.current(),
-      scrollToBottom: (animated) => scrollToBottomRef.current(animated),
-      onModeChange: (nextMode) => setMode(nextMode),
-      scheduleFrame: ({ callback, delayFrames }) =>
-        scheduleAnimationFrameWithDelay({ callback, delayFrames }),
-      cancelFrame: (handle) => cancelScheduledAnimationFrame(handle),
-    });
-  }
+  useEffect(() => {
+    if (!driverRef.current) {
+      driverRef.current = __private__.createBottomAnchorControllerDriver({
+        getAgentId: () => agentIdRef.current,
+        getIsAuthoritativeHistoryReady: () => readinessRef.current,
+        getRenderStrategy: () => renderStrategyRef.current,
+        getTransportBehavior: () => transportBehaviorRef.current,
+        getMeasurementState: () => getMeasurementStateRef.current(),
+        isNearBottom: () => isNearBottomRef.current(),
+        scrollToBottom: (animated) => scrollToBottomRef.current(animated),
+        onModeChange: (nextMode) => setMode(nextMode),
+        scheduleFrame: ({ callback, delayFrames }) =>
+          scheduleAnimationFrameWithDelay({ callback, delayFrames }),
+        cancelFrame: (handle) => cancelScheduledAnimationFrame(handle),
+      });
+    }
+  });
 
   useEffect(() => {
     driverRef.current?.resetForAgent();

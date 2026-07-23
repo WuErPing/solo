@@ -297,7 +297,7 @@ func (s *openCodeSession) finishForegroundTurn(evt agent.AgentStreamEvent, turnI
 
 // --- Event Translation (matches Solo's translateOpenCodeEvent) ---
 
-func (s *openCodeSession) translateEvent(eventType string, raw map[string]json.RawMessage) []agent.AgentStreamEvent {
+func (s *openCodeSession) translateEvent(eventType string, raw map[string]json.RawMessage) []agent.AgentStreamEvent { //nolint:gocyclo // grandfathered CC=24
 	var events []agent.AgentStreamEvent
 	now := time.Now()
 
@@ -543,7 +543,7 @@ func (s *openCodeSession) translateMessagePartDelta(raw map[string]json.RawMessa
 }
 
 // translateMessagePartUpdated handles completed parts with tool call detail mapping (gap #1) and usage tracking (gap #5).
-func (s *openCodeSession) translateMessagePartUpdated(raw map[string]json.RawMessage, emit func(interface{})) {
+func (s *openCodeSession) translateMessagePartUpdated(raw map[string]json.RawMessage, emit func(interface{})) { //nolint:gocyclo // grandfathered CC=24
 	var props struct {
 		Part struct {
 			SessionID string          `json:"sessionID"`

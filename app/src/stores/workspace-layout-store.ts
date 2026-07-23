@@ -728,6 +728,7 @@ export function useWorkspaceLayoutStoreHydrated(): boolean {
 
   useEffect(() => {
     if (useWorkspaceLayoutStore.persist.hasHydrated()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration: sync state after store hydration
       setHasHydrated(true);
       return;
     }

@@ -12,6 +12,7 @@ function createMockDeps(overrides?: {
   const setAgentStreamTail = vi.fn();
   const sendAgentMessage = vi.fn().mockResolvedValue(undefined);
   const resumeAgent = vi.fn().mockResolvedValue(undefined);
+  const onError = vi.fn();
 
   const client = overrides?.client === null
     ? null
@@ -29,11 +30,13 @@ function createMockDeps(overrides?: {
       setAgentStreamTail,
       getCurrentHead: () => overrides?.currentHead,
       getAgent: () => overrides?.agent,
+      onError,
     },
     setAgentStreamHead,
     setAgentStreamTail,
     sendAgentMessage,
     resumeAgent,
+    onError,
   };
 }
 
@@ -111,5 +114,43 @@ describe("createSendAgentMessage", () => {
     expect(agentId).toBe("agent-1");
     expect(text).toBe("Hello world");
     expect(options).toHaveProperty("messageId");
+  });
+
+  it("rolls back the optimistic message and reports an error when client is null", async () => {
+    const { deps, setAgentStreamTail, onError } = createMockDeps({ client: null });
+    const send = createSendAgentMessage(deps);
+
+    await send("agent-1", "Hello");
+
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls[0][0]).toBeInstanceOf(Error);
+
+    // First call appends the optimistic message, second rolls it back.
+    expect(setAgentStreamTail).toHaveBeenCalledTimes(2);
+    const appendUpdater = setAgentStreamTail.mock.calls[0][1];
+    const rollbackUpdater = setAgentStreamTail.mock.calls[1][1];
+    const appended = appendUpdater(new Map());
+    expect(appended.get("agent-1")).toHaveLength(1);
+    const rolledBack = rollbackUpdater(appended);
+    expect(rolledBack.get("agent-1")).toHaveLength(0);
+  });
+
+  it("rolls back the optimistic message and reports an error when the send fails", async () => {
+    const sendError = new Error("network down");
+    const { deps, setAgentStreamTail, onError } = createMockDeps({
+      client: { sendAgentMessage: vi.fn().mockRejectedValue(sendError) },
+    });
+    const send = createSendAgentMessage(deps);
+
+    await send("agent-1", "Hello");
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
+    expect(onError).toHaveBeenCalledWith(sendError);
+
+    const appendUpdater = setAgentStreamTail.mock.calls[0][1];
+    const rollbackUpdater = setAgentStreamTail.mock.calls[1][1];
+    const appended = appendUpdater(new Map());
+    expect(appended.get("agent-1")).toHaveLength(1);
+    const rolledBack = rollbackUpdater(appended);
+    expect(rolledBack.get("agent-1")).toHaveLength(0);
   });
 });

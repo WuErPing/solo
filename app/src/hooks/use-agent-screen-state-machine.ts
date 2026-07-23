@@ -259,6 +259,7 @@ export function useAgentScreenStateMachine({
     hadInitialSyncFailure: false,
   });
 
+  /* eslint-disable react-hooks/refs -- state machine memory is intentionally mutated during render to derive next state synchronously */
   if (routeKeyRef.current !== routeKey) {
     routeKeyRef.current = routeKey;
     memoryRef.current = {
@@ -273,5 +274,6 @@ export function useAgentScreenStateMachine({
     memory: memoryRef.current,
   });
   memoryRef.current = result.memory;
+  /* eslint-enable react-hooks/refs */
   return result.state;
 }

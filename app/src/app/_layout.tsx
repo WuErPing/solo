@@ -29,6 +29,7 @@ import { UnistylesRuntime, useUnistyles } from "react-native-unistyles";
 import { CommandCenter } from "@/components/command-center";
 import { WorktreeSetupCalloutSource } from "@/components/worktree-setup-callout-source";
 import { DownloadToast } from "@/components/download-toast";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { KeyboardShortcutsDialog } from "@/components/keyboard-shortcuts-dialog";
 import { LeftSidebar } from "@/components/left-sidebar";
 import { ProjectPickerModal } from "@/components/project-picker-modal";
@@ -299,6 +300,7 @@ function HostRuntimeBootstrapProvider({ children }: { children: ReactNode }) {
     const abortController = new AbortController();
     const shouldManageDesktop = shouldUseDesktopDaemon();
     const store = getHostRuntimeStore();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initialization: reset navigation state before async startup
     setStartupNavigation(null);
 
     const loadStartupWorkspaceSelection = async (): Promise<ActiveWorkspaceSelection | null> => {
@@ -561,6 +563,7 @@ function MobileGestureWrapper({
             Extrapolation.CLAMP,
           );
         })
+        // eslint-disable-next-line react-hooks/refs -- Reanimated gesture callback accessing shared values, not React refs
         .onEnd((event) => {
           isGesturing.value = false;
           const shouldOpen = event.translationX > windowWidth / 3 || event.velocityX > 500;
@@ -937,7 +940,9 @@ export default function RootLayout() {
       <NavigationActiveWorkspaceObserver />
       <RootProviders>
         <RuntimeProviders>
-          <AppShell />
+          <ErrorBoundary fallbackLabel="The app encountered an error">
+            <AppShell />
+          </ErrorBoundary>
         </RuntimeProviders>
       </RootProviders>
     </GestureHandlerRootView>

@@ -211,6 +211,7 @@ export function WebDesktopScrollbarOverlay({
 
   useEffect(() => {
     if (!enabled || !geometry.isVisible) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- measurement: sync scroll visibility from geometry
       setIsScrollVisible(false);
       setIsScrollActive(false);
       clearScrollVisibilityTimeout();
@@ -269,6 +270,7 @@ export function WebDesktopScrollbarOverlay({
       return null;
     }
 
+    // eslint-disable-next-line react-hooks/refs -- PanResponder callbacks only execute during user interaction, not render
     return PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,

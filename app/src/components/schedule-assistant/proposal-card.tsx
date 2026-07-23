@@ -106,49 +106,101 @@ function buildCreateRows(proposal: ScheduleAssistProposal): Row[] {
   return rows;
 }
 
-function buildUpdateRows(
+function diffNameRow(proposal: ScheduleAssistProposal, current: StoredSchedule | null): Row | null {
+  if (proposal.name === undefined || proposal.name === (current?.name ?? "")) {
+    return null;
+  }
+  return { label: "Name", before: current?.name ?? null, after: proposal.name || "Untitled" };
+}
+
+function diffPromptRow(
+  proposal: ScheduleAssistProposal,
+  current: StoredSchedule | null,
+): Row | null {
+  if (proposal.prompt === undefined || proposal.prompt === current?.prompt) {
+    return null;
+  }
+  return { label: "Prompt", before: current?.prompt ?? null, after: proposal.prompt };
+}
+
+function diffCadenceRow(
+  proposal: ScheduleAssistProposal,
+  current: StoredSchedule | null,
+): Row | null {
+  if (!proposal.cadence) {
+    return null;
+  }
+  const before = current ? describeCadenceStored(current.cadence) : null;
+  const after = describeCadenceLocal(proposal.cadence);
+  if (before === after) {
+    return null;
+  }
+  return { label: "Cadence", before, after };
+}
+
+function diffTargetRow(
+  proposal: ScheduleAssistProposal,
+  current: StoredSchedule | null,
+): Row | null {
+  if (!proposal.target) {
+    return null;
+  }
+  const before = current ? describeTarget(current.target) : null;
+  const after = describeTarget(proposal.target);
+  if (!after || before === after) {
+    return null;
+  }
+  return { label: "Target", before, after };
+}
+
+function diffCwdRow(proposal: ScheduleAssistProposal, current: StoredSchedule | null): Row | null {
+  if (proposal.cwd === undefined || proposal.cwd === (current?.cwd ?? "")) {
+    return null;
+  }
+  return { label: "Cwd", before: current?.cwd ?? null, after: proposal.cwd || "—" };
+}
+
+function diffMaxRunsRow(
+  proposal: ScheduleAssistProposal,
+  current: StoredSchedule | null,
+): Row | null {
+  if (typeof proposal.maxRuns !== "number" || proposal.maxRuns === current?.maxRuns) {
+    return null;
+  }
+  return {
+    label: "Max runs",
+    before: current?.maxRuns != null ? String(current.maxRuns) : null,
+    after: String(proposal.maxRuns),
+  };
+}
+
+function diffExpiresAtRow(
+  proposal: ScheduleAssistProposal,
+  current: StoredSchedule | null,
+): Row | null {
+  if (proposal.expiresAt === undefined || proposal.expiresAt === (current?.expiresAt ?? "")) {
+    return null;
+  }
+  return {
+    label: "Expires",
+    before: current?.expiresAt ? formatTimestamp(current.expiresAt) : null,
+    after: proposal.expiresAt ? formatTimestamp(proposal.expiresAt) : "—",
+  };
+}
+
+export function buildUpdateRows(
   proposal: ScheduleAssistProposal,
   current: StoredSchedule | null,
 ): Row[] {
-  const rows: Row[] = [];
-  if (proposal.name !== undefined && proposal.name !== (current?.name ?? "")) {
-    rows.push({ label: "Name", before: current?.name ?? null, after: proposal.name || "Untitled" });
-  }
-  if (proposal.prompt !== undefined && proposal.prompt !== current?.prompt) {
-    rows.push({ label: "Prompt", before: current?.prompt ?? null, after: proposal.prompt });
-  }
-  if (proposal.cadence) {
-    const before = current ? describeCadenceStored(current.cadence) : null;
-    const after = describeCadenceLocal(proposal.cadence);
-    if (before !== after) {
-      rows.push({ label: "Cadence", before, after });
-    }
-  }
-  if (proposal.target) {
-    const before = current ? describeTarget(current.target) : null;
-    const after = describeTarget(proposal.target);
-    if (after && before !== after) {
-      rows.push({ label: "Target", before, after });
-    }
-  }
-  if (proposal.cwd !== undefined && proposal.cwd !== (current?.cwd ?? "")) {
-    rows.push({ label: "Cwd", before: current?.cwd ?? null, after: proposal.cwd || "—" });
-  }
-  if (typeof proposal.maxRuns === "number" && proposal.maxRuns !== current?.maxRuns) {
-    rows.push({
-      label: "Max runs",
-      before: current?.maxRuns != null ? String(current.maxRuns) : null,
-      after: String(proposal.maxRuns),
-    });
-  }
-  if (proposal.expiresAt !== undefined && proposal.expiresAt !== (current?.expiresAt ?? "")) {
-    rows.push({
-      label: "Expires",
-      before: current?.expiresAt ? formatTimestamp(current.expiresAt) : null,
-      after: proposal.expiresAt ? formatTimestamp(proposal.expiresAt) : "—",
-    });
-  }
-  return rows;
+  return [
+    diffNameRow(proposal, current),
+    diffPromptRow(proposal, current),
+    diffCadenceRow(proposal, current),
+    diffTargetRow(proposal, current),
+    diffCwdRow(proposal, current),
+    diffMaxRunsRow(proposal, current),
+    diffExpiresAtRow(proposal, current),
+  ].filter((row): row is Row => row !== null);
 }
 
 function buildLifecycleRows(proposal: ScheduleAssistProposal): Row[] {

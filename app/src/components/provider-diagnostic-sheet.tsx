@@ -344,6 +344,7 @@ export function ProviderDiagnosticSheet({
 
   useEffect(() => {
     if (visible) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- external sync: fetch diagnostic data when sheet becomes visible
       fetchDiagnostic();
     } else {
       setDiagnostic(null);

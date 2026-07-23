@@ -173,6 +173,7 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
 
     // Track whether any query has completed (success or error).
     // Once true, stays true — we only need to know the first fetch happened.
+    /* eslint-disable react-hooks/refs -- one-time latch inside useMemo; converting to state would cause unnecessary re-renders */
     if (!hasFetched.current) {
       for (const query of queries) {
         if (query && (query.isSuccess || query.isError)) {
@@ -194,6 +195,7 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
       isRevalidating,
       error: anyError,
     };
+    /* eslint-enable react-hooks/refs */
   }, [queries, hosts]);
 
   const refreshAll = useCallback(() => {

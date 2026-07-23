@@ -17,7 +17,6 @@ import type {
 } from "../server/agent/agent-sdk-types.js";
 import type {
   CreateAgentRequestOptions,
-  DaemonClient,
   FetchAgentHistoryOptions,
   FetchAgentResult,
   FetchAgentTimelineOptions,
@@ -26,6 +25,7 @@ import type {
   SendMessageOptions,
   WaitForFinishResult,
 } from "./daemon-client.js";
+import type { ConnectionManager } from "./connection-manager.js";
 
 type FetchAgentsPayload = Extract<SessionOutboundMessage, { type: "fetch_agents_response" }>["payload"];
 type FetchAgentHistoryPayload = Extract<SessionOutboundMessage, { type: "fetch_agent_history_response" }>["payload"];
@@ -35,7 +35,7 @@ type RestartRequestedStatusPayload = z.infer<typeof RestartRequestedStatusPayloa
 type ShutdownRequestedStatusPayload = z.infer<typeof ShutdownRequestedStatusPayloadSchema>;
 
 export class AgentRpc {
-  constructor(private readonly client: DaemonClient) {}
+  constructor(private readonly client: ConnectionManager) {}
 
   // ============================================================================
   // Attention / Heartbeat / Push / Ping

@@ -8,10 +8,10 @@ import type {
 } from "../shared/messages.js";
 import type { AgentProvider, AgentSessionConfig } from "../server/agent/agent-sdk-types.js";
 import type {
-  DaemonClient,
   FetchWorkspacesOptions,
   WriteProjectConfigInput,
 } from "./daemon-client.js";
+import type { ConnectionManager } from "./connection-manager.js";
 
 type FetchWorkspacesPayload = Extract<SessionOutboundMessage, { type: "fetch_workspaces_response" }>["payload"];
 type OpenProjectPayload = Extract<SessionOutboundMessage, { type: "open_project_response" }>["payload"];
@@ -45,7 +45,7 @@ interface ListCommandsOptions {
 }
 
 export class WorkspaceRpc {
-  constructor(private readonly client: DaemonClient) {}
+  constructor(private readonly client: ConnectionManager) {}
 
   // ============================================================================
   // Workspace / Project

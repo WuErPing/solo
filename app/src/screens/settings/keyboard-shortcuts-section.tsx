@@ -196,6 +196,7 @@ export function KeyboardShortcutsSection() {
 
   useEffect(() => {
     if (!isFocused && capturingBindingId !== null) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- cancel capture when section loses focus
       cancelCapture();
     }
   }, [isFocused, capturingBindingId, cancelCapture]);

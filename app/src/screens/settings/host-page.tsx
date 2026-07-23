@@ -170,9 +170,12 @@ export function HostRenameButton({ host }: { host: HostProfile }) {
   const [isSaving, setIsSaving] = useState(false);
   const inputRef = useRef<TextInput>(null);
 
-  useEffect(() => {
+  const [prevHostKey, setPrevHostKey] = useState(`${host.serverId}:${host.label}`);
+  const currentHostKey = `${host.serverId}:${host.label}`;
+  if (prevHostKey !== currentHostKey) {
+    setPrevHostKey(currentHostKey);
     setDraftLabel(host.label ?? "");
-  }, [host.serverId, host.label]);
+  }
 
   useEffect(() => {
     if (isEditing) {

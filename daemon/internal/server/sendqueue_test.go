@@ -230,3 +230,103 @@ func TestSendQueue_EmptyClose(t *testing.T) {
 		t.Fatal("Pop returned true on empty closed queue — should return false")
 	}
 }
+
+func TestSendQueue_CapDropsOldest(t *testing.T) {
+	q := newSendQueueWithCap(3)
+	for i := 0; i < 5; i++ {
+		q.Push(sendQueueItem{msgType: 1, data: []byte{byte(i)}})
+	}
+	if q.Len() != 3 {
+		t.Fatalf("Len() = %d, want 3 (bounded)", q.Len())
+	}
+	if q.Dropped() != 2 {
+		t.Fatalf("Dropped() = %d, want 2", q.Dropped())
+	}
+	// Oldest two were dropped; survivors are 2,3,4 in FIFO order.
+	for want := byte(2); want <= 4; want++ {
+		got, ok := q.Pop()
+		if !ok {
+			t.Fatalf("Pop returned false, want item %d", want)
+		}
+		if got.data[0] != want {
+			t.Fatalf("Pop got %d, want %d", got.data[0], want)
+		}
+	}
+}
+
+func TestSendQueue_CapInterleavedPushPop(t *testing.T) {
+	q := newSendQueueWithCap(2)
+	q.Push(sendQueueItem{data: []byte{0}})
+	q.Push(sendQueueItem{data: []byte{1}})
+	if got, _ := q.Pop(); got.data[0] != 0 {
+		t.Fatalf("Pop got %d, want 0", got.data[0])
+	}
+	// One slot free again: this push must not drop.
+	q.Push(sendQueueItem{data: []byte{2}})
+	if q.Dropped() != 0 {
+		t.Fatalf("Dropped() = %d, want 0", q.Dropped())
+	}
+	// Now full (1,2): this push drops 1.
+	q.Push(sendQueueItem{data: []byte{3}})
+	if q.Dropped() != 1 {
+		t.Fatalf("Dropped() = %d, want 1", q.Dropped())
+	}
+	if got, _ := q.Pop(); got.data[0] != 2 {
+		t.Fatalf("Pop got %d, want 2", got.data[0])
+	}
+	if got, _ := q.Pop(); got.data[0] != 3 {
+		t.Fatalf("Pop got %d, want 3", got.data[0])
+	}
+}
+
+func TestSendQueue_NonPositiveCapFallsBackToDefault(t *testing.T) {
+	q := newSendQueueWithCap(0)
+	for i := 0; i < defaultSendQueueCap+5; i++ {
+		q.Push(sendQueueItem{msgType: 1})
+	}
+	if q.Len() != defaultSendQueueCap {
+		t.Fatalf("Len() = %d, want %d", q.Len(), defaultSendQueueCap)
+	}
+	if q.Dropped() != 5 {
+		t.Fatalf("Dropped() = %d, want 5", q.Dropped())
+	}
+}
+
+func TestSendQueue_DefaultCapBoundsMemory(t *testing.T) {
+	q := newSendQueue()
+	for i := 0; i < defaultSendQueueCap*2; i++ {
+		q.Push(sendQueueItem{msgType: 1})
+	}
+	if q.Len() != defaultSendQueueCap {
+		t.Fatalf("Len() = %d, want %d", q.Len(), defaultSendQueueCap)
+	}
+	if q.Dropped() != defaultSendQueueCap {
+		t.Fatalf("Dropped() = %d, want %d", q.Dropped(), defaultSendQueueCap)
+	}
+}
+
+func TestSendQueue_CapConcurrent_NoOverBound(t *testing.T) {
+	const limit = 50
+	q := newSendQueueWithCap(limit)
+	var wg sync.WaitGroup
+	producers, perProducer := 8, 500
+
+	for i := 0; i < producers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < perProducer; j++ {
+				q.Push(sendQueueItem{msgType: 1})
+			}
+		}()
+	}
+	wg.Wait()
+
+	if q.Len() > limit {
+		t.Fatalf("Len() = %d exceeds cap %d", q.Len(), limit)
+	}
+	total := producers * perProducer
+	if q.Len()+q.Dropped() != total {
+		t.Fatalf("Len()+Dropped() = %d, want %d (items lost)", q.Len()+q.Dropped(), total)
+	}
+}

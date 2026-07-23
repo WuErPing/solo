@@ -104,11 +104,6 @@ export const TerminalStateSchema = z.object({
 });
 export type TerminalState = z.infer<typeof TerminalStateSchema>;
 
-export const WorkspaceGitHubRuntimeSchema = z.object({
-  featuresEnabled: z.boolean().nullable().optional(),
-});
-export type WorkspaceGitHubRuntime = z.infer<typeof WorkspaceGitHubRuntimeSchema>;
-
 export const WorkspaceScriptSchema = z.object({
   scriptName: z.string(),
   type: z.string().optional(),
@@ -129,6 +124,11 @@ export const WorkspaceGitRuntimeSchema = z.object({
   isDirty: z.boolean().nullable().optional(),
 });
 export type WorkspaceGitRuntime = z.infer<typeof WorkspaceGitRuntimeSchema>;
+
+export const WorkspaceGitHubRuntimeSchema = z.object({
+  featuresEnabled: z.boolean().nullable().optional(),
+});
+export type WorkspaceGitHubRuntime = z.infer<typeof WorkspaceGitHubRuntimeSchema>;
 
 export const WorkspaceDescriptorSchema = z.object({
   id: z.string(),

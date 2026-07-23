@@ -88,6 +88,7 @@ export function useExplorerOpenGesture({ enabled, onOpen }: UseExplorerOpenGestu
             Extrapolation.CLAMP,
           );
         })
+        // eslint-disable-next-line react-hooks/refs -- Reanimated gesture callback accessing shared values, not React refs
         .onEnd((event) => {
           isGesturing.value = false;
           const shouldOpenByPosition = translateX.value < (windowWidth * 2) / 3;

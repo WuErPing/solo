@@ -800,7 +800,7 @@ func (s *Session) handleSetDaemonConfig(m *protocol.SetDaemonConfigRequest) {
 	}
 }
 
-func (s *Session) applyProviderConfigPatch(providers map[string]interface{}) error {
+func (s *Session) applyProviderConfigPatch(providers map[string]interface{}) error { //nolint:gocyclo // grandfathered CC=21
 	if s.cfg.ProviderSettings == nil {
 		s.cfg.ProviderSettings = make(map[string]config.ProviderSettingsConfig)
 	}

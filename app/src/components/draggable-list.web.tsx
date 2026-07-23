@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { ScrollView, View } from "react-native";
 import {
   DndContext,
@@ -66,9 +66,11 @@ function SortableItem<T>({
   }, []);
 
   // Store listeners in ref so drag handle can access them
-  dragRef.current = () => {
-    // Trigger drag - handled by dnd-kit's listeners
-  };
+  useEffect(() => {
+    dragRef.current = () => {
+      // Trigger drag - handled by dnd-kit's listeners
+    };
+  });
 
   // dnd-kit can set `scaleX/scaleY` on the active item when dragging over a
   // differently-sized droppable. For variable-height rows this can look like

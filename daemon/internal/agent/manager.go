@@ -148,7 +148,15 @@ type AgentManager struct {
 	droppedEventCount atomic.Int64
 
 	stallMonitor *StallMonitor
+
+	// crashRecoveryDelay is the backoff before automatically retrying a
+	// crashed turn. Set once at construction; tests may override before use.
+	crashRecoveryDelay time.Duration
 }
+
+// defaultCrashRecoveryDelay is the backoff before automatically retrying a
+// crashed turn.
+const defaultCrashRecoveryDelay = 5 * time.Second
 
 // NewAgentManager creates a new AgentManager.
 func NewAgentManager(storage *AgentStorage, registry *ProviderRegistry, logger *slog.Logger) *AgentManager {
@@ -159,6 +167,7 @@ func NewAgentManager(storage *AgentStorage, registry *ProviderRegistry, logger *
 		logger:              logger.With("component", "agent-manager"),
 		subscribers:         make(map[uint64]AgentEventFunc),
 		coalescerFlushFuncs: make(map[uint64]func(agentID string)),
+		crashRecoveryDelay:  defaultCrashRecoveryDelay,
 	}
 	m.stallMonitor = NewStallMonitor(logger, m.stallInterrupt)
 	m.stallMonitor.Start()
@@ -493,9 +502,22 @@ func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, tex
 		return fmt.Errorf("agent %s is already running", agentID)
 	}
 
-	session := agent.GetSession()
+	return m.startTurn(ctx, agent, text, images, attachments, messageID, false)
+}
 
-	agent.SetLifecycle(protocol.AgentRunning)
+// startTurn marks the agent running and executes one turn in the background.
+// isCrashRecovery indicates an automatic retry after a provider crash; such
+// turns inherit the exhausted retry budget so at most one retry happens.
+func (m *AgentManager) startTurn(ctx context.Context, agent *ManagedAgent, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string, isCrashRecovery bool) error {
+	session := agent.GetSession()
+	if session == nil {
+		return fmt.Errorf("agent %s has no active session", agent.ID)
+	}
+
+	seq, ok := agent.tryStartTurn(isCrashRecovery)
+	if !ok {
+		return fmt.Errorf("agent %s is already running", agent.ID)
+	}
 	now := time.Now()
 	agent.LastUserMessageAt = &now
 	agent.ClearAttentionUnlessPermission()
@@ -507,7 +529,7 @@ func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, tex
 	}
 	m.emitState(agent)
 
-	m.stallMonitor.RegisterAgent(agentID)
+	m.stallMonitor.RegisterAgent(agent.ID)
 
 	// Run in background
 	go func() {
@@ -531,7 +553,7 @@ func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, tex
 		})
 		defer watchdog.Stop()
 		result, err := session.Run(ctx, text, images, attachments, messageID)
-		m.stallMonitor.UnregisterAgent(agentID)
+		m.stallMonitor.UnregisterAgent(agent.ID)
 		m.refreshSessionMetadata(ctx, agent, session)
 		if err != nil {
 			// A canceled turn is not an error state. The event stream path already
@@ -544,6 +566,12 @@ func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, tex
 					}
 					m.emitState(agent)
 				}
+				return
+			}
+			// Provider crash: notify the app via the error state, then retry the
+			// turn once after a short backoff.
+			if errors.Is(err, ErrProviderCrashed) && agent.claimCrashRetry() {
+				m.handleProviderCrash(ctx, agent, seq, text, images, attachments, messageID, err)
 				return
 			}
 			// If the event stream path already applied a terminal state (idle or
@@ -570,6 +598,31 @@ func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, tex
 	}()
 
 	return nil
+}
+
+// handleProviderCrash transitions the agent to the error state (which pushes
+// an agent_update to the app, surfacing the crash) and schedules a single
+// automatic retry of the crashed turn after m.crashRecoveryDelay.
+func (m *AgentManager) handleProviderCrash(ctx context.Context, agent *ManagedAgent, seq uint64, text string, images []protocol.ImageAttachment, attachments []protocol.AgentAttachment, messageID string, err error) {
+	retryAfter := m.crashRecoveryDelay
+	m.logger.Warn("provider crashed; scheduling auto-recovery",
+		"agentId", agent.ID, "error", err, "retryAfter", retryAfter)
+	agent.SetError(fmt.Sprintf("provider crashed: %v (retrying automatically)", err))
+	if serr := m.storage.ApplySnapshot(agent); serr != nil {
+		m.logger.Warn("failed to persist agent crash state", "agentId", agent.ID, "error", serr)
+	}
+	m.emitState(agent)
+
+	time.AfterFunc(retryAfter, func() {
+		if !agent.readyForCrashRetry(seq) {
+			m.logger.Debug("crash recovery skipped: agent state changed", "agentId", agent.ID)
+			return
+		}
+		m.logger.Info("crash recovery: retrying turn", "agentId", agent.ID)
+		if rerr := m.startTurn(ctx, agent, text, images, attachments, messageID, true); rerr != nil {
+			m.logger.Warn("crash recovery retry failed to start", "agentId", agent.ID, "error", rerr)
+		}
+	})
 }
 
 func (m *AgentManager) ensureAgentSession(ctx context.Context, agent *ManagedAgent) (*ManagedAgent, error) {

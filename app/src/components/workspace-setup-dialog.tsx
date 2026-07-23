@@ -185,6 +185,7 @@ export function WorkspaceSetupDialog() {
   const iconDataUri = toProjectIconDataUri(projectIcon);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initialization: reset dialog state when setup context changes
     setErrorMessage(null);
     setCreatedWorkspace(null);
     setPendingAction(null);

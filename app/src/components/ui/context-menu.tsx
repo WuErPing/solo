@@ -228,11 +228,13 @@ export function ContextMenu({
   });
   const [anchorRect, setAnchorRect] = useState<Rect | null>(null);
 
-  useEffect(() => {
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (prevIsOpen !== isOpen) {
+    setPrevIsOpen(isOpen);
     if (!isOpen) {
       setAnchorRect(null);
     }
-  }, [isOpen]);
+  }
 
   const value = useMemo<ContextMenuContextValue>(
     () => ({
@@ -431,6 +433,7 @@ export function ContextMenuContent({
   // Measure trigger when opening (fallback) and capture point anchors.
   useEffect(() => {
     if (useMobileSheet) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- measurement: reset positioning state for mobile sheet
       setTriggerRect(null);
       setContentSize(null);
       setPosition(null);
@@ -494,6 +497,7 @@ export function ContextMenuContent({
     });
 
     const x = fullWidth ? horizontalPadding : result.x;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- position depends on async measurement result
     setPosition({ x, y: result.y });
   }, [triggerRect, contentSize, side, align, offset, fullWidth, horizontalPadding, useMobileSheet]);
 

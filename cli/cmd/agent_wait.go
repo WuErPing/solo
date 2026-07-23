@@ -27,7 +27,7 @@ func init() {
 	agentCmd.AddCommand(agentWaitCmd)
 }
 
-func runAgentWait(cmd *cobra.Command, args []string) error {
+func runAgentWait(cmd *cobra.Command, args []string) error { //nolint:gocyclo // grandfathered CC=25
 	ctx := cmd.Context()
 	c, err := newClient(ctx, flagHost)
 	if err != nil {
@@ -53,7 +53,8 @@ func runAgentWait(cmd *cobra.Command, args []string) error {
 
 	// Subscribe to agent updates
 	updates := c.Subscribe("agent_update")
-	defer c.Unsubscribe("agent_update", updates)
+	defer c.Unsubscribe(updates)
+	defer warnIfDropped(updates)
 
 	// Check current status first
 	checkReq := &protocol.FetchAgentRequest{
@@ -81,9 +82,9 @@ func runAgentWait(cmd *cobra.Command, args []string) error {
 	// Wait for agent to reach a terminal state
 	for {
 		select {
-		case msg := <-updates:
-			if msg == nil {
-				return nil
+		case msg, ok := <-updates.Messages():
+			if !ok || msg == nil {
+				return &output.CommandError{Code: "DISCONNECTED", Message: "Lost connection to daemon while waiting"}
 			}
 			payload, _ := json.Marshal(msg.Message)
 			var updateWrapper struct {

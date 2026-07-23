@@ -14,12 +14,26 @@ import (
 func main() {
 	var (
 		input  = flag.String("input", ".", "Directory containing Go source files")
-		output = flag.String("output", "", "Output TypeScript file path")
+		output = flag.String("output", "", "Output TypeScript file path (single-file mode)")
+		multi  = flag.String("multi", "", "Output directory for per-domain files + barrel (multi-file mode)")
 	)
 	flag.Parse()
 
+	if *multi != "" {
+		absInput, err := filepath.Abs(*input)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "resolve input: %v\n", err)
+			os.Exit(1)
+		}
+		if err := genzod.GenerateMulti(absInput, *multi); err != nil {
+			fmt.Fprintf(os.Stderr, "generate multi: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if *output == "" {
-		fmt.Fprintln(os.Stderr, "Usage: genzod -input <dir> -output <file.ts>")
+		fmt.Fprintln(os.Stderr, "Usage: genzod -input <dir> (-output <file.ts> | -multi <outDir>)")
 		os.Exit(1)
 	}
 

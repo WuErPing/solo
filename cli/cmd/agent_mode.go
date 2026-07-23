@@ -24,7 +24,7 @@ func init() {
 	agentCmd.AddCommand(agentModeCmd)
 }
 
-func runAgentMode(cmd *cobra.Command, args []string) error {
+func runAgentMode(cmd *cobra.Command, args []string) error { //nolint:gocyclo // grandfathered CC=21
 	ctx := cmd.Context()
 	c, err := newClient(ctx, flagHost)
 	if err != nil {

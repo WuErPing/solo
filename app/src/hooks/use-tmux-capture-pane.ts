@@ -76,11 +76,15 @@ export function useTmuxCapturePane(
   const lastContentHashRef = useRef<string | null>(null);
 
   // Reset scrollback, dedup cache, and hash when pane changes
-  useEffect(() => {
+  const [prevPaneId, setPrevPaneId] = useState(paneId);
+  if (prevPaneId !== paneId) {
+    setPrevPaneId(paneId);
     setScrollbackLines(DEFAULT_SCROLLBACK_LINES);
+    // eslint-disable-next-line react-hooks/refs -- cache invalidation: must reset synchronously with state reset above
     prevResultRef.current = null;
+    // eslint-disable-next-line react-hooks/refs -- cache invalidation: must reset synchronously with state reset above
     lastContentHashRef.current = null;
-  }, [paneId]);
+  }
 
   // Reset hash when scrollback depth or width changes (different range = different content)
   useEffect(() => {
@@ -166,11 +170,13 @@ export function useTmuxCapturePane(
   const isPaginatingRef = useRef(false);
   const prevScrollbackRef = useRef(scrollbackLines);
   const [isPaginating, setIsPaginating] = useState(false);
+  /* eslint-disable react-hooks/refs -- previous-value pattern for detecting scrollback changes during render */
   if (scrollbackLines !== prevScrollbackRef.current) {
     prevScrollbackRef.current = scrollbackLines;
     isPaginatingRef.current = true;
     setIsPaginating(true);
   }
+  /* eslint-enable react-hooks/refs */
   useEffect(() => {
     if (isPaginatingRef.current && !isFetching) {
       isPaginatingRef.current = false;

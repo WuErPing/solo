@@ -3,7 +3,7 @@
  */
 import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockSendKeys, mockRefetch, mockLoadMoreHistory, mockSetAutoRefresh, mockTheme } = vi.hoisted(() => ({
   mockSendKeys: vi.fn(() => Promise.resolve({})),
@@ -226,8 +226,14 @@ vi.mock("@/stores/tmux-agent-store", () => ({
 import { TmuxPaneScreen } from "./tmux-pane-screen";
 
 describe("TmuxPaneScreen", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
   afterEach(() => {
     cleanup();
+    vi.clearAllTimers();
+    vi.useRealTimers();
     vi.clearAllMocks();
     autoRefreshRef.current = true;
     contentRef.current = "$ ls\nfile1.txt\nfile2.txt\n$ _";

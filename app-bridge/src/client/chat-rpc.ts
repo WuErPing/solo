@@ -1,12 +1,12 @@
 import type {
   CreateChatRoomOptions,
-  DaemonClient,
   DeleteChatRoomOptions,
   InspectChatRoomOptions,
   PostChatMessageOptions,
   ReadChatMessagesOptions,
   WaitForChatMessagesOptions,
 } from "./daemon-client.js";
+import type { ConnectionManager } from "./connection-manager.js";
 import type { SessionOutboundMessage } from "../shared/messages.js";
 
 type ChatCreatePayload = Extract<SessionOutboundMessage, { type: "chat/create/response" }>["payload"];
@@ -18,7 +18,7 @@ type ChatReadPayload = Extract<SessionOutboundMessage, { type: "chat/read/respon
 type ChatWaitPayload = Extract<SessionOutboundMessage, { type: "chat/wait/response" }>["payload"];
 
 export class ChatRpc {
-  constructor(private readonly client: DaemonClient) {}
+  constructor(private readonly client: ConnectionManager) {}
 
   async createChatRoom(options: CreateChatRoomOptions): Promise<ChatCreatePayload> {
     return this.client.sendCorrelatedSessionRequest({

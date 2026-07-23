@@ -215,6 +215,7 @@ export function TerminalPane({
   useEffect(() => {
     if (isPaneFocused && isWorkspaceFocused && isAppVisible && terminalId) {
       lastSentTerminalSizeRef.current = null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- external sync: trigger terminal reflow on focus/visibility change
       requestTerminalReflow();
     }
   }, [isAppVisible, isPaneFocused, isWorkspaceFocused, requestTerminalReflow, terminalId]);
@@ -312,6 +313,7 @@ export function TerminalPane({
   useEffect(() => {
     streamControllerRef.current?.dispose();
     streamControllerRef.current = null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initialization: reset stream state before creating new controller
     setIsAttaching(false);
     setStreamError(null);
 

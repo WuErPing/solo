@@ -50,6 +50,16 @@ type ManagedAgent struct {
 	// Prevents re-fetching history on every timeline request.
 	historyPrimed bool
 
+	// turnSeq is incremented on every turn start. A delayed crash-recovery
+	// retry compares against the captured seq so it never fires after a newer
+	// turn has begun.
+	turnSeq uint64
+
+	// crashRetryUsed is true once the single automatic crash-recovery retry
+	// has been consumed for the current turn generation. Reset when a new
+	// user-initiated (non-recovery) turn starts.
+	crashRetryUsed bool
+
 	// PendingPermissions maps requestID -> permission request payload
 	PendingPermissions map[string]interface{}
 
@@ -349,6 +359,46 @@ func (a *ManagedAgent) SetSession(s AgentSession) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.Session = s
+}
+
+// tryStartTurn atomically transitions the agent from a non-running state to
+// running and returns the new turn sequence. It returns false if a turn is
+// already in progress. Recovery turns (isRecovery) inherit the exhausted
+// crash-retry budget so at most one automatic retry happens per crash chain.
+func (a *ManagedAgent) tryStartTurn(isRecovery bool) (uint64, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.Lifecycle == protocol.AgentRunning {
+		return a.turnSeq, false
+	}
+	a.Lifecycle = protocol.AgentRunning
+	a.turnSeq++
+	if !isRecovery {
+		a.crashRetryUsed = false
+	}
+	a.UpdatedAt = time.Now()
+	return a.turnSeq, true
+}
+
+// claimCrashRetry returns true at most once per turn generation, granting the
+// caller the single automatic crash-recovery retry.
+func (a *ManagedAgent) claimCrashRetry() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.crashRetryUsed {
+		return false
+	}
+	a.crashRetryUsed = true
+	return true
+}
+
+// readyForCrashRetry reports whether a delayed crash-recovery retry for turn
+// seq may proceed: the agent must still be in the error state left by the
+// crash, no newer turn may have started, and the session must still be alive.
+func (a *ManagedAgent) readyForCrashRetry(seq uint64) bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.Lifecycle == protocol.AgentError && a.turnSeq == seq && a.Session != nil
 }
 
 // IsActive returns true if the agent has an active session.

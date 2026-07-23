@@ -67,6 +67,7 @@ export default function ProjectSettingsScreen({ projectKey }: ProjectSettingsScr
   useEffect(() => {
     const stillValid = editableHosts.some((host) => host.serverId === selectedServerId);
     if (!stillValid) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset selection when current server becomes invalid
       setSelectedServerId(editableHosts[0]?.serverId ?? "");
     }
   }, [editableHosts, selectedServerId]);
@@ -844,9 +845,11 @@ const NONE_TOUCHED: ScriptFieldsTouched = { name: false, command: false };
 function ScriptEditModal({ script, onChange, onCancel, onSave }: ScriptEditModalProps) {
   const [touched, setTouched] = useState<ScriptFieldsTouched>(NONE_TOUCHED);
 
-  useEffect(() => {
+  const [prevScriptId, setPrevScriptId] = useState(script.id);
+  if (prevScriptId !== script.id) {
+    setPrevScriptId(script.id);
     setTouched(NONE_TOUCHED);
-  }, [script.id]);
+  }
 
   const markTouched = useCallback((field: keyof ScriptFieldsTouched) => {
     setTouched((prev) => (prev[field] ? prev : { ...prev, [field]: true }));

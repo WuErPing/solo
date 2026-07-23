@@ -845,8 +845,8 @@ export function Composer({
   const attachButtonRef = useRef<View | null>(null);
   const messageInputRef = useRef<MessageInputRef>(null);
   const isComposerLocked = resolveIsComposerLocked(submitBehavior, isSubmitLoading);
-  const keyboardHandlerIdRef = useRef(
-    `message-input:${serverId}:${agentId}:${Math.random().toString(36).slice(2)}`,
+  const [keyboardHandlerId] = useState(
+    () => `message-input:${serverId}:${agentId}:${Math.random().toString(36).slice(2)}`,
   );
 
   const autocomplete = useAgentAutocomplete({
@@ -861,18 +861,24 @@ export function Composer({
     },
   });
   const autocompleteOnKeyPressRef = useRef(autocomplete.onKeyPress);
-  autocompleteOnKeyPressRef.current = autocomplete.onKeyPress;
+  useEffect(() => {
+    autocompleteOnKeyPressRef.current = autocomplete.onKeyPress;
+  });
 
   // Clear send error when user edits the input
-  useEffect(() => {
-    if (sendError && userInput) {
+  const [prevUserInputForError, setPrevUserInputForError] = useState(userInput);
+  if (prevUserInputForError !== userInput) {
+    setPrevUserInputForError(userInput);
+    if (sendError) {
       setSendError(null);
     }
-  }, [userInput, sendError]);
+  }
 
-  useEffect(() => {
+  const [prevInputLength, setPrevInputLength] = useState(userInput.length);
+  if (prevInputLength !== userInput.length) {
+    setPrevInputLength(userInput.length);
     setCursorIndex((current) => Math.min(current, userInput.length));
-  }, [userInput.length]);
+  }
 
   const { pickImages } = useImageAttachmentPicker();
   const agentIdRef = useRef(agentId);
@@ -1069,6 +1075,7 @@ export function Composer({
 
   useEffect(() => {
     if (!isAgentRunning || !isConnected) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- derived state: clear cancelling flag once agent stops or connection drops
       setIsCancellingAgent(false);
     }
   }, [isAgentRunning, isConnected]);
@@ -1112,7 +1119,7 @@ export function Composer({
   );
 
   useKeyboardActionHandler({
-    handlerId: keyboardHandlerIdRef.current,
+    handlerId: keyboardHandlerId,
     actions: [
       "agent.interrupt",
       "message-input.focus",
@@ -1266,6 +1273,7 @@ export function Composer({
   );
 
   const leftContent = useMemo(
+    // eslint-disable-next-line react-hooks/refs -- render helper receiving props, not reading refs
     () => renderLeftContent({ statusControls, agentId, serverId, focusInput }),
     [agentId, focusInput, serverId, statusControls],
   );
@@ -1345,6 +1353,7 @@ export function Composer({
   );
 
   const queueList = useMemo(
+    // eslint-disable-next-line react-hooks/refs -- render helper receiving props, not reading refs
     () => renderQueueList({ queuedMessages, handleEditQueuedMessage, handleSendQueuedNow }),
     [handleEditQueuedMessage, handleSendQueuedNow, queuedMessages],
   );

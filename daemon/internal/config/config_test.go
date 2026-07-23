@@ -182,6 +182,62 @@ func TestSave_LLMProviders(t *testing.T) {
 	}
 }
 
+func TestSave_ConfigFilePermissions(t *testing.T) {
+	home := t.TempDir()
+	cfg := &Config{SoloHome: home}
+
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	info, err := os.Stat(filepath.Join(home, "config.json"))
+	if err != nil {
+		t.Fatalf("stat config.json: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0600 {
+		t.Errorf("config.json created with perm %o, want 0600", perm)
+	}
+}
+
+func TestSave_TightensExistingPermissions(t *testing.T) {
+	home := t.TempDir()
+	configPath := filepath.Join(home, "config.json")
+	if err := os.WriteFile(configPath, []byte("{}"), 0644); err != nil {
+		t.Fatalf("seed config.json: %v", err)
+	}
+
+	cfg := &Config{SoloHome: home}
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	info, err := os.Stat(configPath)
+	if err != nil {
+		t.Fatalf("stat config.json: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0600 {
+		t.Errorf("config.json perm after Save = %o, want 0600", perm)
+	}
+}
+
+func TestLoad_TightensExistingPermissions(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLO_HOME", home)
+	configPath := filepath.Join(home, "config.json")
+	if err := os.WriteFile(configPath, []byte("{}"), 0644); err != nil {
+		t.Fatalf("seed config.json: %v", err)
+	}
+
+	if _, err := Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	info, err := os.Stat(configPath)
+	if err != nil {
+		t.Fatalf("stat config.json: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0600 {
+		t.Errorf("config.json perm after Load = %o, want 0600", perm)
+	}
+}
+
 func TestLoad_CORSOrigins_TrimsSpaces(t *testing.T) {
 	t.Setenv("SOLO_CORS_ORIGINS", "https://a.com, https://b.com , https://c.com")
 	cfg, err := Load()

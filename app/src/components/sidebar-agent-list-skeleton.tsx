@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo } from "react";
 import { Animated, View, type StyleProp, type ViewStyle } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 
@@ -54,7 +54,7 @@ function SkeletonSection({
 }
 
 export function SidebarAgentListSkeleton() {
-  const pulse = useRef(new Animated.Value(0)).current;
+  const pulse = useMemo(() => new Animated.Value(0), []);
 
   useEffect(() => {
     const animation = Animated.loop(

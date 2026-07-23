@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,21 +29,41 @@ func TestGenerateRequestID_Increment(t *testing.T) {
 
 func TestSubscribeAndUnsubscribe(t *testing.T) {
 	c := &DaemonClient{
-		subscribers: make(map[string][]chan *protocol.WSOutboundMessage),
+		subscribers: make(map[string][]*Subscription),
+		done:        make(chan struct{}),
 	}
 
-	ch := c.Subscribe("test_type")
-	if ch == nil {
-		t.Fatal("expected non-nil channel")
+	sub := c.Subscribe("test_type")
+	if sub == nil || sub.Messages() == nil {
+		t.Fatal("expected non-nil subscription channel")
 	}
 
-	c.Unsubscribe("test_type", ch)
+	c.Unsubscribe(sub)
 
 	c.subMu.RLock()
 	if len(c.subscribers["test_type"]) != 0 {
 		t.Error("expected subscriber to be removed")
 	}
 	c.subMu.RUnlock()
+}
+
+func TestSubscribeAfterDisconnect_ReturnsClosedChannel(t *testing.T) {
+	done := make(chan struct{})
+	close(done)
+	c := &DaemonClient{
+		subscribers: make(map[string][]*Subscription),
+		done:        done,
+	}
+
+	sub := c.Subscribe("test_type")
+	select {
+	case _, ok := <-sub.Messages():
+		if ok {
+			t.Fatal("expected closed channel after disconnect")
+		}
+	default:
+		t.Fatal("expected receive on closed channel to proceed immediately")
+	}
 }
 
 func TestProvidersSnapshot(t *testing.T) {
@@ -85,7 +106,9 @@ type mockDaemonServer struct {
 	serverID          string
 	providersSnapshot *protocol.ProvidersSnapshotPayload
 	upgrader          websocket.Upgrader
-	connections       []*websocket.Conn
+
+	connMu      sync.Mutex
+	connections []*websocket.Conn
 }
 
 func newMockDaemonServer() *mockDaemonServer {
@@ -106,7 +129,9 @@ func (m *mockDaemonServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+	m.connMu.Lock()
 	m.connections = append(m.connections, conn)
+	m.connMu.Unlock()
 	defer conn.Close()
 
 	// Read hello
@@ -173,6 +198,17 @@ func (m *mockDaemonServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			},
 		}
 		_ = conn.WriteJSON(resp)
+	}
+}
+
+// closeConnections closes all server-side WebSocket connections, simulating
+// the daemon dying. (httptest's CloseClientConnections cannot reach hijacked
+// WebSocket connections, so we close them explicitly.)
+func (m *mockDaemonServer) closeConnections() {
+	m.connMu.Lock()
+	defer m.connMu.Unlock()
+	for _, conn := range m.connections {
+		_ = conn.Close()
 	}
 }
 
@@ -273,5 +309,167 @@ func TestClose_Idempotent(t *testing.T) {
 	}
 	if err := c.Close(); err != nil {
 		t.Fatalf("second Close failed: %v", err)
+	}
+}
+
+// triggerFloodServer completes the daemon handshake, then waits for any
+// session message and floods `count` session messages of msgType (no
+// requestId, so they only reach subscribers). With count 0 it never responds,
+// which exercises request timeouts.
+type triggerFloodServer struct {
+	upgrader websocket.Upgrader
+	msgType  string
+	count    int
+}
+
+func (f *triggerFloodServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	conn, err := f.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	var hello protocol.WSInboundMessage
+	if err := conn.ReadJSON(&hello); err != nil {
+		return
+	}
+
+	_ = conn.WriteJSON(protocol.WSOutboundMessage{
+		Type: "session",
+		Message: map[string]interface{}{
+			"type":     "server_info",
+			"status":   "server_info",
+			"serverId": "flood-server",
+		},
+	})
+	_ = conn.WriteJSON(protocol.WSOutboundMessage{
+		Type:    "session",
+		Message: map[string]interface{}{"type": "providers_snapshot_update", "payload": map[string]interface{}{}},
+	})
+
+	// Wait for the flood trigger (any session message from the client).
+	for {
+		var inbound protocol.WSInboundMessage
+		if err := conn.ReadJSON(&inbound); err != nil {
+			return
+		}
+		if inbound.Type == "session" {
+			break
+		}
+	}
+
+	for i := 0; i < f.count; i++ {
+		err := conn.WriteJSON(protocol.WSOutboundMessage{
+			Type:    "session",
+			Message: map[string]interface{}{"type": f.msgType, "payload": map[string]interface{}{}},
+		})
+		if err != nil {
+			return
+		}
+	}
+
+	// Keep the connection alive until the client goes away.
+	for {
+		if _, _, err := conn.ReadMessage(); err != nil {
+			return
+		}
+	}
+}
+
+func TestDisconnect_ClosesSubscriptionChannels(t *testing.T) {
+	mock := newMockDaemonServer()
+	srv := httptest.NewServer(mock)
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	c, err := NewDaemonClient(ctx, srv.Listener.Addr().String(), "test-client")
+	if err != nil {
+		t.Fatalf("NewDaemonClient failed: %v", err)
+	}
+	defer c.Close()
+
+	sub := c.Subscribe("agent_update")
+
+	// Close the server-side connection to simulate the daemon dying.
+	mock.closeConnections()
+
+	select {
+	case _, ok := <-sub.Messages():
+		if ok {
+			t.Fatal("expected subscription channel to be closed on disconnect")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("subscription channel was not closed after disconnect")
+	}
+}
+
+func TestSubscription_DropCounting(t *testing.T) {
+	const floodCount = 100
+	flood := &triggerFloodServer{
+		upgrader: websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }},
+		msgType:  "flood_event",
+		count:    floodCount,
+	}
+	srv := httptest.NewServer(flood)
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	c, err := NewDaemonClient(ctx, srv.Listener.Addr().String(), "test-client")
+	if err != nil {
+		t.Fatalf("NewDaemonClient failed: %v", err)
+	}
+	defer c.Close()
+
+	sub := c.Subscribe("flood_event")
+
+	// Trigger the flood; the server never responds, so use a short deadline.
+	triggerCtx, triggerCancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer triggerCancel()
+	_, _ = c.Request(triggerCtx, &protocol.PingMessage{Type: "ping"})
+
+	// The consumer never reads: the 16-slot buffer fills, the rest is dropped.
+	wantDropped := floodCount - 16
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) && sub.DroppedCount() < int64(wantDropped) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if sub.DroppedCount() != int64(wantDropped) {
+		t.Fatalf("DroppedCount() = %d, want %d", sub.DroppedCount(), wantDropped)
+	}
+	if buffered := len(sub.Messages()); buffered != 16 {
+		t.Fatalf("buffered = %d, want 16", buffered)
+	}
+}
+
+func TestRequest_DefaultTimeoutApplies(t *testing.T) {
+	silent := &triggerFloodServer{
+		upgrader: websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }},
+		count:    0, // never responds
+	}
+	srv := httptest.NewServer(silent)
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	c, err := NewDaemonClient(ctx, srv.Listener.Addr().String(), "test-client", WithRequestTimeout(200*time.Millisecond))
+	if err != nil {
+		t.Fatalf("NewDaemonClient failed: %v", err)
+	}
+	defer c.Close()
+
+	// No deadline on the request context: the client's default must apply.
+	start := time.Now()
+	_, err = c.Request(context.Background(), &protocol.PingMessage{Type: "ping"})
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatal("expected timeout error for unresponsive server")
+	}
+	if elapsed > 2*time.Second {
+		t.Fatalf("Request took %v, expected ~200ms default timeout", elapsed)
 	}
 }

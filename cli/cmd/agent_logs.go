@@ -29,7 +29,7 @@ func init() {
 	agentCmd.AddCommand(agentLogsCmd)
 }
 
-func runAgentLogs(cmd *cobra.Command, args []string) error {
+func runAgentLogs(cmd *cobra.Command, args []string) error { //nolint:gocyclo // grandfathered CC=21
 	ctx := cmd.Context()
 	c, err := newClient(ctx, flagHost)
 	if err != nil {
@@ -96,7 +96,8 @@ func runAgentLogs(cmd *cobra.Command, args []string) error {
 	}
 
 	streams := c.Subscribe("agent_stream")
-	defer c.Unsubscribe("agent_stream", streams)
+	defer c.Unsubscribe(streams)
+	defer warnIfDropped(streams)
 
 	if err := errFprintln(cmdStdout, "\n--- streaming ---"); err != nil {
 		return fmt.Errorf("write output: %w", err)
@@ -104,7 +105,7 @@ func runAgentLogs(cmd *cobra.Command, args []string) error {
 
 	for {
 		select {
-		case msg := <-streams:
+		case msg := <-streams.Messages():
 			if msg == nil {
 				return nil
 			}

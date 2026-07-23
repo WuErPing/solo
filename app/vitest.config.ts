@@ -24,6 +24,7 @@ export default defineConfig({
         "**/*.config.*",
         "test-stubs/**",
         "vitest.setup.ts",
+        "**/node_modules/expo/dom/_expo/static/**",
       ],
     },
     projects: [

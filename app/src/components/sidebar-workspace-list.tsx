@@ -2412,6 +2412,7 @@ export function SidebarWorkspaceList({
       }
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- cleanup: remove stale creating-workspace IDs
     setCreatingWorkspaceIds((current) => {
       const next = new Set(current);
       for (const workspaceId of removedWorkspaceIds) {

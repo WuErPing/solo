@@ -8,8 +8,11 @@ linters:
   enable:
     - misspell
     - revive
+    - gocyclo
 
   settings:
+    gocyclo:
+      min-complexity: 20
     revive:
       rules:
         - name: blank-imports
@@ -43,6 +46,7 @@ linters:
         linters:
           - gosec
           - errcheck
+          - gocyclo
       - path: _test\.go
         text: "shadow"
         linters:

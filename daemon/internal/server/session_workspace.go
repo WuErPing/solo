@@ -406,7 +406,7 @@ func (s *Session) handleFetchWorkspaces(m *protocol.FetchWorkspacesRequest) {
 	}))
 }
 
-func (s *Session) handleDirectorySuggestions(m *protocol.DirectorySuggestionsRequest) {
+func (s *Session) handleDirectorySuggestions(m *protocol.DirectorySuggestionsRequest) { //nolint:gocyclo // grandfathered CC=24
 	cwd := m.Cwd
 	if cwd == "" {
 		cwd = "."

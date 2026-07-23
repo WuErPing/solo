@@ -6,7 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StoredSchedule } from "@server/server/schedule/types";
 import type { ScheduleAssistProposal } from "@/stores/schedule-assistant-store";
-import { ProposalCard } from "./proposal-card";
+import { ProposalCard, buildUpdateRows } from "./proposal-card";
 
 const { inspectResult, theme } = vi.hoisted(() => ({
   inspectResult: {
@@ -299,5 +299,79 @@ describe("ProposalCard", () => {
 
     expect(container?.textContent).toContain("Cancelled");
     expect(container?.querySelector('[data-testid="proposal-confirm-button"]')).toBeNull();
+  });
+});
+
+describe("buildUpdateRows", () => {
+  const baseProposal: ScheduleAssistProposal = {
+    op: "update",
+    scheduleId: "sched-1",
+    summary: "Update",
+  };
+
+  it("returns no rows when nothing changed", () => {
+    expect(buildUpdateRows({ ...baseProposal }, makeCurrentSchedule())).toEqual([]);
+  });
+
+  it("diffs a changed name against the current value", () => {
+    const rows = buildUpdateRows({ ...baseProposal, name: "Renamed" }, makeCurrentSchedule());
+    expect(rows).toContainEqual({ label: "Name", before: "Nightly", after: "Renamed" });
+  });
+
+  it("omits the name row when the name is unchanged", () => {
+    const rows = buildUpdateRows({ ...baseProposal, name: "Nightly" }, makeCurrentSchedule());
+    expect(rows.find((row) => row.label === "Name")).toBeUndefined();
+  });
+
+  it("diffs a changed prompt", () => {
+    const rows = buildUpdateRows(
+      { ...baseProposal, prompt: "New prompt" },
+      makeCurrentSchedule(),
+    );
+    expect(rows).toContainEqual({
+      label: "Prompt",
+      before: "Summarize the nightly test runs",
+      after: "New prompt",
+    });
+  });
+
+  it("diffs a changed cadence with a null before when there is no current schedule", () => {
+    const rows = buildUpdateRows(
+      { ...baseProposal, cadence: { type: "every", everyMs: 900000 } },
+      null,
+    );
+    expect(rows).toContainEqual({ label: "Cadence", before: null, after: "every 15 min" });
+  });
+
+  it("diffs a changed target", () => {
+    const rows = buildUpdateRows(
+      { ...baseProposal, target: { type: "provider", providerId: "claude" } },
+      makeCurrentSchedule(),
+    );
+    expect(rows).toContainEqual({
+      label: "Target",
+      before: "agent · agent-1",
+      after: "provider · claude",
+    });
+  });
+
+  it("diffs a changed cwd", () => {
+    const rows = buildUpdateRows({ ...baseProposal, cwd: "/new/dir" }, makeCurrentSchedule());
+    expect(rows).toContainEqual({ label: "Cwd", before: null, after: "/new/dir" });
+  });
+
+  it("diffs a changed maxRuns", () => {
+    const rows = buildUpdateRows({ ...baseProposal, maxRuns: 5 }, makeCurrentSchedule());
+    expect(rows).toContainEqual({ label: "Max runs", before: null, after: "5" });
+  });
+
+  it("diffs a changed expiresAt with a null before", () => {
+    const rows = buildUpdateRows(
+      { ...baseProposal, expiresAt: "2026-12-31T00:00:00.000Z" },
+      makeCurrentSchedule(),
+    );
+    const row = rows.find((r) => r.label === "Expires");
+    expect(row?.before).toBeNull();
+    expect(row?.after).toContain("2026");
   });
 });

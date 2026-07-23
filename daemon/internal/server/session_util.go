@@ -290,7 +290,7 @@ func matchesFetchAgentsFilter(agent protocol.AgentSnapshotPayload, project proto
 
 // extractTimelineItem converts a timeline item from either agent.TimelineItem
 // or map[string]interface{} (fallback) to agent.TimelineItem.
-func extractTimelineItem(v interface{}) agent.TimelineItem {
+func extractTimelineItem(v interface{}) agent.TimelineItem { //nolint:gocyclo // grandfathered CC=27
 	if item, ok := v.(agent.TimelineItem); ok {
 		return item
 	}

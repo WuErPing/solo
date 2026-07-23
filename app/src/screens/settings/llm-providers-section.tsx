@@ -31,6 +31,7 @@ function LLMProviderModal({ provider, visible, onSave, onClose }: LLMProviderMod
     if (!visible) {
       return;
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initialization: seed form fields from provider data
     setId(provider?.id ?? "");
     setLabel(provider?.label ?? "");
     setDescription(provider?.description ?? "");

@@ -32,6 +32,11 @@ import (
 	"github.com/WuErPing/solo/protocol"
 )
 
+// wsReadLimit bounds a single incoming WebSocket frame. Local clients send
+// base64 image attachments; 16 MB covers large photos while preventing
+// unbounded-frame memory exhaustion.
+const wsReadLimit = 16 << 20
+
 // Daemon is the core server managing WebSocket connections and agent lifecycle.
 type Daemon struct {
 	cfg              *config.Config
@@ -222,6 +227,12 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 		loopEngine:     loopEngine,
 		http: &http.Server{
 			Handler: mux,
+			// ReadHeaderTimeout bounds the upgrade-request header phase.
+			// Read/WriteTimeout are intentionally unset: WebSocket sessions
+			// are long-lived and enforce liveness via ping/pong deadlines
+			// (see session.go readPump).
+			ReadHeaderTimeout: 10 * time.Second,
+			IdleTimeout:       2 * time.Minute,
 		},
 	}
 
@@ -544,6 +555,9 @@ func (s *WSServer) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		s.logger.Error("WebSocket upgrade failed", "error", err)
 		return
 	}
+	// Bound per-connection read memory; 16 MB leaves headroom for base64
+	// image attachments while preventing unbounded-frame exhaustion.
+	conn.SetReadLimit(wsReadLimit)
 
 	s.handleNewConnection(conn)
 }
@@ -606,7 +620,7 @@ func (s *WSServer) Close() {
 }
 
 // handleNewConnection manages a single WebSocket connection lifecycle.
-func (s *WSServer) handleNewConnection(conn WSConn) {
+func (s *WSServer) handleNewConnection(conn WSConn) { //nolint:gocyclo // grandfathered CC=23
 	helloTimer := time.NewTimer(protocol.HelloTimeoutMs * time.Millisecond)
 	defer helloTimer.Stop()
 

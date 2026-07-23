@@ -160,6 +160,7 @@ function WorkspaceHoverCardDesktop({
   useEffect(() => {
     if (isDragging) {
       clearGraceTimer();
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- close hover card when drag starts
       setOpen(false);
     }
   }, [isDragging, clearGraceTimer]);
@@ -168,6 +169,7 @@ function WorkspaceHoverCardDesktop({
   useEffect(() => {
     if (!hasContent) {
       clearGraceTimer();
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- close hover card when content unavailable
       setOpen(false);
       return;
     }
@@ -248,6 +250,7 @@ function WorkspaceHoverCardContent({
       displayArea,
       offset: 4,
     });
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- position depends on async measurement result
     setPosition(result);
   }, [triggerRect, contentSize]);
 

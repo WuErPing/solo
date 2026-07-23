@@ -21,6 +21,36 @@ export interface SendAgentMessageDeps {
   getAgent: (
     agentId: string,
   ) => { status: string; persistence: AgentPersistenceHandle | null } | undefined;
+  /** Called when a send fails so the caller can surface it to the user. */
+  onError?: (error: unknown) => void;
+}
+
+/**
+ * Rolls back an optimistically-appended message from the stream maps so a
+ * failed send does not leave a phantom "sent" message in the UI.
+ */
+function removeOptimisticMessage(
+  deps: SendAgentMessageDeps,
+  agentId: string,
+  messageId: string,
+): void {
+  const filterItem = (items: StreamItem[] | undefined): StreamItem[] | undefined =>
+    items?.filter((item) => item.id !== messageId);
+
+  deps.setAgentStreamHead(deps.serverId, (prev) => {
+    const head = prev.get(agentId);
+    if (!head) return prev;
+    const updated = new Map(prev);
+    updated.set(agentId, filterItem(head) ?? []);
+    return updated;
+  });
+  deps.setAgentStreamTail(deps.serverId, (prev) => {
+    const tail = prev.get(agentId);
+    if (!tail) return prev;
+    const updated = new Map(prev);
+    updated.set(agentId, filterItem(tail) ?? []);
+    return updated;
+  });
 }
 
 export function createSendAgentMessage(deps: SendAgentMessageDeps) {
@@ -57,6 +87,8 @@ export function createSendAgentMessage(deps: SendAgentMessageDeps) {
 
     if (!deps.client) {
       console.warn("[Session] sendAgentMessage skipped: daemon unavailable");
+      removeOptimisticMessage(deps, agentId, messageId);
+      deps.onError?.(new Error("Daemon unavailable — message not sent"));
       return;
     }
 
@@ -74,6 +106,8 @@ export function createSendAgentMessage(deps: SendAgentMessageDeps) {
       })
       .catch((error) => {
         console.error("[Session] Failed to send agent message:", error);
+        removeOptimisticMessage(deps, agentId, messageId);
+        deps.onError?.(error);
       });
   };
 }

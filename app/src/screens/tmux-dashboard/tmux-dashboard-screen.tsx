@@ -285,6 +285,7 @@ function CommandHistoryCard({
 }) {
   const { theme } = useUnistyles();
   const relativeTime = useMemo(() => {
+    // eslint-disable-next-line react-hooks/purity -- memoized relative time; only recomputes when entry.lastSeen changes
     const diff = Date.now() - new Date(entry.lastSeen).getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return "just now";

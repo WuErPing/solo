@@ -22,7 +22,8 @@ import type {
   SoloWorktreeArchiveResponse,
   SessionOutboundMessage,
 } from "../shared/messages.js";
-import type { DaemonClient, CreateSoloWorktreeInput } from "./daemon-client.js";
+import type { CreateSoloWorktreeInput } from "./daemon-client.js";
+import type { ConnectionManager } from "./connection-manager.js";
 
 type CheckoutStatusPayload = CheckoutStatusResponse["payload"];
 type SubscribeCheckoutDiffPayload = Extract<
@@ -63,7 +64,7 @@ export class GitRpc {
     }
   >();
 
-  constructor(private readonly client: DaemonClient) {}
+  constructor(private readonly client: ConnectionManager) {}
 
   // ============================================================================
   // Checkout Status

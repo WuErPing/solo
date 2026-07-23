@@ -181,7 +181,7 @@ func GetProviderDefinition(provider string) (*ProviderDefinition, error) {
 }
 
 // ToProviderSnapshotEntries converts provider definitions + registry to snapshot entries.
-func (r *ProviderRegistry) ToProviderSnapshotEntries() []protocol.ProviderSnapshotEntry {
+func (r *ProviderRegistry) ToProviderSnapshotEntries() []protocol.ProviderSnapshotEntry { //nolint:gocyclo // grandfathered CC=29
 	defs := BuiltinProviderDefinitions()
 	avail := r.ListAvailable()
 	entries := make([]protocol.ProviderSnapshotEntry, 0, len(defs))

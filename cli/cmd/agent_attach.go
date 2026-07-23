@@ -50,11 +50,12 @@ func runAgentAttach(cmd *cobra.Command, args []string) error {
 
 	// Subscribe to new events
 	streams := c.Subscribe("agent_stream")
-	defer c.Unsubscribe("agent_stream", streams)
+	defer c.Unsubscribe(streams)
+	defer warnIfDropped(streams)
 
 	for {
 		select {
-		case msg := <-streams:
+		case msg := <-streams.Messages():
 			if msg == nil {
 				return nil
 			}

@@ -75,7 +75,7 @@ func nowISO() string {
 }
 
 // Create creates a new loop record and persists it.
-func (s *Store) Create(req protocol.LoopRunRequest, defaultProvider func() (string, error)) (*protocol.LoopRecord, error) {
+func (s *Store) Create(req protocol.LoopRunRequest, defaultProvider func() (string, error)) (*protocol.LoopRecord, error) { //nolint:gocyclo // grandfathered CC=22
 	if req.Prompt == "" {
 		return nil, fmt.Errorf("prompt is required")
 	}
@@ -243,7 +243,7 @@ func (s *Store) Get(id string) (*protocol.LoopRecord, bool) {
 }
 
 // Update modifies the mutable fields of a loop record.
-func (s *Store) Update(id string, input UpdateInput) (*protocol.LoopRecord, error) {
+func (s *Store) Update(id string, input UpdateInput) (*protocol.LoopRecord, error) { //nolint:gocyclo // grandfathered CC=21
 	s.mu.Lock()
 
 	r, ok := s.records[id]
@@ -716,7 +716,7 @@ func truncateString(s string, maxBytes int) string {
 	return "[truncated] " + truncated
 }
 
-func (s *Store) load() error {
+func (s *Store) load() error { //nolint:gocyclo // grandfathered CC=33; tracked for split
 	if s.dataPath == "" {
 		return nil
 	}
@@ -738,7 +738,7 @@ func (s *Store) load() error {
 	// Group records by name+cwd to identify templates
 	needsSave := false
 	templateGroups := make(map[string]string) // key: name|cwd -> templateID
-	
+
 	// First pass: collect existing template assignments by name+cwd
 	existingTemplates := make(map[string]string) // key: name|cwd -> existing templateID
 	for _, record := range data {
@@ -754,7 +754,7 @@ func (s *Store) load() error {
 			}
 		}
 	}
-	
+
 	// Second pass: assign or fix templateIDs
 	for _, record := range data {
 		name := ""
@@ -762,7 +762,7 @@ func (s *Store) load() error {
 			name = *record.Name
 		}
 		key := name + "|" + record.Cwd
-		
+
 		if record.TemplateID == "" {
 			// Record has no templateID, assign one
 			templateID, exists := templateGroups[key]
@@ -868,7 +868,7 @@ func toListItem(r *protocol.LoopRecord) protocol.LoopListItem {
 	}
 }
 
-func copyRecord(r *protocol.LoopRecord) *protocol.LoopRecord {
+func copyRecord(r *protocol.LoopRecord) *protocol.LoopRecord { //nolint:gocyclo // grandfathered CC=28
 	if r == nil {
 		return nil
 	}

@@ -37,6 +37,13 @@ jobs:
         working-directory: ${{ matrix.module }}
         run: go build -v ./...
 
+      - name: Verify CLI version injection
+        if: matrix.module == 'cli'
+        working-directory: cli
+        run: |
+          go build -ldflags "-X github.com/WuErPing/solo/cli/internal/config.Version=ci-version-check" -o /tmp/solo-cli-version-check ./
+          /tmp/solo-cli-version-check --version | grep -q "ci-version-check"
+
       - name: Go test + coverage
         working-directory: ${{ matrix.module }}
         run: go test -short -v -race -count=1 -timeout=10m -tags external_api -coverprofile=coverage.out ./...

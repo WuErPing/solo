@@ -281,3 +281,78 @@ describe("DaemonClient — fire-and-forget messages", () => {
     await cleanup();
   });
 });
+
+describe("DaemonClient — resource caps", () => {
+  it("rejects new waiters once the waiter cap is reached", async () => {
+    vi.useFakeTimers();
+    const { client, cleanup } = createConnectedClient();
+
+    const handles = [];
+    for (let i = 0; i < 500; i += 1) {
+      const handle = client.waitForWithCancel(() => null, 30000);
+      handle.promise.catch(() => undefined);
+      handles.push(handle);
+    }
+
+    const overflow = client.waitForWithCancel(() => null, 30000);
+    await expect(overflow.promise).rejects.toThrow("TooManyPendingRequests");
+
+    for (const handle of handles) {
+      handle.cancel(new Error("teardown"));
+    }
+    await cleanup();
+  });
+
+  it("drops the oldest queued send when the pending-send cap is exceeded", async () => {
+    vi.useFakeTimers();
+    const transport = new MockTransport();
+    const client = new DaemonClient({
+      url: "ws://localhost:17612",
+      clientId: "test-client-id",
+      clientType: "cli",
+      reconnect: { enabled: false },
+      transportFactory: createMockTransportFactory(transport),
+      connectTimeoutMs: 60000,
+      suppressSendErrors: true,
+    });
+
+    // Transport never opens, so the client stays in "connecting" and sends queue up.
+    void client.connect();
+
+    const internals = (
+      client as unknown as {
+        connection: {
+          sendSessionMessageOrThrow: (message: unknown) => Promise<void>;
+          pendingSendQueue: unknown[];
+          rejectPendingSendQueue: (error: Error) => void;
+        };
+      }
+    ).connection;
+
+    const message = {
+      type: "client_heartbeat",
+      payload: {
+        deviceType: "web",
+        focusedAgentId: null,
+        lastActivityAt: "2026-01-01T00:00:00Z",
+        appVisible: true,
+      },
+    };
+
+    const queued: Promise<void>[] = [];
+    for (let i = 0; i < 1000; i += 1) {
+      const pending = internals.sendSessionMessageOrThrow(message);
+      pending.catch(() => undefined);
+      queued.push(pending);
+    }
+    expect(internals.pendingSendQueue.length).toBe(1000);
+
+    const overflowSend = internals.sendSessionMessageOrThrow(message);
+    overflowSend.catch(() => undefined);
+
+    await expect(queued[0]).rejects.toThrow("Send queue overflow");
+    expect(internals.pendingSendQueue.length).toBe(1000);
+
+    internals.rejectPendingSendQueue(new Error("teardown"));
+  });
+});

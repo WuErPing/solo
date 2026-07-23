@@ -273,6 +273,7 @@ export function useCommandCenter() {
     prevOpenRef.current = open;
 
     if (!open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- initialization: reset command center state when closing
       setQuery("");
       setActiveIndex(0);
 
@@ -308,6 +309,7 @@ export function useCommandCenter() {
   useEffect(() => {
     if (!open) return;
     if (activeIndex >= items.length) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- bounds clamp after items list changes
       setActiveIndex(items.length > 0 ? items.length - 1 : 0);
     }
   }, [activeIndex, items.length, open]);

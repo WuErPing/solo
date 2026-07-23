@@ -13,6 +13,7 @@ GIT_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
 GIT_DIRTY := $(shell git diff --quiet 2>/dev/null && echo "" || echo "-dirty")
 VERSION ?= $(GIT_TAG)-dev-$(shell date +%Y%m%d%H%M%S)$(GIT_DIRTY)
 GO_LDFLAGS := -X github.com/WuErPing/solo/daemon/internal/config.Version=$(VERSION)
+CLI_GO_LDFLAGS := -X github.com/WuErPing/solo/cli/internal/config.Version=$(VERSION)
 
 .PHONY: all darwin linux clean dev dev-web dev-daemon run-daemon stop stop-all restart ci test test-go test-app typecheck lint check-schema-duplication $(BINS)
 
@@ -29,7 +30,7 @@ solo-relay:
 	GOOS=darwin GOARCH=arm64 go build -ldflags "$(GO_LDFLAGS)" -o $(OUTPUT)/darwin/$@ ./relay-go/cmd/relay
 
 solo-cli:
-	GOOS=darwin GOARCH=arm64 go build -ldflags "$(GO_LDFLAGS)" -o $(OUTPUT)/darwin/$@ ./cli
+	GOOS=darwin GOARCH=arm64 go build -ldflags "$(CLI_GO_LDFLAGS)" -o $(OUTPUT)/darwin/$@ ./cli
 
 solo-linux-amd64:
 	GOOS=linux GOARCH=amd64 go build -ldflags "$(GO_LDFLAGS)" -o $(OUTPUT)/linux/solo ./daemon
@@ -45,7 +46,7 @@ solo-relay-nodejs-docker:
 	docker build -t solo-relay:latest $(RELAY_NODEJS_DIR)
 
 solo-cli-linux-amd64:
-	GOOS=linux GOARCH=amd64 go build -ldflags "$(GO_LDFLAGS)" -o $(OUTPUT)/linux/solo-cli ./cli
+	GOOS=linux GOARCH=amd64 go build -ldflags "$(CLI_GO_LDFLAGS)" -o $(OUTPUT)/linux/solo-cli ./cli
 
 # Development targets
 

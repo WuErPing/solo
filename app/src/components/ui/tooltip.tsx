@@ -395,6 +395,7 @@ export function TooltipTrigger({
     }
 
     const childProps = child.props as Record<string, unknown>;
+    /* eslint-disable react-hooks/refs -- composing event handlers and callback refs during render is standard React pattern */
     const mergedProps = {
       ...childProps,
       ...triggerProps,
@@ -417,6 +418,7 @@ export function TooltipTrigger({
     };
 
     return cloneElement(child, mergedProps);
+    /* eslint-enable react-hooks/refs */
   }
 
   return (
@@ -451,6 +453,7 @@ export function TooltipContent({
 
   useEffect(() => {
     if (!ctx.open || !ctx.enabled || !ctx.triggerRef.current) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset measurement state when tooltip closes
       setTriggerRect(null);
       setContentSize(null);
       setPosition(null);
@@ -483,6 +486,7 @@ export function TooltipContent({
       align,
       offset,
     });
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- position depends on async measurement result
     setPosition({ x: result.x, y: result.y });
   }, [triggerRect, contentSize, side, align, offset]);
 

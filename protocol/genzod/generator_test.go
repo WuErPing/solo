@@ -445,6 +445,148 @@ type KitchenSink struct {
 	}
 }
 
+func TestGenerateMulti_DomainGroupingAndCrossDomainImports(t *testing.T) {
+	dir := writeTempFiles(t, map[string]string{
+		"message_common.go": `package protocol
+
+// genzod
+type Base struct {
+	Value int ` + "`json:\"value\"`" + `
+}
+`,
+		"message_agent_inbound.go": `package protocol
+
+// genzod
+type AgentThing struct {
+	Name  string ` + "`json:\"name\"`" + `
+	Base  Base   ` + "`json:\"base\"`" + `
+}
+`,
+		"terminal.go": `package protocol
+
+// genzod
+type TermCell struct {
+	Char string ` + "`json:\"char\"`" + `
+}
+`,
+	})
+
+	outDir := t.TempDir()
+	if err := GenerateMulti(dir, outDir); err != nil {
+		t.Fatalf("GenerateMulti failed: %v", err)
+	}
+
+	read := func(name string) string {
+		t.Helper()
+		data, err := os.ReadFile(filepath.Join(outDir, name))
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		return string(data)
+	}
+
+	base := read("protocol-schemas-base.ts")
+	if !strings.Contains(base, "export const BaseSchema = z.object({") {
+		t.Errorf("base domain file missing BaseSchema:\n%s", base)
+	}
+	if strings.Contains(base, "import {") && !strings.Contains(base, `from "zod"`) {
+		t.Errorf("base domain file should have no cross-domain imports:\n%s", base)
+	}
+
+	agent := read("protocol-schemas-agent.ts")
+	if !strings.Contains(agent, `import { BaseSchema } from "./protocol-schemas-base.js";`) {
+		t.Errorf("agent domain file missing cross-domain import:\n%s", agent)
+	}
+	if !strings.Contains(agent, "base: BaseSchema") {
+		t.Errorf("agent domain file missing BaseSchema reference:\n%s", agent)
+	}
+
+	terminal := read("protocol-schemas-terminal.ts")
+	if !strings.Contains(terminal, "export const TermCellSchema = z.object({") {
+		t.Errorf("terminal domain file missing TermCellSchema:\n%s", terminal)
+	}
+
+	barrel := read("protocol-schemas.ts")
+	for _, want := range []string{
+		`export * from "./protocol-schemas-agent.js";`,
+		`export * from "./protocol-schemas-base.js";`,
+		`export * from "./protocol-schemas-terminal.js";`,
+	} {
+		if !strings.Contains(barrel, want) {
+			t.Errorf("barrel missing %q:\n%s", want, barrel)
+		}
+	}
+}
+
+func TestGenerateMulti_UnmatchedFilesFallBackToBaseDomain(t *testing.T) {
+	dir := writeTempFiles(t, map[string]string{
+		"unmatched_prefix.go": `package protocol
+
+// genzod
+type Odd struct {
+	ID string ` + "`json:\"id\"`" + `
+}
+`,
+	})
+
+	outDir := t.TempDir()
+	if err := GenerateMulti(dir, outDir); err != nil {
+		t.Fatalf("GenerateMulti failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(outDir, "protocol-schemas-base.ts"))
+	if err != nil {
+		t.Fatalf("expected base domain file: %v", err)
+	}
+	if !strings.Contains(string(data), "export const OddSchema = z.object({") {
+		t.Errorf("base domain file missing OddSchema:\n%s", data)
+	}
+
+	barrel, err := os.ReadFile(filepath.Join(outDir, "protocol-schemas.ts"))
+	if err != nil {
+		t.Fatalf("expected barrel file: %v", err)
+	}
+	if !strings.Contains(string(barrel), `export * from "./protocol-schemas-base.js";`) {
+		t.Errorf("barrel missing base re-export:\n%s", barrel)
+	}
+}
+
+func TestGenerateMulti_PreservesTopologicalOrderWithinDomain(t *testing.T) {
+	dir := writeTempFiles(t, map[string]string{
+		"message_common.go": `package protocol
+
+// genzod
+type Outer struct {
+	Inner Inner ` + "`json:\"inner\"`" + `
+}
+
+// genzod
+type Inner struct {
+	Value int ` + "`json:\"value\"`" + `
+}
+`,
+	})
+
+	outDir := t.TempDir()
+	if err := GenerateMulti(dir, outDir); err != nil {
+		t.Fatalf("GenerateMulti failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(outDir, "protocol-schemas-base.ts"))
+	if err != nil {
+		t.Fatalf("read base domain file: %v", err)
+	}
+	out := string(data)
+	innerIdx := strings.Index(out, "export const InnerSchema")
+	outerIdx := strings.Index(out, "export const OuterSchema")
+	if innerIdx == -1 || outerIdx == -1 {
+		t.Fatalf("missing schema declarations:\n%s", out)
+	}
+	if innerIdx > outerIdx {
+		t.Errorf("InnerSchema must be defined before OuterSchema:\n%s", out)
+	}
+}
+
 func TestGenerate_EmptyStruct(t *testing.T) {
 	dir := writeTempFiles(t, map[string]string{
 		"empty.go": `package protocol

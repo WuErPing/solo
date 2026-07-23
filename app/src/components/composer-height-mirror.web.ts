@@ -39,7 +39,9 @@ export function useComposerHeightMirror({
   onHeight,
 }: Args): void {
   const paramsRef = useRef({ value, minHeight, maxHeight, onHeight });
-  paramsRef.current = { value, minHeight, maxHeight, onHeight };
+  useEffect(() => {
+    paramsRef.current = { value, minHeight, maxHeight, onHeight };
+  });
 
   const mirrorRef = useRef<HTMLTextAreaElement | null>(null);
 

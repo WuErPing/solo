@@ -7,12 +7,50 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
 
 	"github.com/WuErPing/solo/protocol"
 )
+
+const (
+	// DefaultRequestTimeout bounds Request calls whose context carries no deadline.
+	DefaultRequestTimeout = 30 * time.Second
+
+	// Keepalive: ping every 25s; if no pong (or any traffic) arrives within
+	// 60s the connection is considered dead and the read pump exits.
+	wsPingInterval = 25 * time.Second
+	wsPongWait     = 60 * time.Second
+)
+
+// Subscription is a handle to a fan-out channel for one outbound message type.
+type Subscription struct {
+	msgType string
+	ch      chan *protocol.WSOutboundMessage
+	dropped atomic.Int64
+}
+
+// Messages returns the receive channel. It is closed when the connection ends.
+func (s *Subscription) Messages() <-chan *protocol.WSOutboundMessage { return s.ch }
+
+// DroppedCount reports how many messages were dropped for this subscription
+// because the consumer could not keep up.
+func (s *Subscription) DroppedCount() int64 { return s.dropped.Load() }
+
+// Option configures a DaemonClient.
+type Option func(*DaemonClient)
+
+// WithRequestTimeout overrides the default RPC timeout applied to Request
+// calls whose context carries no deadline.
+func WithRequestTimeout(d time.Duration) Option {
+	return func(c *DaemonClient) {
+		if d > 0 {
+			c.requestTimeout = d
+		}
+	}
+}
 
 // DaemonClient is a WebSocket client that connects to a Solo daemon.
 type DaemonClient struct {
@@ -21,12 +59,14 @@ type DaemonClient struct {
 	wsURL    string
 	logger   *slog.Logger
 
+	requestTimeout time.Duration
+
 	mu        sync.Mutex
 	pending   map[string]chan *protocol.WSOutboundMessage // requestId -> response channel
 	nextReqID uint64
 
 	subMu       sync.RWMutex
-	subscribers map[string][]chan *protocol.WSOutboundMessage // inner msgType -> channels
+	subscribers map[string][]*Subscription // inner msgType -> subscriptions
 
 	providersSnapshot *protocol.ProvidersSnapshotPayload
 	serverInfo        *protocol.ServerInfoPayload
@@ -36,19 +76,23 @@ type DaemonClient struct {
 }
 
 // NewDaemonClient connects to the daemon, performs the hello handshake, and starts the read pump.
-func NewDaemonClient(ctx context.Context, host, clientID string) (*DaemonClient, error) {
+func NewDaemonClient(ctx context.Context, host, clientID string, opts ...Option) (*DaemonClient, error) {
 	wsURL, err := ResolveHost(host)
 	if err != nil {
 		return nil, fmt.Errorf("resolve host: %w", err)
 	}
 
 	c := &DaemonClient{
-		wsURL:       wsURL,
-		clientID:    clientID,
-		pending:     make(map[string]chan *protocol.WSOutboundMessage),
-		subscribers: make(map[string][]chan *protocol.WSOutboundMessage),
-		logger:      slog.Default().With("component", "client"),
-		done:        make(chan struct{}),
+		wsURL:          wsURL,
+		clientID:       clientID,
+		requestTimeout: DefaultRequestTimeout,
+		pending:        make(map[string]chan *protocol.WSOutboundMessage),
+		subscribers:    make(map[string][]*Subscription),
+		logger:         slog.Default().With("component", "client"),
+		done:           make(chan struct{}),
+	}
+	for _, opt := range opts {
+		opt(c)
 	}
 
 	// Dial WebSocket
@@ -143,7 +187,19 @@ func (c *DaemonClient) GenerateRequestID() string {
 }
 
 // Request sends a session inbound message and waits for the matching response.
+// If ctx carries no deadline, DefaultRequestTimeout (or WithRequestTimeout)
+// bounds the wait so an unresponsive daemon cannot hang the caller forever.
 func (c *DaemonClient) Request(ctx context.Context, msg protocol.SessionInboundMessage) (*protocol.WSOutboundMessage, error) {
+	if _, ok := ctx.Deadline(); !ok {
+		timeout := c.requestTimeout
+		if timeout <= 0 {
+			timeout = DefaultRequestTimeout
+		}
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
 	reqID := c.GenerateRequestID()
 
 	// Set the request ID on the message via reflection on the struct
@@ -181,23 +237,35 @@ func (c *DaemonClient) Request(ctx context.Context, msg protocol.SessionInboundM
 	}
 }
 
-// Subscribe registers for a specific outbound message type and returns a channel.
-func (c *DaemonClient) Subscribe(msgType string) <-chan *protocol.WSOutboundMessage {
-	ch := make(chan *protocol.WSOutboundMessage, 16)
+// Subscribe registers for a specific outbound message type and returns a
+// Subscription handle. The handle's Messages channel is closed when the
+// connection ends, so consumers can observe disconnects.
+func (c *DaemonClient) Subscribe(msgType string) *Subscription {
+	sub := &Subscription{msgType: msgType, ch: make(chan *protocol.WSOutboundMessage, 16)}
 	c.subMu.Lock()
-	c.subscribers[msgType] = append(c.subscribers[msgType], ch)
+	select {
+	case <-c.done:
+		// Connection already ended; hand back a closed channel.
+		close(sub.ch)
+	default:
+		c.subscribers[msgType] = append(c.subscribers[msgType], sub)
+	}
 	c.subMu.Unlock()
-	return ch
+	return sub
 }
 
-// Unsubscribe removes a subscription channel.
-func (c *DaemonClient) Unsubscribe(msgType string, ch <-chan *protocol.WSOutboundMessage) {
+// Unsubscribe removes a subscription. It is safe to call after the
+// subscription channel has been closed by a disconnect.
+func (c *DaemonClient) Unsubscribe(sub *Subscription) {
+	if sub == nil {
+		return
+	}
 	c.subMu.Lock()
 	defer c.subMu.Unlock()
-	subs := c.subscribers[msgType]
+	subs := c.subscribers[sub.msgType]
 	for i, s := range subs {
-		if s == ch {
-			c.subscribers[msgType] = append(subs[:i], subs[i+1:]...)
+		if s == sub {
+			c.subscribers[sub.msgType] = append(subs[:i], subs[i+1:]...)
 			return
 		}
 	}
@@ -230,6 +298,38 @@ func (c *DaemonClient) readPump() {
 			delete(c.pending, id)
 		}
 		c.mu.Unlock()
+		// Close all subscription channels so consumers observe the disconnect.
+		c.subMu.Lock()
+		for msgType, subs := range c.subscribers {
+			for _, sub := range subs {
+				close(sub.ch)
+			}
+			delete(c.subscribers, msgType)
+		}
+		c.subMu.Unlock()
+	}()
+
+	// Keepalive: bound the read so a silently dead daemon is detected, and
+	// ping periodically so the daemon's own idle detection sees traffic.
+	_ = c.conn.SetReadDeadline(time.Now().Add(wsPongWait))
+	c.conn.SetPongHandler(func(string) error {
+		_ = c.conn.SetReadDeadline(time.Now().Add(wsPongWait))
+		return nil
+	})
+	pingTicker := time.NewTicker(wsPingInterval)
+	defer pingTicker.Stop()
+	go func() {
+		for {
+			select {
+			case <-pingTicker.C:
+				// WriteControl is safe to call concurrently with WriteJSON.
+				if err := c.conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
+					return
+				}
+			case <-c.done:
+				return
+			}
+		}
 	}()
 
 	for {
@@ -282,14 +382,16 @@ func (c *DaemonClient) readPump() {
 			c.mu.Unlock()
 		}
 
-		// Fan out to subscribers
+		// Fan out to subscribers, counting drops per subscription instead of
+		// silently losing messages.
 		c.subMu.RLock()
 		subs := c.subscribers[innerType]
 		c.subMu.RUnlock()
-		for _, ch := range subs {
+		for _, sub := range subs {
 			select {
-			case ch <- &msg:
+			case sub.ch <- &msg:
 			default:
+				sub.dropped.Add(1)
 			}
 		}
 	}

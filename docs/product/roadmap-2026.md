@@ -1,8 +1,8 @@
 # Solo 2026 产品/技术路线图（AI-Native 工位版）
 
 > **文档类型**：统一产品路线图
-> **版本**：v2.5
-> **日期**：2026-07-07
+> **版本**：v2.6
+> **日期**：2026-07-22
 > **基线版本**：Solo v0.6.3
 > **目标读者**：产品、技术负责人、核心开发者、投资者
 > **关联文档**：
@@ -75,6 +75,65 @@
 - **Artifact 概念强化 Project Memory 定位**：Solo 的 AGENTS.md / CLAUDE.md / 代码地图 / ADR 不仅是配置，而是 Saboo 所说的”可投资资产”——被复用时产生复利，但需要版本化、评估、防 drift。
 - **三大暗面风险必须纳入设计**：验证债（Loop 声称”完成”但实际未达标）、理解债（开发者不阅读 Loop 产出导致系统认知退化）、认知投降（对 Loop 输出照单全收）是 Solo 的 Human Confirm Gate / Intervention Primitive 必须对抗的系统性风险。
 
+### 0.8 开发方法论基础：PADD × 控制论 × 全栈矩阵
+
+Solo 的开发方法论建立在三个相互支撑的理论框架之上，它们共同回答”做什么、怎么做、谁来做、如何验证”：
+
+#### 0.8.1 PADD：产品与架构双驱动
+
+Solo 采用 **Product & Architecture Driven Development（PADD）**——产品价值为北极星，架构约束为长期底座，双线并行、相互制衡：
+
+- **产品侧**回答”做什么、先做什么”：项目为锚点的上下文聚合、AI-Native 工位、背景值守。
+- **架构侧**回答”怎么做、边界在哪”：四层聚合模型、External Agent Bus 协议、分层验证体系。
+- **冲突协商规则**：短期迭代允许适度妥协，但所有妥协必须记录在 ADR（Architecture Decision Record），设定偿还时间窗口；架构方案必须绑定产品路线图，不设计产品永远用不上的能力。
+
+> **对 Solo 的启示**：每个季度路线图评审必须同时通过产品影响评审与架构影响评审。需求变更不是”产品说了算”或”架构说了算”，而是双向评审后协商。
+
+#### 0.8.2 工程控制论：AI Coding 的本质
+
+AI Coding 的工程本质是**控制论**——通过反馈机制，在不确定环境中维持期望的稳态。Solo 的 Loop / Agent Bus / Verification 体系本质上是控制论四要素的实现：
+
+| 控制论要素 | Solo 实现 |
+|:----:|:-----|
+| **约束** | AGENTS.md / 架构规则 / 权限边界 / 沙箱 / 执行前后 hook |
+| **反馈** | 编译 → 测试 → E2E → LLM-as-judge → 业务指标（六层验证，§4.6） |
+| **评估** | Sprint Contract / 验收条件 / 结构化评分卡 |
+| **演化** | 失败案例 → 新约束 / 新测试 / 规则迭代（Self-improvement） |
+
+> **核心洞察**：LLM 首次让”传感器”（语义理解/评估）和”执行器”（代码生成/重构）在语义层统一，使得软件创造层的反馈回路得以闭合。Solo 的工作是为这个回路构建可控的”调速器”。
+
+#### 0.8.3 全栈矩阵：人 × 任务 × 组织的匹配
+
+Solo 团队的任务分配与能力建设遵循**全栈矩阵**（三维度 × 三层级）：
+
+- **横轴（问题尺码 S–XXL）**：由影响（错了会怎样）× 规模（跑起来多大）× 上下文（懂它要多少背景）三维取最高档。Solo 当前核心功能多在 L–XL 码（核心业务模块 / 平台级服务）。
+- **纵轴（能力层级 L1–L3）**：L1 技能全栈（实现面齐）→ L2 职能全栈（交付链齐）→ L3 领域全栈（领域判断齐）。
+- **AI 时代的刻度变化**：L1 被压缩（生成商品化），单人可承载尺码上移（OPC 成立），L3 验证价值上升（生成变便宜，验证成瓶颈）。
+
+> **对 Solo 的启示**：
+> - 季度路线图中的每个功能应标注问题尺码（S–XXL），用于匹配执行者层级。
+> - Solo 自身的开发团队应优先在左下区（S~M）试行组织先行（端到端交付），在右上区（XL~XXL）坚持工具先行（先建验证器和约束体系再调组织）。
+> - Solo 作为产品，其价值正是帮助外部开发者在各自项目中实现”AI 放大单人承载尺码”——从 L1/M 上移到 L2/L。
+
+#### 0.8.4 三框架协同
+
+```
+PADD（做什么 + 底线）
+  ├── 产品侧：路线图优先级、用户价值、PR/FAQ
+  └── 架构侧：约束体系、ADR、分层验证
+        │
+控制论（怎么跑）
+  ├── 约束 → 反馈 → 评估 → 演化
+  └── Loop Engineering 是控制论在 AI Coding 的具体实现
+        │
+全栈矩阵（谁来做 + 做多大）
+  ├── 问题尺码定任务难度
+  ├── 能力层级定执行者
+  └── 容错率定变革顺序
+```
+
+三者统一于一个闭环：**PADD 定义目标与约束 → 控制论驱动执行与验证 → 全栈矩阵匹配人与任务 → 验证结果反馈回 PADD 的下一轮对齐**。
+
 ---
 
 ## 1. 核心理念：以项目为锚点，释放个人生产效率
@@ -120,6 +179,9 @@ AI coding agent 放大了这个问题：
 | **OODA 循环** | John Boyd | Loop Schedule 的 Observe-Orient-Decide-Act 循环：观察 workspace → 判断状态 → LLM 决策 → 执行 step。 |
 | **ReAct / Reflexion** | Yao et al. / Shinn et al. | agent 通过”推理→行动→观察”循环迭代，失败时反思并调整策略。 |
 | **Loop Engineering** | Andrew Ng / Boris Cherny / Shubham Saboo | 三层循环（分钟/小时/天周）× 五要素（Trigger/Action/Proof/Memory/Stop）× 六大构建块；Solo Loop 是内环实现，Project Memory 是 artifact 载体，Human Confirm Gate 是 Stop 条件的工程化。 |
+| **PADD（产品架构双驱动）** | 自研范式 | 产品价值为北极星、架构约束为底座；需求变更双向评审（产品影响 + 架构影响）；妥协记录在 ADR 并设偿还窗口；拒绝过度设计。 |
+| **全栈矩阵（三维度 × 三层级）** | 自研框架 | 问题尺码（S–XXL）定任务难度，能力层级（L1–L3）定执行者；容错率定变革顺序（左下组织先行、右上工具先行）；AI 压缩 L1、放大单人承载、提升 L3 验证价值。 |
+| **工程控制论** | Norbert Wiener / 工程实践 | 约束 → 反馈 → 评估 → 演化四要素；LLM 首次闭合语义层反馈回路；分层验证（静态→测试→运行时→非功能→语义→价值）驾驭概率性生成。 |
 
 ### 1.4 业界实践映射
 
@@ -484,6 +546,43 @@ Coordinator 接收结构化意图后拆解并分发：
 - **PR / Merge**：发起 PR、review、合并，全程在 App 内。
 - **沉淀**：本次开发的 ADR、代码地图更新、偏好、失败案例回流到 Project Memory。
 
+### 4.6 分层验证体系与架构治理
+
+Solo 的质量保障不是单点测试，而是**六层递进验证体系**——成本递增、确定性递减，但覆盖面逐层逼近真实业务价值。每一层都对应控制论中的"传感器"，为 LLM 的概率性输出提供确定性信号。
+
+#### 4.6.1 六层验证模型
+
+| 层次 | 验证方式 | 验证对象 | 成本 | 确定性 | Solo 落地 |
+|:----:|:-------|:-------|:----:|:----:|:-----|
+| **静态验证** | 编译器 + 类型检查 + linter | 语法正确性 | 极低 | 极高 | Go build / tsc --noEmit / eslint / golangci-lint |
+| **测试验证** | 单元测试 + 集成测试 | 行为正确性（用例范围内） | 低 | 较高 | go test -race / vitest / 覆盖率门控 |
+| **运行时验证** | E2E、Playwright、MCP 工具 | 真实用户场景 | 中 | 中高 | Playwright E2E / In-App Test Runner |
+| **非功能验证** | 混沌工程、故障注入、性能压测 | 稳定性、容错、降级、自愈 | 中高 | 中高 | daemon 崩溃恢复测试 / 网络分区模拟 / 负载测试 |
+| **语义验证** | LLM 评估器 + 结构化评分 | 质量、意图符合度、设计合理性 | 中 | 中高 | LLM-as-judge 审查 Agent 产出 / Sprint Contract 评分 |
+| **价值验证** | 业务指标、A/B 测试、人工终审 | 是否解决真实问题 | 高 | 中 | 用户留存 / 上下文切换时间节省 / Loop 自主完成率 |
+
+> **生成-验证不对称性**：判断一个解的质量所需的搜索空间，远小于从零生成该解。验证不需要 100% 确定，只需要比生成更便宜、更稳定。Solo 的 In-App Verification 层（§4.5.4）正是这个不对称性的工程化。
+
+#### 4.6.2 验证体系与 AI-Native 工位的映射
+
+| 验证层 | 在 Solo 工位中的触发点 |
+|:----:|:-----|
+| 静态 + 测试 | Agent 每次提交前自动运行（CI 快速失败）；In-App Test Runner 按需触发 |
+| 运行时 | Loop 的 `test` / `e2e` step；Staging Preview 截图对比 |
+| 非功能 | daemon 健康检查；Loop 超时 / 崩溃恢复测试；定期压测 |
+| 语义 | 分离审查 Agent（不让 worker 自评）；LLM-as-judge 对 diff 评分 |
+| 价值 | 新闻稿验收（PR/FAQ 兑现度）；KPI 仪表盘；人工终审 |
+
+#### 4.6.3 架构治理：ADR 与漂移检测
+
+PADD 要求架构约束是"活的"——不是一次性设计文档，而是持续校验的基线：
+
+- **ADR（Architecture Decision Record）**：每个架构决策（含妥协）记录为 ADR，包含上下文、决策、后果、偿还时间窗口。Solo 项目记忆原生支持 ADR 索引与检索。
+- **漂移检测**：定期（每季度 / 每次大版本后）校验实现是否符合架构约束。信号包括：模块边界被绕过、依赖方向反转、接口契约被破坏。
+- **主动演化**：根据产品路线图主动迭代架构，而非被动救火重构。架构方案必须绑定产品中长期路线图，不设计产品永远用不上的能力。
+
+> **Solo 自身的实践**：Solo 的 `docs/analysis/` 目录存放架构映射文档；每次重大架构变更（如 Tmux Dashboard → External Agent Bus 升级）必须产出 ADR 并更新架构映射。
+
 ---
 
 ## 5. 三大产品支柱（AI-Native 工位视角）
@@ -587,6 +686,8 @@ Coordinator 接收结构化意图后拆解并分发：
 
 **主题**：以项目工作目录为入口，把 Tmux Dashboard 升级为 External Agent Bus，落地 Provider Hub 核心能力与 Loop 基础循环，让 Web/App 开始具备 AI-Native 工位的"观测 + 干预"能力；紧跟 MCP 标准化浪潮。
 
+> **问题尺码分布**（§0.8.3）：External Agent Bus 升级、Agent Execution Stream、Inline Intervention 属 **XL 码**（平台级服务，影响 L / 规模 L / 上下文 L），需 L2~L3 层级执行，工具先行；Provider Hub、Loop 基础、Onboarding 属 **L 码**（核心业务模块），需 L2 层级；MCP 管理、Config Exporter 属 **M 码**，L1~L2 即可。本季度变革策略：XL 码功能先建协议与验证器（工具先行），L/M 码功能端到端交付（组织先行）。
+
 | 优先级 | 功能 | 里程碑 | 成功标准 |
 |--------|------|--------|----------|
 | P0 | **项目 Onboarding 自动索引** | 首次打开项目生成代码地图、技术栈摘要、AGENTS.md 草案 | 新项目上手时间减半 |
@@ -607,6 +708,8 @@ Coordinator 接收结构化意图后拆解并分发：
 ### Q4 2026：Loop 自治 + Intent Normalizer + In-App Verification Phase 1
 
 **主题**：让 Loop 真正自治，落地 Intent Normalizer 把多模态输入归一化为结构化 Agent 指令，让 In-App Diff Review 与 Test Runner 成为验收闭环的基础，同时完善 Provider Hub、成本治理与 MCP 安全。
+
+> **问题尺码分布**：Loop Controller 决策优化、Intervention Primitive 属 **XL 码**（影响 L：错误操作不可逆；上下文 L：跨多状态机），需 L2~L3 + 工具先行；Intent Normalizer、In-App Diff Review 属 **L 码**，需 L2；智能路由、MCP Attestation 属 **M~L 码**。本季度重点：XL 码功能的验证器必须先于功能本身就绪（六层验证中语义验证层落地）。
 
 | 优先级 | 功能 | 里程碑 | 成功标准 |
 |--------|------|--------|----------|
@@ -629,6 +732,8 @@ Coordinator 接收结构化意图后拆解并分发：
 
 **主题**：从单 Agent 到多 Agent，从个人到团队；A2A 与 MCP Apps 进入实用阶段；补全 AI-Native 工位最后两块拼图——Staging Preview 与截图入 Agent，让 Web/App 端到端闭环开发流程。
 
+> **问题尺码分布**：多 Agent 协作（Coordinator + Specialist）、A2A 适配属 **XL~XXL 码**（跨组织上下文、多系统状态纠缠），需 L3 主导；Project Memory Phase 2、PR 自动审查属 **L 码**；Staging Preview、截图入 Agent 属 **M~L 码**。本季度进入右上区治理阶段：XXL 码功能必须由 L3 把关人主导，先建 A2A 信任模型与验证器再扩展。
+
 | 优先级 | 功能 | 里程碑 | 成功标准 |
 |--------|------|--------|----------|
 | P0 | Chat / 多 Agent 协作 | Coordinator + Specialist 模式 | 复杂任务分解成功率 > 80% |
@@ -645,6 +750,8 @@ Coordinator 接收结构化意图后拆解并分发：
 ### Q2 2027：生态与规模化
 
 **主题**：开放生态、性能优化、企业级能力。
+
+> **问题尺码分布**：Marketplace、企业 SSO / 审计属 **XL~XXL 码**（行业级基础设施、合规要求），需 L3 + 工具先行；性能优化、MCP Registry 集成属 **L 码**；云端同步选项属 **M 码**。本季度全面进入治理区：XXL 码功能（企业合规、跨公司生态）必须验证器完备后才可上线。
 
 | 优先级 | 功能 | 里程碑 | 成功标准 |
 |--------|------|--------|----------|
@@ -783,6 +890,8 @@ Project CWD
 | **理解债**（Loop 产出代码的速度远超开发者理解代码的速度） | 中 | Agent Execution Stream 实时渲染执行过程；In-App Diff Review 强制可读；项目记忆沉淀 ADR 与变更摘要；定期 "code comprehension review" 机制。 |
 | **认知投降**（开发者对 Loop 输出照单全收，停止主动判断） | 中 | Intervention Primitive 要求人在关键节点介入；审批策略默认 `dangerous-only` 而非 `auto`；推送通知在 Loop 完成/失败时主动提醒审查；文档化 "Build the loop, but stay the PM" 原则。 |
 | **Artifact Drift**（AGENTS.md / 项目规则 / eval rubric 随时间漂移而无人监控） | 中 | Project Memory 版本化每个 artifact 变更（Storage 只留最新版 ≠ Memory 留每一版）；定期 eval 对照测试（3 强 + 3 弱样本）；artifact 变更自动关联 decision log；CI 中校验 artifact 一致性。 |
+| **架构漂移**（实现逐渐偏离架构约束，模块边界被绕过、依赖方向反转） | 高 | ADR 记录每个架构决策与妥协；每季度架构漂移检测（模块边界 / 依赖方向 / 接口契约）；重大变更必须产出 ADR 并更新架构映射文档；CI 中增加依赖方向校验。 |
+| **PADD 失衡**（产品侧与架构侧单向妥协：要么为赶工期破坏架构底线，要么为完美架构忽视业务落地） | 中 | 需求变更强制双向评审（产品影响 + 架构影响）；妥协必须记录在 ADR 并设偿还时间窗口；架构方案必须绑定产品路线图，拒绝过度设计；季度回顾检查 ADR 偿还进度。 |
 
 ---
 
@@ -817,6 +926,13 @@ Project CWD
 14. **Inline Intervention Protocol 设计**：定义人插入指令打断 Agent 的消息协议、状态机转换规则、与 Loop Schedule 状态机的统一方案。
 15. **Intent Normalizer 原型**：基于 LLM function calling + 结构化输出，把 5–10 种典型口语化输入样本改写为结构化 Agent 指令，验证准确率与延迟。
 
+### 方法论与治理（新）
+
+16. **建立 ADR 实践**：在 `docs/adr/` 目录建立 ADR 模板与索引；为近期重大决策（Tmux → Agent Bus 升级、Provider Hub 进程模型、Intent Normalizer 方案选型）补写 ADR。
+17. **季度路线图问题尺码标注**：为 Q3–Q4 每个 P0/P1 功能标注问题尺码（S–XXL），用于匹配执行者层级与验证深度。
+18. **六层验证管线 MVP**：确认当前 CI 覆盖了哪几层（静态 + 测试 + 运行时），识别非功能验证与语义验证的缺口，制定补齐计划。
+19. **PADD 双向评审机制**：在下一次需求评审中试行"产品影响 + 架构影响"双清单，验证流程可行性并迭代。
+
 ---
 
 ## 11. 文档索引
@@ -847,3 +963,4 @@ Project CWD
 | 2026-06-25 | v2.3 | **AI-Native 工位重构**。Solo 定位升级为外部 AI Coding Agent 的 **Meta-Agent 编排层**（§1.7）；新增 AI-Native 工位四层模型 Intent / Orchestration / Observable Execution / In-App Verification（§4.5）；Tmux Dashboard 升级为 External Agent Bus（§4.3 / §5.1）；重写三大支柱（§5）；季度路线图新增 Agent Bus 升级、Execution Stream、Intervention、Intent Normalizer、In-App Diff Review、Staging Preview、截图入 Agent；Config Exporter 降 P2；Solo 不自研 STT；新增 5 项 AI-Native KPI、3 项风险、5 项行动项 |
 | 2026-06-25 | v2.4 | **清晰度优化**：统一"Agent/agent"大小写规范（中文行文一律使用大写 Agent）；修复 §4 ASCII 图"交互层 (原)"等不规整标签；删除 §4 / §5 引言中的章节自指（"延续 §X–Y"、"新增 §X"）；§1.7.6 去除逐节前瞻；§8 KPIs 按主题分组为四类（项目上下文与记忆 / Provider 与工具治理 / Agent 执行与自治 / 平台健康与增长）；§10 近期行动项按主题分组为四类（架构决策 / Loop 与 Protocol / Provider 与 Agent 接入 / AI-Native 工位） |
 | 2026-07-07 | v2.5 | **Loop Engineering 行业趋势整合**：新增 §0.7 "Loop Engineering 成为行业共识"，引入 Andrew Ng 三层循环模型（内环/中环/外环）、Saboo 五要素框架（Trigger/Action/Proof/Memory/Stop）与 artifact 概念、Osmani 三大暗面风险（验证债/理解债/认知投降）；§1.3 思想框架表新增 Loop Engineering 行；§4.3 扩展 Loop Schedule 描述以映射三层循环模型；§9 新增验证债、理解债、认知投降、Artifact Drift 四项风险；合并 `loop-schedule-design.md` 和 `loop-schedule-deep-dive.md` 内容到 `loop-schedule-spec.md` 附录并删除原文档 |
+| 2026-07-22 | v2.6 | **开发方法论基础整合**：新增 §0.8 "开发方法论基础：PADD × 控制论 × 全栈矩阵"，建立产品架构双驱动（PADD）、工程控制论四要素、全栈矩阵（S–XXL × L1–L3）三框架协同；§1.3 思想框架表新增 PADD / 全栈矩阵 / 工程控制论三行；新增 §4.6 "分层验证体系与架构治理"（六层验证模型 + 验证与工位映射 + ADR 与漂移检测）；§9 新增架构漂移、PADD 失衡两项风险；§10 新增"方法论与治理"行动项分组（ADR 实践 / 问题尺码标注 / 六层验证管线 / PADD 双向评审） |

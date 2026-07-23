@@ -124,6 +124,7 @@ function TmuxPaneScreenInner() {
       const id = setTimeout(() => setLoadTimedOut(true), 8000);
       return () => clearTimeout(id);
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset timeout flag when loading completes
     setLoadTimedOut(false);
   }, [isLoading, content]);
 

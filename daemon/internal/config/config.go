@@ -180,6 +180,9 @@ func Load() (*Config, error) {
 	// Load persisted config
 	configPath := filepath.Join(home, "config.json")
 	if data, err := os.ReadFile(configPath); err == nil {
+		// The config may contain provider API keys; tighten permissions on
+		// files created before the 0600 default. Best-effort.
+		_ = os.Chmod(configPath, 0600)
 		var pc PersistedConfig
 		if err := json.Unmarshal(data, &pc); err == nil {
 			applyPersistedConfig(cfg, &pc)
@@ -226,7 +229,7 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-func applyPersistedConfig(cfg *Config, pc *PersistedConfig) {
+func applyPersistedConfig(cfg *Config, pc *PersistedConfig) { //nolint:gocyclo // grandfathered CC=22
 	if pc.Daemon != nil {
 		if pc.Daemon.Listen != nil {
 			cfg.Listen = *pc.Daemon.Listen
@@ -337,7 +340,12 @@ func (c *Config) Save() error {
 	if err := os.MkdirAll(c.SoloHome, 0755); err != nil {
 		return fmt.Errorf("create solo home: %w", err)
 	}
-	return os.WriteFile(configPath, data, 0644)
+	// The config may contain provider API keys: create owner-only, and chmod
+	// explicitly because WriteFile's mode only applies when creating the file.
+	if err := os.WriteFile(configPath, data, 0600); err != nil {
+		return err
+	}
+	return os.Chmod(configPath, 0600)
 }
 
 func generateID() string {

@@ -80,6 +80,7 @@ export function ScheduleEditModal({ visible, onClose, serverId, schedule, onOpen
 
   useEffect(() => {
     if (!schedule) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initialization: seed form fields from schedule data
     setName(schedule.name ?? "");
     setCwd(schedule.cwd ?? "");
     setPrompt(schedule.prompt);

@@ -9,7 +9,8 @@ import type {
   KillTerminalResponse,
   CaptureTerminalResponse,
 } from "../shared/messages.js";
-import type { DaemonClient, TerminalStreamEvent } from "./daemon-client.js";
+import type { TerminalStreamEvent } from "./daemon-client.js";
+import type { ConnectionManager } from "./connection-manager.js";
 import { getDefaultLogger, toErrorInfo } from "../shared/logger.js";
 import {
   decodeTerminalSnapshotPayload,
@@ -93,7 +94,7 @@ export class TerminalRpc {
   private terminalDirectorySubscriptions = new Set<string>();
   private readonly terminalStreamListeners = new Set<(event: TerminalStreamEvent) => void>();
 
-  constructor(private readonly client: DaemonClient) {}
+  constructor(private readonly client: ConnectionManager) {}
 
   // ============================================================================
   // Audio / Voice

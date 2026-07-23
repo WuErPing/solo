@@ -323,6 +323,7 @@ export function StartupSplashScreen({ bootstrapState }: StartupSplashScreenProps
 
   useEffect(() => {
     if (!isError) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset logs state when not in error phase
       setDaemonLogs(null);
       setLogsError(null);
       setIsLoadingLogs(false);

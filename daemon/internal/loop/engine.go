@@ -104,7 +104,7 @@ func (e *Engine) resumeAll() {
 	}
 }
 
-func (e *Engine) run(ctx context.Context, id string) {
+func (e *Engine) run(ctx context.Context, id string) { //nolint:gocyclo // grandfathered CC=25
 	defer func() {
 		if r := recover(); r != nil {
 			e.logger.Error("loop panic recovered", "loopId", id, "panic", r)

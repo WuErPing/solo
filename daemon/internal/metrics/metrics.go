@@ -41,6 +41,20 @@ var (
 		Name: "solo_daemon_timeline_rows_dropped_total",
 		Help: "Total number of timeline rows dropped due to per-agent limits",
 	})
+
+	// SendQueueDepth tracks the total number of outbound messages currently
+	// queued across all session send queues.
+	SendQueueDepth = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "solo_daemon_send_queue_depth",
+		Help: "Current number of outbound messages queued across all sessions",
+	})
+
+	// SendQueueDroppedTotal counts outbound messages dropped because a session
+	// send queue hit its cap (slow consumer).
+	SendQueueDroppedTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "solo_daemon_send_queue_dropped_total",
+		Help: "Total number of outbound messages dropped due to send queue overflow",
+	})
 )
 
 func init() {
@@ -51,5 +65,7 @@ func init() {
 		MessagesReceivedTotal,
 		TimelineRowsTotal,
 		TimelineRowsDroppedTotal,
+		SendQueueDepth,
+		SendQueueDroppedTotal,
 	)
 }

@@ -20,6 +20,7 @@ import { useCreateLoop } from "@/hooks/use-create-loop";
 import { useLoopTemplateDetail } from "@/hooks/use-loop-templates";
 import { useLoopMutations } from "@/hooks/use-loop-mutations";
 import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
+import { useToast } from "@/contexts/toast-context";
 import { buildHostLoopDetailRoute, buildHostLoopInstanceDetailRoute, buildHostLoopsRoute } from "@/utils/host-routes";
 import type { AgentProvider } from "@server/server/agent/agent-sdk-types";
 
@@ -69,6 +70,7 @@ function LoopStatusBadge({ status }: { status: string }) {
 
 function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopId: string }) {
   const { theme } = useUnistyles();
+  const toast = useToast();
   const { template, instances, latestRecord, isLoading, error } = useLoopTemplateDetail({ serverId, templateId: loopId });
   const { updateLoop, deleteLoop, isUpdating, isDeleting } = useLoopMutations({ serverId });
   const { createLoop, isCreating } = useCreateLoop({ serverId });
@@ -215,10 +217,10 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
       await deleteLoop(loopId);
       setIsDeleteModalVisible(false);
       router.replace(buildHostLoopsRoute(serverId));
-    } catch {
-      // Error surfaced by mutation
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete loop");
     }
-  }, [deleteLoop, loopId, serverId]);
+  }, [deleteLoop, loopId, serverId, toast]);
 
   const handleOpenInstanceDelete = useCallback((instanceId: string) => {
     setSelectedInstanceId(instanceId);
@@ -236,10 +238,10 @@ function LoopDetailScreenContent({ serverId, loopId }: { serverId: string; loopI
       await deleteLoop(selectedInstanceId);
       setIsInstanceDeleteModalVisible(false);
       setSelectedInstanceId(null);
-    } catch {
-      // Error surfaced by mutation
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete loop instance");
     }
-  }, [deleteLoop, selectedInstanceId]);
+  }, [deleteLoop, selectedInstanceId, toast]);
 
   const handleRetry = useCallback(async () => {
     if (!loop) {

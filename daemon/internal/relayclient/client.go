@@ -23,6 +23,11 @@ const (
 	controlPingInterval = 10 * time.Second
 	controlStaleTimeout = 30 * time.Second
 	maxReconnectDelay   = 30 * time.Second
+
+	// dataSocketReadLimit bounds a single incoming frame on relay data
+	// sockets; matches the daemon's local WebSocket read limit since the
+	// same session traffic (including image attachments) flows here.
+	dataSocketReadLimit = 16 << 20
 )
 
 // dataSocketOpenTimeout is the maximum time allowed from a successful dial to
@@ -373,6 +378,9 @@ func (c *Client) openDataSocketURL(connectionID, u string) {
 		}
 		return
 	}
+	// Bound per-connection read memory on the underlying WebSocket; applies
+	// regardless of whether E2EE wraps the conn below.
+	rawConn.SetReadLimit(dataSocketReadLimit)
 
 	// Register the raw conn in dataConns BEFORE the E2EE handshake so that
 	// closeDataConn (called when the relay sends a "disconnected" control

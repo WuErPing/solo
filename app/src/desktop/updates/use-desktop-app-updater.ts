@@ -151,6 +151,7 @@ export function useDesktopAppUpdater(): UseDesktopAppUpdaterReturn {
       return;
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- external sync: check for updates on mount
     void checkForUpdates({ silent: true });
   }, [checkForUpdates, isDesktopApp]);
 

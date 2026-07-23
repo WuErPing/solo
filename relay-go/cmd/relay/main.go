@@ -29,6 +29,12 @@ func main() {
 	httpServer := &http.Server{
 		Addr:    srv.Addr(cfg.Host, cfg.Port),
 		Handler: srv.Handler(),
+		// ReadHeaderTimeout bounds the upgrade-request header phase (slowloris
+		// defense). Read/WriteTimeout are intentionally unset: they apply to
+		// hijacked WebSocket connections and would kill long-lived sessions.
+		// Per-connection liveness is enforced by read deadlines in readPump.
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       2 * time.Minute,
 	}
 
 	go func() {

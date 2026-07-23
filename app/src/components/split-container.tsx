@@ -202,6 +202,7 @@ function useStableTabDescriptorMap(tabDescriptors: WorkspaceTabDescriptor[]) {
   const tabDescriptorMap = useMemo(() => {
     const next = new Map<string, WorkspaceTabDescriptor>();
     for (const tabDescriptor of tabDescriptors) {
+      /* eslint-disable react-hooks/refs -- stable-reference cache: reading ref inside useMemo to preserve object identity */
       const cachedDescriptor = cacheRef.current.get(tabDescriptor.tabId);
       if (
         cachedDescriptor &&
@@ -212,6 +213,7 @@ function useStableTabDescriptorMap(tabDescriptors: WorkspaceTabDescriptor[]) {
         next.set(tabDescriptor.tabId, cachedDescriptor);
         continue;
       }
+      /* eslint-enable react-hooks/refs */
       next.set(tabDescriptor.tabId, tabDescriptor);
     }
     return next;

@@ -16,6 +16,7 @@ import { getIsAppActivelyVisible } from "@/utils/app-visibility";
 import { clearInitDeferredsForServer } from "@/utils/agent-initialization";
 import type { AttachmentMetadata } from "@/attachments/types";
 import { reconcilePreviousAgentStatuses } from "@/contexts/session-status-tracking";
+import { useToast } from "@/contexts/toast-context";
 import { createNotifyAgentAttention } from "./session-notifications";
 import { createSendAgentMessage } from "./agent-operations";
 import { clearPendingAgentUpdates } from "./session-helpers";
@@ -83,6 +84,7 @@ export function SessionProvider(props: SessionProviderProps) {
 function SessionProviderInternal({ children, serverId, client }: SessionProviderClientProps) {
   const queryClient = useQueryClient();
   const isConnected = useHostRuntimeIsConnected(serverId);
+  const toast = useToast();
 
   // Zustand store actions
   const initializeSession = useSessionStore((state) => state.initializeSession);
@@ -488,12 +490,17 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
           const agent = useSessionStore.getState().sessions[serverId]?.agents?.get(agentId);
           return agent ? { status: agent.status, persistence: agent.persistence ?? null } : undefined;
         },
+        onError: (error) => {
+          toast.error(error instanceof Error ? error.message : "Failed to send message");
+        },
       })(...args),
-    [serverId, client, setAgentStreamHead, setAgentStreamTail],
+    [serverId, client, setAgentStreamHead, setAgentStreamTail, toast],
   );
 
   // Keep the ref updated so the agent_update handler can call it
-  sendAgentMessageRef.current = sendAgentMessage;
+  useEffect(() => {
+    sendAgentMessageRef.current = sendAgentMessage;
+  });
 
   // Cleanup on unmount
   useEffect(() => {

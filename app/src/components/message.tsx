@@ -97,7 +97,7 @@ import { ToolCallDetailsContent } from "./tool-call-details";
 import { useAttachmentPreviewUrl } from "@/attachments/use-attachment-preview-url";
 import { persistAttachmentFromBase64, persistAttachmentFromDataUrl } from "@/attachments/service";
 import type { DaemonClient } from "@server/client/daemon-client";
-import { isWeb, isNative } from "@/constants/platform";
+import { isWeb, isNative, isDev } from "@/constants/platform";
 export type { InlinePathTarget } from "@/utils/inline-path";
 
 type MarkdownStyles = Record<string, TextStyle & ViewStyle & { [key: string]: unknown }>;
@@ -109,19 +109,22 @@ function useMessageRenderTracker(
 ): void {
   const renderCountRef = useRef(0);
   const prevRef = useRef<Record<string, unknown> | null>(null);
-  renderCountRef.current += 1;
-  const changed: string[] = [];
-  if (prevRef.current !== null) {
-    for (const key of Object.keys(watched)) {
-      if (!Object.is(prevRef.current[key], watched[key])) {
-        changed.push(key);
+  useEffect(() => {
+    if (!isDev) return;
+    renderCountRef.current += 1;
+    const changed: string[] = [];
+    if (prevRef.current !== null) {
+      for (const key of Object.keys(watched)) {
+        if (!Object.is(prevRef.current[key], watched[key])) {
+          changed.push(key);
+        }
       }
     }
-  }
-  prevRef.current = { ...watched };
-  console.log(`[${label}]`, identity, `render #${renderCountRef.current}`, {
-    isFirst: renderCountRef.current === 1,
-    changed,
+    prevRef.current = { ...watched };
+    console.log(`[${label}]`, identity, `render #${renderCountRef.current}`, {
+      isFirst: renderCountRef.current === 1,
+      changed,
+    });
   });
 }
 
@@ -600,6 +603,7 @@ const AssistantMarkdownResolvedImage = memo(function AssistantMarkdownResolvedIm
 
   useEffect(() => {
     if (cachedMetadata) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync set from cache before async fallback
       setAspectRatio(cachedMetadata.aspectRatio);
       return;
     }
@@ -2406,8 +2410,8 @@ const ExpandableBadge = memo(function ExpandableBadge({
   const handleIconHoverIn = useCallback(() => setIsIconHovered(true), []);
   const handleIconHoverOut = useCallback(() => setIsIconHovered(false), []);
 
-  const nativeGradientIdRef = useRef(
-    `shimmer-gradient-${Math.random().toString(36).substring(2, 9)}`,
+  const [nativeGradientId] = useState(
+    () => `shimmer-gradient-${Math.random().toString(36).substring(2, 9)}`,
   );
   const [labelRowWidth, setLabelRowWidth] = useState(0);
   const [labelRowHeight, setLabelRowHeight] = useState(0);
@@ -2652,7 +2656,7 @@ const ExpandableBadge = memo(function ExpandableBadge({
             labelRowHeight={labelRowHeight}
             nativeShimmerPeakWidth={nativeShimmerPeakWidth}
             shimmerDuration={shimmerDuration}
-            nativeGradientId={nativeGradientIdRef.current}
+            nativeGradientId={nativeGradientId}
             onLabelRowLayout={handleLabelRowLayout}
             onLabelLayout={handleLabelLayout}
             onSecondaryLayout={handleSecondaryLayout}

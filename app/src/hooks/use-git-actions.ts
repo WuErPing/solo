@@ -276,9 +276,11 @@ export function useGitActions({ serverId, cwd, icons }: UseGitActionsInput): Use
     [shipDefaultStorageKey],
   );
 
-  useEffect(() => {
+  const [prevCwdForArchive, setPrevCwdForArchive] = useState(cwd);
+  if (prevCwdForArchive !== cwd) {
+    setPrevCwdForArchive(cwd);
     setPostShipArchiveSuggested(false);
-  }, [cwd]);
+  }
 
   const {
     commitStatus,

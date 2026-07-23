@@ -1847,9 +1847,11 @@ export function GitDiffPane({ serverId, workspaceId, cwd, hideHeaderRow }: GitDi
   }, [allExpanded, files, setDiffExpandedPathsForWorkspace, workspaceStateKey]);
 
   // Clear diff mode override when auto mode changes (e.g., after commit)
-  useEffect(() => {
+  const [prevAutoDiffMode, setPrevAutoDiffMode] = useState(autoDiffMode);
+  if (prevAutoDiffMode !== autoDiffMode) {
+    setPrevAutoDiffMode(autoDiffMode);
     setDiffModeOverride(null);
-  }, [autoDiffMode]);
+  }
 
   const commitStatus = useCheckoutGitActionsStore((state) =>
     state.getStatus({ serverId, cwd, actionId: "commit" }),
@@ -2114,6 +2116,7 @@ export function GitDiffPane({ serverId, workspaceId, cwd, hideHeaderRow }: GitDi
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- derived state: reset archive suggestion when cwd changes
     setPostShipArchiveSuggested(false);
   }, [cwd]);
 

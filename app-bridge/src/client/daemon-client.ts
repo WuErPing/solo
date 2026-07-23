@@ -1,12 +1,9 @@
 import type { z } from "zod";
 import {
   AgentRefreshedStatusPayloadSchema,
-  parseServerInfoStatusPayload,
   RestartRequestedStatusPayloadSchema,
   ShutdownRequestedStatusPayloadSchema,
-  SessionInboundMessageSchema,
   type ServerInfoStatusPayload,
-  WSOutboundMessageSchema,
 } from "../shared/messages.js";
 import type {
   AgentStreamEventPayload,
@@ -78,35 +75,20 @@ import type {
 } from "../server/agent/agent-sdk-types.js";
 import type { MutableDaemonConfig, MutableDaemonConfigPatch } from "../shared/messages.js";
 import type { AgentSessionConfig as WireAgentSessionConfig } from "../shared/agent-session-config.js";
-import { isRelayClientWebSocketUrl } from "../shared/daemon-endpoints.js";
-import { asUint8Array } from "../shared/terminal-stream-protocol.js";
-import {
-  createRelayE2eeTransportFactory,
-  createWebSocketTransportFactory,
-  decodeMessageData,
-  defaultWebSocketFactory,
-  describeTransportClose,
-  describeTransportError,
-  type DaemonTransport,
-  type DaemonTransportFactory,
-  type WebSocketFactory,
-} from "./daemon-client-transport.js";
-import { DaemonClientRuntimeMetrics } from "./daemon-client-runtime-metrics.js";
 import { AgentRpc } from "./agent-rpc.js";
 import { ScheduleRpc } from "./schedule-rpc.js";
 import { ChatRpc } from "./chat-rpc.js";
 import { WorkspaceRpc } from "./workspace-rpc.js";
 import { GitRpc } from "./git-rpc.js";
 import { TerminalRpc } from "./terminal-rpc.js";
-
-import { consoleLogger, toErrorInfo, type Logger } from "../shared/logger.js";
+import { ConnectionManager } from "./connection-manager.js";
+import type { DaemonTransportFactory, WebSocketFactory } from "./daemon-client-transport.js";
+import type { Logger } from "../shared/logger.js";
 
 export type { Logger } from "../shared/logger.js";
 
-const perfNow: () => number =
-  typeof performance !== "undefined" && typeof performance.now === "function"
-    ? () => performance.now()
-    : () => Date.now();
+export { ConnectionManager } from "./connection-manager.js";
+export type { ConnectionRpcHooks } from "./connection-manager.js";
 
 export type {
   DaemonTransport,
@@ -618,188 +600,66 @@ export interface WaitForFinishResult {
   lastMessage: string | null;
 }
 
-interface Waiter<T> {
-  predicate: (msg: SessionOutboundMessage) => T | null;
-  resolve: (value: T) => void;
-  reject: (error: Error) => void;
-  timeoutHandle: ReturnType<typeof setTimeout> | null;
-}
-
-interface WaitHandle<T> {
-  promise: Promise<T>;
-  cancel: (error: Error) => void;
-}
-
-type RpcWaitResult<T> = { kind: "ok"; value: T } | { kind: "error"; error: DaemonRpcError };
-type GetDaemonConfigResponse = Extract<
-  SessionOutboundMessage,
-  { type: "get_daemon_config_response" }
->;
-type SetDaemonConfigResponse = Extract<
-  SessionOutboundMessage,
-  { type: "set_daemon_config_response" }
->;
-type CorrelatedResponseMessage =
-  | Extract<SessionOutboundMessage, { payload: { requestId: string } }>
-  | GetDaemonConfigResponse
-  | SetDaemonConfigResponse;
-type CorrelatedResponseType = CorrelatedResponseMessage["type"];
-type CorrelatedResponsePayload<TType extends CorrelatedResponseType> = Extract<
-  CorrelatedResponseMessage,
-  { type: TType }
->["payload"];
-
-class DaemonRpcError extends Error {
-  readonly requestId: string;
-  readonly requestType?: string;
-  readonly code?: string;
-
-  constructor(params: { requestId: string; error: string; requestType?: string; code?: string }) {
-    const parts = [params.error];
-    if (params.requestType) parts.push(`requestType=${params.requestType}`);
-    if (params.code) parts.push(`code=${params.code}`);
-    super(parts.join(" "));
-    this.name = "DaemonRpcError";
-    this.requestId = params.requestId;
-    this.requestType = params.requestType;
-    this.code = params.code;
-  }
-}
-
-const DEFAULT_RECONNECT_BASE_DELAY_MS = 1500;
-const DEFAULT_RECONNECT_MAX_DELAY_MS = 30000;
-const DEFAULT_CONNECT_TIMEOUT_MS = 15000;
-
-/** Default timeout for waiting for connection before sending queued messages */
-const DEFAULT_SEND_QUEUE_TIMEOUT_MS = 10000;
-
-function normalizeClientId(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function hashForLog(value: string): string {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 31 + value.charCodeAt(index)) | 0;
-  }
-  return `h_${Math.abs(hash).toString(16)}`;
-}
-
-function toReasonCode(reason: string | null | undefined): string | null {
-  if (!reason) {
-    return null;
-  }
-  const normalized = reason.toLowerCase();
-  if (normalized.includes("timed out")) {
-    return "connect_timeout";
-  }
-  if (normalized.includes("disposed")) {
-    return "disposed";
-  }
-  if (normalized.includes("client closed")) {
-    return "client_closed";
-  }
-  if (normalized.includes("transport")) {
-    return "transport_error";
-  }
-  if (normalized.includes("failed to connect")) {
-    return "connect_failed";
-  }
-  return "unknown";
-}
-
-interface PendingSend {
-  message: SessionInboundMessage;
-  resolve: () => void;
-  reject: (error: Error) => void;
-  timeoutHandle: ReturnType<typeof setTimeout>;
-}
-
 export class DaemonClient {
-  private transport: DaemonTransport | null = null;
-  private transportCleanup: Array<() => void> = [];
-  private rawMessageListeners: Set<(message: SessionOutboundMessage) => void> = new Set();
-  private messageHandlers: Map<
-    SessionOutboundMessage["type"],
-    Set<(message: SessionOutboundMessage) => void>
-  > = new Map();
-  private eventListeners: Set<DaemonEventHandler> = new Set();
-  private waiters: Set<Waiter<unknown>> = new Set();
-  private connectionListeners: Set<(status: ConnectionState) => void> = new Set();
-  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
-  private connectTimeout: ReturnType<typeof setTimeout> | null = null;
-  private pendingGenericTransportErrorTimeout: ReturnType<typeof setTimeout> | null = null;
-  private reconnectAttempt = 0;
-  private shouldReconnect = true;
-  private connectPromise: Promise<void> | null = null;
-  private connectResolve: (() => void) | null = null;
-  private connectReject: ((error: Error) => void) | null = null;
-  private lastErrorValue: string | null = null;
-  private connectionState: ConnectionState = { status: "idle" };
-  private logger: Logger;
-  private pendingSendQueue: PendingSend[] = [];
-  private readonly logConnectionPath: "direct" | "relay";
-  private readonly logServerId: string | null;
-  private readonly logClientIdHash: string;
-  private readonly logGeneration: number | null;
-  private lastServerInfoMessage: ServerInfoStatusPayload | null = null;
-  private runtimeMetricsInterval: ReturnType<typeof setInterval> | null = null;
-  private runtimeMetrics: DaemonClientRuntimeMetrics | null = null;
-  private readonly agentRpc = new AgentRpc(this);
-  private readonly scheduleRpc = new ScheduleRpc(this);
-  private readonly chatRpc = new ChatRpc(this);
-  private readonly workspaceRpc = new WorkspaceRpc(this);
-  private readonly gitRpc = new GitRpc(this);
-  private readonly terminalRpc = new TerminalRpc(this);
+  private readonly connection: ConnectionManager;
+  private readonly agentRpc: AgentRpc;
+  private readonly scheduleRpc: ScheduleRpc;
+  private readonly chatRpc: ChatRpc;
+  private readonly workspaceRpc: WorkspaceRpc;
+  private readonly gitRpc: GitRpc;
+  private readonly terminalRpc: TerminalRpc;
 
-  constructor(private config: DaemonClientConfig) {
-    this.logger = config.logger ?? consoleLogger;
-    this.logConnectionPath = isRelayClientWebSocketUrl(this.config.url) ? "relay" : "direct";
-    let parsedUrlForLog: URL | null = null;
-    try {
-      parsedUrlForLog = new URL(this.config.url);
-    } catch {
-      parsedUrlForLog = null;
-    }
-    const parsedServerIdForLog = normalizeClientId(parsedUrlForLog?.searchParams.get("serverId"));
-    this.logServerId = parsedServerIdForLog ?? parsedUrlForLog?.host ?? null;
-    const resolvedClientId = normalizeClientId(this.config.clientId);
-    if (!resolvedClientId) {
-      throw new Error("Daemon client requires a non-empty clientId");
-    }
-    this.config.clientId = resolvedClientId;
-    this.logClientIdHash = hashForLog(resolvedClientId);
-    this.logGeneration =
-      typeof this.config.runtimeGeneration === "number" &&
-      Number.isFinite(this.config.runtimeGeneration)
-        ? this.config.runtimeGeneration
-        : null;
-    const runtimeMetricsIntervalMs =
-      typeof config.runtimeMetricsIntervalMs === "number" && config.runtimeMetricsIntervalMs > 0
-        ? config.runtimeMetricsIntervalMs
-        : 0;
-    if (runtimeMetricsIntervalMs > 0) {
-      const runtimeMetricsWindowMs =
-        typeof config.runtimeMetricsWindowMs === "number" && config.runtimeMetricsWindowMs > 0
-          ? Math.max(config.runtimeMetricsWindowMs, runtimeMetricsIntervalMs)
-          : undefined;
-      this.runtimeMetrics = new DaemonClientRuntimeMetrics(
-        this.logger,
-        {
-          connectionPath: this.logConnectionPath,
-          serverId: this.logServerId,
-          getConnectionStatus: () => this.connectionState.status,
-        },
-        runtimeMetricsWindowMs ? { windowMs: runtimeMetricsWindowMs } : undefined,
-      );
-      this.runtimeMetricsInterval = setInterval(() => {
-        this.runtimeMetrics?.flush();
-      }, runtimeMetricsIntervalMs);
-    }
+  constructor(config: DaemonClientConfig) {
+    this.connection = new ConnectionManager(config);
+    this.agentRpc = new AgentRpc(this.connection);
+    this.scheduleRpc = new ScheduleRpc(this.connection);
+    this.chatRpc = new ChatRpc(this.connection);
+    this.workspaceRpc = new WorkspaceRpc(this.connection);
+    this.gitRpc = new GitRpc(this.connection);
+    this.terminalRpc = new TerminalRpc(this.connection);
+    this.connection.setHooks({
+      tryHandleBinaryFrame: (rawBytes) => this.terminalRpc.tryHandleBinaryFrame(rawBytes),
+      resubscribe: () => {
+        this.gitRpc.resubscribe();
+        this.terminalRpc.resubscribe();
+      },
+      onConnectionLost: () => this.terminalRpc.clearSlots(),
+      onTerminalStreamExit: (terminalId) => this.terminalRpc.removeSlot(terminalId),
+    });
+  }
+
+  // ============================================================================
+  // Domain Namespaces
+  // ============================================================================
+
+  /** Agent lifecycle, interaction, permission and streaming RPCs. */
+  get agents(): AgentRpc {
+    return this.agentRpc;
+  }
+
+  /** Schedule and loop automation RPCs. */
+  get schedules(): ScheduleRpc {
+    return this.scheduleRpc;
+  }
+
+  /** Chat room RPCs. */
+  get chat(): ChatRpc {
+    return this.chatRpc;
+  }
+
+  /** Workspace, project, provider and config RPCs. */
+  get workspaces(): WorkspaceRpc {
+    return this.workspaceRpc;
+  }
+
+  /** Git checkout, stash, worktree and suggestion RPCs. */
+  get git(): GitRpc {
+    return this.gitRpc;
+  }
+
+  /** Terminal, tmux and voice RPCs. */
+  get terminal(): TerminalRpc {
+    return this.terminalRpc;
   }
 
   // ============================================================================
@@ -807,263 +667,35 @@ export class DaemonClient {
   // ============================================================================
 
   async connect(): Promise<void> {
-    if (this.connectionState.status === "disposed") {
-      throw new Error("Daemon client is disposed");
-    }
-    if (this.connectionState.status === "connected") {
-      return;
-    }
-    if (this.connectPromise) {
-      return this.connectPromise;
-    }
-
-    this.shouldReconnect = true;
-    this.connectPromise = new Promise((resolve, reject) => {
-      this.connectResolve = resolve;
-      this.connectReject = reject;
-      this.attemptConnect();
-    });
-
-    return this.connectPromise;
-  }
-
-  private attemptConnect(): void {
-    if (this.connectionState.status === "disposed") {
-      this.rejectConnect(new Error("Daemon client is disposed"));
-      return;
-    }
-    if (!this.shouldReconnect) {
-      this.rejectConnect(new Error("Daemon client is closed"));
-      return;
-    }
-
-    if (this.connectionState.status === "connecting") {
-      return;
-    }
-
-    const headers: Record<string, string> = {};
-    if (this.config.authHeader) {
-      headers["Authorization"] = this.config.authHeader;
-    }
-
-    try {
-      // Reconnect can overlap with browser close/error delivery ordering.
-      // Always dispose previous transport before constructing the next one.
-      this.disposeTransport();
-      const baseTransportFactory =
-        this.config.transportFactory ??
-        createWebSocketTransportFactory(this.config.webSocketFactory ?? defaultWebSocketFactory);
-      const shouldUseRelayE2ee =
-        this.config.e2ee?.enabled === true && isRelayClientWebSocketUrl(this.config.url);
-
-      let transportFactory = baseTransportFactory;
-      if (shouldUseRelayE2ee) {
-        const daemonPublicKeyB64 = this.config.e2ee?.daemonPublicKeyB64;
-        if (!daemonPublicKeyB64) {
-          throw new Error("daemonPublicKeyB64 is required for relay E2EE");
-        }
-        transportFactory = createRelayE2eeTransportFactory({
-          baseFactory: baseTransportFactory,
-          daemonPublicKeyB64,
-          logger: this.logger,
-        });
-      }
-      const transportUrl = this.resolveTransportUrlForAttempt();
-      const transport = transportFactory({ url: transportUrl, headers });
-      this.transport = transport;
-      this.lastServerInfoMessage = null;
-
-      this.updateConnectionState(
-        {
-          status: "connecting",
-          attempt: this.reconnectAttempt,
-        },
-        { event: "CONNECT_REQUEST" },
-      );
-      this.resetConnectTimeout();
-      const timeoutMs = Math.max(1, this.config.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS);
-      this.connectTimeout = setTimeout(() => {
-        if (this.connectionState.status !== "connecting") {
-          return;
-        }
-        this.lastErrorValue = "Connection timed out";
-        this.disposeTransport(1001, "Connection timed out");
-        this.scheduleReconnect({
-          reason: "Connection timed out",
-          event: "CONNECT_TIMEOUT",
-          reasonCode: "connect_timeout",
-        });
-      }, timeoutMs);
-
-      this.transportCleanup = [
-        transport.onOpen(() => {
-          if (this.pendingGenericTransportErrorTimeout) {
-            clearTimeout(this.pendingGenericTransportErrorTimeout);
-            this.pendingGenericTransportErrorTimeout = null;
-          }
-          this.lastErrorValue = null;
-          this.sendHelloMessage();
-        }),
-        transport.onClose((event) => {
-          this.resetConnectTimeout();
-          if (this.pendingGenericTransportErrorTimeout) {
-            clearTimeout(this.pendingGenericTransportErrorTimeout);
-            this.pendingGenericTransportErrorTimeout = null;
-          }
-          const reason = describeTransportClose(event);
-          if (reason) {
-            this.lastErrorValue = reason;
-          }
-          this.scheduleReconnect({
-            reason,
-            event: "TRANSPORT_CLOSE",
-            reasonCode: "transport_closed",
-          });
-        }),
-        transport.onError((event) => {
-          this.resetConnectTimeout();
-          const reason = describeTransportError(event);
-          const isGeneric = reason === "Transport error";
-          // Browser WebSocket.onerror often provides no useful details and is followed
-          // by a close event (often with code 1006). Prefer surfacing the close details
-          // instead of immediately disconnecting with a generic "Transport error".
-          if (isGeneric) {
-            this.lastErrorValue ??= reason;
-            if (!this.pendingGenericTransportErrorTimeout) {
-              this.pendingGenericTransportErrorTimeout = setTimeout(() => {
-                this.pendingGenericTransportErrorTimeout = null;
-                if (
-                  this.connectionState.status === "connected" ||
-                  this.connectionState.status === "connecting"
-                ) {
-                  this.lastErrorValue = reason;
-                  this.scheduleReconnect({
-                    reason,
-                    event: "TRANSPORT_ERROR",
-                    reasonCode: "transport_error",
-                  });
-                }
-              }, 250);
-            }
-            return;
-          }
-
-          if (this.pendingGenericTransportErrorTimeout) {
-            clearTimeout(this.pendingGenericTransportErrorTimeout);
-            this.pendingGenericTransportErrorTimeout = null;
-          }
-          this.lastErrorValue = reason;
-          this.scheduleReconnect({
-            reason,
-            event: "TRANSPORT_ERROR",
-            reasonCode: "transport_error",
-          });
-        }),
-        transport.onMessage((data) => this.handleTransportMessage(data)),
-      ];
-    } catch (error) {
-      this.resetConnectTimeout();
-      const message = error instanceof Error ? error.message : "Failed to connect";
-      this.lastErrorValue = message;
-      this.scheduleReconnect({
-        reason: message,
-        event: "CONNECT_FAILED",
-        reasonCode: "connect_failed",
-      });
-      this.rejectConnect(error instanceof Error ? error : new Error(message));
-    }
-  }
-
-  private resolveConnect(): void {
-    if (this.connectResolve) {
-      this.connectResolve();
-    }
-    this.connectPromise = null;
-    this.connectResolve = null;
-    this.connectReject = null;
-  }
-
-  private rejectConnect(error: Error): void {
-    if (this.connectReject) {
-      this.connectReject(error);
-    }
-    this.connectPromise = null;
-    this.connectResolve = null;
-    this.connectReject = null;
+    return this.connection.connect();
   }
 
   async close(): Promise<void> {
-    if (this.connectionState.status === "disposed") {
-      return;
-    }
-    this.shouldReconnect = false;
-    this.connectPromise = null;
-    this.connectResolve = null;
-    this.connectReject = null;
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = null;
-    }
-    this.resetConnectTimeout();
-    this.disposeTransport(1000, "Client closed");
-    this.clearWaiters(new Error("Daemon client closed"));
-    this.rejectPendingSendQueue(new Error("Daemon client closed"));
-    this.terminalRpc.clearSlots();
-    this.lastServerInfoMessage = null;
-    if (this.runtimeMetricsInterval) {
-      clearInterval(this.runtimeMetricsInterval);
-      this.runtimeMetricsInterval = null;
-      this.runtimeMetrics?.flush({ final: true });
-      this.runtimeMetrics = null;
-    }
-    this.updateConnectionState(
-      { status: "disposed" },
-      { event: "DISPOSE", reason: "Client closed", reasonCode: "disposed" },
-    );
+    return this.connection.close();
   }
 
   ensureConnected(): void {
-    if (this.connectionState.status === "disposed") {
-      return;
-    }
-    if (!this.shouldReconnect) {
-      this.shouldReconnect = true;
-    }
-    if (
-      this.connectionState.status === "connected" ||
-      this.connectionState.status === "connecting"
-    ) {
-      return;
-    }
-    void this.connect();
+    this.connection.ensureConnected();
   }
 
   getConnectionState(): ConnectionState {
-    return this.connectionState;
+    return this.connection.getConnectionState();
   }
 
   subscribeConnectionStatus(listener: (status: ConnectionState) => void): () => void {
-    this.connectionListeners.add(listener);
-    try {
-      listener(this.connectionState);
-    } catch (error) {
-      this.logger.warn({ err: toErrorInfo(error) }, "connection_listener_failed");
-    }
-    return () => {
-      this.connectionListeners.delete(listener);
-    };
+    return this.connection.subscribeConnectionStatus(listener);
   }
 
   get isConnected(): boolean {
-    return this.connectionState.status === "connected";
+    return this.connection.isConnected;
   }
 
   get isConnecting(): boolean {
-    return this.connectionState.status === "connecting";
+    return this.connection.isConnecting;
   }
 
   get lastError(): string | null {
-    return this.lastErrorValue;
+    return this.connection.lastError;
   }
 
   // ============================================================================
@@ -1071,15 +703,11 @@ export class DaemonClient {
   // ============================================================================
 
   subscribe(handler: DaemonEventHandler): () => void {
-    this.eventListeners.add(handler);
-    return () => this.eventListeners.delete(handler);
+    return this.connection.subscribe(handler);
   }
 
   subscribeRawMessages(handler: (message: SessionOutboundMessage) => void): () => void {
-    this.rawMessageListeners.add(handler);
-    return () => {
-      this.rawMessageListeners.delete(handler);
-    };
+    return this.connection.subscribeRawMessages(handler);
   }
 
   on<TType extends SessionOutboundMessage["type"]>(
@@ -1092,271 +720,16 @@ export class DaemonClient {
     arg2?: (message: SessionOutboundMessage) => void,
   ): () => void {
     if (typeof arg1 === "function") {
-      return this.subscribe(arg1);
+      return this.connection.on(arg1);
     }
-
-    const type = arg1 as SessionOutboundMessage["type"];
+    const type = arg1;
     const handler = arg2 as (message: SessionOutboundMessage) => void;
-
-    if (!this.messageHandlers.has(type)) {
-      this.messageHandlers.set(type, new Set());
-    }
-    this.messageHandlers.get(type)!.add(handler);
-
-    return () => {
-      const handlers = this.messageHandlers.get(type);
-      if (!handlers) {
-        return;
-      }
-      handlers.delete(handler);
-      if (handlers.size === 0) {
-        this.messageHandlers.delete(type);
-      }
-    };
+    return this.connection.on(type, handler);
   }
 
   // ============================================================================
-  // Core Send Helpers
+  // Connection Maintenance
   // ============================================================================
-
-  /**
-   * Send a session message. For fire-and-forget messages (heartbeats, etc.),
-   * failures are suppressed if `suppressSendErrors` is configured.
-   * For RPC methods that wait for responses, use `sendSessionMessageOrThrow` instead.
-   */
-  /** @internal */
-  sendSessionMessage(message: SessionInboundMessage): void {
-    if (!this.transport || this.connectionState.status !== "connected") {
-      if (this.config.suppressSendErrors) {
-        return;
-      }
-      throw new Error(`Transport not connected (status: ${this.connectionState.status})`);
-    }
-    const payload = SessionInboundMessageSchema.parse(message);
-    try {
-      this.transport.send(JSON.stringify({ type: "session", message: payload }));
-    } catch (error) {
-      if (this.config.suppressSendErrors) {
-        return;
-      }
-      throw error instanceof Error ? error : new Error(String(error));
-    }
-  }
-
-  /** @internal */
-  sendBinaryFrame(frame: Uint8Array): void {
-    if (!this.transport || this.connectionState.status !== "connected") {
-      if (this.config.suppressSendErrors) {
-        return;
-      }
-      throw new Error(`Transport not connected (status: ${this.connectionState.status})`);
-    }
-    try {
-      this.transport.send(frame);
-    } catch (error) {
-      if (this.config.suppressSendErrors) {
-        return;
-      }
-      throw error instanceof Error ? error : new Error(String(error));
-    }
-  }
-
-  /** @internal */
-  recordBinaryFrame(kind: string, bytes: number, handlerMs: number): void {
-    this.runtimeMetrics?.recordBinaryFrame(kind, bytes, handlerMs);
-  }
-
-  /**
-   * Send a session message for RPC methods that create waiters.
-   * If the connection is still being established ("connecting"), the message
-   * is queued and will be sent once connected (or rejected after timeout).
-   * This prevents waiters from hanging forever when called during connection.
-   */
-  private sendSessionMessageOrThrow(message: SessionInboundMessage): Promise<void> {
-    const status = this.connectionState.status;
-
-    // If connected, send immediately
-    if (this.transport && status === "connected") {
-      const payload = SessionInboundMessageSchema.parse(message);
-      this.transport.send(JSON.stringify({ type: "session", message: payload }));
-      return Promise.resolve();
-    }
-
-    // If connecting, queue the message to be sent once connected
-    if (status === "connecting") {
-      return new Promise((resolve, reject) => {
-        const timeoutHandle = setTimeout(() => {
-          // Remove from queue
-          const idx = this.pendingSendQueue.findIndex((p) => p.resolve === resolve);
-          if (idx !== -1) {
-            this.pendingSendQueue.splice(idx, 1);
-          }
-          reject(new Error(`Timed out waiting for connection to send message`));
-        }, DEFAULT_SEND_QUEUE_TIMEOUT_MS);
-
-        this.pendingSendQueue.push({ message, resolve, reject, timeoutHandle });
-      });
-    }
-
-    // Not connected and not connecting - fail immediately
-    return Promise.reject(new Error(`Transport not connected (status: ${status})`));
-  }
-
-  /**
-   * Flush pending send queue - called when connection is established.
-   */
-  private flushPendingSendQueue(): void {
-    const queue = this.pendingSendQueue;
-    this.pendingSendQueue = [];
-
-    for (const pending of queue) {
-      clearTimeout(pending.timeoutHandle);
-      try {
-        if (this.transport && this.connectionState.status === "connected") {
-          const payload = SessionInboundMessageSchema.parse(pending.message);
-          this.transport.send(JSON.stringify({ type: "session", message: payload }));
-          pending.resolve();
-        } else {
-          pending.reject(new Error("Connection lost before message could be sent"));
-        }
-      } catch (error) {
-        pending.reject(error instanceof Error ? error : new Error(String(error)));
-      }
-    }
-  }
-
-  /**
-   * Reject all pending sends - called when connection fails or is closed.
-   */
-  private rejectPendingSendQueue(error: Error): void {
-    const queue = this.pendingSendQueue;
-    this.pendingSendQueue = [];
-
-    for (const pending of queue) {
-      clearTimeout(pending.timeoutHandle);
-      pending.reject(error);
-    }
-  }
-
-  /** @internal */
-  async sendRequest<T>(params: {
-    requestId: string;
-    message: SessionInboundMessage;
-    timeout: number;
-    select: (msg: SessionOutboundMessage) => T | null;
-    options?: { skipQueue?: boolean };
-  }): Promise<T> {
-    const { promise, cancel } = this.waitForWithCancel<RpcWaitResult<T>>(
-      (msg) => {
-        if (msg.type === "rpc_error" && msg.payload.requestId === params.requestId) {
-          return {
-            kind: "error",
-            error: new DaemonRpcError({
-              requestId: msg.payload.requestId,
-              error: msg.payload.error,
-              requestType: msg.payload.requestType,
-              code: msg.payload.code,
-            }),
-          };
-        }
-        const value = params.select(msg);
-        if (value === null) {
-          return null;
-        }
-        return { kind: "ok", value };
-      },
-      params.timeout,
-      params.options,
-    );
-
-    try {
-      await this.sendSessionMessageOrThrow(params.message);
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      cancel(err);
-      void promise.catch(() => undefined);
-      throw err;
-    }
-
-    const result = await promise;
-    if (result.kind === "error") {
-      throw result.error;
-    }
-    return result.value;
-  }
-
-  /** @internal */
-  async sendCorrelatedRequest<
-    TResponseType extends CorrelatedResponseType,
-    TResult = CorrelatedResponsePayload<TResponseType>,
-  >(params: {
-    requestId: string;
-    message: SessionInboundMessage;
-    timeout: number;
-    responseType: TResponseType;
-    options?: { skipQueue?: boolean };
-    selectPayload?: (payload: CorrelatedResponsePayload<TResponseType>) => TResult | null;
-  }): Promise<TResult> {
-    return this.sendRequest({
-      requestId: params.requestId,
-      message: params.message,
-      timeout: params.timeout,
-      options: params.options,
-      select: (msg) => {
-        const correlated = msg as CorrelatedResponseMessage;
-        if (correlated.type !== params.responseType) {
-          return null;
-        }
-        const payload = correlated.payload as unknown as CorrelatedResponsePayload<TResponseType>;
-        if (payload.requestId !== params.requestId) {
-          return null;
-        }
-        if (!params.selectPayload) {
-          return payload as TResult;
-        }
-        return params.selectPayload(payload);
-      },
-    });
-  }
-
-  /** @internal */
-  sendCorrelatedSessionRequest<
-    TResponseType extends CorrelatedResponseType,
-    TResult = CorrelatedResponsePayload<TResponseType>,
-  >(params: {
-    requestId?: string;
-    message: { type: SessionInboundMessage["type"] } & Record<string, unknown>;
-    responseType: TResponseType;
-    timeout: number;
-    selectPayload?: (payload: CorrelatedResponsePayload<TResponseType>) => TResult | null;
-  }): Promise<TResult> {
-    const resolvedRequestId = this.createRequestId(params.requestId);
-    const message = SessionInboundMessageSchema.parse({
-      ...params.message,
-      requestId: resolvedRequestId,
-    });
-    return this.sendCorrelatedRequest({
-      requestId: resolvedRequestId,
-      message,
-      responseType: params.responseType,
-      timeout: params.timeout,
-      options: { skipQueue: true },
-      ...(params.selectPayload ? { selectPayload: params.selectPayload } : {}),
-    });
-  }
-
-  /** @internal */
-  sendSessionMessageStrict(message: SessionInboundMessage): void {
-    if (!this.transport || this.connectionState.status !== "connected") {
-      throw new Error("Transport not connected");
-    }
-    const payload = SessionInboundMessageSchema.parse(message);
-    try {
-      this.transport.send(JSON.stringify({ type: "session", message: payload }));
-    } catch (error) {
-      throw error instanceof Error ? error : new Error(String(error));
-    }
-  }
 
   async clearAgentAttention(agentId: string | string[]): Promise<void> {
     return this.agentRpc.clearAgentAttention(agentId);
@@ -1386,26 +759,48 @@ export class DaemonClient {
     return this.agentRpc.ping(params);
   }
 
+  getLastServerInfoMessage(): ServerInfoStatusPayload | null {
+    return this.connection.getLastServerInfoMessage();
+  }
+
+  setReconnectEnabled(enabled: boolean): void {
+    this.connection.setReconnectEnabled(enabled);
+  }
+
+  /** @internal */
+  waitForWithCancel<T>(
+    predicate: (msg: SessionOutboundMessage) => T | null,
+    timeout = 30000,
+    options?: { skipQueue?: boolean },
+  ): { promise: Promise<T>; cancel: (error: Error) => void } {
+    return this.connection.waitForWithCancel(predicate, timeout, options);
+  }
+
   // ============================================================================
   // Agent RPCs (requestId-correlated)
   // ============================================================================
 
+  /** @deprecated Use `client.agents.fetchAgents` instead. */
   async fetchAgents(options?: FetchAgentsOptions): Promise<FetchAgentsPayload> {
     return this.agentRpc.fetchAgents(options);
   }
 
+  /** @deprecated Use `client.agents.fetchAgentHistory` instead. */
   async fetchAgentHistory(options?: FetchAgentHistoryOptions): Promise<FetchAgentHistoryPayload> {
     return this.agentRpc.fetchAgentHistory(options);
   }
 
+  /** @deprecated Use `client.workspaces.fetchWorkspaces` instead. */
   async fetchWorkspaces(options?: FetchWorkspacesOptions): Promise<FetchWorkspacesPayload> {
     return this.workspaceRpc.fetchWorkspaces(options);
   }
 
+  /** @deprecated Use `client.workspaces.openProject` instead. */
   async openProject(cwd: string, requestId?: string): Promise<OpenProjectPayload> {
     return this.workspaceRpc.openProject(cwd, requestId);
   }
 
+  /** @deprecated Use `client.workspaces.startWorkspaceScript` instead. */
   async startWorkspaceScript(
     workspaceId: string,
     scriptName: string,
@@ -1416,10 +811,12 @@ export class DaemonClient {
     return this.workspaceRpc.startWorkspaceScript(workspaceId, scriptName, requestId);
   }
 
+  /** @deprecated Use `client.workspaces.listAvailableEditors` instead. */
   async listAvailableEditors(requestId?: string): Promise<ListAvailableEditorsPayload> {
     return this.workspaceRpc.listAvailableEditors(requestId);
   }
 
+  /** @deprecated Use `client.workspaces.openInEditor` instead. */
   async openInEditor(
     path: string,
     editorId: EditorTargetId,
@@ -1428,6 +825,7 @@ export class DaemonClient {
     return this.workspaceRpc.openInEditor(path, editorId, requestId);
   }
 
+  /** @deprecated Use `client.workspaces.archiveWorkspace` instead. */
   async archiveWorkspace(
     workspaceId: string,
     requestId?: string,
@@ -1435,6 +833,7 @@ export class DaemonClient {
     return this.workspaceRpc.archiveWorkspace(workspaceId, requestId);
   }
 
+  /** @deprecated Use `client.workspaces.removeProject` instead. */
   async removeProject(
     workspaceIds: string[],
     requestId?: string,
@@ -1442,6 +841,7 @@ export class DaemonClient {
     return this.workspaceRpc.removeProject(workspaceIds, requestId);
   }
 
+  /** @deprecated Use `client.workspaces.fetchWorkspaceSetupStatus` instead. */
   async fetchWorkspaceSetupStatus(
     workspaceId: string,
     requestId?: string,
@@ -1449,6 +849,7 @@ export class DaemonClient {
     return this.workspaceRpc.fetchWorkspaceSetupStatus(workspaceId, requestId);
   }
 
+  /** @deprecated Use `client.agents.fetchAgent` instead. */
   async fetchAgent(agentId: string, requestId?: string): Promise<FetchAgentResult | null> {
     return this.agentRpc.fetchAgent(agentId, requestId);
   }
@@ -1457,18 +858,22 @@ export class DaemonClient {
   // Agent Lifecycle
   // ============================================================================
 
+  /** @deprecated Use `client.agents.createAgent` instead. */
   async createAgent(options: CreateAgentRequestOptions): Promise<AgentSnapshotPayload> {
     return this.agentRpc.createAgent(options);
   }
 
+  /** @deprecated Use `client.agents.deleteAgent` instead. */
   async deleteAgent(agentId: string): Promise<void> {
     return this.agentRpc.deleteAgent(agentId);
   }
 
+  /** @deprecated Use `client.agents.archiveAgent` instead. */
   async archiveAgent(agentId: string): Promise<{ archivedAt: string }> {
     return this.agentRpc.archiveAgent(agentId);
   }
 
+  /** @deprecated Use `client.agents.updateAgent` instead. */
   async updateAgent(
     agentId: string,
     updates: { name?: string; labels?: Record<string, string> },
@@ -1476,6 +881,7 @@ export class DaemonClient {
     return this.agentRpc.updateAgent(agentId, updates);
   }
 
+  /** @deprecated Use `client.agents.resumeAgent` instead. */
   async resumeAgent(
     handle: AgentPersistenceHandle,
     overrides?: Partial<AgentSessionConfig>,
@@ -1483,10 +889,12 @@ export class DaemonClient {
     return this.agentRpc.resumeAgent(handle, overrides);
   }
 
+  /** @deprecated Use `client.agents.refreshAgent` instead. */
   async refreshAgent(agentId: string, requestId?: string): Promise<AgentRefreshedStatusPayload> {
     return this.agentRpc.refreshAgent(agentId, requestId);
   }
 
+  /** @deprecated Use `client.agents.fetchAgentTimeline` instead. */
   async fetchAgentTimeline(
     agentId: string,
     options: FetchAgentTimelineOptions = {},
@@ -1498,6 +906,7 @@ export class DaemonClient {
   // Agent Interaction
   // ============================================================================
 
+  /** @deprecated Use `client.agents.sendAgentMessage` instead. */
   async sendAgentMessage(
     agentId: string,
     text: string,
@@ -1506,34 +915,42 @@ export class DaemonClient {
     return this.agentRpc.sendAgentMessage(agentId, text, options);
   }
 
+  /** @deprecated Use `client.agents.sendMessage` instead. */
   async sendMessage(agentId: string, text: string, options?: SendMessageOptions): Promise<void> {
     return this.agentRpc.sendMessage(agentId, text, options);
   }
 
+  /** @deprecated Use `client.agents.cancelAgent` instead. */
   async cancelAgent(agentId: string): Promise<void> {
     return this.agentRpc.cancelAgent(agentId);
   }
 
+  /** @deprecated Use `client.agents.setAgentMode` instead. */
   async setAgentMode(agentId: string, modeId: string): Promise<void> {
     return this.agentRpc.setAgentMode(agentId, modeId);
   }
 
+  /** @deprecated Use `client.agents.setAgentModel` instead. */
   async setAgentModel(agentId: string, modelId: string | null): Promise<void> {
     return this.agentRpc.setAgentModel(agentId, modelId);
   }
 
+  /** @deprecated Use `client.agents.setAgentFeature` instead. */
   async setAgentFeature(agentId: string, featureId: string, value: unknown): Promise<void> {
     return this.agentRpc.setAgentFeature(agentId, featureId, value);
   }
 
+  /** @deprecated Use `client.agents.setAgentThinkingOption` instead. */
   async setAgentThinkingOption(agentId: string, thinkingOptionId: string | null): Promise<void> {
     return this.agentRpc.setAgentThinkingOption(agentId, thinkingOptionId);
   }
 
+  /** @deprecated Use `client.agents.restartServer` instead. */
   async restartServer(reason?: string, requestId?: string): Promise<RestartRequestedStatusPayload> {
     return this.agentRpc.restartServer(reason, requestId);
   }
 
+  /** @deprecated Use `client.agents.shutdownServer` instead. */
   async shutdownServer(requestId?: string): Promise<ShutdownRequestedStatusPayload> {
     return this.agentRpc.shutdownServer(requestId);
   }
@@ -1542,22 +959,27 @@ export class DaemonClient {
   // Audio / Voice
   // ============================================================================
 
+  /** @deprecated Use `client.terminal.setVoiceMode` instead. */
   async setVoiceMode(enabled: boolean, agentId?: string): Promise<SetVoiceModePayload> {
     return this.terminalRpc.setVoiceMode(enabled, agentId);
   }
 
+  /** @deprecated Use `client.terminal.sendVoiceAudioChunk` instead. */
   async sendVoiceAudioChunk(audio: string, format: string, isLast = false): Promise<void> {
     return this.terminalRpc.sendVoiceAudioChunk(audio, format, isLast);
   }
 
+  /** @deprecated Use `client.terminal.startDictationStream` instead. */
   async startDictationStream(dictationId: string, format: string): Promise<void> {
     return this.terminalRpc.startDictationStream(dictationId, format);
   }
 
+  /** @deprecated Use `client.terminal.sendDictationStreamChunk` instead. */
   sendDictationStreamChunk(dictationId: string, seq: number, audio: string, format: string): void {
     return this.terminalRpc.sendDictationStreamChunk(dictationId, seq, audio, format);
   }
 
+  /** @deprecated Use `client.terminal.finishDictationStream` instead. */
   async finishDictationStream(
     dictationId: string,
     finalSeq: number,
@@ -1565,14 +987,17 @@ export class DaemonClient {
     return this.terminalRpc.finishDictationStream(dictationId, finalSeq);
   }
 
+  /** @deprecated Use `client.terminal.cancelDictationStream` instead. */
   cancelDictationStream(dictationId: string): void {
     return this.terminalRpc.cancelDictationStream(dictationId);
   }
 
+  /** @deprecated Use `client.terminal.abortRequest` instead. */
   async abortRequest(): Promise<void> {
     return this.terminalRpc.abortRequest();
   }
 
+  /** @deprecated Use `client.terminal.audioPlayed` instead. */
   async audioPlayed(id: string): Promise<void> {
     return this.terminalRpc.audioPlayed(id);
   }
@@ -1581,6 +1006,7 @@ export class DaemonClient {
   // Git Operations
   // ============================================================================
 
+  /** @deprecated Use `client.git.getCheckoutStatus` instead. */
   async getCheckoutStatus(
     cwd: string,
     options?: { requestId?: string },
@@ -1588,6 +1014,7 @@ export class DaemonClient {
     return this.gitRpc.getCheckoutStatus(cwd, options);
   }
 
+  /** @deprecated Use `client.git.getCheckoutDiff` instead. */
   async getCheckoutDiff(
     cwd: string,
     compare: { mode: "uncommitted" | "base"; baseRef?: string; ignoreWhitespace?: boolean },
@@ -1596,6 +1023,7 @@ export class DaemonClient {
     return this.gitRpc.getCheckoutDiff(cwd, compare, requestId);
   }
 
+  /** @deprecated Use `client.git.subscribeCheckoutDiff` instead. */
   async subscribeCheckoutDiff(
     cwd: string,
     compare: { mode: "uncommitted" | "base"; baseRef?: string; ignoreWhitespace?: boolean },
@@ -1604,10 +1032,12 @@ export class DaemonClient {
     return this.gitRpc.subscribeCheckoutDiff(cwd, compare, options);
   }
 
+  /** @deprecated Use `client.git.unsubscribeCheckoutDiff` instead. */
   unsubscribeCheckoutDiff(subscriptionId: string): void {
     return this.gitRpc.unsubscribeCheckoutDiff(subscriptionId);
   }
 
+  /** @deprecated Use `client.git.checkoutCommit` instead. */
   async checkoutCommit(
     cwd: string,
     input: { message?: string; addAll?: boolean },
@@ -1616,6 +1046,7 @@ export class DaemonClient {
     return this.gitRpc.checkoutCommit(cwd, input, requestId);
   }
 
+  /** @deprecated Use `client.git.checkoutMerge` instead. */
   async checkoutMerge(
     cwd: string,
     input: { baseRef?: string; strategy?: "merge" | "squash"; requireCleanTarget?: boolean },
@@ -1624,6 +1055,7 @@ export class DaemonClient {
     return this.gitRpc.checkoutMerge(cwd, input, requestId);
   }
 
+  /** @deprecated Use `client.git.checkoutMergeFromBase` instead. */
   async checkoutMergeFromBase(
     cwd: string,
     input: { baseRef?: string; requireCleanTarget?: boolean },
@@ -1632,14 +1064,17 @@ export class DaemonClient {
     return this.gitRpc.checkoutMergeFromBase(cwd, input, requestId);
   }
 
+  /** @deprecated Use `client.git.checkoutPull` instead. */
   async checkoutPull(cwd: string, requestId?: string): Promise<CheckoutPullPayload> {
     return this.gitRpc.checkoutPull(cwd, requestId);
   }
 
+  /** @deprecated Use `client.git.checkoutPush` instead. */
   async checkoutPush(cwd: string, requestId?: string): Promise<CheckoutPushPayload> {
     return this.gitRpc.checkoutPush(cwd, requestId);
   }
 
+  /** @deprecated Use `client.git.checkoutPrCreate` instead. */
   async checkoutPrCreate(
     cwd: string,
     input: { title?: string; body?: string; baseRef?: string },
@@ -1648,10 +1083,12 @@ export class DaemonClient {
     return this.gitRpc.checkoutPrCreate(cwd, input, requestId);
   }
 
+  /** @deprecated Use `client.git.checkoutPrStatus` instead. */
   async checkoutPrStatus(cwd: string, requestId?: string): Promise<CheckoutPrStatusPayload> {
     return this.gitRpc.checkoutPrStatus(cwd, requestId);
   }
 
+  /** @deprecated Use `client.git.pullRequestTimeline` instead. */
   async pullRequestTimeline(
     input: { cwd: string; prNumber: number; repoOwner: string; repoName: string },
     requestId?: string,
@@ -1659,6 +1096,7 @@ export class DaemonClient {
     return this.gitRpc.pullRequestTimeline(input, requestId);
   }
 
+  /** @deprecated Use `client.git.checkoutSwitchBranch` instead. */
   async checkoutSwitchBranch(
     cwd: string,
     branch: string,
@@ -1667,6 +1105,7 @@ export class DaemonClient {
     return this.gitRpc.checkoutSwitchBranch(cwd, branch, requestId);
   }
 
+  /** @deprecated Use `client.git.stashSave` instead. */
   async stashSave(
     cwd: string,
     options?: { branch?: string },
@@ -1675,10 +1114,12 @@ export class DaemonClient {
     return this.gitRpc.stashSave(cwd, options, requestId);
   }
 
+  /** @deprecated Use `client.git.stashPop` instead. */
   async stashPop(cwd: string, stashIndex: number, requestId?: string): Promise<StashPopPayload> {
     return this.gitRpc.stashPop(cwd, stashIndex, requestId);
   }
 
+  /** @deprecated Use `client.git.stashList` instead. */
   async stashList(
     cwd: string,
     options?: { soloOnly?: boolean },
@@ -1687,6 +1128,7 @@ export class DaemonClient {
     return this.gitRpc.stashList(cwd, options, requestId);
   }
 
+  /** @deprecated Use `client.git.getSoloWorktreeList` instead. */
   async getSoloWorktreeList(
     input: { cwd?: string; repoRoot?: string },
     requestId?: string,
@@ -1694,6 +1136,7 @@ export class DaemonClient {
     return this.gitRpc.getSoloWorktreeList(input, requestId);
   }
 
+  /** @deprecated Use `client.git.archiveSoloWorktree` instead. */
   async archiveSoloWorktree(
     input: { worktreePath?: string; repoRoot?: string; branchName?: string },
     requestId?: string,
@@ -1701,6 +1144,7 @@ export class DaemonClient {
     return this.gitRpc.archiveSoloWorktree(input, requestId);
   }
 
+  /** @deprecated Use `client.git.createSoloWorktree` instead. */
   async createSoloWorktree(
     input: CreateSoloWorktreeInput,
     requestId?: string,
@@ -1708,6 +1152,7 @@ export class DaemonClient {
     return this.gitRpc.createSoloWorktree(input, requestId);
   }
 
+  /** @deprecated Use `client.git.validateBranch` instead. */
   async validateBranch(
     options: { cwd: string; branchName: string },
     requestId?: string,
@@ -1715,6 +1160,7 @@ export class DaemonClient {
     return this.gitRpc.validateBranch(options, requestId);
   }
 
+  /** @deprecated Use `client.git.getBranchSuggestions` instead. */
   async getBranchSuggestions(
     options: { cwd: string; query?: string; limit?: number },
     requestId?: string,
@@ -1722,6 +1168,7 @@ export class DaemonClient {
     return this.gitRpc.getBranchSuggestions(options, requestId);
   }
 
+  /** @deprecated Use `client.git.searchGitHub` instead. */
   async searchGitHub(
     options: { cwd: string; query: string; limit?: number; kinds?: GitHubSearchRequest["kinds"] },
     requestId?: string,
@@ -1729,6 +1176,7 @@ export class DaemonClient {
     return this.gitRpc.searchGitHub(options, requestId);
   }
 
+  /** @deprecated Use `client.git.getDirectorySuggestions` instead. */
   async getDirectorySuggestions(
     options: {
       query: string;
@@ -1746,6 +1194,7 @@ export class DaemonClient {
   // File Explorer
   // ============================================================================
 
+  /** @deprecated Use `client.workspaces.exploreFileSystem` instead. */
   async exploreFileSystem(
     cwd: string,
     path: string,
@@ -1755,6 +1204,7 @@ export class DaemonClient {
     return this.workspaceRpc.exploreFileSystem(cwd, path, mode, requestId);
   }
 
+  /** @deprecated Use `client.workspaces.requestDownloadToken` instead. */
   async requestDownloadToken(
     cwd: string,
     path: string,
@@ -1763,6 +1213,7 @@ export class DaemonClient {
     return this.workspaceRpc.requestDownloadToken(cwd, path, requestId);
   }
 
+  /** @deprecated Use `client.workspaces.requestProjectIcon` instead. */
   async requestProjectIcon(
     cwd: string,
     requestId?: string,
@@ -1774,6 +1225,7 @@ export class DaemonClient {
   // Provider Models / Commands
   // ============================================================================
 
+  /** @deprecated Use `client.workspaces.listProviderModels` instead. */
   async listProviderModels(
     provider: AgentProvider,
     options?: { cwd?: string; requestId?: string },
@@ -1781,6 +1233,7 @@ export class DaemonClient {
     return this.workspaceRpc.listProviderModels(provider, options);
   }
 
+  /** @deprecated Use `client.workspaces.listProviderModes` instead. */
   async listProviderModes(
     provider: AgentProvider,
     options?: { cwd?: string; requestId?: string },
@@ -1788,6 +1241,7 @@ export class DaemonClient {
     return this.workspaceRpc.listProviderModes(provider, options);
   }
 
+  /** @deprecated Use `client.workspaces.listProviderFeatures` instead. */
   async listProviderFeatures(
     draftConfig: ListCommandsDraftConfig,
     options?: { requestId?: string },
@@ -1795,12 +1249,14 @@ export class DaemonClient {
     return this.workspaceRpc.listProviderFeatures(draftConfig, options);
   }
 
+  /** @deprecated Use `client.workspaces.listAvailableProviders` instead. */
   async listAvailableProviders(options?: {
     requestId?: string;
   }): Promise<ListAvailableProvidersPayload> {
     return this.workspaceRpc.listAvailableProviders(options);
   }
 
+  /** @deprecated Use `client.workspaces.getProvidersSnapshot` instead. */
   async getProvidersSnapshot(options?: {
     cwd?: string;
     requestId?: string;
@@ -1808,12 +1264,14 @@ export class DaemonClient {
     return this.workspaceRpc.getProvidersSnapshot(options);
   }
 
+  /** @deprecated Use `client.workspaces.getDaemonConfig` instead. */
   async getDaemonConfig(
     requestId?: string,
   ): Promise<{ requestId: string; config: MutableDaemonConfig }> {
     return this.workspaceRpc.getDaemonConfig(requestId);
   }
 
+  /** @deprecated Use `client.workspaces.patchDaemonConfig` instead. */
   async patchDaemonConfig(
     config: MutableDaemonConfigPatch,
     requestId?: string,
@@ -1821,14 +1279,17 @@ export class DaemonClient {
     return this.workspaceRpc.patchDaemonConfig(config, requestId);
   }
 
+  /** @deprecated Use `client.workspaces.readProjectConfig` instead. */
   async readProjectConfig(repoRoot: string, requestId?: string): Promise<ReadProjectConfigPayload> {
     return this.workspaceRpc.readProjectConfig(repoRoot, requestId);
   }
 
+  /** @deprecated Use `client.workspaces.writeProjectConfig` instead. */
   async writeProjectConfig(input: WriteProjectConfigInput): Promise<WriteProjectConfigPayload> {
     return this.workspaceRpc.writeProjectConfig(input);
   }
 
+  /** @deprecated Use `client.workspaces.refreshProvidersSnapshot` instead. */
   async refreshProvidersSnapshot(options?: {
     cwd?: string;
     providers?: AgentProvider[];
@@ -1837,6 +1298,7 @@ export class DaemonClient {
     return this.workspaceRpc.refreshProvidersSnapshot(options);
   }
 
+  /** @deprecated Use `client.workspaces.getProviderDiagnostic` instead. */
   async getProviderDiagnostic(
     provider: AgentProvider,
     options?: { requestId?: string },
@@ -1844,6 +1306,7 @@ export class DaemonClient {
     return this.workspaceRpc.getProviderDiagnostic(provider, options);
   }
 
+  /** @deprecated Use `client.workspaces.listCommands` instead. */
   async listCommands(agentId: string, requestId?: string): Promise<ListCommandsPayload>;
   async listCommands(agentId: string, options?: ListCommandsOptions): Promise<ListCommandsPayload>;
   async listCommands(
@@ -1860,6 +1323,7 @@ export class DaemonClient {
   // Permissions
   // ============================================================================
 
+  /** @deprecated Use `client.agents.respondToPermission` instead. */
   async respondToPermission(
     agentId: string,
     requestId: string,
@@ -1868,6 +1332,7 @@ export class DaemonClient {
     return this.agentRpc.respondToPermission(agentId, requestId, response);
   }
 
+  /** @deprecated Use `client.agents.respondToPermissionAndWait` instead. */
   async respondToPermissionAndWait(
     agentId: string,
     requestId: string,
@@ -1881,6 +1346,7 @@ export class DaemonClient {
   // Waiting / Streaming Helpers
   // ============================================================================
 
+  /** @deprecated Use `client.agents.waitForAgentUpsert` instead. */
   async waitForAgentUpsert(
     agentId: string,
     predicate: (snapshot: AgentSnapshotPayload) => boolean,
@@ -1889,6 +1355,7 @@ export class DaemonClient {
     return this.agentRpc.waitForAgentUpsert(agentId, predicate, timeout);
   }
 
+  /** @deprecated Use `client.agents.waitForFinish` instead. */
   async waitForFinish(agentId: string, timeout = 60000): Promise<WaitForFinishResult> {
     return this.agentRpc.waitForFinish(agentId, timeout);
   }
@@ -1897,18 +1364,22 @@ export class DaemonClient {
   // Terminals
   // ============================================================================
 
+  /** @deprecated Use `client.terminal.subscribeTerminals` instead. */
   subscribeTerminals(input: { cwd: string }): void {
     return this.terminalRpc.subscribeTerminals(input);
   }
 
+  /** @deprecated Use `client.terminal.unsubscribeTerminals` instead. */
   unsubscribeTerminals(input: { cwd: string }): void {
     return this.terminalRpc.unsubscribeTerminals(input);
   }
 
+  /** @deprecated Use `client.terminal.listTerminals` instead. */
   async listTerminals(cwd?: string, requestId?: string): Promise<ListTerminalsPayload> {
     return this.terminalRpc.listTerminals(cwd, requestId);
   }
 
+  /** @deprecated Use `client.terminal.createTerminal` instead. */
   async createTerminal(
     cwd: string,
     name?: string,
@@ -1918,6 +1389,7 @@ export class DaemonClient {
     return this.terminalRpc.createTerminal(cwd, name, requestId, options);
   }
 
+  /** @deprecated Use `client.terminal.subscribeTerminal` instead. */
   async subscribeTerminal(
     terminalId: string,
     requestId?: string,
@@ -1925,18 +1397,22 @@ export class DaemonClient {
     return this.terminalRpc.subscribeTerminal(terminalId, requestId);
   }
 
+  /** @deprecated Use `client.terminal.unsubscribeTerminal` instead. */
   unsubscribeTerminal(terminalId: string): void {
     return this.terminalRpc.unsubscribeTerminal(terminalId);
   }
 
+  /** @deprecated Use `client.terminal.sendTerminalInput` instead. */
   sendTerminalInput(terminalId: string, message: TerminalInput["message"]): void {
     return this.terminalRpc.sendTerminalInput(terminalId, message);
   }
 
+  /** @deprecated Use `client.terminal.killTerminal` instead. */
   async killTerminal(terminalId: string, requestId?: string): Promise<KillTerminalPayload> {
     return this.terminalRpc.killTerminal(terminalId, requestId);
   }
 
+  /** @deprecated Use `client.terminal.closeItems` instead. */
   async closeItems(
     input: { agentIds?: string[]; terminalIds?: string[] },
     requestId?: string,
@@ -1944,6 +1420,7 @@ export class DaemonClient {
     return this.terminalRpc.closeItems(input, requestId);
   }
 
+  /** @deprecated Use `client.terminal.captureTerminal` instead. */
   async captureTerminal(
     terminalId: string,
     options?: { start?: number; end?: number; stripAnsi?: boolean },
@@ -1952,74 +1429,92 @@ export class DaemonClient {
     return this.terminalRpc.captureTerminal(terminalId, options, requestId);
   }
 
+  /** @deprecated Use `client.chat.createChatRoom` instead. */
   async createChatRoom(options: CreateChatRoomOptions): Promise<ChatCreatePayload> {
     return this.chatRpc.createChatRoom(options);
   }
 
+  /** @deprecated Use `client.chat.listChatRooms` instead. */
   async listChatRooms(requestId?: string): Promise<ChatListPayload> {
     return this.chatRpc.listChatRooms(requestId);
   }
 
+  /** @deprecated Use `client.chat.inspectChatRoom` instead. */
   async inspectChatRoom(options: InspectChatRoomOptions): Promise<ChatInspectPayload> {
     return this.chatRpc.inspectChatRoom(options);
   }
 
+  /** @deprecated Use `client.chat.deleteChatRoom` instead. */
   async deleteChatRoom(options: DeleteChatRoomOptions): Promise<ChatDeletePayload> {
     return this.chatRpc.deleteChatRoom(options);
   }
 
+  /** @deprecated Use `client.chat.postChatMessage` instead. */
   async postChatMessage(options: PostChatMessageOptions): Promise<ChatPostPayload> {
     return this.chatRpc.postChatMessage(options);
   }
 
+  /** @deprecated Use `client.chat.readChatMessages` instead. */
   async readChatMessages(options: ReadChatMessagesOptions): Promise<ChatReadPayload> {
     return this.chatRpc.readChatMessages(options);
   }
 
+  /** @deprecated Use `client.chat.waitForChatMessages` instead. */
   async waitForChatMessages(options: WaitForChatMessagesOptions): Promise<ChatWaitPayload> {
     return this.chatRpc.waitForChatMessages(options);
   }
 
+  /** @deprecated Use `client.schedules.scheduleCreate` instead. */
   async scheduleCreate(options: CreateScheduleOptions): Promise<ScheduleCreatePayload> {
     return this.scheduleRpc.scheduleCreate(options);
   }
 
+  /** @deprecated Use `client.schedules.scheduleList` instead. */
   async scheduleList(requestId?: string): Promise<ScheduleListPayload> {
     return this.scheduleRpc.scheduleList(requestId);
   }
 
+  /** @deprecated Use `client.schedules.scheduleInspect` instead. */
   async scheduleInspect(options: InspectScheduleOptions): Promise<ScheduleInspectPayload> {
     return this.scheduleRpc.scheduleInspect(options);
   }
 
+  /** @deprecated Use `client.schedules.scheduleLogs` instead. */
   async scheduleLogs(options: InspectScheduleOptions): Promise<ScheduleLogsPayload> {
     return this.scheduleRpc.scheduleLogs(options);
   }
 
+  /** @deprecated Use `client.schedules.schedulePause` instead. */
   async schedulePause(options: InspectScheduleOptions): Promise<SchedulePausePayload> {
     return this.scheduleRpc.schedulePause(options);
   }
 
+  /** @deprecated Use `client.schedules.scheduleResume` instead. */
   async scheduleResume(options: InspectScheduleOptions): Promise<ScheduleResumePayload> {
     return this.scheduleRpc.scheduleResume(options);
   }
 
+  /** @deprecated Use `client.schedules.scheduleDelete` instead. */
   async scheduleDelete(options: InspectScheduleOptions): Promise<ScheduleDeletePayload> {
     return this.scheduleRpc.scheduleDelete(options);
   }
 
+  /** @deprecated Use `client.schedules.scheduleUpdate` instead. */
   async scheduleUpdate(options: UpdateScheduleOptions): Promise<ScheduleUpdatePayload> {
     return this.scheduleRpc.scheduleUpdate(options);
   }
 
+  /** @deprecated Use `client.schedules.scheduleAssist` instead. */
   async scheduleAssist(options: ScheduleAssistOptions): Promise<ScheduleAssistPayload> {
     return this.scheduleRpc.scheduleAssist(options);
   }
 
+  /** @deprecated Use `client.terminal.tmuxListAgents` instead. */
   async tmuxListAgents(requestId?: string): Promise<TmuxListAgentsPayload> {
     return this.terminalRpc.tmuxListAgents(requestId);
   }
 
+  /** @deprecated Use `client.terminal.tmuxCapturePane` instead. */
   async tmuxCapturePane(
     paneId: string,
     startLine?: number,
@@ -2030,530 +1525,91 @@ export class DaemonClient {
     return this.terminalRpc.tmuxCapturePane(paneId, startLine, lastContentHash, cols, requestId);
   }
 
+  /** @deprecated Use `client.terminal.tmuxSendKeys` instead. */
   async tmuxSendKeys(paneId: string, keys: string, sendEnter?: boolean, requestId?: string): Promise<TmuxSendKeysPayload> {
     return this.terminalRpc.tmuxSendKeys(paneId, keys, sendEnter, requestId);
   }
 
+  /** @deprecated Use `client.terminal.tmuxStatusLine` instead. */
   async tmuxStatusLine(sessionId: string, requestId?: string): Promise<TmuxStatusLinePayload> {
     return this.terminalRpc.tmuxStatusLine(sessionId, requestId);
   }
 
+  /** @deprecated Use `client.terminal.tmuxNewSession` instead. */
   async tmuxNewSession(name: string, options?: { workingDir?: string; command?: string }, requestId?: string): Promise<TmuxNewSessionPayload> {
     return this.terminalRpc.tmuxNewSession(name, options, requestId);
   }
 
+  /** @deprecated Use `client.terminal.tmuxKillSession` instead. */
   async tmuxKillSession(sessionName: string, requestId?: string): Promise<TmuxKillSessionPayload> {
     return this.terminalRpc.tmuxKillSession(sessionName, requestId);
   }
 
+  /** @deprecated Use `client.terminal.tmuxDeleteCommandHistory` instead. */
   async tmuxDeleteCommandHistory(launchCmd: string, requestId?: string): Promise<TmuxDeleteCommandHistoryPayload> {
     return this.terminalRpc.tmuxDeleteCommandHistory(launchCmd, requestId);
   }
 
+  /** @deprecated Use `client.schedules.loopRun` instead. */
   async loopRun(options: RunLoopOptions): Promise<LoopRunPayload> {
     return this.scheduleRpc.loopRun(options);
   }
 
+  /** @deprecated Use `client.schedules.loopList` instead. */
   async loopList(requestId?: string): Promise<LoopListPayload> {
     return this.scheduleRpc.loopList(requestId);
   }
 
+  /** @deprecated Use `client.schedules.loopInspect` instead. */
   async loopInspect(options: string | InspectLoopOptions): Promise<LoopInspectPayload> {
     return this.scheduleRpc.loopInspect(options);
   }
 
+  /** @deprecated Use `client.schedules.loopLogs` instead. */
   async loopLogs(options: string | LoopLogsOptions, afterSeq?: number): Promise<LoopLogsPayload> {
     return this.scheduleRpc.loopLogs(options, afterSeq);
   }
 
+  /** @deprecated Use `client.schedules.loopStop` instead. */
   async loopStop(options: string | StopLoopOptions): Promise<LoopStopPayload> {
     return this.scheduleRpc.loopStop(options);
   }
 
+  /** @deprecated Use `client.schedules.loopUpdate` instead. */
   async loopUpdate(options: UpdateLoopOptions): Promise<LoopUpdatePayload> {
     return this.scheduleRpc.loopUpdate(options);
   }
 
+  /** @deprecated Use `client.schedules.loopDelete` instead. */
   async loopDelete(options: string | DeleteLoopOptions): Promise<LoopDeletePayload> {
     return this.scheduleRpc.loopDelete(options);
   }
 
+  /** @deprecated Use `client.schedules.loopTemplateList` instead. */
   async loopTemplateList(requestId?: string): Promise<LoopTemplateListPayload> {
     return this.scheduleRpc.loopTemplateList(requestId);
   }
 
+  /** @deprecated Use `client.schedules.loopTemplateGet` instead. */
   async loopTemplateGet(options: string | GetLoopTemplateOptions): Promise<LoopTemplateGetPayload> {
     return this.scheduleRpc.loopTemplateGet(options);
   }
 
+  /** @deprecated Use `client.schedules.loopTemplateDelete` instead. */
   async loopTemplateDelete(options: string | DeleteLoopTemplateOptions): Promise<LoopTemplateDeletePayload> {
     return this.scheduleRpc.loopTemplateDelete(options);
   }
 
+  /** @deprecated Use `client.terminal.onTerminalStreamEvent` instead. */
   onTerminalStreamEvent(handler: (event: TerminalStreamEvent) => void): () => void {
     return this.terminalRpc.onTerminalStreamEvent(handler);
   }
 
+  /** @deprecated Use `client.terminal.waitForTerminalStreamEvent` instead. */
   async waitForTerminalStreamEvent(
     predicate: (event: TerminalStreamEvent) => boolean,
     timeout = 5000,
   ): Promise<TerminalStreamEvent> {
     return this.terminalRpc.waitForTerminalStreamEvent(predicate, timeout);
-  }
-
-  // ============================================================================
-  // Internals
-  // ============================================================================
-
-  /** @internal */
-  createRequestId(requestId?: string): string {
-    return requestId ?? crypto.randomUUID();
-  }
-
-  getLastServerInfoMessage(): ServerInfoStatusPayload | null {
-    return this.lastServerInfoMessage;
-  }
-
-  private resolveTransportUrlForAttempt(): string {
-    return this.config.url;
-  }
-
-  private sendHelloMessage(): void {
-    if (!this.transport) {
-      this.scheduleReconnect({
-        reason: "Transport unavailable before hello",
-        event: "HELLO_TRANSPORT_MISSING",
-        reasonCode: "transport_error",
-      });
-      return;
-    }
-
-    try {
-      this.transport.send(
-        JSON.stringify({
-          type: "hello",
-          clientId: this.config.clientId,
-          clientType: this.config.clientType ?? "cli",
-          protocolVersion: 2,
-          ...(this.config.appVersion ? { appVersion: this.config.appVersion } : {}),
-        }),
-      );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to send hello message";
-      this.lastErrorValue = message;
-      this.scheduleReconnect({
-        reason: message,
-        event: "HELLO_SEND_FAILED",
-        reasonCode: "transport_error",
-      });
-    }
-  }
-
-  private disposeTransport(code = 1001, reason = "Reconnecting"): void {
-    this.cleanupTransport();
-    if (this.transport) {
-      try {
-        this.transport.close(code, reason);
-      } catch (error) {
-        this.logger.debug({ err: toErrorInfo(error) }, "transport_close_failed");
-      }
-      this.transport = null;
-    }
-  }
-
-  private cleanupTransport(): void {
-    this.resetConnectTimeout();
-    if (this.pendingGenericTransportErrorTimeout) {
-      clearTimeout(this.pendingGenericTransportErrorTimeout);
-      this.pendingGenericTransportErrorTimeout = null;
-    }
-    for (const cleanup of this.transportCleanup) {
-      try {
-        cleanup();
-      } catch (error) {
-        this.logger.warn({ err: toErrorInfo(error) }, "transport_cleanup_handler_failed");
-      }
-    }
-    this.transportCleanup = [];
-  }
-
-  private resetConnectTimeout(): void {
-    if (!this.connectTimeout) {
-      return;
-    }
-    clearTimeout(this.connectTimeout);
-    this.connectTimeout = null;
-  }
-
-  private handleTransportMessage(data: unknown): void {
-    const rawData =
-      data && typeof data === "object" && "data" in data ? (data as { data: unknown }).data : data;
-
-    if (
-      typeof Blob !== "undefined" &&
-      rawData instanceof Blob &&
-      typeof rawData.arrayBuffer === "function"
-    ) {
-      void rawData
-        .arrayBuffer()
-        .then((buffer) => {
-          this.handleTransportMessage(buffer);
-          return;
-        })
-        .catch(() => {
-          // Ignore failed blob decoding and allow reconnect logic to recover.
-        });
-      return;
-    }
-
-    const rawBytes = asUint8Array(rawData);
-    if (rawBytes && this.terminalRpc.tryHandleBinaryFrame(rawBytes)) {
-      return;
-    }
-    const payload = decodeMessageData(rawData);
-    if (!payload) {
-      return;
-    }
-    this.handleJsonPayload(payload, rawBytes?.byteLength);
-  }
-
-  private handleJsonPayload(payload: string, rawBytesLength: number | undefined): void {
-    const bytes = rawBytesLength ?? payload.length;
-    const startMs = perfNow();
-    let parsedJson: unknown;
-    try {
-      parsedJson = JSON.parse(payload);
-    } catch (error) {
-      this.logger.debug({ err: toErrorInfo(error) }, "json_parse_failed");
-      return;
-    }
-
-    const parsed = WSOutboundMessageSchema.safeParse(parsedJson);
-    if (!parsed.success) {
-      const msgType = (parsedJson as { type?: string })?.type ?? "unknown";
-      this.logger.warn({ msgType, error: parsed.error.message }, "Message validation failed");
-      return;
-    }
-
-    if (parsed.data.type === "pong") {
-      this.runtimeMetrics?.recordMessage("pong", bytes, perfNow() - startMs);
-      return;
-    }
-
-    this.handleSessionMessage(parsed.data.message);
-    const msgType = parsed.data.message.type;
-    this.runtimeMetrics?.recordMessage(msgType, bytes, perfNow() - startMs);
-    if (parsed.data.message.type === "agent_stream") {
-      this.runtimeMetrics?.recordAgentStream(parsed.data.message.payload);
-    }
-  }
-
-  private updateConnectionState(
-    next: ConnectionState,
-    metadata?: { event: string; reason?: string; reasonCode?: string },
-  ): void {
-    const previous = this.connectionState;
-    this.connectionState = next;
-    const reasonFromNext =
-      next.status === "disconnected" && typeof next.reason === "string" ? next.reason : null;
-    const reason = metadata?.reason ?? reasonFromNext;
-    const reasonCode = metadata?.reasonCode ?? toReasonCode(reason);
-    this.logger.debug(
-      {
-        serverId: this.logServerId,
-        clientIdHash: this.logClientIdHash,
-        from: previous.status,
-        to: next.status,
-        event: metadata?.event ?? "STATE_UPDATE",
-        connectionPath: this.logConnectionPath,
-        generation: this.logGeneration,
-        reasonCode,
-        reason,
-      },
-      "DaemonClientTransition",
-    );
-    for (const listener of this.connectionListeners) {
-      try {
-        listener(next);
-      } catch (error) {
-        this.logger.warn({ err: toErrorInfo(error) }, "connection_listener_failed");
-      }
-    }
-  }
-
-  setReconnectEnabled(enabled: boolean): void {
-    this.config = { ...this.config, reconnect: { ...this.config.reconnect, enabled } };
-  }
-
-  private scheduleReconnect(input?: {
-    reason?: string;
-    event?: string;
-    reasonCode?: string;
-  }): void {
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = null;
-    }
-    const wasDisposed = this.connectionState.status === "disposed";
-    const reason = input?.reason;
-
-    if (typeof reason === "string" && reason.trim().length > 0) {
-      this.lastErrorValue = reason.trim();
-    }
-
-    // Clear all pending waiters and queued sends since the connection was lost
-    // and responses from the previous connection will never arrive.
-    this.clearWaiters(new Error(reason ?? "Connection lost"));
-    this.rejectPendingSendQueue(new Error(reason ?? "Connection lost"));
-    this.terminalRpc.clearSlots();
-    this.lastServerInfoMessage = null;
-
-    if (wasDisposed) {
-      this.rejectConnect(new Error(reason ?? "Daemon client is disposed"));
-      return;
-    }
-    this.emitDisconnectedStateForReconnect(reason, input);
-    if (!this.shouldReconnect || this.config.reconnect?.enabled === false) {
-      this.rejectConnect(new Error(reason ?? "Transport disconnected before connect"));
-      return;
-    }
-
-    this.armReconnectTimer();
-  }
-
-  private emitDisconnectedStateForReconnect(
-    reason: string | undefined,
-    input: { reason?: string; event?: string; reasonCode?: string } | undefined,
-  ): void {
-    this.updateConnectionState(
-      {
-        status: "disconnected",
-        ...(reason ? { reason } : {}),
-      },
-      {
-        event: input?.event ?? "TRANSPORT_CLOSE",
-        ...(reason ? { reason } : {}),
-        ...(input?.reasonCode ? { reasonCode: input.reasonCode } : {}),
-      },
-    );
-  }
-
-  private armReconnectTimer(): void {
-    const attempt = this.reconnectAttempt;
-    const baseDelay = this.config.reconnect?.baseDelayMs ?? DEFAULT_RECONNECT_BASE_DELAY_MS;
-    const maxDelay = this.config.reconnect?.maxDelayMs ?? DEFAULT_RECONNECT_MAX_DELAY_MS;
-    const delay = Math.min(baseDelay * 2 ** attempt, maxDelay);
-    this.reconnectAttempt = attempt + 1;
-    this.reconnectTimeout = setTimeout(() => {
-      this.reconnectTimeout = null;
-      if (!this.shouldReconnect) {
-        return;
-      }
-      this.attemptConnect();
-    }, delay);
-  }
-
-  private handleSessionMessage(msg: SessionOutboundMessage): void {
-    if (msg.type === "status") {
-      const serverInfo = parseServerInfoStatusPayload(msg.payload);
-      if (serverInfo) {
-        this.lastServerInfoMessage = serverInfo;
-        if (this.connectionState.status === "connecting") {
-          this.resetConnectTimeout();
-          this.reconnectAttempt = 0;
-          this.updateConnectionState({ status: "connected" }, { event: "HELLO_SERVER_INFO" });
-          this.gitRpc.resubscribe();
-          this.terminalRpc.resubscribe();
-          this.flushPendingSendQueue();
-          this.resolveConnect();
-        }
-      }
-    }
-
-    if (msg.type === "terminal_stream_exit") {
-      this.terminalRpc.removeSlot(msg.payload.terminalId);
-    }
-
-    if (this.rawMessageListeners.size > 0) {
-      for (const handler of this.rawMessageListeners) {
-        try {
-          handler(msg);
-        } catch (error) {
-          this.logger.warn({ err: toErrorInfo(error) }, "raw_message_listener_failed");
-        }
-      }
-    }
-
-    const handlers = this.messageHandlers.get(msg.type);
-    if (handlers) {
-      for (const handler of handlers) {
-        try {
-          handler(msg);
-        } catch (error) {
-          this.logger.warn({ err: toErrorInfo(error) }, "message_handler_failed");
-        }
-      }
-    }
-
-    const event = this.toEvent(msg);
-    if (event) {
-      for (const handler of this.eventListeners) {
-        handler(event);
-      }
-    }
-
-    this.resolveWaiters(msg);
-  }
-
-  private resolveWaiters(msg: SessionOutboundMessage): void {
-    for (const waiter of Array.from(this.waiters)) {
-      const result = waiter.predicate(msg);
-      if (result !== null) {
-        this.waiters.delete(waiter);
-        if (waiter.timeoutHandle) {
-          clearTimeout(waiter.timeoutHandle);
-        }
-        waiter.resolve(result);
-      }
-    }
-  }
-
-  private clearWaiters(error: Error): void {
-    for (const waiter of Array.from(this.waiters)) {
-      if (waiter.timeoutHandle) {
-        clearTimeout(waiter.timeoutHandle);
-      }
-      waiter.reject(error);
-    }
-    this.waiters.clear();
-  }
-
-  private toEvent(msg: SessionOutboundMessage): DaemonEvent | null {
-    switch (msg.type) {
-      case "agent_update":
-        return {
-          type: "agent_update",
-          agentId: msg.payload.kind === "upsert" ? msg.payload.agent.id : msg.payload.agentId,
-          payload: msg.payload,
-        };
-      case "workspace_update":
-        return {
-          type: "workspace_update",
-          workspaceId: msg.payload.kind === "upsert" ? msg.payload.workspace.id : msg.payload.id,
-          payload: msg.payload,
-        };
-      case "workspace_setup_progress":
-        return {
-          type: "workspace_setup_progress",
-          workspaceId: msg.payload.workspaceId,
-          payload: msg.payload,
-        };
-      case "agent_stream":
-        return {
-          type: "agent_stream",
-          agentId: msg.payload.agentId,
-          event: msg.payload.event,
-          timestamp: msg.payload.timestamp,
-          ...(typeof msg.payload.seq === "number" ? { seq: msg.payload.seq } : {}),
-          ...(typeof msg.payload.epoch === "string" ? { epoch: msg.payload.epoch } : {}),
-        };
-      case "status":
-        return { type: "status", payload: msg.payload };
-      case "agent_deleted":
-        return { type: "agent_deleted", agentId: msg.payload.agentId };
-      case "agent_permission_request":
-        return {
-          type: "agent_permission_request",
-          agentId: msg.payload.agentId,
-          request: msg.payload.request,
-        };
-      case "agent_permission_resolved":
-        return {
-          type: "agent_permission_resolved",
-          agentId: msg.payload.agentId,
-          requestId: msg.payload.requestId,
-          resolution: msg.payload.resolution,
-        };
-      case "providers_snapshot_update":
-        return {
-          type: "providers_snapshot_update",
-          payload: msg.payload,
-        };
-      default:
-        return null;
-    }
-  }
-
-  /** @internal */
-  waitForWithCancel<T>(
-    predicate: (msg: SessionOutboundMessage) => T | null,
-    timeout = 30000,
-    _options?: { skipQueue?: boolean },
-  ): WaitHandle<T> {
-    // Capture stack trace at call site, not inside setTimeout
-    const timeoutError = new Error(`Timeout waiting for message (${timeout}ms)`);
-
-    let waiter: Waiter<T> | null = null;
-    let settled = false;
-    let rejectFn: ((error: Error) => void) | null = null;
-
-    const promise = new Promise<T>((resolve, reject) => {
-      const wrappedResolve = (value: T) => {
-        if (settled) return;
-        settled = true;
-        resolve(value);
-      };
-      const wrappedReject = (error: Error) => {
-        if (settled) return;
-        settled = true;
-        reject(error);
-      };
-      rejectFn = wrappedReject;
-
-      const timeoutHandle =
-        timeout > 0
-          ? setTimeout(() => {
-              if (waiter) {
-                this.waiters.delete(waiter as Waiter<unknown>);
-              }
-              wrappedReject(timeoutError);
-            }, timeout)
-          : null;
-
-      waiter = {
-        predicate,
-        resolve: wrappedResolve,
-        reject: wrappedReject,
-        timeoutHandle,
-      };
-      this.waiters.add(waiter as Waiter<unknown>);
-    });
-
-    const cancel = (error: Error) => {
-      if (settled) {
-        return;
-      }
-
-      if (waiter) {
-        this.waiters.delete(waiter as Waiter<unknown>);
-        if (waiter.timeoutHandle) {
-          clearTimeout(waiter.timeoutHandle);
-        }
-      }
-
-      if (rejectFn) {
-        rejectFn(error);
-        return;
-      }
-
-      // Extremely unlikely: cancel called before the Promise executor ran.
-      queueMicrotask(() => {
-        if (!settled && rejectFn) {
-          rejectFn(error);
-        }
-      });
-    };
-
-    return { promise, cancel };
   }
 }
