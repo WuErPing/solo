@@ -93,7 +93,7 @@ func newE2ETestServer(t *testing.T) (*relay.Server, *httptest.Server) {
 	t.Helper()
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	store := relay.NewSessionStore(200, logger)
-	srv := relay.NewServer(store, 200, logger, nil)
+	srv := relay.NewServer(store, 200, 0, logger, nil)
 	srv.NudgeSyncDelay = 80 * time.Millisecond
 	srv.NudgeResetDelay = 40 * time.Millisecond
 	ts := httptest.NewServer(srv.Handler())

@@ -11,6 +11,7 @@ type Config struct {
 	Port           string
 	Host           string
 	MaxBuffer      int
+	MaxConns       int
 	LogLevel       slog.Level
 	AllowedOrigins []string // CORS whitelist; empty = reject all non-empty Origin headers
 }
@@ -20,6 +21,7 @@ func Load() Config {
 		Port:           envOrDefault("PORT", "8080"),
 		Host:           envOrDefault("HOST", "0.0.0.0"),
 		MaxBuffer:      envOrDefaultInt("MAX_BUFFER", 200),
+		MaxConns:       envOrDefaultInt("MAX_CONNS", 10000),
 		LogLevel:       parseLogLevel(envOrDefault("LOG_LEVEL", "info")),
 		AllowedOrigins: parseOrigins(envOrDefault("ALLOWED_ORIGINS", "https://solo.up2ai.top,http://localhost:19000")),
 	}

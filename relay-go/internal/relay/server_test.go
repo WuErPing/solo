@@ -18,7 +18,7 @@ func newTestServer(t *testing.T) (*Server, *httptest.Server) {
 	t.Helper()
 	logger := slog.Default()
 	store := NewSessionStore(200, logger)
-	srv := NewServer(store, 200, logger, nil)
+	srv := NewServer(store, 200, 0, logger, nil)
 	ts := httptest.NewServer(srv.Handler())
 	return srv, ts
 }

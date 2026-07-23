@@ -1052,7 +1052,9 @@ export class ConnectionManager {
     const attempt = this.reconnectAttempt;
     const baseDelay = this.config.reconnect?.baseDelayMs ?? DEFAULT_RECONNECT_BASE_DELAY_MS;
     const maxDelay = this.config.reconnect?.maxDelayMs ?? DEFAULT_RECONNECT_MAX_DELAY_MS;
-    const delay = Math.min(baseDelay * 2 ** attempt, maxDelay);
+    const expDelay = Math.min(baseDelay * 2 ** attempt, maxDelay);
+    const jitter = 0.8 + Math.random() * 0.4; // ±20%
+    const delay = Math.round(expDelay * jitter);
     this.reconnectAttempt = attempt + 1;
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectTimeout = null;

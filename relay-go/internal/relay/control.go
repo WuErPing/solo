@@ -4,7 +4,6 @@ package relay
 import (
 	"encoding/json"
 	"log/slog"
-	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -36,7 +35,7 @@ func sendControlJSON(conn *websocket.Conn, v any) {
 		return
 	}
 	// Best-effort control message; the peer will time out if it never arrives.
-	_ = conn.WriteMessage(websocket.TextMessage, data)
+	_ = writeWS(conn, websocket.TextMessage, data)
 }
 
 func sendSync(conn *websocket.Conn, connectionIDs []string) {
@@ -51,7 +50,7 @@ func notifyControl(sess *Session, v any) {
 	if err != nil {
 		return
 	}
-	if err := sess.ControlSocket.Conn.WriteMessage(websocket.TextMessage, data); err != nil {
+	if err := writeWS(sess.ControlSocket.Conn, websocket.TextMessage, data); err != nil {
 		// Connection is failing; close it best-effort and drop the reference.
 		_ = sess.ControlSocket.Conn.WriteMessage(websocket.CloseMessage,
 			websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "Control send failed"))
@@ -64,11 +63,9 @@ func handleControlPing(conn *websocket.Conn) {
 	sendControlJSON(conn, PongMessage{Type: "pong", Ts: time.Now().UnixMilli()})
 }
 
-var nudgeMu sync.Mutex
-
 func startControlNudge(_ *SessionStore, sess *Session, connectionID string, syncDelay, resetDelay time.Duration, logger *slog.Logger) {
-	nudgeMu.Lock()
-	defer nudgeMu.Unlock()
+	sess.nudgeMu.Lock()
+	defer sess.nudgeMu.Unlock()
 
 	if existing, ok := sess.controlNudgeTimers[connectionID]; ok {
 		existing.timer.Stop()
@@ -111,17 +108,17 @@ func startControlNudge(_ *SessionStore, sess *Session, connectionID string, sync
 			}
 		})
 
-		nudgeMu.Lock()
+		sess.nudgeMu.Lock()
 		sess.controlNudgeTimers[connectionID] = &nudgeTimer{timer: t2}
-		nudgeMu.Unlock()
+		sess.nudgeMu.Unlock()
 	})
 
 	sess.controlNudgeTimers[connectionID] = &nudgeTimer{timer: t}
 }
 
 func cancelControlNudge(sess *Session, connectionID string) {
-	nudgeMu.Lock()
-	defer nudgeMu.Unlock()
+	sess.nudgeMu.Lock()
+	defer sess.nudgeMu.Unlock()
 
 	if t, ok := sess.controlNudgeTimers[connectionID]; ok {
 		t.timer.Stop()
@@ -130,8 +127,8 @@ func cancelControlNudge(sess *Session, connectionID string) {
 }
 
 func startServerDataNudge(sess *Session, connectionID string, syncDelay, resetDelay time.Duration, logger *slog.Logger) {
-	nudgeMu.Lock()
-	defer nudgeMu.Unlock()
+	sess.nudgeMu.Lock()
+	defer sess.nudgeMu.Unlock()
 
 	if existing, ok := sess.serverDataNudgeTimers[connectionID]; ok {
 		existing.timer.Stop()
@@ -174,17 +171,17 @@ func startServerDataNudge(sess *Session, connectionID string, syncDelay, resetDe
 			}
 		})
 
-		nudgeMu.Lock()
+		sess.nudgeMu.Lock()
 		sess.serverDataNudgeTimers[connectionID] = &nudgeTimer{timer: t2}
-		nudgeMu.Unlock()
+		sess.nudgeMu.Unlock()
 	})
 
 	sess.serverDataNudgeTimers[connectionID] = &nudgeTimer{timer: t}
 }
 
 func cancelServerDataNudge(sess *Session, connectionID string) {
-	nudgeMu.Lock()
-	defer nudgeMu.Unlock()
+	sess.nudgeMu.Lock()
+	defer sess.nudgeMu.Unlock()
 
 	if t, ok := sess.serverDataNudgeTimers[connectionID]; ok {
 		t.timer.Stop()

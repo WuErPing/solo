@@ -30,11 +30,21 @@ const (
 	// killed mobile app) and is reaped so its goroutine/FD/buffers are
 	// released. Clients reconnect automatically.
 	wsReadIdleTimeout = 5 * time.Minute
+
+	// wsWriteDeadline bounds how long a single WriteMessage may block before
+	// the connection is considered dead.
+	wsWriteDeadline = 10 * time.Second
 )
+
+func writeWS(conn *websocket.Conn, msgType int, msg []byte) error {
+	_ = conn.SetWriteDeadline(time.Now().Add(wsWriteDeadline))
+	return conn.WriteMessage(msgType, msg)
+}
 
 type Server struct {
 	Store           *SessionStore
 	MaxBuffer       int
+	MaxConns        int64
 	Logger          *slog.Logger
 	connCount       atomic.Int64
 	NudgeSyncDelay  time.Duration
@@ -42,10 +52,11 @@ type Server struct {
 	AllowedOrigins  []string
 }
 
-func NewServer(store *SessionStore, maxBuffer int, logger *slog.Logger, allowedOrigins []string) *Server {
+func NewServer(store *SessionStore, maxBuffer int, maxConns int64, logger *slog.Logger, allowedOrigins []string) *Server {
 	return &Server{
 		Store:           store,
 		MaxBuffer:       maxBuffer,
+		MaxConns:        maxConns,
 		Logger:          logger,
 		NudgeSyncDelay:  10 * time.Second,
 		NudgeResetDelay: 5 * time.Second,
@@ -104,6 +115,12 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	if version != "" && version != protocol.RelayProtocolVersion {
 		http.Error(w, "unsupported protocol version", http.StatusBadRequest)
+		return
+	}
+
+	if s.MaxConns > 0 && s.connCount.Load() >= s.MaxConns {
+		s.Logger.Warn("connection limit reached, rejecting", "serverId", serverID, "maxConns", s.MaxConns)
+		http.Error(w, "connection limit reached", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -248,7 +265,7 @@ func (s *Server) handleMessage(sess *Session, role ConnectionRole, connectionID 
 	switch role {
 	case RoleClient:
 		if cd.ServerDataSocket != nil {
-			if err := cd.ServerDataSocket.Conn.WriteMessage(msgType, msg); err != nil {
+			if err := writeWS(cd.ServerDataSocket.Conn, msgType, msg); err != nil {
 				s.Logger.Warn("write to server failed", "connectionId", connectionID, "error", err)
 			}
 			relaymetrics.FramesForwarded.Inc()
@@ -259,7 +276,7 @@ func (s *Server) handleMessage(sess *Session, role ConnectionRole, connectionID 
 	case RoleServer:
 		remaining := cd.ClientSockets[:0]
 		for _, client := range cd.ClientSockets {
-			if err := client.Conn.WriteMessage(msgType, msg); err != nil {
+			if err := writeWS(client.Conn, msgType, msg); err != nil {
 				s.Logger.Warn("write to client failed, removing dead socket", "error", err)
 				_ = client.Conn.Close()
 			} else {

@@ -22,7 +22,7 @@ func newTestServerFast(t *testing.T) (*Server, *httptest.Server) {
 	t.Helper()
 	logger := slog.Default()
 	store := NewSessionStore(200, logger)
-	srv := NewServer(store, 200, logger, nil)
+	srv := NewServer(store, 200, 0, logger, nil)
 	srv.NudgeSyncDelay = 80 * time.Millisecond
 	srv.NudgeResetDelay = 40 * time.Millisecond
 	ts := httptest.NewServer(srv.Handler())

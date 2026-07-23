@@ -160,6 +160,8 @@ SOLO_RELAY_NGINX_PORT ?= 8081
 deploy-solo-relay: solo-relay-linux-amd64
 	@echo "Deploying solo relay to $(SOLO_RELAY_HOST)..."
 	scp $(OUTPUT)/linux/solo-relay $(SOLO_RELAY_HOST):/opt/solo-relay/solo-relay
+	scp deploy/systemd/solo-relay.service $(SOLO_RELAY_HOST):/tmp/solo-relay.service
+	ssh $(SOLO_RELAY_HOST) "sudo mv /tmp/solo-relay.service /etc/systemd/system/solo-relay.service && sudo systemctl daemon-reload"
 	ssh $(SOLO_RELAY_HOST) "chmod +x /opt/solo-relay/solo-relay && sudo systemctl restart solo-relay"
 	@echo "Solo relay deployed and restarted on port $(SOLO_RELAY_PORT)"
 
@@ -183,9 +185,6 @@ json.dump(config, sys.stdout, indent=2)" > ~/.solo/config.json.tmp && mv ~/.solo
 	@echo "Done. Restart daemon to apply: make restart"
 
 relay-status:
-	@echo "=== Solo Relay Status ==="
-	ssh $(SOLO_RELAY_HOST) "sudo systemctl status solo-relay --no-pager | head -10"
-	@echo ""
 	@echo "=== Solo Relay Status ==="
 	ssh $(SOLO_RELAY_HOST) "sudo systemctl status solo-relay --no-pager | head -10"
 	@echo ""

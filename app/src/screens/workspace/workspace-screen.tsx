@@ -1,46 +1,19 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStoreWithEqualityFn } from "zustand/traditional";
-import { ActivityIndicator, BackHandler, Keyboard, Pressable, Text, View } from "react-native";
+import { BackHandler, Pressable, Text, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
-import {
-  CopyX,
-  ArrowLeftToLine,
-  ArrowRightToLine,
-  ChevronDown,
-  Copy,
-  Ellipsis,
-  EllipsisVertical,
-  PanelRight,
-  RotateCw,
-  Settings,
-  SquarePen,
-  SquareTerminal,
-  X,
-} from "lucide-react-native";
 import { GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import type { Theme } from "@/styles/theme";
 import invariant from "tiny-invariant";
 import { SidebarMenuToggle } from "@/components/headers/menu-header";
 import { HeaderToggleButton } from "@/components/headers/header-toggle-button";
 import { ScreenHeader } from "@/components/headers/screen-header";
-import { BranchSwitcher } from "@/components/branch-switcher";
-import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { Shortcut } from "@/components/ui/shortcut";
 import type { ShortcutKey } from "@/utils/format-shortcut";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ExplorerSidebar } from "@/components/explorer-sidebar";
 import { SplitContainer } from "@/components/split-container";
-import { SourceControlPanelIcon } from "@/components/icons/source-control-panel-icon";
 import { WorkspaceGitActions } from "@/screens/workspace/workspace-git-actions";
 import { WorkspaceOpenInEditorButton } from "@/screens/workspace/workspace-open-in-editor-button";
 import { WorkspaceScriptsButton } from "@/screens/workspace/workspace-scripts-button";
@@ -49,7 +22,7 @@ import { useToast } from "@/contexts/toast-context";
 import { useExplorerOpenGesture } from "@/hooks/use-explorer-open-gesture";
 import { selectIsFileExplorerOpen, usePanelStore } from "@/stores/panel-store";
 import { type ExplorerCheckoutContext } from "@/stores/explorer-checkout-context";
-import { useSessionStore, type WorkspaceDescriptor } from "@/stores/session-store";
+import { useSessionStore } from "@/stores/session-store";
 import {
   buildWorkspaceTabPersistenceKey,
   collectAllTabs,
@@ -60,10 +33,7 @@ import type { WorkspaceTab, WorkspaceTabTarget } from "@/stores/workspace-tabs-s
 import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
 import type { KeyboardActionDefinition } from "@/keyboard/keyboard-action-dispatcher";
 import { useCreateFlowStore } from "@/stores/create-flow-store";
-import {
-  normalizeWorkspaceTabTarget,
-  workspaceTabTargetsEqual,
-} from "@/utils/workspace-tab-identity";
+import { normalizeWorkspaceTabTarget } from "@/utils/workspace-tab-identity";
 import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
 import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
 import { shouldShowWorkspaceSetup, useWorkspaceSetupStore } from "@/stores/workspace-setup-store";
@@ -73,7 +43,6 @@ import {
   checkoutStatusQueryKey,
   type CheckoutStatusPayload,
 } from "@/hooks/use-checkout-status-query";
-import type { ListTerminalsResponse } from "@server/shared/messages";
 import { upsertTerminalListEntry } from "@/utils/terminal-list";
 import { confirmDialog } from "@/utils/confirm-dialog";
 import { useArchiveAgent } from "@/hooks/use-archive-agent";
@@ -83,28 +52,14 @@ import { generateDraftId } from "@/stores/draft-keys";
 import {
   getWorkspaceExecutionAuthority,
   resolveWorkspaceRouteId,
-  type WorkspaceExecutionAuthorityResult,
 } from "@/utils/workspace-execution";
-import {
-  WorkspaceTabPresentationResolver,
-  WorkspaceTabIcon,
-  WorkspaceTabOptionRow,
-  type WorkspaceTabPresentation,
-} from "@/screens/workspace/workspace-tab-presentation";
+import { WorkspaceTabPresentationResolver } from "@/screens/workspace/workspace-tab-presentation";
 import {
   WorkspaceDesktopTabsRow,
   type WorkspaceDesktopTabRowItem,
 } from "@/screens/workspace/workspace-desktop-tabs-row";
-import {
-  buildWorkspaceTabMenuEntries,
-  type WorkspaceTabMenuEntry,
-} from "@/screens/workspace/workspace-tab-menu";
 import type { WorkspaceTabDescriptor } from "@/screens/workspace/workspace-tabs-types";
-import {
-  resolveWorkspaceHeaderRenderState,
-  shouldRenderMissingWorkspaceDescriptor,
-  type WorkspaceHeaderCheckoutState,
-} from "@/screens/workspace/workspace-header-source";
+import { shouldRenderMissingWorkspaceDescriptor } from "@/screens/workspace/workspace-header-source";
 import {
   deriveWorkspaceAgentVisibility,
   workspaceAgentVisibilityEqual,
@@ -112,7 +67,6 @@ import {
 import { deriveWorkspacePaneState } from "@/screens/workspace/workspace-pane-state";
 import {
   buildWorkspacePaneContentModel,
-  WorkspacePaneContent,
   type WorkspacePaneContentModel,
 } from "@/screens/workspace/workspace-pane-content";
 import { useMountedTabSet } from "@/screens/workspace/use-mounted-tab-set";
@@ -123,42 +77,52 @@ import {
   closeBulkWorkspaceTabs,
 } from "@/screens/workspace/workspace-bulk-close";
 import { findAdjacentPane } from "@/utils/split-navigation";
-import { isAbsolutePath } from "@/utils/path";
 import { useIsCompactFormFactor, supportsDesktopPaneSplits } from "@/constants/layout";
 import { isWeb, isNative } from "@/constants/platform";
 import { useContainerWidthBelow } from "@/hooks/use-container-width";
+import {
+  MENU_COPY_ICON,
+  MENU_NEW_AGENT_ICON,
+  MENU_NEW_TERMINAL_ICON,
+  MENU_SETTINGS_ICON,
+  ThemedActivityIndicator,
+  ThemedPanelRight,
+  ThemedSourceControlPanelIcon,
+  foregroundColorMapping,
+  mutedColorMapping,
+  sourceControlPanelStrokeWidth15,
+} from "@/screens/workspace/workspace-themed-icons";
+import {
+  containerWithWorkspaceBackgroundStyle,
+  styles,
+} from "@/screens/workspace/workspace-screen-styles";
+import {
+  MobileMountedTabSlot,
+  MobileWorkspaceTabSwitcher,
+  WorkspaceDocumentTitleEffect,
+  getFallbackTabOptionDescription,
+  getFallbackTabOptionLabel,
+  noop,
+  useStableTabDescriptorMap,
+} from "@/screens/workspace/workspace-mobile-tab-switcher";
+import { WorkspaceHeaderTitleBar } from "@/screens/workspace/workspace-header";
+import {
+  buildWorkspaceHeaderCheckoutState,
+  decodeSegment,
+  deriveWorkspaceHeaderFields,
+  parsePaneDirection,
+  reconcilePendingScriptTerminals,
+  removeTerminalFromPayload,
+  resolveWorkspaceAuthorityState,
+  trimNonEmpty,
+  type ListTerminalsPayload,
+} from "@/screens/workspace/workspace-screen-helpers";
 
 const TERMINALS_QUERY_STALE_TIME = 5_000;
 const WORKSPACE_SETUP_AUTO_OPEN_WINDOW_MS = 30_000;
 const EMPTY_UI_TABS: WorkspaceTab[] = [];
 const EMPTY_PINNED_AGENT_IDS = new Set<string>();
 const EMPTY_SET = new Set<string>();
-
-const ThemedActivityIndicator = withUnistyles(ActivityIndicator);
-const ThemedEllipsis = withUnistyles(Ellipsis);
-const ThemedEllipsisVertical = withUnistyles(EllipsisVertical);
-const ThemedChevronDown = withUnistyles(ChevronDown);
-const ThemedCopy = withUnistyles(Copy);
-const ThemedRotateCw = withUnistyles(RotateCw);
-const ThemedArrowLeftToLine = withUnistyles(ArrowLeftToLine);
-const ThemedArrowRightToLine = withUnistyles(ArrowRightToLine);
-const ThemedCopyX = withUnistyles(CopyX);
-const ThemedX = withUnistyles(X);
-const ThemedSquarePen = withUnistyles(SquarePen);
-const ThemedSquareTerminal = withUnistyles(SquareTerminal);
-const ThemedSettings = withUnistyles(Settings);
-const ThemedPanelRight = withUnistyles(PanelRight);
-const ThemedSourceControlPanelIcon = withUnistyles(SourceControlPanelIcon);
-
-const foregroundColorMapping = (theme: Theme) => ({ color: theme.colors.foreground });
-const mutedColorMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
-
-const sourceControlPanelStrokeWidth15 = { strokeWidth: 1.5 };
-
-const MENU_NEW_AGENT_ICON = <ThemedSquarePen size={16} uniProps={mutedColorMapping} />;
-const MENU_NEW_TERMINAL_ICON = <ThemedSquareTerminal size={16} uniProps={mutedColorMapping} />;
-const MENU_COPY_ICON = <ThemedCopy size={16} uniProps={mutedColorMapping} />;
-const MENU_SETTINGS_ICON = <ThemedSettings size={16} uniProps={mutedColorMapping} />;
 
 interface WorkspaceScreenProps {
   serverId: string;
@@ -169,512 +133,6 @@ interface WorkspaceScreenProps {
 type WorkspaceScreenContentProps = WorkspaceScreenProps & {
   isRouteFocused: boolean;
 };
-
-function trimNonEmpty(value: string | null | undefined): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function decodeSegment(value: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-}
-
-function getFallbackTabOptionLabel(tab: WorkspaceTabDescriptor): string {
-  if (tab.target.kind === "draft") {
-    return "New Agent";
-  }
-  if (tab.target.kind === "setup") {
-    return "Setup";
-  }
-  if (tab.target.kind === "terminal") {
-    return "Terminal";
-  }
-  if (tab.target.kind === "file") {
-    return tab.target.path.split("/").findLast(Boolean) ?? tab.target.path;
-  }
-  return "Agent";
-}
-
-function getFallbackTabOptionDescription(tab: WorkspaceTabDescriptor): string {
-  if (tab.target.kind === "draft") {
-    return "New Agent";
-  }
-  if (tab.target.kind === "setup") {
-    return "Workspace setup";
-  }
-  if (tab.target.kind === "agent") {
-    return "Agent";
-  }
-  if (tab.target.kind === "terminal") {
-    return "Terminal";
-  }
-  return tab.target.path;
-}
-
-interface MobileWorkspaceTabSwitcherProps {
-  tabs: WorkspaceTabDescriptor[];
-  activeTabKey: string;
-  activeTab: WorkspaceTabDescriptor | null;
-  tabSwitcherOptions: ComboboxOption[];
-  tabByKey: Map<string, WorkspaceTabDescriptor>;
-  normalizedServerId: string;
-  normalizedWorkspaceId: string;
-  onSelectSwitcherTab: (key: string) => void;
-  onCopyResumeCommand: (agentId: string) => Promise<void> | void;
-  onCopyAgentId: (agentId: string) => Promise<void> | void;
-  onReloadAgent: (agentId: string) => Promise<void> | void;
-  onCloseTab: (tabId: string) => Promise<void> | void;
-  onCloseTabsAbove: (tabId: string) => Promise<void> | void;
-  onCloseTabsBelow: (tabId: string) => Promise<void> | void;
-  onCloseOtherTabs: (tabId: string) => Promise<void> | void;
-}
-
-function MobileActiveTabTrigger({
-  activeTab,
-  normalizedServerId,
-  normalizedWorkspaceId,
-}: {
-  activeTab: WorkspaceTabDescriptor | null;
-  normalizedServerId: string;
-  normalizedWorkspaceId: string;
-}) {
-  if (!activeTab) {
-    return null;
-  }
-
-  return (
-    <ResolvedMobileActiveTabTrigger
-      activeTab={activeTab}
-      normalizedServerId={normalizedServerId}
-      normalizedWorkspaceId={normalizedWorkspaceId}
-    />
-  );
-}
-
-function ResolvedMobileActiveTabTrigger({
-  activeTab,
-  normalizedServerId,
-  normalizedWorkspaceId,
-}: {
-  activeTab: WorkspaceTabDescriptor;
-  normalizedServerId: string;
-  normalizedWorkspaceId: string;
-}) {
-  return (
-    <WorkspaceTabPresentationResolver
-      tab={activeTab}
-      serverId={normalizedServerId}
-      workspaceId={normalizedWorkspaceId}
-    >
-      {(presentation) => (
-        <>
-          <View style={styles.switcherTriggerIcon} testID="workspace-active-tab-icon">
-            <WorkspaceTabIcon presentation={presentation} active />
-          </View>
-
-          <Text style={styles.switcherTriggerText} numberOfLines={1}>
-            {presentation.titleState === "loading" ? "Loading..." : presentation.label}
-          </Text>
-        </>
-      )}
-    </WorkspaceTabPresentationResolver>
-  );
-}
-
-function WorkspaceDocumentTitleEffect({
-  label,
-  titleState,
-}: {
-  label: string;
-  titleState: "ready" | "loading";
-}) {
-  useEffect(() => {
-    if (isNative || typeof document === "undefined") {
-      return;
-    }
-    const resolvedLabel = label.trim();
-    document.title = titleState === "loading" ? "Loading..." : resolvedLabel || "Workspace";
-  }, [label, titleState]);
-
-  return null;
-}
-
-function noop() {}
-
-function mobileTabMenuTriggerStyle({ open, pressed }: { open?: boolean; pressed?: boolean }) {
-  return [
-    styles.mobileTabMenuTrigger,
-    (Boolean(open) || Boolean(pressed)) && styles.mobileTabMenuTriggerActive,
-  ];
-}
-
-function switcherTriggerStyle({ pressed }: { pressed?: boolean }) {
-  return [styles.switcherTrigger, Boolean(pressed) && styles.switcherTriggerPressed];
-}
-
-function MobileTabTrailingAccessory({
-  menuTestIDBase,
-  presentationLabel,
-  menuEntries,
-}: {
-  menuTestIDBase: string;
-  presentationLabel: string;
-  menuEntries: WorkspaceTabMenuEntry[];
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        testID={`${menuTestIDBase}-trigger`}
-        accessibilityRole="button"
-        accessibilityLabel={`Open menu for ${presentationLabel}`}
-        hitSlop={8}
-        style={mobileTabMenuTriggerStyle}
-      >
-        <ThemedEllipsis size={14} uniProps={mutedColorMapping} />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent side="bottom" align="end" width={220} testID={menuTestIDBase}>
-        {menuEntries.map((entry) =>
-          entry.kind === "separator" ? (
-            <DropdownMenuSeparator key={entry.key} />
-          ) : (
-            <MobileTabDropdownMenuItem key={entry.key} entry={entry} />
-          ),
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function MobileTabDropdownMenuItem({
-  entry,
-}: {
-  entry: Extract<WorkspaceTabMenuEntry, { kind: "item" }>;
-}) {
-  const leading = useMemo(() => {
-    switch (entry.icon) {
-      case "copy":
-        return <ThemedCopy size={16} uniProps={mutedColorMapping} />;
-      case "rotate-cw":
-        return <ThemedRotateCw size={16} uniProps={mutedColorMapping} />;
-      case "arrow-left-to-line":
-        return <ThemedArrowLeftToLine size={16} uniProps={mutedColorMapping} />;
-      case "arrow-right-to-line":
-        return <ThemedArrowRightToLine size={16} uniProps={mutedColorMapping} />;
-      case "copy-x":
-        return <ThemedCopyX size={16} uniProps={mutedColorMapping} />;
-      case "x":
-        return <ThemedX size={16} uniProps={mutedColorMapping} />;
-      default:
-        return undefined;
-    }
-  }, [entry.icon]);
-  const trailing = useMemo(
-    () => (entry.hint ? <Text style={styles.menuItemHint}>{entry.hint}</Text> : undefined),
-    [entry.hint],
-  );
-  return (
-    <DropdownMenuItem
-      testID={entry.testID}
-      disabled={entry.disabled}
-      destructive={entry.destructive}
-      onSelect={entry.onSelect}
-      tooltip={entry.tooltip}
-      leading={leading}
-      trailing={trailing}
-    >
-      {entry.label}
-    </DropdownMenuItem>
-  );
-}
-
-function MobileWorkspaceTabOption({
-  tab,
-  tabIndex,
-  tabCount,
-  normalizedServerId,
-  normalizedWorkspaceId,
-  selected,
-  active,
-  onPress,
-  onCopyResumeCommand,
-  onCopyAgentId,
-  onReloadAgent,
-  onCloseTab,
-  onCloseTabsAbove,
-  onCloseTabsBelow,
-  onCloseOtherTabs,
-}: {
-  tab: WorkspaceTabDescriptor;
-  tabIndex: number;
-  tabCount: number;
-  normalizedServerId: string;
-  normalizedWorkspaceId: string;
-  selected: boolean;
-  active: boolean;
-  onPress: () => void;
-  onCopyResumeCommand: (agentId: string) => Promise<void> | void;
-  onCopyAgentId: (agentId: string) => Promise<void> | void;
-  onReloadAgent: (agentId: string) => Promise<void> | void;
-  onCloseTab: (tabId: string) => Promise<void> | void;
-  onCloseTabsAbove: (tabId: string) => Promise<void> | void;
-  onCloseTabsBelow: (tabId: string) => Promise<void> | void;
-  onCloseOtherTabs: (tabId: string) => Promise<void> | void;
-}) {
-  const menuTestIDBase = `workspace-tab-menu-${tab.key}`;
-  const menuEntries = buildWorkspaceTabMenuEntries({
-    surface: "mobile",
-    tab,
-    index: tabIndex,
-    tabCount,
-    menuTestIDBase,
-    onCopyResumeCommand,
-    onCopyAgentId,
-    onReloadAgent,
-    onCloseTab,
-    onCloseTabsBefore: onCloseTabsAbove,
-    onCloseTabsAfter: onCloseTabsBelow,
-    onCloseOtherTabs,
-  });
-
-  const fallbackLabel = getFallbackTabOptionLabel(tab);
-  const trailingAccessory = useMemo(
-    () => (
-      <MobileTabTrailingAccessory
-        menuTestIDBase={menuTestIDBase}
-        presentationLabel={fallbackLabel}
-        menuEntries={menuEntries}
-      />
-    ),
-    [menuTestIDBase, fallbackLabel, menuEntries],
-  );
-
-  const renderPresentation = useCallback(
-    (presentation: WorkspaceTabPresentation) => (
-      <WorkspaceTabOptionRow
-        presentation={presentation}
-        selected={selected}
-        active={active}
-        onPress={onPress}
-        trailingAccessory={trailingAccessory}
-      />
-    ),
-    [selected, active, onPress, trailingAccessory],
-  );
-
-  return (
-    <WorkspaceTabPresentationResolver
-      tab={tab}
-      serverId={normalizedServerId}
-      workspaceId={normalizedWorkspaceId}
-    >
-      {renderPresentation}
-    </WorkspaceTabPresentationResolver>
-  );
-}
-
-const MobileWorkspaceTabSwitcher = memo(function MobileWorkspaceTabSwitcher({
-  tabs,
-  activeTabKey,
-  activeTab,
-  tabSwitcherOptions,
-  tabByKey,
-  normalizedServerId,
-  normalizedWorkspaceId,
-  onSelectSwitcherTab,
-  onCopyResumeCommand,
-  onCopyAgentId,
-  onReloadAgent,
-  onCloseTab,
-  onCloseTabsAbove,
-  onCloseTabsBelow,
-  onCloseOtherTabs,
-}: MobileWorkspaceTabSwitcherProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const anchorRef = useRef<View>(null);
-  const tabIndexByKey = useMemo(() => {
-    const map = new Map<string, number>();
-    tabs.forEach((tab, index) => {
-      map.set(tab.key, index);
-    });
-    return map;
-  }, [tabs]);
-
-  const handleOpenSwitcher = useCallback(() => {
-    Keyboard.dismiss();
-    setIsOpen(true);
-  }, []);
-
-  const renderTabOption = useCallback(
-    ({
-      option,
-      selected,
-      active,
-      onPress,
-    }: {
-      option: ComboboxOption;
-      selected: boolean;
-      active: boolean;
-      onPress: () => void;
-    }) => {
-      const tab = tabByKey.get(option.id);
-      if (!tab) {
-        return <View />;
-      }
-      const tabIndex = tabIndexByKey.get(tab.key) ?? -1;
-      if (tabIndex < 0) {
-        return <View />;
-      }
-      return (
-        <MobileWorkspaceTabOption
-          tab={tab}
-          tabIndex={tabIndex}
-          tabCount={tabs.length}
-          normalizedServerId={normalizedServerId}
-          normalizedWorkspaceId={normalizedWorkspaceId}
-          selected={selected}
-          active={active}
-          onPress={onPress}
-          onCopyResumeCommand={onCopyResumeCommand}
-          onCopyAgentId={onCopyAgentId}
-          onReloadAgent={onReloadAgent}
-          onCloseTab={onCloseTab}
-          onCloseTabsAbove={onCloseTabsAbove}
-          onCloseTabsBelow={onCloseTabsBelow}
-          onCloseOtherTabs={onCloseOtherTabs}
-        />
-      );
-    },
-    [
-      tabByKey,
-      tabIndexByKey,
-      tabs.length,
-      normalizedServerId,
-      normalizedWorkspaceId,
-      onCopyResumeCommand,
-      onCopyAgentId,
-      onReloadAgent,
-      onCloseTab,
-      onCloseTabsAbove,
-      onCloseTabsBelow,
-      onCloseOtherTabs,
-    ],
-  );
-
-  return (
-    <View style={styles.mobileTabsRow} testID="workspace-tabs-row">
-      <Pressable
-        ref={anchorRef}
-        testID="workspace-tab-switcher-trigger"
-        accessibilityRole="button"
-        accessibilityLabel={`Switch tabs (${tabs.length} open)`}
-        style={switcherTriggerStyle}
-        onPress={handleOpenSwitcher}
-      >
-        <View style={styles.switcherTriggerLeft}>
-          <MobileActiveTabTrigger
-            activeTab={activeTab}
-            normalizedServerId={normalizedServerId}
-            normalizedWorkspaceId={normalizedWorkspaceId}
-          />
-        </View>
-        <ThemedChevronDown size={14} uniProps={mutedColorMapping} />
-      </Pressable>
-
-      <Combobox
-        options={tabSwitcherOptions}
-        value={activeTabKey}
-        onSelect={onSelectSwitcherTab}
-        searchable={false}
-        title="Switch tab"
-        searchPlaceholder="Search tabs"
-        open={isOpen}
-        onOpenChange={setIsOpen}
-        anchorRef={anchorRef}
-        renderOption={renderTabOption}
-      />
-    </View>
-  );
-});
-
-interface MobileMountedTabSlotProps {
-  tabDescriptor: WorkspaceTabDescriptor;
-  isVisible: boolean;
-  isWorkspaceFocused: boolean;
-  isPaneFocused: boolean;
-  paneId: string | null;
-  buildPaneContentModel: (input: {
-    paneId: string | null;
-    tab: WorkspaceTabDescriptor;
-  }) => WorkspacePaneContentModel;
-}
-
-const MobileMountedTabSlot = memo(function MobileMountedTabSlot({
-  tabDescriptor,
-  isVisible,
-  isWorkspaceFocused,
-  isPaneFocused,
-  paneId,
-  buildPaneContentModel,
-}: MobileMountedTabSlotProps) {
-  const content = useMemo(
-    () =>
-      buildPaneContentModel({
-        paneId,
-        tab: tabDescriptor,
-      }),
-    [buildPaneContentModel, paneId, tabDescriptor],
-  );
-
-  const slotStyle = useMemo(
-    () => ({ display: isVisible ? ("flex" as const) : ("none" as const), flex: 1 }),
-    [isVisible],
-  );
-
-  return (
-    <View style={slotStyle}>
-      <WorkspacePaneContent
-        content={content}
-        isWorkspaceFocused={isWorkspaceFocused}
-        isPaneFocused={isPaneFocused}
-      />
-    </View>
-  );
-});
-
-function useStableTabDescriptorMap(tabDescriptors: WorkspaceTabDescriptor[]) {
-  const cacheRef = useRef(new Map<string, WorkspaceTabDescriptor>());
-  const tabDescriptorMap = useMemo(() => {
-    const next = new Map<string, WorkspaceTabDescriptor>();
-    for (const tabDescriptor of tabDescriptors) {
-      /* eslint-disable react-hooks/refs -- stable-reference cache: reading ref inside useMemo to preserve object identity */
-      const cachedDescriptor = cacheRef.current.get(tabDescriptor.tabId);
-      if (
-        cachedDescriptor &&
-        cachedDescriptor.key === tabDescriptor.key &&
-        cachedDescriptor.kind === tabDescriptor.kind &&
-        workspaceTabTargetsEqual(cachedDescriptor.target, tabDescriptor.target)
-      ) {
-        next.set(tabDescriptor.tabId, cachedDescriptor);
-        continue;
-      }
-      /* eslint-enable react-hooks/refs */
-      next.set(tabDescriptor.tabId, tabDescriptor);
-    }
-    return next;
-  }, [tabDescriptors]);
-  useEffect(() => {
-    cacheRef.current = tabDescriptorMap;
-  }, [tabDescriptorMap]);
-
-  return tabDescriptorMap;
-}
 
 export function WorkspaceScreen({ serverId, workspaceId, isRouteFocused }: WorkspaceScreenProps) {
   return (
@@ -713,223 +171,6 @@ function useCloseTabs(): UseCloseTabsResult {
   }, []);
 
   return { closingTabIds, closeTab };
-}
-
-interface WorkspaceHeaderMenuProps {
-  normalizedWorkspaceId: string;
-  currentBranchName: string | null;
-  showWorkspaceSetup: boolean;
-  isMobile: boolean;
-  createTerminalDisabled: boolean;
-  menuNewAgentIcon: ReactElement;
-  menuNewTerminalIcon: ReactElement;
-  menuCopyIcon: ReactElement;
-  menuSettingsIcon: ReactElement;
-  onCreateDraftTab: () => void;
-  onCreateTerminal: () => void;
-  onCopyWorkspacePath: () => void;
-  onCopyBranchName: () => void;
-  onOpenSetupTab: () => void;
-}
-
-function WorkspaceHeaderMenuTriggerIcon({
-  hovered,
-  open,
-  isMobile,
-}: {
-  hovered: boolean;
-  open: boolean;
-  isMobile: boolean;
-}) {
-  const Icon = isMobile ? ThemedEllipsisVertical : ThemedEllipsis;
-  const colorMapping = hovered || open ? foregroundColorMapping : mutedColorMapping;
-  return <Icon size={16} uniProps={colorMapping} />;
-}
-
-function WorkspaceHeaderMenu({
-  normalizedWorkspaceId,
-  currentBranchName,
-  showWorkspaceSetup,
-  isMobile,
-  createTerminalDisabled,
-  menuNewAgentIcon,
-  menuNewTerminalIcon,
-  menuCopyIcon,
-  menuSettingsIcon,
-  onCreateDraftTab,
-  onCreateTerminal,
-  onCopyWorkspacePath,
-  onCopyBranchName,
-  onOpenSetupTab,
-}: WorkspaceHeaderMenuProps) {
-  const renderTriggerIcon = useCallback(
-    ({ hovered, open }: { hovered: boolean; open: boolean }) => (
-      <WorkspaceHeaderMenuTriggerIcon hovered={hovered} open={open} isMobile={isMobile} />
-    ),
-    [isMobile],
-  );
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        testID="workspace-header-menu-trigger"
-        style={styles.headerActionButton}
-        accessibilityRole="button"
-        accessibilityLabel="Workspace actions"
-      >
-        {renderTriggerIcon}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" width={220} testID="workspace-header-menu">
-        <DropdownMenuItem
-          testID="workspace-header-new-agent"
-          leading={menuNewAgentIcon}
-          onSelect={onCreateDraftTab}
-        >
-          New agent
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          testID="workspace-header-new-terminal"
-          leading={menuNewTerminalIcon}
-          disabled={createTerminalDisabled}
-          onSelect={onCreateTerminal}
-        >
-          New terminal
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          testID="workspace-header-copy-path"
-          leading={menuCopyIcon}
-          disabled={!isAbsolutePath(normalizedWorkspaceId)}
-          onSelect={onCopyWorkspacePath}
-        >
-          Copy workspace path
-        </DropdownMenuItem>
-        {currentBranchName ? (
-          <DropdownMenuItem
-            testID="workspace-header-copy-branch-name"
-            leading={menuCopyIcon}
-            onSelect={onCopyBranchName}
-          >
-            Copy branch name
-          </DropdownMenuItem>
-        ) : null}
-        {showWorkspaceSetup ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              testID="workspace-header-show-setup"
-              leading={menuSettingsIcon}
-              onSelect={onOpenSetupTab}
-            >
-              Show setup
-            </DropdownMenuItem>
-          </>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-interface WorkspaceHeaderTitleBarProps {
-  isLoading: boolean;
-  title: string;
-  subtitle: string;
-  showSubtitle: boolean;
-  currentBranchName: string | null;
-  isGitCheckout: boolean;
-  normalizedServerId: string;
-  normalizedWorkspaceId: string;
-  showWorkspaceSetup: boolean;
-  isMobile: boolean;
-  createTerminalDisabled: boolean;
-  menuNewAgentIcon: ReactElement;
-  menuNewTerminalIcon: ReactElement;
-  menuCopyIcon: ReactElement;
-  menuSettingsIcon: ReactElement;
-  onCreateDraftTab: () => void;
-  onCreateTerminal: () => void;
-  onCopyWorkspacePath: () => void;
-  onCopyBranchName: () => void;
-  onOpenSetupTab: () => void;
-}
-
-function WorkspaceHeaderTitleBar({
-  isLoading,
-  title,
-  subtitle,
-  showSubtitle,
-  currentBranchName,
-  isGitCheckout,
-  normalizedServerId,
-  normalizedWorkspaceId,
-  showWorkspaceSetup,
-  isMobile,
-  createTerminalDisabled,
-  menuNewAgentIcon,
-  menuNewTerminalIcon,
-  menuCopyIcon,
-  menuSettingsIcon,
-  onCreateDraftTab,
-  onCreateTerminal,
-  onCopyWorkspacePath,
-  onCopyBranchName,
-  onOpenSetupTab,
-}: WorkspaceHeaderTitleBarProps) {
-  return (
-    <View style={styles.headerTitleContainer}>
-      {isLoading ? (
-        <View style={styles.headerTitleTextGroup}>
-          <View style={styles.headerTitleSkeleton} />
-        </View>
-      ) : (
-        <View style={styles.headerTitleTextGroup}>
-          <BranchSwitcher
-            currentBranchName={currentBranchName}
-            title={title}
-            serverId={normalizedServerId}
-            workspaceId={normalizedWorkspaceId}
-            isGitCheckout={isGitCheckout}
-          />
-          {showSubtitle ? (
-            <Text
-              testID="workspace-header-subtitle"
-              style={styles.headerProjectTitle}
-              numberOfLines={1}
-            >
-              {subtitle}
-            </Text>
-          ) : null}
-        </View>
-      )}
-      <WorkspaceHeaderMenu
-        normalizedWorkspaceId={normalizedWorkspaceId}
-        currentBranchName={currentBranchName}
-        showWorkspaceSetup={showWorkspaceSetup}
-        isMobile={isMobile}
-        createTerminalDisabled={createTerminalDisabled}
-        menuNewAgentIcon={menuNewAgentIcon}
-        menuNewTerminalIcon={menuNewTerminalIcon}
-        menuCopyIcon={menuCopyIcon}
-        menuSettingsIcon={menuSettingsIcon}
-        onCreateDraftTab={onCreateDraftTab}
-        onCreateTerminal={onCreateTerminal}
-        onCopyWorkspacePath={onCopyWorkspacePath}
-        onCopyBranchName={onCopyBranchName}
-        onOpenSetupTab={onOpenSetupTab}
-      />
-    </View>
-  );
-}
-
-type ListTerminalsPayload = ListTerminalsResponse["payload"];
-
-type PaneDirection = "left" | "right" | "up" | "down";
-
-function parsePaneDirection(actionId: string): PaneDirection | null {
-  const direction = actionId.split(".").pop();
-  if (direction === "left" || direction === "right" || direction === "up" || direction === "down") {
-    return direction;
-  }
-  return null;
 }
 
 interface RenderWorkspaceContentInput {
@@ -1009,109 +250,6 @@ function renderWorkspaceContent(input: RenderWorkspaceContentInput): React.React
       />
     );
   });
-}
-
-interface WorkspaceHeaderFields {
-  isWorkspaceHeaderLoading: boolean;
-  workspaceHeaderTitle: string;
-  workspaceHeaderSubtitle: string;
-  shouldShowWorkspaceHeaderSubtitle: boolean;
-  isGitCheckout: boolean;
-  currentBranchName: string | null;
-}
-
-function buildWorkspaceHeaderCheckoutState(input: {
-  isCheckoutStatusLoading: boolean;
-  isError: boolean;
-  data: CheckoutStatusPayload | undefined;
-}): WorkspaceHeaderCheckoutState {
-  if (input.isCheckoutStatusLoading) {
-    return { kind: "pending" };
-  }
-  if (input.isError || !input.data) {
-    return { kind: "error" };
-  }
-  return {
-    kind: "ready",
-    checkout: {
-      isGit: input.data.isGit,
-      currentBranch: input.data.currentBranch,
-    },
-  };
-}
-
-function deriveWorkspaceHeaderFields(input: {
-  workspace: WorkspaceDescriptor | null;
-  checkoutState: WorkspaceHeaderCheckoutState;
-}): WorkspaceHeaderFields {
-  const renderState = resolveWorkspaceHeaderRenderState(input);
-  if (renderState.kind !== "ready") {
-    return {
-      isWorkspaceHeaderLoading: true,
-      workspaceHeaderTitle: "",
-      workspaceHeaderSubtitle: "",
-      shouldShowWorkspaceHeaderSubtitle: false,
-      isGitCheckout: false,
-      currentBranchName: null,
-    };
-  }
-  return {
-    isWorkspaceHeaderLoading: false,
-    workspaceHeaderTitle: renderState.title,
-    workspaceHeaderSubtitle: renderState.subtitle,
-    shouldShowWorkspaceHeaderSubtitle: renderState.shouldShowSubtitle,
-    isGitCheckout: renderState.isGitCheckout,
-    currentBranchName: renderState.currentBranchName,
-  };
-}
-
-interface WorkspaceAuthorityState {
-  workspaceDirectory: string | null;
-  isMissingWorkspaceExecutionAuthority: boolean;
-}
-
-function resolveWorkspaceAuthorityState(
-  workspaceAuthority: WorkspaceExecutionAuthorityResult,
-  workspaceDescriptor: WorkspaceDescriptor | null | undefined,
-): WorkspaceAuthorityState {
-  const authority = workspaceAuthority.ok ? workspaceAuthority.authority : null;
-  return {
-    workspaceDirectory: authority?.workspaceDirectory ?? null,
-    isMissingWorkspaceExecutionAuthority: Boolean(workspaceDescriptor && !authority),
-  };
-}
-
-function reconcilePendingScriptTerminals(liveTerminalIds: string[], dataUpdatedAt: number) {
-  return function update(pendingTerminalIds: Map<string, number>): Map<string, number> {
-    if (pendingTerminalIds.size === 0) {
-      return pendingTerminalIds;
-    }
-    const liveIds = new Set(liveTerminalIds);
-    let changed = false;
-    const nextTerminalIds = new Map<string, number>();
-    for (const [terminalId, listedAt] of pendingTerminalIds) {
-      if (liveIds.has(terminalId) || dataUpdatedAt > listedAt) {
-        changed = true;
-        continue;
-      }
-      nextTerminalIds.set(terminalId, listedAt);
-    }
-    return changed ? nextTerminalIds : pendingTerminalIds;
-  };
-}
-
-function removeTerminalFromPayload(terminalId: string) {
-  return function updatePayload(
-    current: ListTerminalsPayload | undefined,
-  ): ListTerminalsPayload | undefined {
-    if (!current) {
-      return current;
-    }
-    return {
-      ...current,
-      terminals: current.terminals.filter((terminal) => terminal.id !== terminalId),
-    };
-  };
 }
 
 function WorkspaceScreenContent({
@@ -3011,309 +2149,5 @@ function WorkspaceScreenContent({
     </View>
   );
 }
-
-const styles = StyleSheet.create((theme) => ({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.surface0,
-  },
-  containerWorkspaceBackground: {
-    backgroundColor: theme.colors.surfaceWorkspace,
-  },
-  threePaneRow: {
-    flex: 1,
-    minHeight: 0,
-    flexDirection: "row",
-    alignItems: "stretch",
-  },
-  centerColumn: {
-    flex: 1,
-    minHeight: 0,
-  },
-  headerTitle: {
-    fontSize: theme.fontSize.base,
-    fontWeight: {
-      xs: "400",
-      md: "300",
-    },
-    color: theme.colors.foreground,
-    flexShrink: 1,
-  },
-  headerTitleContainer: {
-    flex: 1,
-    flexShrink: 1,
-    minWidth: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[2],
-    overflow: "hidden",
-  },
-  headerTitleTextGroup: {
-    minWidth: 0,
-    overflow: "hidden",
-    flexShrink: 1,
-    flexGrow: {
-      xs: 1,
-      md: 0,
-    },
-    flexDirection: {
-      xs: "column",
-      md: "row",
-    },
-    alignItems: {
-      xs: "flex-start",
-      md: "center",
-    },
-    justifyContent: "flex-start",
-    gap: {
-      xs: 0,
-      md: theme.spacing[2],
-    },
-  },
-  headerProjectTitle: {
-    color: theme.colors.foregroundMuted,
-    fontSize: {
-      xs: theme.fontSize.sm,
-      md: theme.fontSize.base,
-    },
-    flexShrink: 1,
-    minWidth: 0,
-    maxWidth: "60%",
-  },
-  headerTitleSkeleton: {
-    width: 220,
-    maxWidth: "100%",
-    height: 22,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.surface3,
-    opacity: 0.25,
-  },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: {
-      xs: theme.spacing[1],
-      md: theme.spacing[2],
-    },
-  },
-  headerActionButton: {
-    paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[2],
-    borderRadius: theme.borderRadius.lg,
-  },
-  sourceControlButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: theme.spacing[2],
-    paddingHorizontal: theme.spacing[1],
-    paddingVertical: theme.spacing[1],
-    minHeight: Math.ceil(theme.fontSize.sm * 1.5) + theme.spacing[1] * 2,
-    minWidth: Math.ceil(theme.fontSize.sm * 1.5) + theme.spacing[1] * 2,
-    borderRadius: theme.borderRadius.md,
-  },
-  sourceControlButtonHovered: {
-    backgroundColor: theme.colors.surface2,
-  },
-  newTabActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[1],
-  },
-  newTabActionButton: {
-    width: 30,
-    height: 30,
-    borderRadius: theme.borderRadius.md,
-    borderWidth: theme.borderWidth[1],
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  newTabActionButtonHovered: {
-    backgroundColor: theme.colors.surface2,
-  },
-  newTabTooltipText: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.popoverForeground,
-  },
-  newTabTooltipRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[2],
-  },
-  newTabTooltipShortcut: {
-    backgroundColor: theme.colors.surface3,
-    borderColor: theme.colors.borderAccent,
-  },
-  explorerTooltipRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[2],
-  },
-  explorerTooltipText: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.popoverForeground,
-  },
-  explorerTooltipShortcut: {
-    backgroundColor: theme.colors.surface3,
-    borderColor: theme.colors.borderAccent,
-  },
-  mobileTabsRow: {
-    backgroundColor: theme.colors.surface0,
-    borderBottomWidth: theme.borderWidth[1],
-    borderBottomColor: theme.colors.border,
-  },
-  switcherTrigger: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[2],
-    paddingHorizontal: theme.spacing[2] + theme.spacing[3],
-    paddingVertical: theme.spacing[2],
-  },
-  switcherTriggerPressed: {
-    backgroundColor: theme.colors.surface1,
-  },
-  switcherTriggerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[1],
-    flex: 1,
-    minWidth: 0,
-  },
-  switcherTriggerIcon: {
-    flexShrink: 0,
-  },
-  switcherTriggerText: {
-    minWidth: 0,
-    flex: 1,
-    color: theme.colors.foreground,
-    fontSize: theme.fontSize.sm,
-  },
-  mobileTabMenuTrigger: {
-    width: 28,
-    height: 28,
-    borderRadius: theme.borderRadius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mobileTabMenuTriggerActive: {
-    backgroundColor: theme.colors.surface2,
-  },
-  menuItemHint: {
-    color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.xs,
-  },
-  tabsContainer: {
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-    backgroundColor: theme.colors.surface0,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  tabsScroll: {
-    flex: 1,
-    minWidth: 0,
-  },
-  tabsContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[1],
-    paddingHorizontal: theme.spacing[2],
-    paddingVertical: theme.spacing[1],
-  },
-  tabsActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[1],
-    paddingRight: theme.spacing[2],
-    paddingVertical: theme.spacing[1],
-  },
-  centerContent: {
-    flex: 1,
-    minHeight: 0,
-  },
-  tab: {
-    paddingHorizontal: theme.spacing[3],
-    paddingVertical: theme.spacing[2],
-    borderRadius: theme.borderRadius.md,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[1],
-    maxWidth: 260,
-  },
-  tabHandle: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[1],
-    flex: 1,
-    minWidth: 0,
-  },
-  tabIcon: {
-    flexShrink: 0,
-  },
-  tabActive: {
-    backgroundColor: theme.colors.surface2,
-  },
-  tabHovered: {
-    backgroundColor: theme.colors.surface2,
-  },
-  tabLabel: {
-    flexShrink: 1,
-    minWidth: 0,
-    color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.sm,
-    fontWeight: theme.fontWeight.normal,
-  },
-  tabLabelWithCloseButton: {
-    paddingRight: 0,
-  },
-  tabLabelActive: {
-    color: theme.colors.foreground,
-  },
-  tabCloseButton: {
-    width: 18,
-    height: 18,
-    marginLeft: 0,
-    borderRadius: theme.borderRadius.sm,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tabCloseButtonShown: {
-    opacity: 1,
-  },
-  tabCloseButtonHidden: {
-    opacity: 0,
-  },
-  tabCloseButtonActive: {
-    backgroundColor: theme.colors.surface3,
-  },
-  content: {
-    flex: 1,
-    minHeight: 0,
-    backgroundColor: theme.colors.surface0,
-  },
-  contentPlaceholder: {
-    flex: 1,
-    minHeight: 0,
-    backgroundColor: theme.colors.surface0,
-  },
-  emptyState: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: theme.spacing[3],
-    paddingHorizontal: theme.spacing[6],
-  },
-  emptyStateText: {
-    color: theme.colors.foregroundMuted,
-    textAlign: "center",
-  },
-}));
-
-const containerWithWorkspaceBackgroundStyle = [
-  styles.container,
-  styles.containerWorkspaceBackground,
-];
 
 const EXPLORER_TOGGLE_KEYS: ShortcutKey[] = ["mod", "E"];

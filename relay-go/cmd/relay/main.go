@@ -24,7 +24,7 @@ func main() {
 	_ = relaymetrics.Sessions
 
 	store := relay.NewSessionStore(cfg.MaxBuffer, logger)
-	srv := relay.NewServer(store, cfg.MaxBuffer, logger, cfg.AllowedOrigins)
+	srv := relay.NewServer(store, cfg.MaxBuffer, int64(cfg.MaxConns), logger, cfg.AllowedOrigins)
 
 	httpServer := &http.Server{
 		Addr:    srv.Addr(cfg.Host, cfg.Port),
@@ -38,7 +38,7 @@ func main() {
 	}
 
 	go func() {
-		logger.Info("solo-relay starting", "host", cfg.Host, "port", cfg.Port, "maxBuffer", cfg.MaxBuffer, "allowedOrigins", cfg.AllowedOrigins)
+		logger.Info("solo-relay starting", "host", cfg.Host, "port", cfg.Port, "maxBuffer", cfg.MaxBuffer, "maxConns", cfg.MaxConns, "allowedOrigins", cfg.AllowedOrigins)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("server failed", "error", err)
 			os.Exit(1)
