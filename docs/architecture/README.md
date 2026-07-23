@@ -167,11 +167,12 @@ See also [`../product/session-memory-spec.md`](../product/session-memory-spec.md
 │  │  │  Prometheus  │ │ MemoryConfig │ │  single inst │            │ │
 │  │  │  /metrics    │ │ CustomModels │ │  guard       │            │ │
 │  │  └──────────────┘ └──────────────┘ └──────────────┘            │ │
-│  │  ┌──────────────┐ ┌──────────────┐                              │ │
-│  │  │  wsconn/     │ │ memorysetup/ │                              │ │
-│  │  │  WS conn     │ │  wiring +    │                              │ │
-│  │  │  abstract.   │ │  assembly    │                              │ │
-│  │  └──────────────┘ └──────────────┘                              │ │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │ │
+│  │  │  wsconn/     │ │ memorysetup/ │ │    llm/      │            │ │
+│  │  │  WS conn     │ │  wiring +    │ │  chat client │            │ │
+│  │  │  abstract.   │ │  assembly    │ │  (schedule   │            │ │
+│  │  │              │ │              │ │  assistant)  │            │ │
+│  │  └──────────────┘ └──────────────┘ └──────────────┘            │ │
 │  └──────────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -189,6 +190,7 @@ See also [`../product/session-memory-spec.md`](../product/session-memory-spec.md
 | **CLI** | `cli/` | Go | Command-line tool for session and agent management |
 | **Protocol** | `protocol/` | Go | Shared protocol definitions |
 | **Highlight** | `packages/highlight/` | TypeScript | Syntax highlighting library |
+| **LLM Client** | `daemon/internal/llm/` | Go | OpenAI-compatible chat completion client (schedule assistant) |
 | **Tmux Subsystem** | `daemon/internal/server/session_tmux.go` | Go | Tmux agent detection, pane capture, key injection |
 | **SVG Preview** | `app/src/components/svg-preview*.tsx` | TypeScript | SVG file preview (WebView for mobile, native for web) |
 

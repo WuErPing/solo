@@ -1,8 +1,8 @@
 # Solo - Product Feature Detailed Analysis
 
-> Analysis Date: 2026-06-15
+> Analysis Date: 2026-07-23
 > Repository: /Users/wuerping/code/wuerping/solo
-> Version: v0.6.3
+> Version: v0.10.0
 
 ## Product Overview
 
@@ -26,15 +26,14 @@
 - **Session Recovery**: Restore agent state from persistence handle
 
 #### 1.2 Multi-Provider Support
-Currently built-in 4 providers:
+Currently built-in 5 providers:
 - **Claude**: Integrated via CLI `--print --output-format stream-json`
 - **Kimi**: Wire mode (`kimi --wire`), JSON-RPC 2.0 stdio communication, EventPump, dynamically reads `~/.kimi/config.toml` model list (~737 LOC, 31 executed test cases)
 - **OpenCode**: SSE `/global/event` event stream, full reasoning/thinking support
 - **Pi**: Minimal terminal coding harness
+- **Codex**: auto / full-access modes
 
 **Development-only**: **Mock** provider (opt-in via `SOLO_ENABLE_MOCK_PROVIDER=1`)
-
-Defined but no backend implementation: **Codex**
 
 Removed providers: Copilot
 Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent

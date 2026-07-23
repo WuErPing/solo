@@ -1,7 +1,7 @@
 # Solo — Documentation Index
 
 > **Purpose**: Persistent context base for Solo development, CI/CD, and architecture decisions.
-> **Last updated**: 2026-07-18
+> **Last updated**: 2026-07-23
 
 ---
 
@@ -10,6 +10,7 @@
 ```
 docs/
 ├── README.md                              ← You are here (master index)
+├── handoff.md                             # Tmux Pane Full-Content Fit feature handoff
 ├── architecture/                          ← System architecture & design
 │   ├── README.md                          # Architecture overview & diagrams
 │   ├── agent-stall-detection.md           # Agent stuck-loop detection & grace fix
@@ -33,9 +34,11 @@ docs/
 │   ├── agent-profile-switch-export-design.md # Provider Hub / CC-Switch migration design
 │   ├── agent-send-presets-design.md       # Agent send button presets design
 │   ├── chat-schedule-assistant-design.md  # Chat-based schedule assistant design (Implemented 2026-07-18)
+│   ├── chat-schedule-assistant-design-zh.md # Chinese translation of schedule assistant design
 │   ├── feature-directions-2026.md         # Feature direction analysis with industry benchmark
 │   ├── features.md                        # Full product feature analysis + UI component catalogue
 │   ├── loop-schedule-spec.md              # Loop Schedule implementation spec
+│   ├── prototype.md                       # ASCII product prototype (navigation, wireframes)
 │   ├── roadmap-2026.md                    # 2026 product/technical roadmap
 │   └── session-memory-spec.md             # Session memory Phase-1 implementation spec
 ├── providers/                             ← AI provider integration research
@@ -210,7 +213,7 @@ Deep dives into specific subsystems.
 | Layer | Stack |
 |-------|-------|
 | Backend | Go 1.25 · gorilla/websocket · creack/pty · slog |
-| Frontend | Expo 54 · React Native 0.81 · React 19 · TypeScript |
+| Frontend | Expo 57 · React Native 0.86 · React 19 · TypeScript |
 | State | Zustand · @tanstack/react-query · React Context |
 | Crypto | X25519 + XSalsa20-Poly1305 (E2EE) |
 | Deploy | Systemd · Docker · Nginx + Let's Encrypt |

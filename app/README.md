@@ -1,54 +1,91 @@
-# Welcome to your Expo app 👋
+# Solo App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Cross-platform client (iOS, Android, Web) for the Solo AI coding assistant platform.
 
-## Get started
+## Tech Stack
 
-1. Install dependencies
+- **Framework**: Expo 57 / React Native 0.86 / React 19
+- **Routing**: Expo Router (file-based)
+- **State**: Zustand + @tanstack/react-query
+- **Styling**: Unistyles (dynamic theming)
+- **Terminal**: @xterm/xterm v6
+- **Testing**: Vitest (unit) + Playwright (E2E)
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Getting Started
 
 ```bash
-npm run reset-project
+# Install dependencies (from repo root)
+npm install
+
+# Start the web app (from repo root)
+make dev-web
+
+# Or start with npx
+npx expo start --web
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+The app connects to the local daemon at `127.0.0.1:17612` by default.
 
-## Learn more
+## Project Structure
 
-To learn more about developing your project with Expo, look at the following resources:
+```
+app/
+├── src/
+│   ├── app/              # Expo Router routes
+│   │   ├── h/[serverId]/ # Per-host routes (agent, loops, schedules, sessions, settings, workspace)
+│   │   ├── schedules.tsx
+│   │   ├── tmux-dashboard.tsx
+│   │   ├── tmux-pane.tsx
+│   │   └── welcome.tsx
+│   ├── screens/          # Screen components
+│   │   ├── agent/        # Agent detail and interaction
+│   │   ├── dashboard/    # Main dashboard
+│   │   ├── loops/        # Loop automation screens
+│   │   ├── schedules/    # Schedule automation dashboard
+│   │   ├── settings/     # Settings sections
+│   │   ├── tmux-dashboard/ # Tmux agent discovery
+│   │   └── workspace/    # Workspace management
+│   ├── components/       # Reusable components
+│   ├── hooks/            # Custom hooks
+│   ├── stores/           # Zustand state stores
+│   ├── styles/           # Theme and style definitions
+│   ├── utils/            # Utility functions
+│   └── constants/        # App constants
+├── e2e/                  # Playwright E2E tests
+├── maestro/              # Maestro mobile UI flows (Android)
+└── assets/               # Images, fonts, icons
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Key Screens
 
-## Join the community
+| Screen | Description |
+|--------|-------------|
+| Dashboard | Host overview with agent status cards |
+| Agent Detail | Agent interaction, timeline, streaming output |
+| Schedules | Timezone-aware cron schedule management + AI assistant |
+| Loops | Loop template CRUD, instance detail, execution tracking |
+| Tmux Dashboard | AI agent discovery across tmux sessions |
+| Tmux Pane | Live terminal view with ANSI rendering and key injection |
+| Workspace | Project management, file explorer, git status |
+| Settings | Providers, tmux agents, keyboard shortcuts, operations |
 
-Join our community of developers creating universal apps.
+## Testing
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+# Unit tests (from repo root)
+make test-app
 
-## Dictation debugging
+# E2E tests (requires daemon + relay running)
+cd app && npx playwright test
+```
+
+## Dictation Debugging
 
 Set `EXPO_PUBLIC_ENABLE_AUDIO_DEBUG=1` before running `npx expo start` to render the in-app audio debug card. Pair it with the server-side `STT_DEBUG_AUDIO_DIR` flag so every dictation includes a copyable path to the saved raw audio file.
+
+## Related Docs
+
+- [Architecture Overview](../docs/architecture/README.md)
+- [Component Specifications](../docs/architecture/components.md)
+- [Product Features](../docs/product/features.md)
+- [Maestro Flows](maestro/README.md)

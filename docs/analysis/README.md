@@ -211,7 +211,7 @@ This directory contains analysis documents for the Solo project.
 ### Product
 - [Features](../product/features.md)
 - [2026 Roadmap](../product/roadmap-2026.md)
-- [Loop Schedule Design](../product/loop-schedule-design.md)
+- [Loop Schedule Spec](../product/loop-schedule-spec.md)
 - [Session Memory Spec](../product/session-memory-spec.md)
 
 ### Providers

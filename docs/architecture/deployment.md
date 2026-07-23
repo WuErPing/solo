@@ -1,6 +1,6 @@
 # Deployment Architecture
 
-> **Note**: Dockerfile, docker-compose.yml, nginx.conf, and systemd `.service` files are **not** currently tracked in this repository. Relay is deployed manually via `make deploy-solo-relay` (scp + systemctl restart). Mobile builds use EAS (Expo Application Services).
+> **Note**: Deployment configuration templates are tracked in [`deploy/`](../../deploy/) (Nginx: `deploy/nginx/solo-relay.conf`, Systemd: `deploy/systemd/solo-relay.service`, env: `deploy/solo-relay.env.example`). Relay is deployed via `make deploy-solo-relay` (scp + systemctl restart). Mobile builds use EAS (Expo Application Services).
 
 ## Table of Contents
 

@@ -733,6 +733,7 @@ export const TmuxGetThemeResponseSchema = z.object({
 | **Component crash** | `ErrorBoundary` wraps both `TmuxDashboardScreen` and `TmuxPaneScreen` |
 | **Host disconnects** | Agent list query for that host fails gracefully; other hosts continue to display |
 | **Pane closed while viewing** | Next capture request returns error; UI shows unavailable state |
+| **Tmux operation failure** | User-friendly error messages with actionable recovery suggestions (e.g., "tmux not installed", "session not found") instead of raw error strings |
 | **App backgrounded** | `useAppVisible` pauses `refetchInterval` → no polling, no battery drain |
 | **Auto refresh off + user reading history** | Polling stops; no auto-scroll; manual "Refresh" button available in key row |
 | **Race: old response after pane switch** | React Query key includes `paneId` → stale responses are ignored automatically |

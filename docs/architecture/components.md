@@ -118,7 +118,7 @@ daemon/
 └── internal/
     ├── agent/           # Agent management
     ├── config/          # Configuration (includes MemoryConfig)
-    ├── loop/            # Loop automation engine (engine, store, types)
+    ├── loop/            # Loop automation engine (engine, store, types, templates, instance grouping)
     ├── llm/             # OpenAI-compatible chat completion client (schedule assistant)
     ├── memory/          # Session memory: TurnRecorder / bridge / filebackend / redact
     ├── memorysetup/     # Assembles recorder+redactor+bridge from MemoryConfig

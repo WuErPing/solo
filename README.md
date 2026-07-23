@@ -157,11 +157,12 @@ Solo is an AI coding assistant platform that connects your local development env
 │  │  │  Prometheus  │ │ MemoryConfig │ │  single inst │            │ │
 │  │  │  /metrics    │ │ CustomModels │ │  guard       │            │ │
 │  │  └──────────────┘ └──────────────┘ └──────────────┘            │ │
-│  │  ┌──────────────┐ ┌──────────────┐                              │ │
-│  │  │  wsconn/     │ │ memorysetup/ │                              │ │
-│  │  │  WS conn     │ │  wiring +    │                              │ │
-│  │  │  abstract.   │ │  assembly    │                              │ │
-│  │  └──────────────┘ └──────────────┘                              │ │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │ │
+│  │  │  wsconn/     │ │ memorysetup/ │ │    llm/      │            │ │
+│  │  │  WS conn     │ │  wiring +    │ │  chat client │            │ │
+│  │  │  abstract.   │ │  assembly    │ │  (schedule   │            │ │
+│  │  │              │ │              │ │  assistant)  │            │ │
+│  │  └──────────────┘ └──────────────┘ └──────────────┘            │ │
 │  └──────────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -189,7 +190,7 @@ Solo is an AI coding assistant platform that connects your local development env
 | Layer | Technology |
 |-------|------------|
 | Backend | Go 1.25 · gorilla/websocket · creack/pty · slog |
-| Frontend | Expo 54 · React Native 0.81 · React 19 · TypeScript |
+| Frontend | Expo 57 · React Native 0.86 · React 19 · TypeScript |
 | State Management | Zustand · @tanstack/react-query · React Context |
 | Styling | Unistyles (dynamic theming) |
 | Terminal | @xterm/xterm v6 |
@@ -302,6 +303,7 @@ solo/
 ├── app-bridge/          # Client communication library
 ├── cli/                 # Go CLI tool
 ├── daemon/              # Go core service
+├── deploy/              # Deployment configs (Nginx, Systemd, env)
 ├── docs/                # Architecture & product documentation
 ├── packages/highlight/  # Shared syntax highlighting package
 ├── protocol/            # Go protocol definitions
@@ -412,10 +414,11 @@ Solo includes a timezone-aware cron scheduling system for running automated task
 Solo includes an LLM-driven loop system that evolves scheduled tasks into autonomous iteration loops.
 
 - **Full CRUD** — create, inspect, update, run, stop, and delete loops from the app or CLI
-- **App UI** — dedicated screens for loop list, detail, and creation in the sidebar
+- **Loop Templates** — reusable template CRUD for defining loop configurations; instances are grouped by template
+- **App UI** — dedicated screens for loop list, detail, instance detail, and creation in the sidebar
 - **CLI commands** — `solo-cli loop ls|run|status|stop|update|delete`
 - **Provider integration** — loops use existing AI providers to execute iteration steps
-- **Execution tracking** — full run history and status monitoring
+- **Execution tracking** — full run history, log file separation, and status monitoring
 
 ---
 
@@ -462,6 +465,7 @@ The project uses GitHub Actions (`.github/workflows/ci.yml`) with the following 
 - [Session Memory Persistence](docs/architecture/session-memory-persistence.md)
 - [Agent Stall Detection](docs/architecture/agent-stall-detection.md)
 - [Push Notifications](docs/architecture/push-notifications.md)
+- [Schedule Assistant](docs/architecture/schedule-assistant.md)
 - [Deployment Guide](docs/architecture/deployment.md)
 - [Product Features](docs/product/features.md)
 - [2026 Roadmap](docs/product/roadmap-2026.md)
@@ -472,4 +476,4 @@ The project uses GitHub Actions (`.github/workflows/ci.yml`) with the following 
 
 ## License
 
-[Add your license here]
+[MIT](LICENSE) — Copyright (c) 2026 ErPing Wu
