@@ -2265,7 +2265,6 @@ function ProjectBlock({
               useDragHandle
               nestable={useNestable}
               simultaneousGestureRef={parentGestureRef}
-              containerStyle={styles.workspaceListContainer}
             />
           ) : null}
         </>
@@ -2577,7 +2576,7 @@ export function SidebarWorkspaceList({
           useDragHandle
           nestable={platformIsNative}
           simultaneousGestureRef={parentGestureRef}
-          containerStyle={styles.projectListContainer}
+          containerStyle={PROJECT_LIST_CONTAINER_STYLE}
         />
       )}
       {listFooterComponent}
@@ -2609,6 +2608,8 @@ export function SidebarWorkspaceList({
   );
 }
 
+const PROJECT_LIST_CONTAINER_STYLE = { width: "100%" as const };
+
 const styles = StyleSheet.create((theme) => ({
   container: {
     flex: 1,
@@ -2621,13 +2622,9 @@ const styles = StyleSheet.create((theme) => ({
     paddingTop: theme.spacing[2],
     paddingBottom: theme.spacing[4],
   },
-  projectListContainer: {
-    width: "100%",
-  },
   projectBlock: {
     marginBottom: theme.spacing[1],
   },
-  workspaceListContainer: {},
   emptyContainer: {
     marginHorizontal: theme.spacing[2],
     marginTop: theme.spacing[4],

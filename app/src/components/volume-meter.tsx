@@ -171,17 +171,21 @@ export function VolumeMeter({
     [LINE_WIDTH, lineColor],
   );
   const spacerStyle = useMemo(() => ({ width: LINE_SPACING }), [LINE_SPACING]);
+  const lineStaticStyle = useMemo(
+    () => ({ borderRadius: theme.borderRadius.full }),
+    [theme.borderRadius.full],
+  );
   const line1CombinedStyle = useMemo(
-    () => [styles.line, lineBase, line1Style],
-    [lineBase, line1Style],
+    () => [lineStaticStyle, lineBase, line1Style],
+    [lineStaticStyle, lineBase, line1Style],
   );
   const line2CombinedStyle = useMemo(
-    () => [styles.line, lineBase, line2Style],
-    [lineBase, line2Style],
+    () => [lineStaticStyle, lineBase, line2Style],
+    [lineStaticStyle, lineBase, line2Style],
   );
   const line3CombinedStyle = useMemo(
-    () => [styles.line, lineBase, line3Style],
-    [lineBase, line3Style],
+    () => [lineStaticStyle, lineBase, line3Style],
+    [lineStaticStyle, lineBase, line3Style],
   );
 
   return (
@@ -200,8 +204,5 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-  },
-  line: {
-    borderRadius: theme.borderRadius.full,
   },
 }));

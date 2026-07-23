@@ -697,6 +697,32 @@ function MobileSidebar({
     windowWidth,
   ]);
 
+  const handleDashboard = useCallback(() => {
+    translateX.value = -windowWidth;
+    backdropOpacity.value = 0;
+    closeToAgent();
+    handleDashboardNavigate();
+  }, [
+    backdropOpacity,
+    closeToAgent,
+    handleDashboardNavigate,
+    translateX,
+    windowWidth,
+  ]);
+
+  const handleTmuxDashboard = useCallback(() => {
+    translateX.value = -windowWidth;
+    backdropOpacity.value = 0;
+    closeToAgent();
+    handleTmuxDashboardNavigate();
+  }, [
+    backdropOpacity,
+    closeToAgent,
+    handleTmuxDashboardNavigate,
+    translateX,
+    windowWidth,
+  ]);
+
   const handleWorkspacePress = useCallback(() => {
     closeToAgent();
   }, [closeToAgent]);
@@ -838,7 +864,7 @@ function MobileSidebar({
               icon={LayoutDashboard}
               iconColor={theme.colors.palette.amber[500]}
               label="Agents"
-              onPress={handleDashboardNavigate}
+              onPress={handleDashboard}
               isActive={isDashboardActive}
               testID="sidebar-dashboard"
             />
@@ -846,7 +872,7 @@ function MobileSidebar({
               icon={Terminal}
               iconColor={theme.colors.palette.orange[500]}
               label="Tmux"
-              onPress={handleTmuxDashboardNavigate}
+              onPress={handleTmuxDashboard}
               isActive={isTmuxDashboardActive}
               testID="sidebar-tmux-dashboard"
             />
