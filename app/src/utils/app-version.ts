@@ -14,6 +14,11 @@ function toVersionOrNull(value: unknown): string | null {
   return trimmed;
 }
 
+export function resolveBuildTime(): string | null {
+  const extra = (Constants.expoConfig as { extra?: Record<string, unknown> } | null)?.extra;
+  return toVersionOrNull(extra?.buildTime);
+}
+
 export function resolveAppVersion(): string | null {
   const packageVersion = toVersionOrNull(appPackage?.version);
   if (packageVersion) {

@@ -64,7 +64,7 @@ import { IntegrationsSection } from "@/desktop/components/integrations-section";
 import { isElectronRuntime } from "@/desktop/host";
 import { useDesktopAppUpdater } from "@/desktop/updates/use-desktop-app-updater";
 import { formatVersionWithPrefix } from "@/desktop/updates/desktop-updates";
-import { resolveAppVersion } from "@/utils/app-version";
+import { resolveAppVersion, resolveBuildTime } from "@/utils/app-version";
 import { settingsStyles } from "@/styles/settings";
 import { HostPage, HostRenameButton } from "@/screens/settings/host-page";
 import { ProvidersSection } from "@/screens/settings/providers-section";
@@ -719,7 +719,10 @@ export default function SettingsScreen({ view }: SettingsScreenProps) {
   const [isPasteLinkVisible, setIsPasteLinkVisible] = useState(false);
   const isDesktopApp = isElectronRuntime();
   const appVersion = resolveAppVersion();
-  const appVersionText = formatVersionWithPrefix(appVersion);
+  const buildTime = resolveBuildTime();
+  const appVersionText = formatVersionWithPrefix(
+    appVersion && buildTime ? `${appVersion}-${buildTime}` : appVersion,
+  );
   const isCompactLayout = useIsCompactFormFactor();
   const insets = useSafeAreaInsets();
   const insetBottomStyle = useMemo(() => ({ paddingBottom: insets.bottom }), [insets.bottom]);

@@ -47,3 +47,6 @@ Behavioral guidelines and project rules for AI coding agents and human contribut
     - Test Coverage Thresholds
       - Maintain defined minimum unit & integration test coverage for core business logic and critical execution paths.
     - Run `make ci` and resolve all issues until the pipeline passes fully
+  - Build
+    - Android
+      - Append "-{date-time}" to the version number and display it on the "/settings/about" page

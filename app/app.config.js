@@ -46,6 +46,16 @@ const variants = {
 
 const variant = variants[appVariant] ?? variants.production;
 
+function formatBuildTime(date) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return (
+    `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}` +
+    `-${pad(date.getHours())}${pad(date.getMinutes())}`
+  );
+}
+
+const buildTime = process.env.SOLO_BUILD_TIME ?? formatBuildTime(new Date());
+
 export default {
   expo: {
     name: variant.name,
@@ -142,6 +152,7 @@ export default {
     },
     extra: {
       router: {},
+      buildTime,
       eas: {
         projectId: "72c50384-8e8b-4c7b-b74c-8a4d04810454",
       },
