@@ -6,7 +6,11 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useTmuxCapturePane, computeAdaptiveInterval } from "./use-tmux-capture-pane";
+import {
+  useTmuxCapturePane,
+  computeAdaptiveInterval,
+  computeAdaptiveQueryInterval,
+} from "./use-tmux-capture-pane";
 
 const { mockStore, mockClient, mockAppVisible } = vi.hoisted(() => {
   const store = {
@@ -735,6 +739,42 @@ describe("computeAdaptiveInterval", () => {
 
   it("returns 500ms when dataUpdatedAt is 0 (initial mount — assume active to prime the pump)", () => {
     expect(computeAdaptiveInterval(0, now)).toBe(500);
+  });
+});
+
+describe("computeAdaptiveQueryInterval", () => {
+  const t0 = 1_000_000;
+
+  it("stays active while data identity keeps changing, downshifts when stable", () => {
+    const query = { state: { data: { content: "a" } } };
+
+    // First observation — treated as just-changed (active)
+    expect(computeAdaptiveQueryInterval(query, t0)).toBe(500);
+
+    // Same reference 3s later — warm (dataUpdatedAt would still say "active" here)
+    expect(computeAdaptiveQueryInterval(query, t0 + 3_000)).toBe(1000);
+
+    // Same reference 11s later — idle
+    expect(computeAdaptiveQueryInterval(query, t0 + 11_000)).toBe(5000);
+
+    // New reference — resets to active
+    query.state.data = { content: "b" };
+    expect(computeAdaptiveQueryInterval(query, t0 + 12_000)).toBe(500);
+
+    // Back to stable — downshifts again from the reset point
+    expect(computeAdaptiveQueryInterval(query, t0 + 12_000 + 11_000)).toBe(5000);
+  });
+
+  it("tracks different query objects independently", () => {
+    const queryA = { state: { data: { content: "a" } } };
+    const queryB = { state: { data: { content: "a" } } };
+
+    expect(computeAdaptiveQueryInterval(queryA, t0)).toBe(500);
+    expect(computeAdaptiveQueryInterval(queryB, t0)).toBe(500);
+    expect(computeAdaptiveQueryInterval(queryA, t0 + 11_000)).toBe(5000);
+    // B changed recently — still active
+    queryB.state.data = { content: "b" };
+    expect(computeAdaptiveQueryInterval(queryB, t0 + 11_500)).toBe(500);
   });
 });
 

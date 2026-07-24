@@ -2,6 +2,8 @@ import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { getHostRuntimeStore, isHostRuntimeConnected } from "@/runtime/host-runtime";
 import { withLiveTmuxClient } from "@/utils/tmux-rpc";
+import { useAppVisible } from "@/hooks/use-app-visible";
+import { computeAdaptiveQueryInterval } from "@/hooks/use-tmux-capture-pane";
 import type { TmuxAgent } from "./use-tmux-agents";
 
 export interface TmuxStatusLineInfo {
@@ -17,6 +19,7 @@ export function tmuxStatusLineQueryKey(serverId: string, sessionName: string): r
 }
 
 export function useTmuxStatusLines(agents: TmuxAgent[]): TmuxStatusLineInfo[] {
+  const isAppVisible = useAppVisible();
   // Dedupe by (serverId, sessionName)
   const uniqueSessions = useMemo(() => {
     const seen = new Set<string>();
@@ -42,6 +45,10 @@ export function useTmuxStatusLines(agents: TmuxAgent[]): TmuxStatusLineInfo[] {
         queryKey: tmuxStatusLineQueryKey(session.serverId, session.sessionName),
         enabled: Boolean(client && isConnected),
         staleTime: 10000,
+        refetchInterval: isAppVisible
+          ? (query: { state: { data: unknown } }) =>
+              computeAdaptiveQueryInterval(query, Date.now())
+          : false,
         queryFn: async () => {
           const payload = await withLiveTmuxClient(session.serverId, (c) =>
             c.tmuxStatusLine(session.sessionName),

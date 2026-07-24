@@ -49,6 +49,9 @@ func (s *Session) handleTmuxListAgents(m *protocol.TmuxListAgentsRequest) {
 	// Filter tmux window_activity noise for non-agent panes.
 	s.filterWindowActivity(otherPanes)
 
+	// Drop activity state for panes that vanished (e.g. killed sessions).
+	s.prunePaneActivityState(agents, otherPanes)
+
 	// Persist command history and include it in the response.
 	var history []protocol.AgentCommandEntry
 	if s.cfg.SoloHome != "" {

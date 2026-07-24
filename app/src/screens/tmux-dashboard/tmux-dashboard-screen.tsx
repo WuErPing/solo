@@ -12,8 +12,10 @@ import { Terminal, Monitor, RefreshCw, SquareTerminal, Clock, Plus, Play, X } fr
 import { router, useLocalSearchParams } from "expo-router";
 import { BackHeader } from "@/components/headers/back-header";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAggregatedTmuxAgents } from "@/hooks/use-tmux-agents";
-import { useTmuxStatusLines } from "@/hooks/use-tmux-status-lines";
+import { useTmuxStatusLines, tmuxStatusLineQueryKey } from "@/hooks/use-tmux-status-lines";
+import { tmuxCapturePanePanePrefix } from "@/hooks/use-tmux-capture-pane";
 import { useTmuxNewSession } from "@/hooks/use-tmux-new-session";
 import { useTmuxKillSession } from "@/hooks/use-tmux-kill-session";
 import { useTmuxDeleteCommandHistory } from "@/hooks/use-tmux-delete-command-history";
@@ -104,7 +106,8 @@ function AgentCard({
           <Pressable
             onPress={onClose}
             hitSlop={8}
-            data-testid="close-session"
+            testID="close-session"
+            accessibilityLabel="Close session"
             style={{ padding: 4 }}
           >
             <X size={16} color={theme.colors.destructive} />
@@ -230,7 +233,8 @@ function PaneCard({
           <Pressable
             onPress={onClose}
             hitSlop={8}
-            data-testid="close-session"
+            testID="close-session"
+            accessibilityLabel="Close session"
             style={{ padding: 4 }}
           >
             <X size={16} color={theme.colors.destructive} />
@@ -311,7 +315,13 @@ function CommandHistoryCard({
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Text style={styles.historyTime}>{relativeTime}</Text>
-          <Pressable onPress={onDelete} hitSlop={8} data-testid="delete-command" style={{ padding: 4 }}>
+          <Pressable
+            onPress={onDelete}
+            hitSlop={8}
+            testID="delete-command"
+            accessibilityLabel="Delete command"
+            style={{ padding: 4 }}
+          >
             <X size={14} color={theme.colors.destructive} />
           </Pressable>
         </View>
@@ -341,6 +351,7 @@ function TmuxDashboardScreenInner() {
   const isCompact = useIsCompactFormFactor();
   const storeReady = useStoreReady();
   const hosts = useHosts();
+  const queryClient = useQueryClient();
   const { agents, otherPanes, commandHistory, isLoading, isInitialLoad, error, refreshAll } =
     useAggregatedTmuxAgents();
   const statusLines = useTmuxStatusLines(agents);
@@ -431,7 +442,6 @@ function TmuxDashboardScreenInner() {
   };
 
   const handleRunCommand = useCallback(async (entry: AgentCommandEntry) => {
-    if (!firstConnectedServerId) return;
     const confirmed = await confirmDialog({
       title: "Run Command",
       message: `Launch "${entry.launchCmd}" in a new tmux session?`,
@@ -440,7 +450,7 @@ function TmuxDashboardScreenInner() {
     });
     if (!confirmed) return;
     const name = `${entry.agentName}-${Date.now()}`;
-    const sessionName = await createSession(firstConnectedServerId, {
+    const sessionName = await createSession(entry.serverId, {
       name,
       command: entry.launchCmd,
     });
@@ -448,24 +458,27 @@ function TmuxDashboardScreenInner() {
       await refreshAll();
       setActiveTab("agents");
     }
-  }, [firstConnectedServerId, createSession, refreshAll]);
+  }, [createSession, refreshAll]);
 
-  const handleCloseSession = useCallback(async (sessionName: string) => {
-    if (!firstConnectedServerId) return;
+  const handleCloseSession = useCallback(async (item: TmuxAgent | TmuxPane) => {
     const confirmed = await confirmDialog({
       title: "Close Session",
-      message: `Kill tmux session "${sessionName}"?`,
+      message: `Kill tmux session "${item.sessionName}"?`,
       confirmLabel: "Close",
       cancelLabel: "Cancel",
       destructive: true,
     });
     if (!confirmed) return;
-    const ok = await killSession(firstConnectedServerId, sessionName);
-    if (ok) refreshAll();
-  }, [firstConnectedServerId, killSession, refreshAll]);
+    const ok = await killSession(item.serverId, item.sessionName);
+    if (ok) {
+      // The session is gone — drop its caches instead of refetching a dead target.
+      queryClient.removeQueries({ queryKey: tmuxStatusLineQueryKey(item.serverId, item.sessionName) });
+      queryClient.removeQueries({ queryKey: tmuxCapturePanePanePrefix(item.serverId, item.paneId) });
+      refreshAll();
+    }
+  }, [queryClient, killSession, refreshAll]);
 
   const handleDeleteCommand = useCallback(async (entry: AgentCommandEntry) => {
-    if (!firstConnectedServerId) return;
     const confirmed = await confirmDialog({
       title: "Delete Command",
       message: `Remove "${entry.launchCmd}" from history?`,
@@ -474,9 +487,9 @@ function TmuxDashboardScreenInner() {
       destructive: true,
     });
     if (!confirmed) return;
-    const ok = await deleteCommand(firstConnectedServerId, entry.launchCmd);
+    const ok = await deleteCommand(entry.serverId, entry.launchCmd);
     if (ok) refreshAll();
-  }, [firstConnectedServerId, deleteCommand, refreshAll]);
+  }, [deleteCommand, refreshAll]);
 
   const cmdGroups = useMemo(() => {
     const map = new Map<string, number>();
@@ -746,7 +759,7 @@ function TmuxDashboardScreenInner() {
                       (s) => s.serverId === agent.serverId && s.sessionName === agent.sessionName,
                     )}
                     onPress={() => handleAgentPress(agent)}
-                    onClose={() => handleCloseSession(agent.sessionName)}
+                    onClose={() => handleCloseSession(agent)}
                     onOpenXterm={() => handleOpenXterm(agent)}
                   />
                 ))}
@@ -798,7 +811,7 @@ function TmuxDashboardScreenInner() {
                     key={`${pane.serverId}-${pane.paneId}-${index}`}
                     pane={pane}
                     onPress={() => handlePanePress(pane)}
-                    onClose={() => handleCloseSession(pane.sessionName)}
+                    onClose={() => handleCloseSession(pane)}
                     onOpenXterm={() => handleOpenXterm(pane)}
                   />
                 ))}

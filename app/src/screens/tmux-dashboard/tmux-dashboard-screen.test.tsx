@@ -2,12 +2,24 @@
  * @vitest-environment jsdom
  */
 import React from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { mockPush, mockSetSelectedAgent, mockTheme } = vi.hoisted(() => ({
+const {
+  mockPush,
+  mockSetSelectedAgent,
+  mockTheme,
+  mockCreateSession,
+  mockKillSession,
+  mockDeleteCommand,
+  mockConfirmDialog,
+} = vi.hoisted(() => ({
   mockPush: vi.fn(),
   mockSetSelectedAgent: vi.fn(),
+  mockCreateSession: vi.fn().mockResolvedValue("test-session"),
+  mockKillSession: vi.fn().mockResolvedValue(true),
+  mockDeleteCommand: vi.fn().mockResolvedValue(true),
+  mockConfirmDialog: vi.fn().mockResolvedValue(false),
   mockTheme: {
     colors: {
       background: "#000",
@@ -132,7 +144,13 @@ const mockExitedAgent = {
 type MockAgent = (typeof mockAgents)[number] & { activity?: string; status?: string };
 let agentsOverride: MockAgent[] = [];
 let otherPanesOverride: typeof mockOtherPanes = [];
-let commandHistoryOverride: { agentName: string; launchCmd: string; lastSeen: string }[] = [];
+let commandHistoryOverride: {
+  agentName: string;
+  launchCmd: string;
+  lastSeen: string;
+  serverId: string;
+  serverLabel: string;
+}[] = [];
 let isInitialLoadOverride = false;
 let isLoadingOverride = false;
 let errorOverride: string | null = null;
@@ -156,11 +174,24 @@ vi.mock("@/hooks/use-tmux-agents", () => ({
 
 vi.mock("@/hooks/use-tmux-status-lines", () => ({
   useTmuxStatusLines: () => mockStatusLines,
+  tmuxStatusLineQueryKey: (serverId: string, sessionName: string) => [
+    "tmux-status-line",
+    serverId,
+    sessionName,
+  ],
+}));
+
+vi.mock("@/hooks/use-tmux-capture-pane", () => ({
+  tmuxCapturePanePanePrefix: (serverId: string, paneId: string) => [
+    "tmux-capture-pane",
+    serverId,
+    paneId,
+  ],
 }));
 
 vi.mock("@/hooks/use-tmux-new-session", () => ({
   useTmuxNewSession: () => ({
-    createSession: vi.fn().mockResolvedValue("test-session"),
+    createSession: mockCreateSession,
     isLoading: false,
     error: null,
   }),
@@ -168,7 +199,15 @@ vi.mock("@/hooks/use-tmux-new-session", () => ({
 
 vi.mock("@/hooks/use-tmux-kill-session", () => ({
   useTmuxKillSession: () => ({
-    killSession: vi.fn().mockResolvedValue(true),
+    killSession: mockKillSession,
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("@/hooks/use-tmux-delete-command-history", () => ({
+  useTmuxDeleteCommandHistory: () => ({
+    deleteCommand: mockDeleteCommand,
     isLoading: false,
     error: null,
   }),
@@ -179,10 +218,21 @@ vi.mock("@/runtime/host-runtime", () => ({
 }));
 
 vi.mock("@/utils/confirm-dialog", () => ({
-  confirmDialog: vi.fn().mockResolvedValue(false),
+  confirmDialog: mockConfirmDialog,
 }));
 
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TmuxDashboardScreen } from "./tmux-dashboard-screen";
+
+const testQueryClient = new QueryClient();
+
+function renderScreen() {
+  return render(
+    <QueryClientProvider client={testQueryClient}>
+      <TmuxDashboardScreen />
+    </QueryClientProvider>,
+  );
+}
 
 describe("TmuxDashboardScreen", () => {
   afterEach(() => {
@@ -199,14 +249,14 @@ describe("TmuxDashboardScreen", () => {
   it("refreshes tmux agents on launch to update command history storage", () => {
     agentsOverride = [];
     otherPanesOverride = [];
-    render(<TmuxDashboardScreen />);
+    renderScreen();
     expect(mockRefreshAll).toHaveBeenCalled();
   });
 
   it("shows empty state when no panes are detected", () => {
     agentsOverride = [];
     otherPanesOverride = [];
-    render(<TmuxDashboardScreen />);
+    renderScreen();
     expect(screen.getByText(/no tmux panes detected/i)).toBeDefined();
   });
 
@@ -214,14 +264,14 @@ describe("TmuxDashboardScreen", () => {
     agentsOverride = [];
     isInitialLoadOverride = true;
     isLoadingOverride = true;
-    render(<TmuxDashboardScreen />);
+    renderScreen();
     expect(screen.getByText(/scanning tmux panes/i)).toBeDefined();
     expect(screen.queryByText(/no tmux panes detected/i)).toBeNull();
   });
 
   it("calls refreshAll when Refresh button is pressed", () => {
     agentsOverride = [];
-    render(<TmuxDashboardScreen />);
+    renderScreen();
     const refreshButton = screen.getByText("Refresh");
     fireEvent.click(refreshButton);
     expect(mockRefreshAll).toHaveBeenCalled();
@@ -229,7 +279,7 @@ describe("TmuxDashboardScreen", () => {
 
   it("renders agent cards and navigates on press", () => {
     agentsOverride = mockAgents;
-    render(<TmuxDashboardScreen />);
+    renderScreen();
 
     const claudeElements = screen.getAllByText("claude");
     // Second element is the agent card name (first is the name filter card)
@@ -241,7 +291,7 @@ describe("TmuxDashboardScreen", () => {
 
   it("opens the xterm pane entry for an agent card", () => {
     agentsOverride = mockAgents;
-    render(<TmuxDashboardScreen />);
+    renderScreen();
 
     const xtermButtons = screen.getAllByLabelText("Open in xterm pane");
     fireEvent.click(xtermButtons[0]);
@@ -253,7 +303,7 @@ describe("TmuxDashboardScreen", () => {
   it("opens the xterm pane entry for a non-agent pane card", () => {
     agentsOverride = [];
     otherPanesOverride = [mockOtherPanes[0]];
-    render(<TmuxDashboardScreen />);
+    renderScreen();
 
     fireEvent.click(screen.getByText(/Other Panes/));
     const xtermButton = screen.getByLabelText("Open in xterm pane");
@@ -265,7 +315,7 @@ describe("TmuxDashboardScreen", () => {
 
   it("renders agent session name badge and detail line", () => {
     agentsOverride = mockAgents;
-    render(<TmuxDashboardScreen />);
+    renderScreen();
 
     // Session name badge
     const sessionBadges = screen.getAllByText("dev");
@@ -282,7 +332,7 @@ describe("TmuxDashboardScreen", () => {
 
   it("renders only statusRight in agent cards (statusLeft and statusCenter are redundant with compact detail line)", () => {
     agentsOverride = mockAgents;
-    render(<TmuxDashboardScreen />);
+    renderScreen();
 
     // statusRight pane title and last content change time should be rendered
     expect(screen.getAllByText('"Analyze tmux session"').length).toBe(2);
@@ -295,14 +345,14 @@ describe("TmuxDashboardScreen", () => {
 
   it("renders exited agent with exited badge", () => {
     agentsOverride = [mockExitedAgent];
-    render(<TmuxDashboardScreen />);
+    renderScreen();
     expect(screen.getByText("exited")).toBeDefined();
     expect(screen.getAllByText("claude").length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders mix of active and exited agents with correct count", () => {
     agentsOverride = [...mockAgents, mockExitedAgent];
-    render(<TmuxDashboardScreen />);
+    renderScreen();
     // Badge should show "3 agent(s), 1 exited"
     expect(screen.getByText("3 agent(s), 1 exited")).toBeDefined();
     // Only one "exited" badge (the exited agent card)
@@ -312,7 +362,7 @@ describe("TmuxDashboardScreen", () => {
   it("renders segmented toggle with Agents and Other Panes tabs", () => {
     agentsOverride = mockAgents;
     otherPanesOverride = mockOtherPanes;
-    render(<TmuxDashboardScreen />);
+    renderScreen();
     expect(screen.getByText(/Agents \(2\)/)).toBeDefined();
     expect(screen.getByText(/Other Panes \(2\)/)).toBeDefined();
   });
@@ -320,7 +370,7 @@ describe("TmuxDashboardScreen", () => {
   it("switches to Other Panes tab and shows only non-agent panes", () => {
     agentsOverride = mockAgents;
     otherPanesOverride = mockOtherPanes;
-    render(<TmuxDashboardScreen />);
+    renderScreen();
     // Click "Other Panes" tab
     fireEvent.click(screen.getByText(/Other Panes/));
     // Should show non-agent pane commands (each appears as NameCard filter + PaneCard label)
@@ -333,7 +383,7 @@ describe("TmuxDashboardScreen", () => {
   it("shows non-agent panes with session badge and detail", () => {
     agentsOverride = [];
     otherPanesOverride = [mockOtherPanes[0]];
-    render(<TmuxDashboardScreen />);
+    renderScreen();
     fireEvent.click(screen.getByText(/Other Panes/));
     expect(screen.getByText("dev")).toBeDefined();
     expect(screen.getByText("W:main P:%3")).toBeDefined();
@@ -343,7 +393,7 @@ describe("TmuxDashboardScreen", () => {
   it("groups panes by command name in Other Panes tab", () => {
     agentsOverride = [];
     otherPanesOverride = mockOtherPanes;
-    render(<TmuxDashboardScreen />);
+    renderScreen();
     fireEvent.click(screen.getByText(/Other Panes/));
     // Should show command name filter cards (NameCard) and pane cards (PaneCard)
     expect(screen.getAllByText("bash").length).toBeGreaterThanOrEqual(1);
@@ -353,7 +403,7 @@ describe("TmuxDashboardScreen", () => {
   it("shows empty state when only other panes exist (no agents) but panes are present", () => {
     agentsOverride = [];
     otherPanesOverride = mockOtherPanes;
-    render(<TmuxDashboardScreen />);
+    renderScreen();
     // Should NOT show empty state since there are panes
     expect(screen.queryByText(/no tmux panes detected/i)).toBeNull();
     // Should show the segmented toggle
@@ -363,10 +413,10 @@ describe("TmuxDashboardScreen", () => {
   it("renders History tab and shows command history entries", () => {
     agentsOverride = mockAgents;
     commandHistoryOverride = [
-      { agentName: "claude", launchCmd: "claude", lastSeen: "2026-06-15T10:00:00Z" },
-      { agentName: "qodercli", launchCmd: "qodercli --permission-mode=bypass_permissions", lastSeen: "2026-06-15T09:00:00Z" },
+      { agentName: "claude", launchCmd: "claude", lastSeen: "2026-06-15T10:00:00Z", serverId: "s1", serverLabel: "local" },
+      { agentName: "qodercli", launchCmd: "qodercli --permission-mode=bypass_permissions", lastSeen: "2026-06-15T09:00:00Z", serverId: "s1", serverLabel: "local" },
     ];
-    render(<TmuxDashboardScreen />);
+    renderScreen();
     expect(screen.getByText(/History \(2\)/)).toBeDefined();
     fireEvent.click(screen.getByText(/History/));
     // agentName labels appear in history cards
@@ -378,9 +428,9 @@ describe("TmuxDashboardScreen", () => {
   it("renders Play icon in history cards for running commands", () => {
     agentsOverride = mockAgents;
     commandHistoryOverride = [
-      { agentName: "claude", launchCmd: "claude", lastSeen: "2026-06-15T10:00:00Z" },
+      { agentName: "claude", launchCmd: "claude", lastSeen: "2026-06-15T10:00:00Z", serverId: "s1", serverLabel: "local" },
     ];
-    render(<TmuxDashboardScreen />);
+    renderScreen();
     fireEvent.click(screen.getByText(/History/));
     const playIcons = document.querySelectorAll('[data-icon="Play"]');
     expect(playIcons.length).toBeGreaterThanOrEqual(1);
@@ -389,7 +439,7 @@ describe("TmuxDashboardScreen", () => {
   it("shows empty message when no command history exists", () => {
     agentsOverride = mockAgents;
     commandHistoryOverride = [];
-    render(<TmuxDashboardScreen />);
+    renderScreen();
     fireEvent.click(screen.getByText(/History/));
     expect(screen.getByText(/No command history yet/)).toBeDefined();
   });
@@ -398,7 +448,7 @@ describe("TmuxDashboardScreen", () => {
     agentsOverride = [
       { ...mockAgents[0], activity: "busy" },
     ];
-    render(<TmuxDashboardScreen />);
+    renderScreen();
     expect(screen.getByText("busy")).toBeDefined();
     expect(screen.queryByText("idle")).toBeNull();
   });
@@ -407,7 +457,7 @@ describe("TmuxDashboardScreen", () => {
     agentsOverride = [
       { ...mockAgents[0], activity: "idle" },
     ];
-    render(<TmuxDashboardScreen />);
+    renderScreen();
     expect(screen.getByText("idle")).toBeDefined();
     expect(screen.queryByText("busy")).toBeNull();
   });
@@ -416,7 +466,7 @@ describe("TmuxDashboardScreen", () => {
     agentsOverride = [
       { ...mockAgents[0], activity: "" },
     ];
-    render(<TmuxDashboardScreen />);
+    renderScreen();
     expect(screen.queryByText("busy")).toBeNull();
     expect(screen.queryByText("idle")).toBeNull();
   });
@@ -425,18 +475,59 @@ describe("TmuxDashboardScreen", () => {
     agentsOverride = [
       { ...mockAgents[0], status: "exited", activity: "busy" },
     ];
-    render(<TmuxDashboardScreen />);
+    renderScreen();
     expect(screen.queryByText("busy")).toBeNull();
     expect(screen.getByText("exited")).toBeDefined();
   });
 
   it("shows error message with action buttons when error is present", () => {
     errorOverride = "no server running on /tmp/tmux-501/default";
-    render(<TmuxDashboardScreen />);
+    renderScreen();
     expect(screen.getByText("no server running on /tmp/tmux-501/default")).toBeDefined();
     expect(screen.getByText("New tmux")).toBeDefined();
     expect(screen.getByText("Refresh")).toBeDefined();
     fireEvent.click(screen.getByText("Refresh"));
     expect(mockRefreshAll).toHaveBeenCalled();
+  });
+
+  it("kills a session on the host that owns it, not the first connected host", async () => {
+    agentsOverride = [{ ...mockAgents[0], serverId: "s2", serverLabel: "remote" }];
+    mockConfirmDialog.mockResolvedValueOnce(true);
+    renderScreen();
+    fireEvent.click(screen.getByLabelText("Close session"));
+    await waitFor(() => {
+      expect(mockKillSession).toHaveBeenCalledWith("s2", "dev");
+    });
+  });
+
+  it("deletes a command-history entry on the host that owns it", async () => {
+    agentsOverride = mockAgents;
+    commandHistoryOverride = [
+      { agentName: "claude", launchCmd: "claude", lastSeen: "2026-06-15T10:00:00Z", serverId: "s2", serverLabel: "remote" },
+    ];
+    mockConfirmDialog.mockResolvedValueOnce(true);
+    renderScreen();
+    fireEvent.click(screen.getByText(/History/));
+    fireEvent.click(screen.getByLabelText("Delete command"));
+    await waitFor(() => {
+      expect(mockDeleteCommand).toHaveBeenCalledWith("s2", "claude");
+    });
+  });
+
+  it("runs a command-history entry on the host that owns it", async () => {
+    agentsOverride = mockAgents;
+    commandHistoryOverride = [
+      { agentName: "claude", launchCmd: "claude --remote-work", lastSeen: "2026-06-15T10:00:00Z", serverId: "s2", serverLabel: "remote" },
+    ];
+    mockConfirmDialog.mockResolvedValueOnce(true);
+    renderScreen();
+    fireEvent.click(screen.getByText(/History/));
+    fireEvent.click(screen.getByText("claude --remote-work"));
+    await waitFor(() => {
+      expect(mockCreateSession).toHaveBeenCalledWith(
+        "s2",
+        expect.objectContaining({ command: "claude --remote-work" }),
+      );
+    });
   });
 });

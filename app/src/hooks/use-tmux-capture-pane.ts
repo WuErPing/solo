@@ -9,7 +9,7 @@ const SCROLLBACK_INCREMENT = 200;
 const MAX_SCROLLBACK_LINES = 5000;
 
 // Adaptive polling phases — the next-refetch delay depends on how long
-// ago content actually changed (tracked via React Query's dataUpdatedAt):
+// ago content actually changed (tracked via data identity, see below):
 //   active:  changed within last 2s   → 500ms (2 fps)
 //   warm:    changed 2-10s ago        → 1000ms (ramp-down)
 //   idle:    stable >10s              → 5000ms (battery saver)
@@ -19,12 +19,32 @@ const IDLE_POLL_INTERVAL = 5000;
 const ACTIVE_PHASE_MS = 2_000;
 const WARM_PHASE_MS = 10_000;
 
-export function computeAdaptiveInterval(dataUpdatedAt: number, now: number): number {
-  if (dataUpdatedAt === 0) return ACTIVE_POLL_INTERVAL;
-  const elapsed = now - dataUpdatedAt;
+export function computeAdaptiveInterval(lastChangedAt: number, now: number): number {
+  if (lastChangedAt === 0) return ACTIVE_POLL_INTERVAL;
+  const elapsed = now - lastChangedAt;
   if (elapsed <= ACTIVE_PHASE_MS) return ACTIVE_POLL_INTERVAL;
   if (elapsed <= WARM_PHASE_MS) return WARM_POLL_INTERVAL;
   return IDLE_POLL_INTERVAL;
+}
+
+// dataUpdatedAt cannot drive the phases: React Query bumps it on every
+// successful fetch — even when the payload is unchanged — which pins the
+// poller at the active interval forever. Structural sharing (and daemon-side
+// content-hash dedup) keep the data reference stable when nothing changed,
+// so track the last identity change instead.
+const lastDataChangeByQuery = new WeakMap<object, { data: unknown; changedAt: number }>();
+
+export function computeAdaptiveQueryInterval(
+  query: { state: { data: unknown } },
+  now: number,
+): number {
+  const data = query.state.data;
+  let entry = lastDataChangeByQuery.get(query);
+  if (!entry || entry.data !== data) {
+    entry = { data, changedAt: now };
+    lastDataChangeByQuery.set(query, entry);
+  }
+  return computeAdaptiveInterval(entry.changedAt, now);
 }
 
 export interface TmuxCapturePaneResult {
@@ -50,6 +70,13 @@ export function tmuxCapturePaneQueryKey(
   cols?: number,
 ): readonly (string | number)[] {
   return ["tmux-capture-pane", serverId, paneId, scrollbackLines, cols ?? "auto"];
+}
+
+export function tmuxCapturePanePanePrefix(
+  serverId: string,
+  paneId: string,
+): readonly string[] {
+  return ["tmux-capture-pane", serverId, paneId];
 }
 
 export function useTmuxCapturePane(
@@ -97,7 +124,7 @@ export function useTmuxCapturePane(
     staleTime: 5_000,
     refetchInterval:
       enabled && isAppVisible && autoRefresh
-        ? (query) => computeAdaptiveInterval(query.state.dataUpdatedAt, Date.now())
+        ? (query) => computeAdaptiveQueryInterval(query, Date.now())
         : false,
     placeholderData: keepPreviousData,
     retry: 1,

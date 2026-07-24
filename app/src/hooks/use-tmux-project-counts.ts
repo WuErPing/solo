@@ -50,8 +50,9 @@ export function buildPaneSources(
 export function useTmuxProjectCounts(
   projects: SidebarProjectEntry[],
   serverId: string | null,
+  enabled = true,
 ): Map<string, ProjectPaneCounts> {
-  const { agents, otherPanes } = useAggregatedTmuxAgents();
+  const { agents, otherPanes } = useAggregatedTmuxAgents({ enabled });
 
   return useMemo(() => {
     if (!serverId || projects.length === 0) {

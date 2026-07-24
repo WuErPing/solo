@@ -170,6 +170,32 @@ func (s *Session) detectAgentActivity(agents []protocol.TmuxAgentInfo) {
 	}
 }
 
+// prunePaneActivityState drops hash-map entries for panes that vanished since
+// the previous scan (e.g. killed sessions), so they don't leak for the lifetime
+// of the WS session. Entries for panes in the current scan are kept.
+func (s *Session) prunePaneActivityState(agents []protocol.TmuxAgentInfo, panes []protocol.TmuxPaneInfo) {
+	s.paneContentHashesMu.Lock()
+	defer s.paneContentHashesMu.Unlock()
+
+	alive := make(map[string]bool, len(agents)+len(panes))
+	for _, a := range agents {
+		alive[a.PaneID] = true
+	}
+	for _, p := range panes {
+		alive[p.PaneID] = true
+	}
+	for id := range s.paneContentHashes {
+		if !alive[id] {
+			delete(s.paneContentHashes, id)
+		}
+	}
+	for id := range s.paneLastContentChange {
+		if !alive[id] {
+			delete(s.paneLastContentChange, id)
+		}
+	}
+}
+
 // filterWindowActivity deduplicates tmux window_activity noise from status bar redraws.
 // When consecutive values differ by < 3 seconds, it keeps the previous timestamp.
 func (s *Session) filterWindowActivity(panes []protocol.TmuxPaneInfo) {
@@ -256,6 +282,21 @@ func extractLastMeaningfulLine(content string) string {
 func parseTmuxPaneLines(output string, agentNames map[string]bool) ([]protocol.TmuxAgentInfo, []protocol.TmuxPaneInfo) {
 	agents := make([]protocol.TmuxAgentInfo, 0)
 	otherPanes := make([]protocol.TmuxPaneInfo, 0)
+
+	// The ps snapshot is loaded lazily and shared across the whole scan — one
+	// subprocess per scan instead of one per pane/agent lookup.
+	var processTree []processNode
+	processTreeLoaded := false
+	getProcessTree := func() []processNode {
+		if !processTreeLoaded {
+			processTreeLoaded = true
+			if nodes, err := processListFunc(); err == nil {
+				processTree = nodes
+			}
+		}
+		return processTree
+	}
+
 	scanner := bufio.NewScanner(strings.NewReader(output))
 	for scanner.Scan() {
 		parts := strings.Split(scanner.Text(), "|")
@@ -293,7 +334,7 @@ func parseTmuxPaneLines(output string, agentNames map[string]bool) ([]protocol.T
 
 		// Layer 3: Child process match (works when pane_current_command is node/python/etc.)
 		if agentName == "" {
-			agentName = agentNameFromChildProcesses(panePID, agentNames)
+			agentName = agentNameFromChildProcesses(getProcessTree(), panePID, agentNames)
 		}
 
 		// Layer 4: Title-only match when command is a shell — agent exited, shell returned
@@ -323,7 +364,7 @@ func parseTmuxPaneLines(output string, agentNames map[string]bool) ([]protocol.T
 		launchCmd := ""
 		if status != "exited" {
 			title = extractFirstPrompt(paneID, paneTitle, agentNames)
-			launchCmd = extractAgentLaunchCmd(panePID, agentName, agentNames)
+			launchCmd = extractAgentLaunchCmd(getProcessTree(), panePID, agentName, agentNames)
 		}
 
 		agents = append(agents, protocol.TmuxAgentInfo{
@@ -425,14 +466,11 @@ func argsContainsAgentName(args string, agentNames map[string]bool) (string, boo
 // findAgentDescendant returns the agent name, PID, and full command line of the
 // first descendant of ppid whose command name matches a known agent name.
 // It searches recursively so wrappers (sh -> node -> kimi) are still found.
+// The caller supplies the process snapshot so a scan shares a single ps call.
 // Matching order per descendant:
 //  1. exact comm match against agentNames
 //  2. any agent name token in args (wrappers: "node kimi")
-func findAgentDescendant(ppid int, agentNames map[string]bool) (string, int, string) {
-	nodes, err := processListFunc()
-	if err != nil {
-		return "", 0, ""
-	}
+func findAgentDescendant(nodes []processNode, ppid int, agentNames map[string]bool) (string, int, string) {
 	for _, n := range descendantProcesses(ppid, nodes) {
 		name := n.comm
 		if idx := strings.LastIndex(name, "/"); idx >= 0 {
@@ -451,8 +489,8 @@ func findAgentDescendant(ppid int, agentNames map[string]bool) (string, int, str
 // agentNameFromChildProcesses checks if any descendant process of the given PID
 // matches a known AI agent name. This catches cases where pane_current_command
 // shows "node" or "python" but the actual agent is a grandchild process.
-func agentNameFromChildProcesses(ppid int, agentNames map[string]bool) string {
-	name, _, _ := findAgentDescendant(ppid, agentNames)
+func agentNameFromChildProcesses(nodes []processNode, ppid int, agentNames map[string]bool) string {
+	name, _, _ := findAgentDescendant(nodes, ppid, agentNames)
 	return name
 }
 
@@ -460,11 +498,11 @@ func agentNameFromChildProcesses(ppid int, agentNames map[string]bool) string {
 // from ps output. For wrapper scripts that rewrite argv (e.g. cursor-agent),
 // this reports the wrapper-injected args rather than the user's original
 // command — that trade-off is documented and accepted.
-func extractAgentLaunchCmd(panePID int, agentName string, agentNames map[string]bool) string {
-	if _, _, a := findAgentDescendant(panePID, map[string]bool{agentName: true}); a != "" {
+func extractAgentLaunchCmd(nodes []processNode, panePID int, agentName string, agentNames map[string]bool) string {
+	if _, _, a := findAgentDescendant(nodes, panePID, map[string]bool{agentName: true}); a != "" {
 		return a
 	}
-	if _, _, a := findAgentDescendant(panePID, agentNames); a != "" {
+	if _, _, a := findAgentDescendant(nodes, panePID, agentNames); a != "" {
 		return a
 	}
 	return ""

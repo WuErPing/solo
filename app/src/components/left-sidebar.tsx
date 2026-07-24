@@ -210,7 +210,7 @@ export const LeftSidebar = memo(function LeftSidebar({
   });
   const { collapsedProjectKeys, shortcutIndexByWorkspaceKey, toggleProjectCollapsed } =
     useSidebarShortcutModel({ projects, isInitialLoad });
-  const tmuxPaneCountMap = useTmuxProjectCounts(projects, activeServerId);
+  const tmuxPaneCountMap = useTmuxProjectCounts(projects, activeServerId, isCompactLayout || isOpen);
   const soloAgentCounts = useSoloAgentCounts(activeServerId);
   const loopCounts = useLoopProjectCounts(projects, activeServerId);
   const scheduleCounts = useScheduleProjectCounts(projects, activeServerId);

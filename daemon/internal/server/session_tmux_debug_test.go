@@ -19,11 +19,15 @@ func TestDebugScanTmux(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scanTmuxAgents error: %v", err)
 	}
+	nodes, err := listProcessTree()
+	if err != nil {
+		t.Fatalf("listProcessTree error: %v", err)
+	}
 	fmt.Printf("agents: %d\n", len(agents))
 	for _, a := range agents {
 		fmt.Printf("  pane=%s panePID=%d agent=%s currentCmd=%s launchCmd=%q status=%s title=%q\n",
 			a.PaneID, a.PanePID, a.AgentName, a.CurrentCmd, a.LaunchCmd, a.Status, a.Title)
-		name, pid, args := findAgentDescendant(a.PanePID, map[string]bool{a.AgentName: true})
+		name, pid, args := findAgentDescendant(nodes, a.PanePID, map[string]bool{a.AgentName: true})
 		fmt.Printf("    findAgentDescendant: name=%q pid=%d args=%q\n", name, pid, args)
 	}
 	fmt.Printf("otherPanes: %d\n", len(otherPanes))
@@ -32,10 +36,6 @@ func TestDebugScanTmux(t *testing.T) {
 	}
 
 	fmt.Println("\nprocess tree snapshot:")
-	nodes, err := listProcessTree()
-	if err != nil {
-		t.Fatalf("listProcessTree error: %v", err)
-	}
 	for _, n := range nodes {
 		if n.ppid == 1 {
 			continue

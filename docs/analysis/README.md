@@ -4,6 +4,37 @@ This directory contains analysis documents for the Solo project.
 
 ## Recent Analyses
 
+### 2026-07-24: Tmux Discovery & Refresh Mechanism Analysis
+
+**Status:** Fixes Implemented & Verified
+**Priority:** High (Correctness / Performance)
+
+**Summary:**
+- End-to-end audit of tmux discovery (daemon request-driven scan, 4-layer agent detection, content-hash dedup) and refresh (100% pull: adaptive RQ polling, zero WS push)
+- 1 correctness fix: multi-host mutations (kill/delete/run) targeted the first connected host instead of the owning host
+- 2 performance fixes: one shared `ps` snapshot per scan (was N+1 subprocesses); sidebar tmux polling now gated on visibility
+- 2 freshness fixes: status lines get adaptive polling; kill-session evicts dead-session caches + daemon prunes vanished-pane state
+- Documents drift in older tmux docs (3→4 detection layers, fixed→adaptive polling); this report is the current source of truth
+
+**Document:** [tmux-discovery-refresh-analysis-2026-07-24.md](tmux-discovery-refresh-analysis-2026-07-24.md)
+
+---
+
+### 2026-07-24: App Performance Analysis
+
+**Status:** Analysis Complete
+**Priority:** High (UX / Performance)
+
+**Summary:**
+- Full performance audit of the React Native/Expo app: rendering, state, WS data flow, terminal, polling, memory, animations
+- 1 high-severity finding: `assistant_chunk` streaming bypasses the 48ms batched reducer (per-token Zustand writes)
+- 4 medium findings: unbounded `gcTime`, terminal fit polling, fixed-interval polling, native FlatList config
+- Codebase confirmed well-optimized overall (batched reducers, virtual lists, UI-thread animations, adaptive polling patterns)
+
+**Document:** [app-performance-analysis-2026-07-24.md](app-performance-analysis-2026-07-24.md)
+
+---
+
 ### 2026-06-20: Tmux Pane First-Principles Analysis
 
 **Status:** Analysis Complete

@@ -2,6 +2,8 @@ import { keepPreviousData, useQueries, useQueryClient } from "@tanstack/react-qu
 import { useMemo, useCallback, useRef } from "react";
 import { getHostRuntimeStore, useHosts, isHostRuntimeConnected } from "@/runtime/host-runtime";
 import { withLiveTmuxClient } from "@/utils/tmux-rpc";
+import { useAppVisible } from "@/hooks/use-app-visible";
+import { computeAdaptiveQueryInterval } from "@/hooks/use-tmux-capture-pane";
 
 export interface TmuxAgent {
   sessionName: string;
@@ -44,6 +46,8 @@ export interface AgentCommandEntry {
   agentName: string;
   launchCmd: string;
   lastSeen: string;
+  serverId: string;
+  serverLabel: string;
 }
 
 export interface AggregatedTmuxAgentsResult {
@@ -61,10 +65,14 @@ export function tmuxAgentsQueryKey(serverId: string): readonly string[] {
   return ["tmux-agents", serverId];
 }
 
-export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
+export function useAggregatedTmuxAgents(options?: {
+  enabled?: boolean;
+}): AggregatedTmuxAgentsResult {
+  const enabled = options?.enabled ?? true;
   const hosts = useHosts();
   const queryClient = useQueryClient();
   const hasFetched = useRef(false);
+  const isAppVisible = useAppVisible();
 
   const queries = useQueries({
     queries: hosts.map((host) => {
@@ -75,9 +83,12 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
 
       return {
         queryKey: tmuxAgentsQueryKey(host.serverId),
-        enabled: Boolean(client && isConnected),
+        enabled: enabled && Boolean(client && isConnected),
         placeholderData: keepPreviousData,
-        refetchInterval: 5000,
+        refetchInterval: isAppVisible
+          ? (query: { state: { data: unknown } }) =>
+              computeAdaptiveQueryInterval(query, Date.now())
+          : false,
         retry: 1,
         queryFn: async () => {
           const payload = await withLiveTmuxClient(host.serverId, (c) => c.tmuxListAgents());
@@ -145,7 +156,11 @@ export function useAggregatedTmuxAgents(): AggregatedTmuxAgentsResult {
       }
       if (query.data?.commandHistory) {
         for (const entry of query.data.commandHistory) {
-          allCommandHistory.push(entry);
+          allCommandHistory.push({
+            ...entry,
+            serverId: host.serverId,
+            serverLabel: host.label,
+          });
         }
       }
     }

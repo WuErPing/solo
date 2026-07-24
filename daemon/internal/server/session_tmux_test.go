@@ -818,16 +818,12 @@ func TestDescendantProcesses(t *testing.T) {
 }
 
 func TestFindAgentDescendantDirectChild(t *testing.T) {
-	orig := processListFunc
-	defer func() { processListFunc = orig }()
-	processListFunc = func() ([]processNode, error) {
-		return []processNode{
-			{pid: 1000, ppid: 1, comm: "tmux"},
-			{pid: 2000, ppid: 1000, comm: "kimi", args: "kimi /home/user/project"},
-		}, nil
+	nodes := []processNode{
+		{pid: 1000, ppid: 1, comm: "tmux"},
+		{pid: 2000, ppid: 1000, comm: "kimi", args: "kimi /home/user/project"},
 	}
 
-	name, pid, args := findAgentDescendant(1000, map[string]bool{"kimi": true})
+	name, pid, args := findAgentDescendant(nodes, 1000, map[string]bool{"kimi": true})
 	if name != "kimi" {
 		t.Errorf("name = %q, want kimi", name)
 	}
@@ -840,18 +836,14 @@ func TestFindAgentDescendantDirectChild(t *testing.T) {
 }
 
 func TestFindAgentDescendantGrandchild(t *testing.T) {
-	orig := processListFunc
-	defer func() { processListFunc = orig }()
-	processListFunc = func() ([]processNode, error) {
-		return []processNode{
-			{pid: 1000, ppid: 1, comm: "tmux"},
-			{pid: 2000, ppid: 1000, comm: "bash"},
-			{pid: 3000, ppid: 2000, comm: "node"},
-			{pid: 4000, ppid: 3000, comm: "kimi", args: "node /usr/local/bin/kimi --cwd /home/user/project"},
-		}, nil
+	nodes := []processNode{
+		{pid: 1000, ppid: 1, comm: "tmux"},
+		{pid: 2000, ppid: 1000, comm: "bash"},
+		{pid: 3000, ppid: 2000, comm: "node"},
+		{pid: 4000, ppid: 3000, comm: "kimi", args: "node /usr/local/bin/kimi --cwd /home/user/project"},
 	}
 
-	name, pid, args := findAgentDescendant(1000, map[string]bool{"kimi": true})
+	name, pid, args := findAgentDescendant(nodes, 1000, map[string]bool{"kimi": true})
 	if name != "kimi" {
 		t.Errorf("name = %q, want kimi", name)
 	}
@@ -864,35 +856,27 @@ func TestFindAgentDescendantGrandchild(t *testing.T) {
 }
 
 func TestFindAgentDescendantNoMatch(t *testing.T) {
-	orig := processListFunc
-	defer func() { processListFunc = orig }()
-	processListFunc = func() ([]processNode, error) {
-		return []processNode{
-			{pid: 1000, ppid: 1, comm: "tmux"},
-			{pid: 2000, ppid: 1000, comm: "bash"},
-			{pid: 3000, ppid: 2000, comm: "vim"},
-		}, nil
+	nodes := []processNode{
+		{pid: 1000, ppid: 1, comm: "tmux"},
+		{pid: 2000, ppid: 1000, comm: "bash"},
+		{pid: 3000, ppid: 2000, comm: "vim"},
 	}
 
-	name, pid, args := findAgentDescendant(1000, map[string]bool{"kimi": true})
+	name, pid, args := findAgentDescendant(nodes, 1000, map[string]bool{"kimi": true})
 	if name != "" || pid != 0 || args != "" {
 		t.Errorf("expected no match, got name=%q pid=%d args=%q", name, pid, args)
 	}
 }
 
 func TestExtractAgentLaunchCmdFromGrandchild(t *testing.T) {
-	orig := processListFunc
-	defer func() { processListFunc = orig }()
-	processListFunc = func() ([]processNode, error) {
-		return []processNode{
-			{pid: 1000, ppid: 1, comm: "tmux"},
-			{pid: 2000, ppid: 1000, comm: "bash"},
-			{pid: 3000, ppid: 2000, comm: "node"},
-			{pid: 4000, ppid: 3000, comm: "kimi", args: "kimi --permission-mode=bypass_permissions"},
-		}, nil
+	nodes := []processNode{
+		{pid: 1000, ppid: 1, comm: "tmux"},
+		{pid: 2000, ppid: 1000, comm: "bash"},
+		{pid: 3000, ppid: 2000, comm: "node"},
+		{pid: 4000, ppid: 3000, comm: "kimi", args: "kimi --permission-mode=bypass_permissions"},
 	}
 
-	cmd := extractAgentLaunchCmd(1000, "kimi", map[string]bool{"kimi": true})
+	cmd := extractAgentLaunchCmd(nodes, 1000, "kimi", map[string]bool{"kimi": true})
 	if cmd != "kimi --permission-mode=bypass_permissions" {
 		t.Errorf("cmd = %q, want 'kimi --permission-mode=bypass_permissions'", cmd)
 	}
@@ -927,17 +911,13 @@ func TestArgsContainsAgentName(t *testing.T) {
 }
 
 func TestFindAgentDescendantByArgs(t *testing.T) {
-	orig := processListFunc
-	defer func() { processListFunc = orig }()
-	processListFunc = func() ([]processNode, error) {
-		return []processNode{
-			{pid: 1000, ppid: 1, comm: "tmux"},
-			{pid: 2000, ppid: 1000, comm: "bash"},
-			{pid: 3000, ppid: 2000, comm: "node", args: "node /usr/local/bin/kimi /home/user/project"},
-		}, nil
+	nodes := []processNode{
+		{pid: 1000, ppid: 1, comm: "tmux"},
+		{pid: 2000, ppid: 1000, comm: "bash"},
+		{pid: 3000, ppid: 2000, comm: "node", args: "node /usr/local/bin/kimi /home/user/project"},
 	}
 
-	name, pid, args := findAgentDescendant(1000, map[string]bool{"kimi": true})
+	name, pid, args := findAgentDescendant(nodes, 1000, map[string]bool{"kimi": true})
 	if name != "kimi" {
 		t.Errorf("name = %q, want kimi", name)
 	}
@@ -1106,6 +1086,70 @@ func TestDetectAgentActivity(t *testing.T) {
 			t.Errorf("agent[0].Activity = %q, want empty (fresh start after cleanup)", agents[0].Activity)
 		}
 	})
+}
+
+func TestPrunePaneActivityState(t *testing.T) {
+	s := &Session{
+		paneContentHashes:     map[string]string{"%0": "h0", "%1": "h1", "%8": "h8", "%9": "h9"},
+		paneLastContentChange: map[string]int64{"%0": 1, "%1": 2, "%8": 3, "%9": 4},
+	}
+
+	agents := []protocol.TmuxAgentInfo{{PaneID: "%0", AgentName: "claude"}}
+	panes := []protocol.TmuxPaneInfo{{PaneID: "%1"}}
+	s.prunePaneActivityState(agents, panes)
+
+	s.paneContentHashesMu.RLock()
+	defer s.paneContentHashesMu.RUnlock()
+	for _, id := range []string{"%0", "%1"} {
+		if _, ok := s.paneContentHashes[id]; !ok {
+			t.Errorf("live pane %s hash pruned, want kept", id)
+		}
+		if _, ok := s.paneLastContentChange[id]; !ok {
+			t.Errorf("live pane %s timestamp pruned, want kept", id)
+		}
+	}
+	for _, id := range []string{"%8", "%9"} {
+		if _, ok := s.paneContentHashes[id]; ok {
+			t.Errorf("vanished pane %s hash kept, want pruned", id)
+		}
+		if _, ok := s.paneLastContentChange[id]; ok {
+			t.Errorf("vanished pane %s timestamp kept, want pruned", id)
+		}
+	}
+}
+
+func TestParseTmuxPaneLinesSharesSingleProcessSnapshot(t *testing.T) {
+	orig := processListFunc
+	defer func() { processListFunc = orig }()
+
+	var mu sync.Mutex
+	calls := 0
+	processListFunc = func() ([]processNode, error) {
+		mu.Lock()
+		calls++
+		mu.Unlock()
+		return []processNode{
+			{pid: 2000, ppid: 1000, comm: "kimi", args: "kimi"},
+			{pid: 2001, ppid: 1001, comm: "kimi", args: "kimi"},
+			{pid: 2002, ppid: 1002, comm: "kimi", args: "kimi"},
+		}, nil
+	}
+
+	// Three panes running "node" with no title: all miss layers 1-2, hit layer 3
+	// (process lookup) and then launch-cmd extraction — historically one ps call
+	// per lookup. A single scan must share one snapshot.
+	input := "%0|0|1000|node|main|0|/a||0\n" +
+		"%1|0|1001|node|main|0|/b||0\n" +
+		"%2|0|1002|node|main|0|/c||0\n"
+	agents, _ := parseTmuxPaneLines(input, map[string]bool{"kimi": true})
+	if len(agents) != 3 {
+		t.Fatalf("got %d agents, want 3", len(agents))
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if calls != 1 {
+		t.Errorf("processListFunc called %d times, want 1 (shared snapshot per scan)", calls)
+	}
 }
 
 func TestFormatUnixHHMM(t *testing.T) {
