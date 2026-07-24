@@ -192,6 +192,13 @@ export class TerminalEmulatorRuntime {
       return;
     }
     this.fitToWidth = input.fitToWidth;
+    // Mount-time applyViewportTouchStyles set this once; keep it in sync when
+    // the mode changes without a remount (1:1 pans horizontally, fit does not).
+    const viewportElement =
+      this.terminal?.element?.querySelector<HTMLElement>(".xterm-viewport");
+    if (viewportElement) {
+      viewportElement.style.touchAction = this.fitToWidth ? "pan-y" : "pan-x pan-y";
+    }
     this.fitAndEmitResize?.(true);
   }
 

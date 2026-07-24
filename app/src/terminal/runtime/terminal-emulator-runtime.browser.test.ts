@@ -287,6 +287,28 @@ describe("terminal emulator runtime in a real browser", () => {
     expect(viewport!.style.touchAction).toBe("pan-y");
   });
 
+  it("syncs viewport touch-action when fitToWidth toggles without a remount", async () => {
+    await page.viewport(900, 600);
+    const mounted = createTerminalHost({ width: 360, height: 180, forceCols: 120, fitToWidth: true });
+
+    await waitFor({
+      predicate: () => {
+        const size = latestSize(mounted.sizes);
+        return size.cols === 120;
+      },
+    });
+
+    const viewport = mounted.host.querySelector<HTMLElement>(".xterm-viewport");
+    expect(viewport).not.toBeNull();
+    expect(viewport!.style.touchAction).toBe("pan-y");
+
+    mounted.runtime.setFitToWidth({ fitToWidth: false });
+    expect(viewport!.style.touchAction).toBe("pan-x pan-y");
+
+    mounted.runtime.setFitToWidth({ fitToWidth: true });
+    expect(viewport!.style.touchAction).toBe("pan-y");
+  });
+
   it("resizes terminal to forced column count", async () => {
     await page.viewport(900, 600);
     const mounted = createTerminalHost({ width: 360, height: 180, forceCols: 120 });

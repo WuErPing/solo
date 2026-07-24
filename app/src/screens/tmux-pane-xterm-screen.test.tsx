@@ -103,6 +103,7 @@ const { contentRef, autoRefreshRef, paneColsRef, hookArgsRef, mockEmulatorHandle
   },
   emulatorPropsRef: {
     current: {
+      streamKey: undefined as string | undefined,
       forceCols: undefined as number | undefined,
       fitToWidth: false,
       allowHorizontalScroll: false,
@@ -143,12 +144,14 @@ vi.mock("@/hooks/use-tmux-capture-pane", () => ({
 vi.mock("@/components/terminal-emulator", () => ({
   default: function MockTerminalEmulator({
     snapshotText,
+    streamKey,
     forceCols,
     fitToWidth,
     allowHorizontalScroll,
     dom,
   }: {
     snapshotText?: string;
+    streamKey?: string;
     forceCols?: number;
     fitToWidth?: boolean;
     allowHorizontalScroll?: boolean;
@@ -158,6 +161,7 @@ vi.mock("@/components/terminal-emulator", () => ({
     };
   }) {
     emulatorPropsRef.current = {
+      streamKey,
       forceCols,
       fitToWidth: fitToWidth ?? false,
       allowHorizontalScroll: allowHorizontalScroll ?? false,
@@ -221,7 +225,7 @@ describe("TmuxPaneXtermScreen", () => {
     autoRefreshRef.current = true;
     paneColsRef.current = null;
     hookArgsRef.current.cols = undefined;
-    emulatorPropsRef.current = { forceCols: undefined, fitToWidth: false, allowHorizontalScroll: false, dom: undefined };
+    emulatorPropsRef.current = { streamKey: undefined, forceCols: undefined, fitToWidth: false, allowHorizontalScroll: false, dom: undefined };
   });
 
   it("renders the xterm surface", () => {
@@ -384,5 +388,17 @@ describe("TmuxPaneXtermScreen", () => {
     fireEvent.click(screen.getByTestId("tmux-xterm-width-toggle-button"));
     expect(emulatorPropsRef.current.dom?.scrollEnabled).toBe(true);
     expect(emulatorPropsRef.current.dom?.style).toEqual({ flex: 1 });
+  });
+
+  it("keeps streamKey stable across fit/1:1 toggles (mode switch must not remount the runtime)", () => {
+    render(<TmuxPaneXtermScreen />);
+    const fitKey = emulatorPropsRef.current.streamKey;
+    expect(fitKey).toBe("tmux-xterm:server1:%0");
+
+    fireEvent.click(screen.getByTestId("tmux-xterm-width-toggle-button"));
+    expect(emulatorPropsRef.current.streamKey).toBe(fitKey);
+
+    fireEvent.click(screen.getByTestId("tmux-xterm-width-toggle-button"));
+    expect(emulatorPropsRef.current.streamKey).toBe(fitKey);
   });
 });

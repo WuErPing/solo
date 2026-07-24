@@ -167,6 +167,17 @@ function ensureTerminalScrollbarStyle(): void {
       width: 0;
       height: 0;
     }
+
+    /* Pin the hidden input helper out of the scroll flow. xterm moves it under
+       the cursor for IME; in 1:1 mode the root div is a horizontal scroller,
+       so focusing the textarea (tap to type) made the browser scroll it into
+       view — panning to a blank region. Fixed positioning gives the browser
+       nothing to scroll to. */
+    [data-terminal-scrollbar-root="true"] .xterm-helper-textarea {
+      position: fixed !important;
+      left: 0 !important;
+      top: 0 !important;
+    }
   `;
   document.head.appendChild(styleElement);
 }
@@ -461,12 +472,25 @@ export default function TerminalEmulator({
   // handle may not be ready when the parent effect fires, causing
   // "undefined is not a function" on the native side. Updating through a
   // serializable prop lets the DOM component write the content itself.
-  const prevSnapshotTextRef = useRef<string | undefined>(undefined);
+  //
+  // Dedupe by (runtime, text): a remount (streamKey change, e.g. switching
+  // panes) creates a fresh, empty terminal while the cached snapshot text is
+  // unchanged — keying on text alone would skip the write and leave the new
+  // terminal blank.
+  const prevSnapshotRef = useRef<{
+    runtime: TerminalEmulatorRuntime | null;
+    text: string | undefined;
+  }>({ runtime: null, text: undefined });
   useEffect(() => {
-    if (!snapshotText || snapshotText === prevSnapshotTextRef.current) {
+    const runtime = runtimeRef.current;
+    if (!snapshotText || !runtime) {
       return;
     }
-    prevSnapshotTextRef.current = snapshotText;
+    const prev = prevSnapshotRef.current;
+    if (prev.text === snapshotText && prev.runtime === runtime) {
+      return;
+    }
+    prevSnapshotRef.current = { runtime, text: snapshotText };
     // In-place repaint in a single write: clear scrollback (\x1b[3J, leaves
     // the viewport untouched), home the cursor (\x1b[H), overwrite the content
     // cell-by-cell, then clear any trailing cells (\x1b[J). This replaces the
@@ -475,11 +499,11 @@ export default function TerminalEmulator({
     // rendered the empty buffer between them, causing a visible flicker on
     // every poll (e.g. the "Thinking..." spinner updating each second).
     // Overwriting in place means xterm only re-renders the cells that changed.
-    runtimeRef.current?.write({
+    runtime.write({
       text: `\x1b[3J\x1b[H${snapshotText}\x1b[J`,
       suppressInput: true,
     });
-  }, [snapshotText]);
+  }, [snapshotText, streamKey]);
 
   useEffect(() => {
     if (focusRequestToken <= 0) {

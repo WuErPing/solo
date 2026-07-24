@@ -229,7 +229,11 @@ function TmuxPaneXtermScreenInner() {
       <View style={styles.terminalContainer}>
         <TerminalEmulator
           dom={TERMINAL_EMULATOR_DOM_PROPS}
-          streamKey={viewMode === "fit" ? streamKey : `${streamKey}:original`}
+          // Keep streamKey stable across Fit/1:1 toggles: changing it remounts
+          // the whole xterm runtime, and the replaying snapshot effect skips
+          // unchanged content — leaving the fresh terminal blank. The runtime
+          // switches modes in place via setFitToWidth/setForceCols.
+          streamKey={streamKey}
           testId="tmux-xterm-surface"
           xtermTheme={xtermTheme}
           convertEol
