@@ -916,7 +916,9 @@ export class ConnectionManager {
       return;
     }
 
-    const rawBytes = asUint8Array(rawData);
+    // Binary frames never arrive as strings, so skip the O(n) UTF-8 encode
+    // for text frames — they go straight to JSON parsing.
+    const rawBytes = typeof rawData === "string" ? null : asUint8Array(rawData);
     if (rawBytes && this.hooks?.tryHandleBinaryFrame(rawBytes)) {
       return;
     }
@@ -935,6 +937,20 @@ export class ConnectionManager {
       parsedJson = JSON.parse(payload);
     } catch (error) {
       this.logger.debug({ err: toErrorInfo(error) }, "json_parse_failed");
+      return;
+    }
+
+    // Fast path: high-frequency agent_stream messages bypass full Zod validation.
+    // The daemon is the sole producer of this internal protocol; a lightweight
+    // structural check on the type discriminants is sufficient here.
+    const raw = parsedJson as { type?: string; message?: { type?: string } };
+    if (raw.type === "session" && raw.message?.type === "agent_stream") {
+      const msg = raw.message as SessionOutboundMessage;
+      this.handleSessionMessage(msg);
+      this.runtimeMetrics?.recordMessage("agent_stream", bytes, perfNow() - startMs);
+      this.runtimeMetrics?.recordAgentStream(
+        (msg as { payload?: unknown }).payload as never,
+      );
       return;
     }
 

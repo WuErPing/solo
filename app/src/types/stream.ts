@@ -1031,14 +1031,22 @@ export function applyStreamEvent(params: {
       changedHead = true;
     }
     if (incomingKind === "assistant_message") {
-      const promoted = promoteCompletedAssistantBlocks({
-        tail: nextTail,
-        head: nextHead,
-      });
-      nextTail = promoted.tail;
-      nextHead = promoted.head;
-      changedTail = changedTail || promoted.changedTail;
-      changedHead = changedHead || promoted.changedHead;
+      // Block boundaries require a blank line, so a chunk without a newline
+      // cannot change the block count — skip the O(text) split in that case.
+      const chunkMayContainBlockBoundary =
+        event.type === "timeline" &&
+        event.item.type === "assistant_message" &&
+        event.item.text.includes("\n");
+      if (chunkMayContainBlockBoundary) {
+        const promoted = promoteCompletedAssistantBlocks({
+          tail: nextTail,
+          head: nextHead,
+        });
+        nextTail = promoted.tail;
+        nextHead = promoted.head;
+        changedTail = changedTail || promoted.changedTail;
+        changedHead = changedHead || promoted.changedHead;
+      }
     }
     return { tail: nextTail, head: nextHead, changedTail, changedHead };
   }

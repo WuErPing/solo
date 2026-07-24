@@ -55,6 +55,10 @@ const splitHistoryCache = new WeakMap<
   StreamItem[],
   Map<string, Pick<AgentStreamRenderModel, "history" | "segments">>
 >();
+// Keyed by the raw tail reference: the set is order-independent, and the tail
+// ref is stable across streaming flushes (only the head changes), so this
+// avoids rebuilding O(history) strings on every 48ms flush.
+const tailContentSetCache = new WeakMap<StreamItem[], Set<string>>();
 
 function getItemTextForDedup(item: StreamItem): string {
   if (item.kind === "assistant_message" || item.kind === "user_message" || item.kind === "thought") {
@@ -82,6 +86,16 @@ function getOrderedItems(params: {
   const ordered = order(source);
   cachedByKey.set(cacheKey, ordered);
   return ordered;
+}
+
+function getTailContentSet(tail: StreamItem[], orderedTail: StreamItem[]): Set<string> {
+  const cached = tailContentSetCache.get(tail);
+  if (cached) {
+    return cached;
+  }
+  const set = new Set(orderedTail.map((item) => `${item.kind}:${getItemTextForDedup(item)}`));
+  tailContentSetCache.set(tail, set);
+  return set;
 }
 
 function splitOrderedTail(params: {
@@ -162,9 +176,7 @@ export function buildAgentStreamRenderModel(
         streamHead: items,
       }),
   });
-  const tailContentSet = new Set(
-    orderedTail.map((item) => `${item.kind}:${getItemTextForDedup(item)}`),
-  );
+  const tailContentSet = getTailContentSet(input.tail, orderedTail);
   const hasDuplicates = orderedHead.some(
     (item) => tailContentSet.has(`${item.kind}:${getItemTextForDedup(item)}`),
   );

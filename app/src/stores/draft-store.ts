@@ -268,7 +268,6 @@ function applyClearDraftRecord(input: {
 }
 
 async function runAttachmentGc(): Promise<void> {
-  gcScheduled = false;
   const nowMs = Date.now();
 
   useDraftStore.setState((state) => {
@@ -340,20 +339,22 @@ function collectStreamUserImageIds(
   }
 }
 
+// GC scans every session's stream buffers plus the attachment store, so it
+// must not run per keystroke — coalesce save bursts into one run per interval.
+const ATTACHMENT_GC_MIN_INTERVAL_MS = 2_000;
+let gcLastRunAt = 0;
+
 function scheduleAttachmentGc(): void {
   if (gcScheduled) {
     return;
   }
   gcScheduled = true;
-  if (typeof queueMicrotask === "function") {
-    queueMicrotask(() => {
-      void runAttachmentGc();
-    });
-    return;
-  }
+  const delay = Math.max(0, ATTACHMENT_GC_MIN_INTERVAL_MS - (Date.now() - gcLastRunAt));
   setTimeout(() => {
+    gcScheduled = false;
+    gcLastRunAt = Date.now();
     void runAttachmentGc();
-  }, 0);
+  }, delay);
 }
 
 async function migrateAllLegacyDrafts(): Promise<void> {

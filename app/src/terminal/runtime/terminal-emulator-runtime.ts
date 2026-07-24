@@ -49,7 +49,6 @@ interface TerminalEmulatorRuntimeDisposables {
   removeWindowFocus: () => void;
   removeDocumentVisibilityChange: () => void;
   removeVisualViewportResize: () => void;
-  clearFitInterval: () => void;
   clearFitTimeouts: () => void;
   removeFontListeners: () => void;
   removeTouchListeners: () => void;
@@ -568,9 +567,6 @@ export class TerminalEmulatorRuntime {
     const visualViewportResizeHandler = () => fitAndEmitResize(false);
     visualViewport?.addEventListener("resize", visualViewportResizeHandler);
 
-    const fitInterval = window.setInterval(() => {
-      fitAndEmitResize(false);
-    }, 250);
     const fitTimeouts = FIT_TIMEOUT_DELAYS_MS.map((delayMs) =>
       window.setTimeout(() => {
         fitAndEmitResize(true);
@@ -620,9 +616,6 @@ export class TerminalEmulatorRuntime {
       removeVisualViewportResize: () => {
         visualViewport?.removeEventListener("resize", visualViewportResizeHandler);
       },
-      clearFitInterval: () => {
-        window.clearInterval(fitInterval);
-      },
       clearFitTimeouts: () => {
         for (const handle of fitTimeouts) {
           window.clearTimeout(handle);
@@ -660,7 +653,6 @@ export class TerminalEmulatorRuntime {
       disposables.removeWindowFocus();
       disposables.removeDocumentVisibilityChange();
       disposables.removeVisualViewportResize();
-      disposables.clearFitInterval();
       disposables.clearFitTimeouts();
       disposables.removeFontListeners();
       disposables.removeTouchListeners();

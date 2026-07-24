@@ -12,6 +12,21 @@ const webSelectableTextStyle = isWeb ? { userSelect: "text" as const } : {};
  *   <Markdown style={markdownStyles}>{content}</Markdown>
  */
 export function createMarkdownStyles(theme: Theme) {
+  const cached = markdownStylesCache.get(theme);
+  if (cached) {
+    return cached;
+  }
+  const styles = buildMarkdownStyles(theme);
+  markdownStylesCache.set(theme, styles);
+  return styles;
+}
+
+// Theme objects are stable references (one per registered theme), so a
+// WeakMap keeps the style object referentially stable across renders — the
+// Markdown component's internal memoization depends on a stable `style` prop.
+const markdownStylesCache = new WeakMap<Theme, ReturnType<typeof buildMarkdownStyles>>();
+
+function buildMarkdownStyles(theme: Theme) {
   return {
     // =========================================================================
     // BASE STYLES

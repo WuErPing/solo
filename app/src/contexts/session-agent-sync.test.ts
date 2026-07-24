@@ -6,24 +6,24 @@ import {
 import type { AgentUpdatePayload, WorkspaceSetupProgressPayload } from "./session-helpers";
 import type { Agent } from "@/stores/session-store";
 
-function createMockApplyAgentUpdatePayloadDeps(overrides?: {
-  setAgents?: ReturnType<typeof vi.fn>;
-  setPendingPermissions?: ReturnType<typeof vi.fn>;
-  setQueuedMessages?: ReturnType<typeof vi.fn>;
-  setAgentTimelineCursor?: ReturnType<typeof vi.fn>;
-  setAgentAuthoritativeHistoryApplied?: ReturnType<typeof vi.fn>;
-  applyAuthoritativeAgentSnapshot?: ReturnType<typeof vi.fn>;
-}) {
+function createMockApplyAgentUpdatePayloadDeps(
+  overrides?: Partial<Record<string, ReturnType<typeof vi.fn>>>,
+) {
   return {
     serverId: "server-1",
     queryClient: { getQueryData: vi.fn(), setQueryData: vi.fn() } as any,
-    setAgents: overrides?.setAgents ?? vi.fn(),
-    setPendingPermissions: overrides?.setPendingPermissions ?? vi.fn(),
-    setQueuedMessages: overrides?.setQueuedMessages ?? vi.fn(),
-    setAgentTimelineCursor: overrides?.setAgentTimelineCursor ?? vi.fn(),
-    setAgentAuthoritativeHistoryApplied: overrides?.setAgentAuthoritativeHistoryApplied ?? vi.fn(),
-    applyAuthoritativeAgentSnapshot: overrides?.applyAuthoritativeAgentSnapshot ?? vi.fn(),
+    setAgents: vi.fn(),
+    setPendingPermissions: vi.fn(),
+    setQueuedMessages: vi.fn(),
+    setAgentTimelineCursor: vi.fn(),
+    setAgentAuthoritativeHistoryApplied: vi.fn(),
+    setAgentStreamTail: vi.fn(),
+    setAgentStreamHead: vi.fn(),
+    setInitializingAgents: vi.fn(),
+    setFileExplorer: vi.fn(),
+    applyAuthoritativeAgentSnapshot: vi.fn(),
     previousAgentStatusRef: { current: new Map() },
+    ...overrides,
   };
 }
 
@@ -34,6 +34,10 @@ describe("createApplyAgentUpdatePayload", () => {
     const setQueuedMessages = vi.fn();
     const setAgentTimelineCursor = vi.fn();
     const setAgentAuthoritativeHistoryApplied = vi.fn();
+    const setAgentStreamTail = vi.fn();
+    const setAgentStreamHead = vi.fn();
+    const setInitializingAgents = vi.fn();
+    const setFileExplorer = vi.fn();
     const applyAuthoritativeAgentSnapshot = vi.fn();
 
     const deps = createMockApplyAgentUpdatePayloadDeps({
@@ -42,6 +46,10 @@ describe("createApplyAgentUpdatePayload", () => {
       setQueuedMessages,
       setAgentTimelineCursor,
       setAgentAuthoritativeHistoryApplied,
+      setAgentStreamTail,
+      setAgentStreamHead,
+      setInitializingAgents,
+      setFileExplorer,
       applyAuthoritativeAgentSnapshot,
     });
 
@@ -70,6 +78,17 @@ describe("createApplyAgentUpdatePayload", () => {
 
     // Should clear timeline cursor
     expect(setAgentTimelineCursor).toHaveBeenCalledTimes(1);
+
+    // Should release per-agent stream buffers and explorer state
+    for (const setter of [setAgentStreamTail, setAgentStreamHead, setInitializingAgents, setFileExplorer]) {
+      expect(setter).toHaveBeenCalledTimes(1);
+      expect(setter.mock.calls[0][0]).toBe("server-1");
+      const mapUpdater = setter.mock.calls[0][1];
+      const before = new Map([["agent-to-remove", ["item"]]]);
+      const after = mapUpdater(before);
+      expect(after.has("agent-to-remove")).toBe(false);
+      expect(mapUpdater(new Map())).toBeInstanceOf(Map);
+    }
 
     // Should mark authoritative history as not applied
     expect(setAgentAuthoritativeHistoryApplied).toHaveBeenCalledWith("server-1", "agent-to-remove", false);

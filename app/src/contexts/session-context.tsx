@@ -37,7 +37,6 @@ import { subscribeToSessionEvents } from "./session-event-handlers";
 // Re-export types from session-store and draft-store for backward compatibility
 export type { DraftInput } from "@/stores/draft-store";
 export type {
-  MessageEntry,
   Agent,
   ExplorerEntry,
   ExplorerFile,
@@ -89,8 +88,6 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
   // Zustand store actions
   const initializeSession = useSessionStore((state) => state.initializeSession);
   const clearSession = useSessionStore((state) => state.clearSession);
-  const setMessages = useSessionStore((state) => state.setMessages);
-  const setCurrentAssistantMessage = useSessionStore((state) => state.setCurrentAssistantMessage);
   const setAgentStreamTail = useSessionStore((state) => state.setAgentStreamTail);
   const setAgentStreamHead = useSessionStore((state) => state.setAgentStreamHead);
   const setAgentStreamState = useSessionStore((state) => state.setAgentStreamState);
@@ -112,6 +109,7 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
   const setAgentLastActivity = useSessionStore((state) => state.setAgentLastActivity);
   const flushAgentLastActivity = useSessionStore((state) => state.flushAgentLastActivity);
   const setPendingPermissions = useSessionStore((state) => state.setPendingPermissions);
+  const setFileExplorer = useSessionStore((state) => state.setFileExplorer);
   const clearDraftInput = useDraftStore((state) => state.clearDraftInput);
   const setQueuedMessages = useSessionStore((state) => state.setQueuedMessages);
   const updateSessionClient = useSessionStore((state) => state.updateSessionClient);
@@ -336,6 +334,10 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
         setQueuedMessages,
         setAgentTimelineCursor,
         setAgentAuthoritativeHistoryApplied,
+        setAgentStreamTail,
+        setAgentStreamHead,
+        setInitializingAgents,
+        setFileExplorer,
         applyAuthoritativeAgentSnapshot,
         previousAgentStatusRef,
       })(...args),
@@ -345,7 +347,11 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
       serverId,
       setAgentAuthoritativeHistoryApplied,
       setAgents,
+      setAgentStreamHead,
+      setAgentStreamTail,
       setAgentTimelineCursor,
+      setFileExplorer,
+      setInitializingAgents,
       setPendingPermissions,
       setQueuedMessages,
     ],
@@ -433,8 +439,6 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
       applyTimelineResponse,
       applyWorkspaceSetupProgress,
       requestCanonicalCatchUp,
-      setMessages,
-      setCurrentAssistantMessage,
       setAgentStreamTail,
       setAgentStreamHead,
       setAgentStreamState,
@@ -447,6 +451,7 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
       removeWorkspace,
       removeWorkspaceSetup,
       setPendingPermissions,
+      setFileExplorer,
       clearDraftInput,
       updateSessionServerInfo,
     });
@@ -459,8 +464,6 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
     applyTimelineResponse,
     applyWorkspaceSetupProgress,
     requestCanonicalCatchUp,
-    setMessages,
-    setCurrentAssistantMessage,
     setAgentStreamTail,
     setAgentStreamHead,
     setAgentStreamState,
@@ -473,6 +476,7 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
     removeWorkspace,
     removeWorkspaceSetup,
     setPendingPermissions,
+    setFileExplorer,
     clearDraftInput,
     updateSessionServerInfo,
   ]);

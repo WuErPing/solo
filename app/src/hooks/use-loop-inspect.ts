@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 import type { LoopRecord } from "@server/server/loop/rpc-schemas";
 import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
+import { useAppVisible } from "@/hooks/use-app-visible";
+import { computeAdaptiveQueryInterval } from "@/hooks/use-tmux-capture-pane";
 
 export interface LoopInspectOptions {
   serverId?: string | null;
@@ -38,13 +40,17 @@ export function useLoopInspect(options: LoopInspectOptions): LoopInspectResult {
   const enabled = options.enabled ?? true;
   const client = useHostRuntimeClient(serverId ?? "");
   const isConnected = useHostRuntimeIsConnected(serverId ?? "");
+  const isAppVisible = useAppVisible();
   const queryKey = useMemo(() => loopInspectQueryKey(serverId, loopId), [serverId, loopId]);
 
   const query = useQuery<{ loop: LoopRecord | null; error: string | null }, Error>({
     queryKey,
     enabled: Boolean(enabled && serverId && loopId && client && isConnected),
     staleTime: 30_000,
-    refetchInterval: 2_000,
+    refetchInterval:
+      enabled && isAppVisible
+        ? (query) => computeAdaptiveQueryInterval(query, Date.now())
+        : false,
     queryFn: async () => {
       if (!client) {
         throw new Error("Daemon client not available");

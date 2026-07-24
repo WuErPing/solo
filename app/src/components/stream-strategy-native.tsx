@@ -324,11 +324,11 @@ function NativeStreamViewport(props: StreamRenderInput & { strategy: StreamStrat
       scrollEventThrottle={16}
       onContentSizeChange={handleContentSizeChange}
       maintainVisibleContentPosition={DEFAULT_MAINTAIN_VISIBLE_CONTENT_POSITION}
-      initialNumToRender={40}
-      maxToRenderPerBatch={40}
+      initialNumToRender={20}
+      maxToRenderPerBatch={20}
       updateCellsBatchingPeriod={0}
       windowSize={21}
-      removeClippedSubviews={false}
+      removeClippedSubviews
       scrollEnabled={scrollEnabled}
       showsVerticalScrollIndicator
       inverted

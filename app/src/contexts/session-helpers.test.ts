@@ -2,11 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   hasAgentUsageChanged,
   getAgentIdFromUpdate,
-  applyToolResultToMessages,
-  applyToolErrorToMessages,
   type AgentUpdatePayload,
 } from "./session-helpers";
-import type { MessageEntry } from "@/stores/session-store";
 
 describe("hasAgentUsageChanged", () => {
   it("returns false when both usages are undefined", () => {
@@ -101,83 +98,5 @@ describe("getAgentIdFromUpdate", () => {
       },
     } as unknown as AgentUpdatePayload;
     expect(getAgentIdFromUpdate(update)).toBe("agent-456");
-  });
-});
-
-describe("applyToolResultToMessages", () => {
-  it("marks matching tool call as completed with result", () => {
-    const messages: MessageEntry[] = [
-      { type: "tool_call", id: "tc-1", timestamp: 0, toolName: "bash", args: null, status: "executing" },
-      { type: "tool_call", id: "tc-2", timestamp: 0, toolName: "read", args: null, status: "executing" },
-    ];
-
-    const updater = applyToolResultToMessages("tc-1", { output: "done" });
-    const result = updater(messages);
-
-    expect(result[0]).toEqual({
-      type: "tool_call",
-      id: "tc-1",
-      timestamp: 0,
-      toolName: "bash",
-      args: null,
-      result: { output: "done" },
-      status: "completed",
-    });
-    expect(result[1].type).toBe("tool_call");
-    if (result[1].type === "tool_call") {
-      expect(result[1].status).toBe("executing");
-    }
-  });
-
-  it("does not modify non-tool_call messages", () => {
-    const messages: MessageEntry[] = [
-      { type: "user", id: "u-1", timestamp: 0, message: "hello" },
-      { type: "assistant", id: "a-1", timestamp: 0, message: "hi" },
-    ];
-
-    const updater = applyToolResultToMessages("u-1", "result");
-    const result = updater(messages);
-    expect(result).toStrictEqual(messages);
-  });
-
-  it("returns same array if no matching tool call", () => {
-    const messages: MessageEntry[] = [
-      { type: "tool_call", id: "tc-1", timestamp: 0, toolName: "bash", args: null, status: "executing" },
-    ];
-
-    const updater = applyToolResultToMessages("tc-nonexistent", "result");
-    const result = updater(messages);
-    expect(result).toEqual(messages);
-  });
-});
-
-describe("applyToolErrorToMessages", () => {
-  it("marks matching tool call as failed with error", () => {
-    const messages: MessageEntry[] = [
-      { type: "tool_call", id: "tc-1", timestamp: 0, toolName: "bash", args: null, status: "executing" },
-    ];
-
-    const updater = applyToolErrorToMessages("tc-1", "command failed");
-    const result = updater(messages);
-
-    expect(result[0]).toEqual({
-      type: "tool_call",
-      id: "tc-1",
-      timestamp: 0,
-      toolName: "bash",
-      args: null,
-      error: "command failed",
-      status: "failed",
-    });
-  });
-
-  it("does not modify completed tool calls", () => {
-    const messages: MessageEntry[] = [
-      { type: "tool_call", id: "tc-1", timestamp: 0, toolName: "bash", args: null, status: "completed", result: "ok" },
-    ];
-
-    const updater = applyToolErrorToMessages("tc-different", "error");
-    const result = updater(messages);
-    expect(result).toEqual(messages);
   });
 });

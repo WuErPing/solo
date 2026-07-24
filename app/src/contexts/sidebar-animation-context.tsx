@@ -35,7 +35,8 @@ interface SidebarAnimationContextValue {
 const SidebarAnimationContext = createContext<SidebarAnimationContextValue | null>(null);
 
 export function SidebarAnimationProvider({ children }: { children: ReactNode }) {
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: rawWindowWidth } = useWindowDimensions();
+  const windowWidth = Math.round(rawWindowWidth);
   const isCompactLayout = useIsCompactFormFactor();
   const isOpen = usePanelStore((state) =>
     selectIsAgentListOpen(state, { isCompact: isCompactLayout }),

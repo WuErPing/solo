@@ -512,8 +512,21 @@ export interface ApplyAgentUpdatePayloadDeps {
   setQueuedMessages: SessionStoreActions["setQueuedMessages"];
   setAgentTimelineCursor: SetAgentTimelineCursor;
   setAgentAuthoritativeHistoryApplied: SetAgentAuthoritativeHistoryApplied;
+  setAgentStreamTail: SessionStoreActions["setAgentStreamTail"];
+  setAgentStreamHead: SessionStoreActions["setAgentStreamHead"];
+  setInitializingAgents: SessionStoreActions["setInitializingAgents"];
+  setFileExplorer: SessionStoreActions["setFileExplorer"];
   applyAuthoritativeAgentSnapshot: (agent: Agent) => void;
   previousAgentStatusRef: { current: Map<string, AgentLifecycleStatus> };
+}
+
+function deleteFromMap<T>(map: Map<string, T>, key: string): Map<string, T> {
+  if (!map.has(key)) {
+    return map;
+  }
+  const next = new Map(map);
+  next.delete(key);
+  return next;
 }
 
 export function createApplyAgentUpdatePayload(deps: ApplyAgentUpdatePayloadDeps) {
@@ -524,14 +537,7 @@ export function createApplyAgentUpdatePayload(deps: ApplyAgentUpdatePayloadDeps)
       deletePendingAgentUpdate(deps.serverId, agentId);
       clearArchiveAgentPending({ queryClient: deps.queryClient, serverId: deps.serverId, agentId });
 
-      deps.setAgents(deps.serverId, (prev) => {
-        if (!prev.has(agentId)) {
-          return prev;
-        }
-        const next = new Map(prev);
-        next.delete(agentId);
-        return next;
-      });
+      deps.setAgents(deps.serverId, (prev) => deleteFromMap(prev, agentId));
 
       deps.setPendingPermissions(deps.serverId, (prev) => {
         if (prev.size === 0) {
@@ -548,23 +554,17 @@ export function createApplyAgentUpdatePayload(deps: ApplyAgentUpdatePayloadDeps)
         return changed ? next : prev;
       });
 
-      deps.setQueuedMessages(deps.serverId, (prev) => {
-        if (!prev.has(agentId)) {
-          return prev;
-        }
-        const next = new Map(prev);
-        next.delete(agentId);
-        return next;
-      });
+      deps.setQueuedMessages(deps.serverId, (prev) => deleteFromMap(prev, agentId));
 
-      deps.setAgentTimelineCursor(deps.serverId, (prev) => {
-        if (!prev.has(agentId)) {
-          return prev;
-        }
-        const next = new Map(prev);
-        next.delete(agentId);
-        return next;
-      });
+      deps.setAgentTimelineCursor(deps.serverId, (prev) => deleteFromMap(prev, agentId));
+
+      // Stream buffers and explorer state hold the bulk of per-agent memory
+      // (full message/tool-call payloads, file contents) — release them.
+      deps.setAgentStreamTail(deps.serverId, (prev) => deleteFromMap(prev, agentId));
+      deps.setAgentStreamHead(deps.serverId, (prev) => deleteFromMap(prev, agentId));
+      deps.setInitializingAgents(deps.serverId, (prev) => deleteFromMap(prev, agentId));
+      deps.setFileExplorer(deps.serverId, (prev) => deleteFromMap(prev, agentId));
+
       deps.setAgentAuthoritativeHistoryApplied(deps.serverId, agentId, false);
       return;
     }

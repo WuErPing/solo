@@ -36,7 +36,8 @@ const ExplorerSidebarAnimationContext = createContext<ExplorerSidebarAnimationCo
 );
 
 export function ExplorerSidebarAnimationProvider({ children }: { children: ReactNode }) {
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: rawWindowWidth } = useWindowDimensions();
+  const windowWidth = Math.round(rawWindowWidth);
   const isCompactLayout = useIsCompactFormFactor();
   const isOpen = usePanelStore((state) =>
     selectIsFileExplorerOpen(state, { isCompact: isCompactLayout }),

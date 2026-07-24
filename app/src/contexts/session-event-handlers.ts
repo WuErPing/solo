@@ -11,7 +11,6 @@ import { useWorkspaceSetupStore } from "@/stores/workspace-setup-store";
 import { clearArchiveAgentPending } from "@/hooks/use-archive-agent";
 import { derivePendingPermissionKey } from "@/utils/agent-snapshots";
 import { buildDraftStoreKey } from "@/stores/draft-keys";
-import { generateMessageId } from "@/types/stream";
 import { patchWorkspaceScripts } from "@/contexts/session-workspace-scripts";
 import { createSessionAgentStreamReducerQueue } from "@/contexts/session-stream-reducers";
 import { getInitKey, getInitDeferred } from "@/utils/agent-initialization";
@@ -19,8 +18,6 @@ import {
   getAgentIdFromUpdate,
   bufferPendingAgentUpdate,
   deletePendingAgentUpdate,
-  applyToolResultToMessages,
-  applyToolErrorToMessages,
 } from "./session-helpers";
 import type { createNotifyAgentAttention } from "./session-notifications";
 import type {
@@ -47,8 +44,6 @@ export interface SubscribeToSessionEventsDeps {
   requestCanonicalCatchUp: ReturnType<typeof createRequestCanonicalCatchUp>;
 
   // Store actions
-  setMessages: SessionStoreActions["setMessages"];
-  setCurrentAssistantMessage: SessionStoreActions["setCurrentAssistantMessage"];
   setAgentStreamTail: SessionStoreActions["setAgentStreamTail"];
   setAgentStreamHead: SessionStoreActions["setAgentStreamHead"];
   setAgentStreamState: SessionStoreActions["setAgentStreamState"];
@@ -60,6 +55,7 @@ export interface SubscribeToSessionEventsDeps {
   mergeWorkspaces: SessionStoreActions["mergeWorkspaces"];
   removeWorkspace: SessionStoreActions["removeWorkspace"];
   setPendingPermissions: SessionStoreActions["setPendingPermissions"];
+  setFileExplorer: SessionStoreActions["setFileExplorer"];
   clearDraftInput: DraftStoreActions["clearDraftInput"];
   updateSessionServerInfo: SessionStoreActions["updateSessionServerInfo"];
   removeWorkspaceSetup: WorkspaceSetupStoreActions["removeWorkspace"];
@@ -75,8 +71,6 @@ export function subscribeToSessionEvents(deps: SubscribeToSessionEventsDeps): ()
     applyTimelineResponse,
     applyWorkspaceSetupProgress,
     requestCanonicalCatchUp,
-    setMessages,
-    setCurrentAssistantMessage,
     setAgentStreamTail,
     setAgentStreamState,
     clearAgentStreamHead,
@@ -87,6 +81,7 @@ export function subscribeToSessionEvents(deps: SubscribeToSessionEventsDeps): ()
     mergeWorkspaces,
     removeWorkspace,
     setPendingPermissions,
+    setFileExplorer,
     clearDraftInput,
     updateSessionServerInfo,
     removeWorkspaceSetup,
@@ -252,108 +247,6 @@ export function subscribeToSessionEvents(deps: SubscribeToSessionEventsDeps): ()
   );
 
   unsubs.push(
-    client.on("activity_log", (message) => {
-      if (message.type !== "activity_log") return;
-      const data = message.payload;
-
-      if (data.type === "tool_call" && data.metadata) {
-        const {
-          toolCallId,
-          toolName,
-          arguments: args,
-        } = data.metadata as {
-          toolCallId: string;
-          toolName: string;
-          arguments: unknown;
-        };
-
-        setMessages(serverId, (prev) => [
-          ...prev,
-          {
-            type: "tool_call",
-            id: toolCallId,
-            timestamp: Date.now(),
-            toolName,
-            args,
-            status: "executing",
-          },
-        ]);
-        return;
-      }
-
-      if (data.type === "tool_result" && data.metadata) {
-        const { toolCallId, result } = data.metadata as {
-          toolCallId: string;
-          result: unknown;
-        };
-
-        const applyToolResult = applyToolResultToMessages(toolCallId, result);
-        setMessages(serverId, applyToolResult);
-        return;
-      }
-
-      if (data.type === "error" && data.metadata && "toolCallId" in data.metadata) {
-        const { toolCallId, error } = data.metadata as {
-          toolCallId: string;
-          error: unknown;
-        };
-
-        const applyToolError = applyToolErrorToMessages(toolCallId, error);
-        setMessages(serverId, applyToolError);
-      }
-
-      let activityType: "system" | "info" | "success" | "error" = "info";
-      if (data.type === "error") activityType = "error";
-
-      if (data.type === "transcript") {
-        setMessages(serverId, (prev) => [
-          ...prev,
-          {
-            type: "user",
-            id: generateMessageId(),
-            timestamp: Date.now(),
-            message: data.content,
-          },
-        ]);
-        return;
-      }
-
-      if (data.type === "assistant") {
-        setMessages(serverId, (prev) => [
-          ...prev,
-          {
-            type: "assistant",
-            id: generateMessageId(),
-            timestamp: Date.now(),
-            message: data.content,
-          },
-        ]);
-        setCurrentAssistantMessage(serverId, "");
-        return;
-      }
-
-      setMessages(serverId, (prev) => [
-        ...prev,
-        {
-          type: "activity",
-          id: generateMessageId(),
-          timestamp: Date.now(),
-          activityType,
-          message: data.content,
-          metadata: data.metadata,
-        },
-      ]);
-    }),
-  );
-
-  unsubs.push(
-    client.on("assistant_chunk", (message) => {
-      if (message.type !== "assistant_chunk") return;
-      setCurrentAssistantMessage(serverId, (prev) => prev + message.payload.chunk);
-    }),
-  );
-
-  unsubs.push(
     client.on("agent_deleted", (message) => {
       if (message.type !== "agent_deleted") {
         return;
@@ -420,6 +313,15 @@ export function subscribeToSessionEvents(deps: SubscribeToSessionEventsDeps): ()
       });
 
       setInitializingAgents(serverId, (prev) => {
+        if (!prev.has(agentId)) {
+          return prev;
+        }
+        const next = new Map(prev);
+        next.delete(agentId);
+        return next;
+      });
+
+      setFileExplorer(serverId, (prev) => {
         if (!prev.has(agentId)) {
           return prev;
         }

@@ -3,7 +3,7 @@ import type {
   ProcessTimelineResponseOutput,
   TimelineReducerSideEffect,
 } from "@/contexts/session-stream-reducers";
-import type { Agent, MessageEntry } from "@/stores/session-store";
+import type { Agent } from "@/stores/session-store";
 import { useSessionStore } from "@/stores/session-store";
 import type { SessionOutboundMessage } from "@server/shared/messages";
 import { resolveInitDeferred, rejectInitDeferred } from "@/utils/agent-initialization";
@@ -249,28 +249,4 @@ export function finalizeTimelineApplication(input: {
   if (result.clearInitializing) {
     markAgentHistorySynchronized(serverId, agentId);
   }
-}
-
-export function applyToolResultToMessages(
-  toolCallId: string,
-  result: unknown,
-): (prev: MessageEntry[]) => MessageEntry[] {
-  return (prev) =>
-    prev.map((msg) =>
-      msg.type === "tool_call" && msg.id === toolCallId
-        ? { ...msg, result, status: "completed" as const }
-        : msg,
-    );
-}
-
-export function applyToolErrorToMessages(
-  toolCallId: string,
-  error: unknown,
-): (prev: MessageEntry[]) => MessageEntry[] {
-  return (prev) =>
-    prev.map((msg) =>
-      msg.type === "tool_call" && msg.id === toolCallId
-        ? { ...msg, error, status: "failed" as const }
-        : msg,
-    );
 }
