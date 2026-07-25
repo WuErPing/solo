@@ -4,17 +4,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
 } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { router } from "expo-router";
 import { Send, ChevronDown, ChevronUp } from "lucide-react-native";
 import { BackHeader } from "@/components/headers/back-header";
 import { ErrorBoundary } from "@/components/error-boundary";
 import TerminalEmulator from "@/components/terminal-emulator";
+import { TmuxKeyBar } from "@/components/tmux-key-bar";
 import { useTmuxCapturePane } from "@/hooks/use-tmux-capture-pane";
 import { useTmuxAgentStore } from "@/stores/tmux-agent-store";
 import { withLiveTmuxClient } from "@/utils/tmux-rpc";
@@ -27,15 +26,6 @@ export function TmuxPaneXtermScreen() {
     </ErrorBoundary>
   );
 }
-
-const VIRTUAL_KEYS: { label: string; key: string }[] = [
-  { label: "Esc", key: "Escape" },
-  { label: "Tab", key: "Tab" },
-  { label: "↑", key: "ArrowUp" },
-  { label: "↓", key: "ArrowDown" },
-  { label: "Enter", key: "Enter" },
-  { label: "C-c", key: "C-c" },
-];
 
 const TERMINAL_EMULATOR_DOM_PROPS = {
   style: { flex: 1 },
@@ -153,37 +143,10 @@ function TmuxPaneXtermScreenInner() {
     </Pressable>
   );
 
-  const widthToggle = (
-    <Pressable
-      testID="tmux-xterm-width-toggle-button"
-      onPress={() => setViewMode((prev) => (prev === "fit" ? "original" : "fit"))}
-      style={({ pressed }) => [
-        styles.keyButton,
-        {
-          backgroundColor:
-            viewMode === "original"
-              ? theme.colors.primary
-              : pressed
-                ? theme.colors.surface2
-                : theme.colors.surface1,
-        },
-      ]}
-    >
-      <Text
-        style={[
-          styles.keyButtonLabel,
-          { color: viewMode === "original" ? theme.colors.background : theme.colors.foreground },
-        ]}
-      >
-        {viewMode === "fit" ? "1:1" : "Fit"}
-      </Text>
-    </Pressable>
-  );
-
   if (!agent) {
     return (
       <View style={styles.container}>
-        <BackHeader title="Tmux Pane" onBack={() => router.back()} />
+        <BackHeader title="Tmux Pane" />
         <View style={styles.centerContent}>
           <Text style={styles.emptyText}>No agent selected</Text>
         </View>
@@ -198,7 +161,6 @@ function TmuxPaneXtermScreenInner() {
     >
       <BackHeader
         title={title}
-        onBack={() => router.back()}
         titleAccessory={
           <Text style={styles.subtitleText}>
             {agent.sessionName} / {agent.windowName}
@@ -258,51 +220,33 @@ function TmuxPaneXtermScreenInner() {
 
       {!inputPanelHidden && (
         <>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.keyBar}
-            contentContainerStyle={styles.keyBarContent}
-          >
-            {widthToggle}
-            <Pressable
-              testID="tmux-xterm-refresh-button"
-              onPress={() => void refetch()}
-              style={({ pressed }) => [
-                styles.keyButton,
-                { backgroundColor: pressed ? theme.colors.surface2 : theme.colors.surface1 },
-              ]}
-            >
-              <Text style={[styles.keyButtonLabel, { color: theme.colors.primary }]}>Refresh</Text>
-            </Pressable>
-            {VIRTUAL_KEYS.map(({ label, key }) => (
-              <Pressable
-                key={key}
-                testID={`tmux-xterm-key-${key}`}
-                onPress={() => sendKeys(key, false)}
-                style={({ pressed }) => [
-                  styles.keyButton,
-                  { backgroundColor: pressed ? theme.colors.surface2 : theme.colors.surface1 },
-                ]}
-              >
-                <Text style={[styles.keyButtonLabel, { color: theme.colors.foreground }]}>{label}</Text>
-              </Pressable>
-            ))}
-            <Pressable
-              testID="tmux-xterm-load-more-button"
-              onPress={() => loadMoreHistory()}
-              disabled={!hasMoreHistory || isLoadingMore}
-              style={({ pressed }) => [
-                styles.keyButton,
-                { backgroundColor: pressed ? theme.colors.surface2 : theme.colors.surface1 },
-                !hasMoreHistory ? { opacity: 0.4 } : null,
-              ]}
-            >
-              <Text style={[styles.keyButtonLabel, { color: theme.colors.foregroundMuted }]}>
-                {isLoadingMore ? "Loading..." : "History"}
-              </Text>
-            </Pressable>
-          </ScrollView>
+          <TmuxKeyBar
+            onSendKey={(key) => void sendKeys(key, false)}
+            content={content}
+            extraButtons={[
+              {
+                key: "width",
+                label: viewMode === "fit" ? "1:1" : "Fit",
+                onPress: () => setViewMode((prev) => (prev === "fit" ? "original" : "fit")),
+                variant: viewMode === "original" ? "active" : "default",
+                testID: "tmux-xterm-width-toggle-button",
+              },
+              {
+                key: "refresh",
+                label: "Refresh",
+                onPress: () => void refetch(),
+                testID: "tmux-xterm-refresh-button",
+              },
+              {
+                key: "history",
+                label: isLoadingMore ? "Loading..." : "History",
+                onPress: () => loadMoreHistory(),
+                disabled: !hasMoreHistory || isLoadingMore,
+                testID: "tmux-xterm-load-more-button",
+              },
+            ]}
+            testIDPrefix="tmux-xterm"
+          />
 
           {sendError ? (
             <Text style={[styles.sendErrorText, { color: theme.colors.destructive }]}>
@@ -429,31 +373,6 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: 6,
     paddingVertical: 4,
     borderRadius: 6,
-  },
-  keyBar: {
-    maxHeight: 48,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
-  keyBarContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  keyButton: {
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  keyButtonLabel: {
-    fontSize: 12,
-    fontWeight: "500",
   },
   inputRow: {
     flexDirection: "row",

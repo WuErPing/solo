@@ -72,6 +72,7 @@ vi.mock("lucide-react-native", () => {
     Clock: icon("Clock"),
     ChevronDown: icon("ChevronDown"),
     ChevronUp: icon("ChevronUp"),
+    MoreHorizontal: icon("MoreHorizontal"),
   };
 });
 
@@ -223,6 +224,23 @@ vi.mock("@/stores/tmux-agent-store", () => ({
   },
 }));
 
+vi.mock("react-native-reanimated", () => ({
+  default: {
+    View: "div",
+  },
+  Easing: { bezier: () => () => 0 },
+  useSharedValue: (value: unknown) => ({ value }),
+  useAnimatedStyle: (factory: () => unknown) => factory(),
+  withTiming: (value: unknown) => value,
+}));
+
+vi.mock("@/stores/tmux-keybar-store", () => ({
+  useTmuxKeyBarStore: (selector: (s: { expanded: boolean; toggleExpanded: () => void }) => unknown) => {
+    const state = { expanded: false, toggleExpanded: vi.fn() };
+    return selector ? selector(state) : state;
+  },
+}));
+
 import { TmuxPaneScreen } from "./tmux-pane-screen";
 
 describe("TmuxPaneScreen", () => {
@@ -263,16 +281,16 @@ describe("TmuxPaneScreen", () => {
     expect(screen.getByText("End")).toBeDefined();
   });
 
-  it("Home button scrolls to top without sending tmux key", () => {
+  it("Home key sends Home tmux key", () => {
     render(<TmuxPaneScreen />);
     fireEvent.click(screen.getByText("Home"));
-    expect(mockSendKeys).not.toHaveBeenCalled();
+    expect(mockSendKeys).toHaveBeenCalledWith("%0", "Home", false);
   });
 
-  it("End button scrolls to bottom without sending tmux key", () => {
+  it("End key sends End tmux key", () => {
     render(<TmuxPaneScreen />);
     fireEvent.click(screen.getByText("End"));
-    expect(mockSendKeys).not.toHaveBeenCalled();
+    expect(mockSendKeys).toHaveBeenCalledWith("%0", "End", false);
   });
 
   it("refetches pane content after sending a command key", async () => {
@@ -534,7 +552,7 @@ describe("TmuxPaneScreen", () => {
 
     it("/ key button sends / keystroke to tmux pane", () => {
       render(<TmuxPaneScreen />);
-      fireEvent.click(screen.getByTestId("slash-key-button"));
+      fireEvent.click(screen.getByTestId("tmux-key-/"));
       expect(mockSendKeys).toHaveBeenCalledWith("%0", "/", false);
     });
   });

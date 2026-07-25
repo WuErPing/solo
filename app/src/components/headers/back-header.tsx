@@ -14,7 +14,11 @@ interface BackHeaderProps {
 }
 
 function goBack(): void {
-  router.back();
+  if (router.canGoBack()) {
+    router.back();
+  } else {
+    router.replace("/");
+  }
 }
 
 export function BackHeader({ title, titleAccessory, rightContent, onBack }: BackHeaderProps) {

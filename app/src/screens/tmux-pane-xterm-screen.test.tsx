@@ -73,6 +73,7 @@ vi.mock("lucide-react-native", () => {
     Send: icon("Send"),
     ChevronDown: icon("ChevronDown"),
     ChevronUp: icon("ChevronUp"),
+    MoreHorizontal: icon("MoreHorizontal"),
   };
 });
 
@@ -211,6 +212,23 @@ agentRef.current = mockAgent;
 vi.mock("@/stores/tmux-agent-store", () => ({
   useTmuxAgentStore: (selector: (s: { selectedAgent: typeof mockAgent | null }) => unknown) => {
     const state = { selectedAgent: agentRef.current };
+    return selector ? selector(state) : state;
+  },
+}));
+
+vi.mock("react-native-reanimated", () => ({
+  default: {
+    View: "div",
+  },
+  Easing: { bezier: () => () => 0 },
+  useSharedValue: (value: unknown) => ({ value }),
+  useAnimatedStyle: (factory: () => unknown) => factory(),
+  withTiming: (value: unknown) => value,
+}));
+
+vi.mock("@/stores/tmux-keybar-store", () => ({
+  useTmuxKeyBarStore: (selector: (s: { expanded: boolean; toggleExpanded: () => void }) => unknown) => {
+    const state = { expanded: false, toggleExpanded: vi.fn() };
     return selector ? selector(state) : state;
   },
 }));
