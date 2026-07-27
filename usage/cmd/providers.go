@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/WuErPing/solo/usage/internal/provider"
+	"github.com/WuErPing/solo/usage/provider"
 )
 
 var providersCmd = &cobra.Command{

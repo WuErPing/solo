@@ -5,6 +5,7 @@ go 1.25.6
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/WuErPing/solo/protocol v0.0.0
+	github.com/WuErPing/solo/usage v0.0.0
 	github.com/creack/pty v1.1.21
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
@@ -30,3 +31,5 @@ require (
 )
 
 replace github.com/WuErPing/solo/protocol => ../protocol
+
+replace github.com/WuErPing/solo/usage => ../usage

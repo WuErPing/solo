@@ -6,7 +6,7 @@ import (
 	"io"
 	"text/tabwriter"
 
-	"github.com/WuErPing/solo/usage/internal/provider"
+	"github.com/WuErPing/solo/usage/provider"
 )
 
 func JSON(w io.Writer, snapshots []*provider.Snapshot) error {

@@ -41,6 +41,7 @@ const { panelState, useSidebarWorkspacesListMock, theme } = vi.hoisted(() => {
           blue: { 500: "#0a84ff" },
           purple: { 500: "#bf5af2" },
           orange: { 500: "#ff9f0a" },
+          teal: { 200: "#99f6e4" },
         },
       },
     },
@@ -91,6 +92,7 @@ vi.mock("lucide-react-native", () => {
   return {
     Calendar: createIcon("Calendar"),
     FolderPlus: createIcon("FolderPlus"),
+    Gauge: createIcon("Gauge"),
     LayoutDashboard: createIcon("LayoutDashboard"),
     MessagesSquare: createIcon("MessagesSquare"),
     Plus: createIcon("Plus"),
@@ -178,6 +180,7 @@ vi.mock("@/utils/desktop-window", () => ({
 
 vi.mock("@/utils/host-routes", () => ({
   buildHostSessionsRoute: (serverId: string) => `/hosts/${serverId}/sessions`,
+  buildHostUsageRoute: (serverId: string) => `/hosts/${serverId}/usage`,
   buildSettingsRoute: () => "/settings",
   mapPathnameToServer: (_pathname: string, serverId: string) => `/hosts/${serverId}`,
   parseServerIdFromPathname: () => "srv",
@@ -188,7 +191,20 @@ vi.mock("@/hooks/use-open-project-picker", () => ({
 }));
 
 vi.mock("@/components/sidebar/sidebar-header-row", () => ({
-  SidebarHeaderRow: ({ label }: { label: string }) => React.createElement("div", null, label),
+  SidebarHeaderRow: ({
+    label,
+    onPress,
+    testID,
+  }: {
+    label: string;
+    onPress?: () => void;
+    testID?: string;
+  }) =>
+    React.createElement(
+      "button",
+      { type: "button", onClick: onPress, "data-testid": testID },
+      label,
+    ),
 }));
 
 vi.mock("./sidebar-workspace-list", () => ({
@@ -224,6 +240,7 @@ vi.mock("@/components/ui/combobox", () => ({
 
 vi.stubGlobal("React", React);
 
+import { router } from "expo-router";
 import { LeftSidebar } from "./left-sidebar";
 
 describe("LeftSidebar", () => {
@@ -265,5 +282,21 @@ describe("LeftSidebar", () => {
       serverId: "srv",
       enabled: true,
     });
+  });
+
+  it("renders the Usage entry and navigates to the active host's usage route", async () => {
+    await act(async () => {
+      root?.render(<LeftSidebar />);
+    });
+
+    const usageEntry = container?.querySelector('[data-testid="sidebar-usage"]');
+    expect(usageEntry).not.toBeNull();
+    expect(usageEntry?.textContent).toContain("Usage");
+
+    await act(async () => {
+      (usageEntry as HTMLElement).click();
+    });
+
+    expect(router.push).toHaveBeenCalledWith("/hosts/srv/usage");
   });
 });

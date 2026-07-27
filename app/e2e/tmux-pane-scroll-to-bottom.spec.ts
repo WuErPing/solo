@@ -71,7 +71,7 @@ setInterval(() => {}, 60_000);
 
     await page.goto("/tmux-dashboard");
 
-    const agentCard = page.getByText(sessionName, { exact: true }).first();
+    const agentCard = page.getByText(sessionName ?? "", { exact: true }).first();
     await expect(agentCard).toBeVisible({ timeout: 15_000 });
     await agentCard.click();
 

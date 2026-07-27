@@ -77,6 +77,8 @@ import type { MutableDaemonConfig, MutableDaemonConfigPatch } from "../shared/me
 import type { AgentSessionConfig as WireAgentSessionConfig } from "../shared/agent-session-config.js";
 import { AgentRpc } from "./agent-rpc.js";
 import { ScheduleRpc } from "./schedule-rpc.js";
+import { UsageRpc } from "./usage-rpc.js";
+import type { UsageQuotaListPayload } from "./usage-rpc.js";
 import { ChatRpc } from "./chat-rpc.js";
 import { WorkspaceRpc } from "./workspace-rpc.js";
 import { GitRpc } from "./git-rpc.js";
@@ -580,6 +582,10 @@ export interface ScheduleAssistOptions {
   transcript?: Array<{ role: "user" | "assistant"; content: string }>;
   requestId?: string;
 }
+export interface UsageQuotaListOptions {
+  forceRefresh?: boolean;
+  requestId?: string;
+}
 type ListAvailableEditorsPayload = ListAvailableEditorsResponseMessage["payload"];
 type OpenInEditorPayload = OpenInEditorResponseMessage["payload"];
 type OpenProjectPayload = OpenProjectResponseMessage["payload"];
@@ -604,6 +610,7 @@ export class DaemonClient {
   private readonly connection: ConnectionManager;
   private readonly agentRpc: AgentRpc;
   private readonly scheduleRpc: ScheduleRpc;
+  private readonly usageRpc: UsageRpc;
   private readonly chatRpc: ChatRpc;
   private readonly workspaceRpc: WorkspaceRpc;
   private readonly gitRpc: GitRpc;
@@ -613,6 +620,7 @@ export class DaemonClient {
     this.connection = new ConnectionManager(config);
     this.agentRpc = new AgentRpc(this.connection);
     this.scheduleRpc = new ScheduleRpc(this.connection);
+    this.usageRpc = new UsageRpc(this.connection);
     this.chatRpc = new ChatRpc(this.connection);
     this.workspaceRpc = new WorkspaceRpc(this.connection);
     this.gitRpc = new GitRpc(this.connection);
@@ -640,6 +648,11 @@ export class DaemonClient {
   /** Schedule and loop automation RPCs. */
   get schedules(): ScheduleRpc {
     return this.scheduleRpc;
+  }
+
+  /** Provider usage quota RPCs. */
+  get usage(): UsageRpc {
+    return this.usageRpc;
   }
 
   /** Chat room RPCs. */
@@ -1507,6 +1520,10 @@ export class DaemonClient {
   /** @deprecated Use `client.schedules.scheduleAssist` instead. */
   async scheduleAssist(options: ScheduleAssistOptions): Promise<ScheduleAssistPayload> {
     return this.scheduleRpc.scheduleAssist(options);
+  }
+
+  async usageQuotaList(opts?: UsageQuotaListOptions): Promise<UsageQuotaListPayload> {
+    return this.usageRpc.usageQuotaList(opts);
   }
 
   /** @deprecated Use `client.terminal.tmuxListAgents` instead. */

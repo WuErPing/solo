@@ -9,9 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/WuErPing/solo/usage/internal/config"
+	"github.com/WuErPing/solo/usage/config"
 	"github.com/WuErPing/solo/usage/internal/output"
-	"github.com/WuErPing/solo/usage/internal/provider"
+	"github.com/WuErPing/solo/usage/provider"
 )
 
 var providerFilter string

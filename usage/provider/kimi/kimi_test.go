@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuErPing/solo/usage/internal/provider"
+	"github.com/WuErPing/solo/usage/provider"
 )
 
 func newTestClient(t *testing.T, handler http.HandlerFunc) *Client {

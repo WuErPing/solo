@@ -118,6 +118,9 @@ func (s *Session) registerHandlers() {
 	r.Register("loop/template/get", typeHandler(s.handleLoopTemplateGet))
 	r.Register("loop/template/delete", typeHandler(s.handleLoopTemplateDelete))
 
+	// --- Usage quota handlers (session_usage.go) ---
+	r.Register("usage/quota/list", typeHandler(s.handleUsageQuotaList))
+
 	// --- Tmux handlers (session_tmux.go) ---
 	r.Register("tmux/list_agents", typeHandler(s.handleTmuxListAgents))
 	r.Register("tmux/capture_pane", typeHandler(s.handleTmuxCapturePane))

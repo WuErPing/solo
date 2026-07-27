@@ -6,10 +6,12 @@ import {
   buildHostScheduleDetailRoute,
   buildHostSchedulesRoute,
   buildHostTmuxDashboardRoute,
+  buildHostUsageRoute,
   buildHostWorkspaceOpenRoute,
   buildHostWorkspaceRoute,
   buildProjectSettingsRoute,
   buildProjectsSettingsRoute,
+  buildUsageRoute,
   decodeFilePathFromPathSegment,
   decodeWorkspaceIdFromPathSegment,
   encodeFilePathForPathSegment,
@@ -72,6 +74,22 @@ describe("buildHostScheduleDetailRoute", () => {
 
   it("returns root for empty scheduleId", () => {
     expect(buildHostScheduleDetailRoute("local", "")).toBe("/");
+  });
+});
+
+describe("buildHostUsageRoute", () => {
+  it("builds a usage route for a server", () => {
+    expect(buildHostUsageRoute("local")).toBe("/h/local/usage");
+  });
+
+  it("returns root for empty serverId", () => {
+    expect(buildHostUsageRoute("")).toBe("/");
+  });
+});
+
+describe("buildUsageRoute", () => {
+  it("builds the aggregate usage route", () => {
+    expect(buildUsageRoute()).toBe("/usage");
   });
 });
 

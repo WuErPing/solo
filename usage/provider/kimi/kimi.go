@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/WuErPing/solo/usage/internal/provider"
+	"github.com/WuErPing/solo/usage/provider"
 )
 
 const (
@@ -100,8 +100,8 @@ func (c *Client) get(ctx context.Context, url string) (json.RawMessage, error) {
 
 // numStr handles the API returning numbers as JSON strings ("100") or numbers (100).
 type numStr struct {
-	val    float64
-	isSet  bool
+	val   float64
+	isSet bool
 }
 
 func (n *numStr) UnmarshalJSON(data []byte) error {

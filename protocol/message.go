@@ -179,6 +179,7 @@ func init() {
 	RegisterInbound("loop/template/list", func() SessionInboundMessage { return &LoopTemplateListRequest{} })
 	RegisterInbound("loop/template/get", func() SessionInboundMessage { return &LoopTemplateGetRequest{} })
 	RegisterInbound("loop/template/delete", func() SessionInboundMessage { return &LoopTemplateDeleteRequest{} })
+	RegisterInbound("usage/quota/list", func() SessionInboundMessage { return &UsageQuotaListRequest{} })
 	RegisterInbound("tmux/list_agents", func() SessionInboundMessage { return &TmuxListAgentsRequest{} })
 	RegisterInbound("tmux/capture_pane", func() SessionInboundMessage { return &TmuxCapturePaneRequest{} })
 	RegisterInbound("tmux/send_keys", func() SessionInboundMessage { return &TmuxSendKeysRequest{} })

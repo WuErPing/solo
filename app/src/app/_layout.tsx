@@ -854,10 +854,12 @@ function RootStack() {
       <Stack.Screen name="h/[serverId]/dashboard" />
       <Stack.Screen name="h/[serverId]/tmux-dashboard" />
       <Stack.Screen name="schedules" />
+      <Stack.Screen name="usage" />
       <Stack.Screen name="tmux-dashboard" />
       <Stack.Screen name="tmux-pane" />
       <Stack.Screen name="h/[serverId]/schedules" />
       <Stack.Screen name="h/[serverId]/schedules/[scheduleId]" />
+      <Stack.Screen name="h/[serverId]/usage" />
       <Stack.Screen name="h/[serverId]/loops" />
       <Stack.Screen name="h/[serverId]/loops/[loopId]" />
       <Stack.Screen name="h/[serverId]/loops/create" />

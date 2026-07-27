@@ -1,5 +1,5 @@
 import { router, usePathname } from "expo-router";
-import { Calendar, FolderPlus, LayoutDashboard, MessagesSquare, Repeat, Settings, Terminal } from "lucide-react-native";
+import { Calendar, FolderPlus, Gauge, LayoutDashboard, MessagesSquare, Repeat, Settings, Terminal } from "lucide-react-native";
 import {
   type Dispatch,
   memo,
@@ -68,6 +68,7 @@ import {
   buildHostSchedulesRoute,
   buildHostSessionsRoute,
   buildHostTmuxDashboardRoute,
+  buildHostUsageRoute,
   buildSettingsRoute,
   mapPathnameToServer,
 } from "@/utils/host-routes";
@@ -124,6 +125,7 @@ interface MobileSidebarProps extends SidebarSharedProps {
   handleViewMoreNavigate: () => void;
   handleSchedulesNavigate: () => void;
   handleLoopsNavigate: () => void;
+  handleUsageNavigate: () => void;
   handleDashboardNavigate: () => void;
   handleTmuxDashboardNavigate: () => void;
 }
@@ -134,6 +136,7 @@ interface DesktopSidebarProps extends SidebarSharedProps {
   handleViewMore: () => void;
   handleSchedulesNavigate: () => void;
   handleLoopsNavigate: () => void;
+  handleUsageNavigate: () => void;
   handleDashboardNavigate: () => void;
   handleTmuxDashboardNavigate: () => void;
 }
@@ -290,6 +293,13 @@ export const LeftSidebar = memo(function LeftSidebar({
     }
   }, [daemons, pathname]);
 
+  const handleUsageNavigate = useCallback(() => {
+    const serverId = resolveActiveHost({ hosts: daemons, pathname })?.serverId;
+    if (serverId) {
+      router.push(buildHostUsageRoute(serverId));
+    }
+  }, [daemons, pathname]);
+
   const handleDashboardNavigate = useCallback(() => {
     const serverId = resolveActiveHost({ hosts: daemons, pathname })?.serverId;
     if (serverId) {
@@ -382,6 +392,7 @@ export const LeftSidebar = memo(function LeftSidebar({
         handleViewMoreNavigate={handleViewMoreNavigate}
         handleSchedulesNavigate={handleSchedulesNavigate}
         handleLoopsNavigate={handleLoopsNavigate}
+        handleUsageNavigate={handleUsageNavigate}
         handleDashboardNavigate={handleDashboardNavigate}
         handleTmuxDashboardNavigate={handleTmuxDashboardNavigate}
       />
@@ -398,6 +409,7 @@ export const LeftSidebar = memo(function LeftSidebar({
       handleViewMore={handleViewMoreNavigate}
       handleSchedulesNavigate={handleSchedulesNavigate}
       handleLoopsNavigate={handleLoopsNavigate}
+      handleUsageNavigate={handleUsageNavigate}
       handleDashboardNavigate={handleDashboardNavigate}
       handleTmuxDashboardNavigate={handleTmuxDashboardNavigate}
     />
@@ -626,6 +638,7 @@ function MobileSidebar({
   handleViewMoreNavigate,
   handleSchedulesNavigate,
   handleLoopsNavigate,
+  handleUsageNavigate,
   handleDashboardNavigate,
   handleTmuxDashboardNavigate,
 }: MobileSidebarProps) {
@@ -633,6 +646,7 @@ function MobileSidebar({
   const isSessionsActive = pathname.includes("/sessions");
   const isSchedulesActive = pathname.includes("/schedules");
   const isLoopsActive = pathname.includes("/loops");
+  const isUsageActive = pathname.includes("/usage");
   const isDashboardActive = pathname === "/dashboard" || /^\/h\/[^/]+\/dashboard$/.test(pathname);
   const isTmuxDashboardActive =
     pathname === "/tmux-dashboard" || /^\/h\/[^/]+\/tmux-dashboard$/.test(pathname);
@@ -693,6 +707,19 @@ function MobileSidebar({
     backdropOpacity,
     closeToAgent,
     handleLoopsNavigate,
+    translateX,
+    windowWidth,
+  ]);
+
+  const handleUsage = useCallback(() => {
+    translateX.value = -windowWidth;
+    backdropOpacity.value = 0;
+    closeToAgent();
+    handleUsageNavigate();
+  }, [
+    backdropOpacity,
+    closeToAgent,
+    handleUsageNavigate,
     translateX,
     windowWidth,
   ]);
@@ -892,6 +919,14 @@ function MobileSidebar({
               isActive={isLoopsActive}
               testID="sidebar-loops"
             />
+            <SidebarHeaderRow
+              icon={Gauge}
+              iconColor={theme.colors.palette.teal[200]}
+              label="Usage"
+              onPress={handleUsage}
+              isActive={isUsageActive}
+              testID="sidebar-usage"
+            />
 
             {isInitialLoad ? (
               <SidebarAgentListSkeleton />
@@ -965,6 +1000,7 @@ function DesktopSidebar({
   handleViewMore,
   handleSchedulesNavigate,
   handleLoopsNavigate,
+  handleUsageNavigate,
   handleDashboardNavigate,
   handleTmuxDashboardNavigate,
 }: DesktopSidebarProps) {
@@ -972,6 +1008,7 @@ function DesktopSidebar({
   const isSessionsActive = pathname.includes("/sessions");
   const isSchedulesActive = pathname.includes("/schedules");
   const isLoopsActive = pathname.includes("/loops");
+  const isUsageActive = pathname.includes("/usage");
   const isDashboardActive = pathname === "/dashboard" || /^\/h\/[^/]+\/dashboard$/.test(pathname);
   const isTmuxDashboardActive =
     pathname === "/tmux-dashboard" || /^\/h\/[^/]+\/tmux-dashboard$/.test(pathname);
@@ -1081,6 +1118,14 @@ function DesktopSidebar({
             isActive={isLoopsActive}
             testID="sidebar-loops"
             iconColor={theme.colors.palette.purple[500]}
+          />
+          <SidebarHeaderRow
+            icon={Gauge}
+            label="Usage"
+            onPress={handleUsageNavigate}
+            isActive={isUsageActive}
+            testID="sidebar-usage"
+            iconColor={theme.colors.palette.teal[200]}
           />
         </View>
 

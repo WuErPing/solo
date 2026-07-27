@@ -40,6 +40,8 @@ const ALLOWED_FILES = new Set([
   "screens/schedules/schedules-dashboard-screen.tsx",
   "screens/sessions-screen.tsx",
   "screens/settings/keyboard-shortcuts-section.tsx",
+  "screens/usage/usage-dashboard-screen.tsx",
+  "screens/usage/usage-screen.tsx",
 ]);
 
 describe("useIsFocused call sites", () => {

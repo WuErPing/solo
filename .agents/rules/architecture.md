@@ -10,7 +10,11 @@ protocol/     ← shared types, zero dependencies, imported by all
     ├── daemon/       ← core service, owns agent/workspace/terminal lifecycle
     ├── cli/          ← thin CLI wrapper, talks to daemon via WebSocket
     └── relay-go/     ← stateless WebSocket relay, no business logic
-    
+
+usage/        ← AI platform quota snapshots (provider registry + config)
+    ↑
+    └── daemon/       ← the only Go module that may import usage/
+
 app-bridge/   ← TypeScript communication library (daemon client + E2EE)
     ↑
     └── app/          ← React Native frontend, consumes app-bridge
@@ -18,6 +22,7 @@ app-bridge/   ← TypeScript communication library (daemon client + E2EE)
 
 - **No circular dependencies between modules.** If `daemon` needs something from `cli`, extract it to `protocol` or a shared internal package.
 - **`protocol` is the contract.** All cross-module communication types live here. Changes to `protocol` affect all modules and require coordinated updates.
+- **`usage` is a leaf library.** It must not import any other solo Go module. Only `daemon` (and the `solo-usage` CLI inside the `usage` module itself) may import its exported packages (`usage/provider`, `usage/config`); `cli` and `relay-go` must not.
 - **`app-bridge` is the client SDK.** It encapsulates all daemon communication. The `app/` layer should never open raw WebSocket connections.
 
 ## Layer Responsibilities

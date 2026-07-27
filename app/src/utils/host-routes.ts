@@ -388,6 +388,14 @@ export function buildHostLoopsRoute(serverId: string) {
   return `${base}/loops` as const;
 }
 
+export function buildHostUsageRoute(serverId: string) {
+  const base = buildHostRootRoute(serverId);
+  if (base === "/") {
+    return "/" as const;
+  }
+  return `${base}/usage` as const;
+}
+
 export function buildHostLoopDetailRoute(serverId: string, loopId: string) {
   const base = buildHostLoopsRoute(serverId);
   const normalizedLoopId = trimNonEmpty(loopId);
@@ -465,6 +473,10 @@ export function buildSchedulesRoute() {
   return "/schedules" as const;
 }
 
+export function buildUsageRoute() {
+  return "/usage" as const;
+}
+
 export function buildTmuxDashboardRoute() {
   return "/tmux-dashboard" as const;
 }
@@ -516,6 +528,9 @@ export function mapPathnameToServer(pathname: string, nextServerId: string) {
   }
   if (suffix.startsWith("loops")) {
     return `${base}/loops` as const;
+  }
+  if (suffix.startsWith("usage")) {
+    return `${base}/usage` as const;
   }
   if (suffix.startsWith("open-project")) {
     return `${base}/open-project` as const;

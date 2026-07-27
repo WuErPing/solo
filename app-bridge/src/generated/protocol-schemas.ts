@@ -104,6 +104,54 @@ export const TerminalStateSchema = z.object({
 });
 export type TerminalState = z.infer<typeof TerminalStateSchema>;
 
+export const UsagePlanSchema = z.object({
+  name: z.string(),
+  tier: z.string().optional(),
+});
+export type UsagePlan = z.infer<typeof UsagePlanSchema>;
+
+export const UsageQuotaSchema = z.object({
+  name: z.string(),
+  label: z.string(),
+  used: z.number().nullable(),
+  limit: z.number().nullable(),
+  usedPct: z.number().nullable(),
+  unit: z.string().optional(),
+  resetAt: z.string().nullable(),
+  resetIn: z.string().optional(),
+});
+export type UsageQuota = z.infer<typeof UsageQuotaSchema>;
+
+export const UsageQuotaListRequestSchema = z.object({
+  type: z.string(),
+  requestId: z.string(),
+  forceRefresh: z.boolean().optional(),
+});
+export type UsageQuotaListRequest = z.infer<typeof UsageQuotaListRequestSchema>;
+
+export const UsageQuotaSnapshotSchema = z.object({
+  provider: z.string(),
+  plan: UsagePlanSchema.nullable(),
+  quotas: z.array(UsageQuotaSchema),
+  fetchedAt: z.string(),
+});
+export type UsageQuotaSnapshot = z.infer<typeof UsageQuotaSnapshotSchema>;
+
+export const UsageQuotaListResponsePayloadSchema = z.object({
+  requestId: z.string(),
+  snapshots: z.array(UsageQuotaSnapshotSchema),
+  errors: z.record(z.string(), z.string()).optional(),
+  cachedAt: z.string(),
+  error: z.string().nullable(),
+});
+export type UsageQuotaListResponsePayload = z.infer<typeof UsageQuotaListResponsePayloadSchema>;
+
+export const UsageQuotaListResponseSchema = z.object({
+  type: z.string(),
+  payload: UsageQuotaListResponsePayloadSchema,
+});
+export type UsageQuotaListResponse = z.infer<typeof UsageQuotaListResponseSchema>;
+
 export const WorkspaceScriptSchema = z.object({
   scriptName: z.string(),
   type: z.string().optional(),

@@ -75,6 +75,10 @@ import {
   TmuxDeleteCommandHistoryResponseSchema,
 } from "../server/tmux/rpc-schemas.js";
 import {
+  UsageQuotaListRequestSchema,
+  UsageQuotaListResponseSchema,
+} from "../server/usage/rpc-schemas.js";
+import {
   LoopRunRequestSchema,
   LoopListRequestSchema,
   LoopInspectRequestSchema,
@@ -433,6 +437,7 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   LoopTemplateListRequestSchema,
   LoopTemplateGetRequestSchema,
   LoopTemplateDeleteRequestSchema,
+  UsageQuotaListRequestSchema,
 ]);
 
 export type SessionInboundMessage = z.infer<typeof SessionInboundMessageSchema>;
@@ -580,7 +585,8 @@ export type SessionOutboundMessage =
   | z.infer<typeof LoopDeleteResponseSchema>
   | z.infer<typeof LoopTemplateListResponseSchema>
   | z.infer<typeof LoopTemplateGetResponseSchema>
-  | z.infer<typeof LoopTemplateDeleteResponseSchema>;
+  | z.infer<typeof LoopTemplateDeleteResponseSchema>
+  | z.infer<typeof UsageQuotaListResponseSchema>;
 
 export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   ActivityLogMessageSchema,
@@ -710,6 +716,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   LoopTemplateListResponseSchema,
   LoopTemplateGetResponseSchema,
   LoopTemplateDeleteResponseSchema,
+  UsageQuotaListResponseSchema,
 ]) as z.ZodType<SessionOutboundMessage, z.ZodTypeDef, unknown>;
 
 // ============================================================================
