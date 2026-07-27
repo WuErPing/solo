@@ -1,11 +1,11 @@
-BINS    := solo solo-relay solo-cli
+BINS    := solo solo-relay solo-cli solo-usage
 OUTPUT  := output
 APP_DIR := app
 RELAY_NODEJS_DIR := relay-nodejs
 DAEMON_PORT := 17612
 APP_PORT := 19000
 
-GO_MODULES := protocol cli daemon relay-go
+GO_MODULES := protocol cli daemon relay-go usage
 GO_TEST_FLAGS := -short -v -race -count=1 -timeout=10m -tags external_api
 
 # Version injection: release builds use git tag, dev builds use {tag}-dev-{datetime}
@@ -15,11 +15,11 @@ VERSION ?= $(GIT_TAG)-dev-$(shell date +%Y%m%d%H%M%S)$(GIT_DIRTY)
 GO_LDFLAGS := -X github.com/WuErPing/solo/daemon/internal/config.Version=$(VERSION)
 CLI_GO_LDFLAGS := -X github.com/WuErPing/solo/cli/internal/config.Version=$(VERSION)
 
-.PHONY: all darwin linux clean dev dev-web dev-daemon run-daemon stop stop-all restart ci test test-go test-app typecheck lint check-schema-duplication $(BINS)
+.PHONY: all darwin linux clean dev dev-web dev-daemon run-daemon stop stop-all restart ci test test-go test-app typecheck lint check-schema-duplication check-arch-boundaries $(BINS)
 
 all: darwin linux
 
-darwin: solo solo-relay solo-cli
+darwin: solo solo-relay solo-cli solo-usage
 
 linux: solo-linux-amd64 solo-relay-linux-amd64 solo-cli-linux-amd64
 
@@ -31,6 +31,9 @@ solo-relay:
 
 solo-cli:
 	GOOS=darwin GOARCH=arm64 go build -ldflags "$(CLI_GO_LDFLAGS)" -o $(OUTPUT)/darwin/$@ ./cli
+
+solo-usage:
+	GOOS=darwin GOARCH=arm64 go build -o $(OUTPUT)/darwin/$@ ./usage
 
 solo-linux-amd64:
 	GOOS=linux GOARCH=amd64 go build -ldflags "$(GO_LDFLAGS)" -o $(OUTPUT)/linux/solo ./daemon
@@ -103,7 +106,7 @@ restart: darwin
 
 ci: lint test typecheck
 
-lint: check-schema-duplication
+lint: check-schema-duplication check-arch-boundaries
 	@printf '%s\n' \
 		'cd packages/highlight && npx eslint src/' \
 		'cd app-bridge && npx eslint src/' \
@@ -113,6 +116,9 @@ lint: check-schema-duplication
 
 check-schema-duplication:
 	@bash scripts/check-schema-duplication.sh
+
+check-arch-boundaries:
+	@bash scripts/check-arch-boundaries.sh
 
 test: test-go test-app
 
