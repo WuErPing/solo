@@ -29,6 +29,7 @@ export interface TerminalEmulatorHandle {
   writeOutput: (text: string) => void;
   renderSnapshot: (state: TerminalState | null) => void;
   clear: () => void;
+  scrollToBottom: () => void;
 }
 
 const SCROLLBAR_HANDLE_WIDTH_IDLE = 6;
@@ -266,6 +267,12 @@ export default function TerminalEmulator({
         },
         clear: () => {
           runtimeRef.current?.clear();
+        },
+        scrollToBottom: () => {
+          const viewportElement = viewportRef.current;
+          if (viewportElement) {
+            viewportElement.scrollTop = viewportElement.scrollHeight;
+          }
         },
       }) as unknown as DOMImperativeFactory,
     [],

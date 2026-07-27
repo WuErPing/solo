@@ -26,12 +26,13 @@
 ┌─────────────────────────────────────────────────────┐
 │  Terminal content (FlatList / xterm)                │
 │                                                     │
+│                                          ⤓ ←悬浮   │
 ├─────────────────────────────────────────────────────┤
 │ ┌─ Contextual Strip (动态，仅在有上下文时出现) ─────┐ │
 │ │  ①Yes   ②No   ③Always allow   ④Skip             │ │
 │ └──────────────────────────────────────────────────┘ │
 │ ┌─ Primary Keys ───────────────────────────────────┐ │
-│ │  ↑   ↓   │  Enter   Esc   ^C  │  ⋯ more         │ │
+│ │  ↑   ↓   │  Enter   Esc   ^C  │  ⋯ more          │ │
 │ └──────────────────────────────────────────────────┘ │
 │ ┌─ Input Row ──────────────────────────────────────┐ │
 │ │  [ Type a command...              ] [➤]          │ │
@@ -62,12 +63,21 @@
 - 组间用 1pt divider（复用现有 `keyGroupDivider` 样式）
 - 去掉组标签（"Send"/"View"）— 5 个键不需要标签解释，省 14pt 高度
 
+## 悬浮"跳到最新"按钮（⤓，内容视图覆盖层）
+
+"跳到最新输出"是视图操作而非 tmux 按键，且 agent 流式输出时高频使用，因此不占用按键栏席位，而是作为悬浮按钮覆盖在内容视图上：
+
+- 图标 `ArrowDownToLine`（⤓），圆形 38pt，**半透明**（opacity 0.55），反色配色（bg=foreground / icon=background）保证在任意终端内容上可见
+- 定位在内容区域右下角（`bottom: 12, right: 12`）。按钮挂在内容容器内——内容容器与按键栏/输入行是上下排列的 flex 兄弟——因此天然位于输入栏上方，不遮挡输入区
+- 点击 = 视图滚动到底部（native: `FlatList.scrollToEnd`；xterm: viewport `scrollTop = scrollHeight`），**不发送任何 tmux 按键**
+- native / xterm 两屏一致
+
 ## Layer 2: Expanded Keys（展开行，高度 40pt，默认收起）
 
 点击 `⋯` 后在 Primary 上方滑出：
 
 ```
-  Tab   S-Tab   ←   →   /   1   2   3   4   Home  End
+  Tab   S-Tab   ←   →   /   1   2   3   4   Home
 ```
 
 | 键 | 分组逻辑 |
@@ -76,7 +86,7 @@
 | `←` `→` | 光标移动 |
 | `/` | 搜索/slash 命令触发 |
 | `1` `2` `3` `4` | Agent 选项（无上下文时的手动模式） |
-| `Home` `End` | 视图滚动（替代当前 View 组） |
+| `Home` | 跳到顶部（低频；跳到最新由悬浮 ⤓ 按钮承担） |
 
 设计决策：
 
@@ -175,7 +185,7 @@ Contextual strip:
 | Enter 可发现性 | 与数字键同权重 | 唯一实心强调键 |
 | 数字键语义 | 裸数字 | 带选项文本的 chip |
 | 中断操作 | native 缺失 C-c | 两屏均有 ^C |
-| 视图操作 | 独占 "View" 组 | 收入 expanded 层 |
+| 视图操作 | 独占 "View" 组 | 跳到最新=悬浮 ⤓ 按钮（内容视图上），Home 收入 expanded |
 | 两屏一致性 | 不同按键集 | 共享 TmuxKeyBar 组件 |
 | 垂直空间占用 | ~74pt（label+keys） | 40pt 默认 / 80pt 展开 |
 

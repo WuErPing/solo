@@ -72,6 +72,21 @@ jobs:
           args: --timeout=5m
           only-new-issues: true
 
+  arch-boundaries:
+    name: Architecture Boundaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.6'
+          cache: true
+
+      - name: Check Go module boundaries
+        run: bash scripts/check-arch-boundaries.sh
+
   js:
     name: JavaScript / TypeScript
     runs-on: ubuntu-latest

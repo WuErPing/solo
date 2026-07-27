@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -9,10 +9,10 @@ import {
   View,
 } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { Send, ChevronDown, ChevronUp } from "lucide-react-native";
+import { Send, ChevronDown, ChevronUp, ArrowDownToLine } from "lucide-react-native";
 import { BackHeader } from "@/components/headers/back-header";
 import { ErrorBoundary } from "@/components/error-boundary";
-import TerminalEmulator from "@/components/terminal-emulator";
+import TerminalEmulator, { type TerminalEmulatorHandle } from "@/components/terminal-emulator";
 import { TmuxKeyBar } from "@/components/tmux-key-bar";
 import { useTmuxCapturePane } from "@/hooks/use-tmux-capture-pane";
 import { useTmuxAgentStore } from "@/stores/tmux-agent-store";
@@ -41,6 +41,7 @@ const TERMINAL_EMULATOR_DOM_PROPS = {
 function TmuxPaneXtermScreenInner() {
   const { theme } = useUnistyles();
   const agent = useTmuxAgentStore((s) => s.selectedAgent);
+  const terminalRef = useRef<TerminalEmulatorHandle>(null);
   const [inputText, setInputText] = useState("");
   const [sendError, setSendError] = useState(false);
   const [inputPanelHidden, setInputPanelHidden] = useState(false);
@@ -190,6 +191,7 @@ function TmuxPaneXtermScreenInner() {
 
       <View style={styles.terminalContainer}>
         <TerminalEmulator
+          ref={terminalRef}
           dom={TERMINAL_EMULATOR_DOM_PROPS}
           // Keep streamKey stable across Fit/1:1 toggles: changing it remounts
           // the whole xterm runtime, and the replaying snapshot effect skips
@@ -216,6 +218,17 @@ function TmuxPaneXtermScreenInner() {
             <Text style={styles.errorText}>{error}</Text>
           </View>
         ) : null}
+        <Pressable
+          testID="tmux-xterm-scroll-to-bottom"
+          onPress={() => terminalRef.current?.scrollToBottom()}
+          style={({ pressed }) => [
+            styles.scrollToBottomButton,
+            { backgroundColor: theme.colors.foreground },
+            pressed ? { opacity: 0.35 } : null,
+          ]}
+        >
+          <ArrowDownToLine size={18} color={theme.colors.background} />
+        </Pressable>
       </View>
 
       {!inputPanelHidden && (
@@ -321,6 +334,17 @@ const styles = StyleSheet.create((theme) => ({
     flex: 1,
     minHeight: 0,
     position: "relative",
+  },
+  scrollToBottomButton: {
+    position: "absolute",
+    bottom: 12,
+    right: 12,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: 0.55,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,

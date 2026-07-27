@@ -139,7 +139,14 @@ make stop
 | Job | Steps |
 |-----|-------|
 | `go` | For each module (protocol, cli, daemon, relay-go): `go mod verify` → `go build -v ./...` → `go test -short -race -coverprofile=coverage.out` → upload coverage (Codecov + artifact, 14 days) → `golangci-lint v2.10` (`--timeout=5m`) |
+| `arch-boundaries` | `scripts/check-arch-boundaries.sh` — enforces the Go module boundaries from `.agents/rules/architecture.md` (protocol is dependency-free; daemon/cli/relay-go may import protocol only). Also runs locally via `make lint` |
 | `js` | `npm ci` → lint app / app-bridge / highlight → typecheck all three → test highlight → **test app (unit, 1617 tests)** → **test app-bridge (32 tests)** → upload coverage (Codecov + artifacts, 14 days) |
+
+**`.github/workflows/semantic-check.yml`** (PR label `semantic-check` + manual):
+
+| Job | Steps |
+|-----|-------|
+| `adr-consistency` | `scripts/semantic-verify/check-adr-consistency.mjs` — an LLM evaluator reviews the PR diff against every accepted ADR in `docs/decisions/` and posts an advisory PR comment (never blocks merging). Needs `secrets.LLM_API_KEY`; optional `vars.LLM_BASE_URL` / `vars.LLM_MODEL` |
 
 **`.github/workflows/e2e-nightly.yml`** (daily 02:00 UTC + manual):
 
@@ -147,7 +154,7 @@ make stop
 |-----|-------|
 | `e2e` | Install dependencies → Playwright browsers → build workspace deps → run E2E (31 specs); failure artifacts retained 7 days |
 
-**Coverage**: JS via Vitest v8 → lcov → Codecov (app ~36 % stmt, app-bridge ~89 % stmt). Go via `-coverprofile=coverage.out` → Codecov.
+**Coverage**: JS via Vitest v8 → lcov → Codecov (app ~36 % stmt, app-bridge ~89 % stmt). Go via `-coverprofile=coverage.out` → Codecov. `codecov.yml` gates **patch coverage ≥ 70 %** on PRs (hard check); whole-project coverage stays informational.
 
 ## Key Network Facts
 

@@ -1,0 +1,99 @@
+name: Semantic Check
+
+# PADD semantic-validation layer: an LLM evaluator reviews each PR diff
+# against every accepted ADR in docs/decisions/ and posts an advisory
+# report as a PR comment. It never blocks merging — a human makes the
+# final call.
+#
+# Trigger: add the `semantic-check` label to a PR (re-runs on new pushes
+# while the label is present), or run manually via workflow_dispatch.
+#
+# Required configuration:
+#   secrets.LLM_API_KEY  — API key for an OpenAI-compatible chat endpoint
+#   vars.LLM_BASE_URL    — optional, defaults to https://api.openai.com/v1
+#   vars.LLM_MODEL       — optional, defaults to gpt-4o-mini
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  adr-consistency:
+    name: ADR Consistency (LLM evaluator)
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.pull_request.labels.*.name, 'semantic-check')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Evaluate diff against accepted ADRs
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.openai.com/v1' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'gpt-4o-mini' }}
+        run: |
+          BASE="origin/${{ github.base_ref || 'main' }}"
+          node scripts/semantic-verify/check-adr-consistency.mjs \
+            --base "$BASE" \
+            --out adr-report.md \
+            --json adr-report.json
+
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: adr-consistency-report
+          path: |
+            adr-report.md
+            adr-report.json
+          retention-days: 14
+        if: always()
+
+      - name: Post advisory report to PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (!fs.existsSync('adr-report.md')) {
+              core.info('No report generated; skipping comment.');
+              return;
+            }
+            const body = fs.readFileSync('adr-report.md', 'utf8');
+            const marker = '<!-- solo-adr-consistency-report -->';
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find(
+              (c) => c.user.type === 'Bot' && c.body.includes(marker),
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

@@ -13,11 +13,13 @@ coverage:
         target: auto
         threshold: 5%
         informational: true
+    # Hard gate: newly added/changed lines in a PR must be >=70% covered.
+    # Whole-project coverage stays informational (app is ~36%, ramped up gradually).
     patch:
       default:
-        target: auto
+        target: 70%
         threshold: 5%
-        informational: true
+        informational: false
 
 flags:
   js:

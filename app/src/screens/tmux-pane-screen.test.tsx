@@ -72,6 +72,7 @@ vi.mock("lucide-react-native", () => {
     Clock: icon("Clock"),
     ChevronDown: icon("ChevronDown"),
     ChevronUp: icon("ChevronUp"),
+    ArrowDownToLine: icon("ArrowDownToLine"),
     MoreHorizontal: icon("MoreHorizontal"),
   };
 });
@@ -275,22 +276,24 @@ describe("TmuxPaneScreen", () => {
     agentRef.current = mockAgent;
   });
 
-  it("renders Home and End key buttons", () => {
+  it("renders floating scroll-to-bottom button and Home in expanded row", () => {
     render(<TmuxPaneScreen />);
+    expect(screen.getByTestId("tmux-scroll-to-bottom")).toBeDefined();
+    fireEvent.click(screen.getByTestId("tmux-expand-toggle"));
     expect(screen.getByText("Home")).toBeDefined();
-    expect(screen.getByText("End")).toBeDefined();
   });
 
   it("Home key sends Home tmux key", () => {
     render(<TmuxPaneScreen />);
+    fireEvent.click(screen.getByTestId("tmux-expand-toggle"));
     fireEvent.click(screen.getByText("Home"));
     expect(mockSendKeys).toHaveBeenCalledWith("%0", "Home", false);
   });
 
-  it("End key sends End tmux key", () => {
+  it("scroll-to-bottom button scrolls view instead of sending a tmux key", () => {
     render(<TmuxPaneScreen />);
-    fireEvent.click(screen.getByText("End"));
-    expect(mockSendKeys).toHaveBeenCalledWith("%0", "End", false);
+    fireEvent.click(screen.getByTestId("tmux-scroll-to-bottom"));
+    expect(mockSendKeys).not.toHaveBeenCalled();
   });
 
   it("refetches pane content after sending a command key", async () => {

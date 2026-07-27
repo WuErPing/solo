@@ -73,6 +73,7 @@ vi.mock("lucide-react-native", () => {
     Send: icon("Send"),
     ChevronDown: icon("ChevronDown"),
     ChevronUp: icon("ChevronUp"),
+    ArrowDownToLine: icon("ArrowDownToLine"),
     MoreHorizontal: icon("MoreHorizontal"),
   };
 });

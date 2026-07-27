@@ -55,7 +55,6 @@ const EXPANDED_KEYS: { label: string; key: string }[] = [
   { label: "3", key: "3" },
   { label: "4", key: "4" },
   { label: "Home", key: "Home" },
-  { label: "End", key: "End" },
 ];
 
 export function TmuxKeyBar({ onSendKey, content, extraButtons, testIDPrefix = "tmux" }: TmuxKeyBarProps) {

@@ -13,7 +13,7 @@ import {
   type PressableStateCallbackType,
 } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { Send, Palette, TextSelect, Clock, ChevronDown, ChevronUp } from "lucide-react-native";
+import { Send, Palette, TextSelect, Clock, ChevronDown, ChevronUp, ArrowDownToLine } from "lucide-react-native";
 import { BackHeader } from "@/components/headers/back-header";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { AnsiTextLine } from "@/components/ansi-text-line";
@@ -132,7 +132,7 @@ function TmuxPaneScreenInner() {
 
   // Initial scroll to bottom on first content load
   useEffect(() => {
-    if (content && !hasInitialScrolledRef.current && autoRefresh) {
+    if (content && !hasInitialScrolledRef.current) {
       hasInitialScrolledRef.current = true;
       const id = setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: false });
@@ -140,7 +140,7 @@ function TmuxPaneScreenInner() {
       }, 50);
       return () => clearTimeout(id);
     }
-  }, [content, autoRefresh]);
+  }, [content]);
 
   // Auto-scroll to bottom when new content arrives and user is already at bottom
   useEffect(() => {
@@ -334,6 +334,7 @@ function TmuxPaneScreenInner() {
           </View>
         }
       />
+      <View style={styles.contentWrapper}>
       <FlatList<AnsiSegment[]>
         ref={flatListRef}
         testID="tmux-pane-scroll"
@@ -365,6 +366,18 @@ function TmuxPaneScreenInner() {
           )
         }
       />
+      <Pressable
+        testID="tmux-scroll-to-bottom"
+        onPress={() => flatListRef.current?.scrollToEnd({ animated: false })}
+        style={({ pressed }) => [
+          styles.scrollToBottomButton,
+          { backgroundColor: theme.colors.foreground },
+          pressed ? { opacity: 0.35 } : null,
+        ]}
+      >
+        <ArrowDownToLine size={18} color={theme.colors.background} />
+      </Pressable>
+      </View>
       {!inputPanelHidden && (
       <>
       <TmuxKeyBar
@@ -507,9 +520,24 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foregroundMuted,
     fontSize: 12,
   },
+  contentWrapper: {
+    flex: 1,
+    position: "relative",
+  },
   contentScroll: {
     flex: 1,
     padding: 16,
+  },
+  scrollToBottomButton: {
+    position: "absolute",
+    bottom: 12,
+    right: 12,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: 0.55,
   },
   flatListContent: {
     flexGrow: 1,
