@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"text/tabwriter"
 
 	"github.com/WuErPing/solo/usage/provider"
@@ -26,7 +27,14 @@ func Table(w io.Writer, snapshots []*provider.Snapshot) {
 			}
 			usedLimit := "-"
 			if q.Used != nil && q.Limit != nil {
-				usedLimit = fmt.Sprintf("%.0f/%.0f", *q.Used, *q.Limit)
+				usedLimit = fmt.Sprintf("%s/%s", formatNum(*q.Used), formatNum(*q.Limit))
+			} else if q.Used != nil {
+				usedLimit = formatNum(*q.Used)
+				if q.Unit != "" {
+					usedLimit += " " + q.Unit
+				}
+			} else if q.Limit != nil {
+				usedLimit = "-/" + formatNum(*q.Limit)
 			}
 			resetIn := "-"
 			if q.ResetIn != "" {
@@ -36,4 +44,13 @@ func Table(w io.Writer, snapshots []*provider.Snapshot) {
 		}
 	}
 	tw.Flush()
+}
+
+// formatNum renders integers without decimals and keeps cents for
+// fractional amounts (e.g. balances like 9.90).
+func formatNum(v float64) string {
+	if v == math.Trunc(v) {
+		return fmt.Sprintf("%.0f", v)
+	}
+	return fmt.Sprintf("%.2f", v)
 }
