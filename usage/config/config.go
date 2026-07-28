@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/WuErPing/solo/usage/provider"
 )
@@ -21,7 +22,13 @@ type ProviderEntry struct {
 	Extra    map[string]string `json:"extra,omitempty"`
 }
 
-var envPattern = regexp.MustCompile(`\$\{(\w+)\}`)
+// varPattern matches ${...} placeholders in config values.
+// Supported forms:
+//   - ${VAR}        → environment variable VAR (kept as-is when unset)
+//   - ${file:/path} → contents of the file (leading ~ supported, trimmed;
+//     kept as-is when unreadable). Useful for rotating secrets like session
+//     cookies: pbpaste > ~/.solo/xiaomimimo.cookie, no daemon restart needed.
+var varPattern = regexp.MustCompile(`\$\{([^}]+)\}`)
 
 func DefaultPath() string {
 	home, err := os.UserHomeDir()
@@ -40,11 +47,11 @@ func Load(path string) (*File, error) {
 	if err := json.Unmarshal(data, &f); err != nil {
 		return nil, fmt.Errorf("config: parse %s: %w", path, err)
 	}
-	f.expandEnv()
+	f.expandVars()
 	return &f, nil
 }
 
-func (f *File) expandEnv() {
+func (f *File) expandVars() {
 	for name, entry := range f.Providers {
 		entry.APIKey = expandVar(entry.APIKey)
 		entry.Endpoint = expandVar(entry.Endpoint)
@@ -56,13 +63,34 @@ func (f *File) expandEnv() {
 }
 
 func expandVar(s string) string {
-	return envPattern.ReplaceAllStringFunc(s, func(match string) string {
-		key := envPattern.FindStringSubmatch(match)[1]
-		if v, ok := os.LookupEnv(key); ok {
+	return varPattern.ReplaceAllStringFunc(s, func(match string) string {
+		body := varPattern.FindStringSubmatch(match)[1]
+		if path, ok := strings.CutPrefix(body, "file:"); ok {
+			if v, err := readSecretFile(path); err == nil {
+				return v
+			}
+			return match
+		}
+		if v, ok := os.LookupEnv(body); ok {
 			return v
 		}
 		return match
 	})
+}
+
+func readSecretFile(path string) (string, error) {
+	if rest, ok := strings.CutPrefix(path, "~"); ok {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		path = home + rest
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(data)), nil
 }
 
 func (f *File) ToProviderConfig(name string) (provider.Config, bool) {
