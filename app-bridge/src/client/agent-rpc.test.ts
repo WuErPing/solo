@@ -359,4 +359,45 @@ describe("AgentRpc — ping", () => {
     expect(typeof result.rttMs).toBe("number");
     await cleanup();
   });
+
+  it("ping passes relayRttMs through from the pong payload", async () => {
+    const { client, transport, cleanup } = createConnectedClient();
+
+    const pingPromise = client.ping({ requestId: "req-ping-relay" });
+
+    simulateServerResponse(transport, {
+      type: "pong",
+      payload: {
+        requestId: "req-ping-relay",
+        clientSentAt: Date.now(),
+        serverReceivedAt: Date.now(),
+        serverSentAt: Date.now(),
+        relayRttMs: 42,
+      },
+    });
+
+    const result = await pingPromise;
+    expect(result.relayRttMs).toBe(42);
+    await cleanup();
+  });
+
+  it("ping leaves relayRttMs undefined when the pong omits it", async () => {
+    const { client, transport, cleanup } = createConnectedClient();
+
+    const pingPromise = client.ping({ requestId: "req-ping-direct" });
+
+    simulateServerResponse(transport, {
+      type: "pong",
+      payload: {
+        requestId: "req-ping-direct",
+        clientSentAt: Date.now(),
+        serverReceivedAt: Date.now(),
+        serverSentAt: Date.now(),
+      },
+    });
+
+    const result = await pingPromise;
+    expect(result.relayRttMs).toBeUndefined();
+    await cleanup();
+  });
 });

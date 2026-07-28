@@ -95,6 +95,7 @@ export class AgentRpc {
     serverReceivedAt: number;
     serverSentAt: number;
     rttMs: number;
+    relayRttMs?: number;
   }> {
     const requestId =
       params?.requestId ?? `ping-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -119,6 +120,7 @@ export class AgentRpc {
       serverReceivedAt: payload.serverReceivedAt,
       serverSentAt: payload.serverSentAt,
       rttMs: Date.now() - clientSentAt,
+      relayRttMs: payload.relayRttMs,
     };
   }
 

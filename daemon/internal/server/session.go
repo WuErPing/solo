@@ -136,10 +136,20 @@ type Session struct {
 	// When true, Layer 1 WebSocket ping is skipped to avoid interfering
 	// with the relay's perMessageDeflate and E2EE state machine.
 	isRelay bool
+
+	// relayRTT reports the daemon↔relay control-socket round-trip time.
+	// Set only for relay sessions; nil for direct/local connections.
+	relayRTT func() (rttMs int64, measuredAt time.Time, ok bool)
 }
 
 // SetIsRelay marks this session as running through a relay.
 func (s *Session) SetIsRelay(v bool) { s.isRelay = v }
+
+// SetRelayRTTProvider sets the function used to read the current
+// daemon↔relay leg RTT when building pong replies.
+func (s *Session) SetRelayRTTProvider(fn func() (rttMs int64, measuredAt time.Time, ok bool)) {
+	s.relayRTT = fn
+}
 
 type sendQueueItem struct {
 	msgType int
@@ -530,15 +540,26 @@ func extractRequestID(raw json.RawMessage) string {
 
 // --- Message Handlers ---
 
+// relayRTTFreshness is the maximum age of a relay-leg RTT measurement for
+// it to be included in a pong reply. The control keepalive pings every 10s,
+// so 30s tolerates one missed cycle before the value is dropped.
+const relayRTTFreshness = 30 * time.Second
+
 func (s *Session) handlePing(m *protocol.PingMessage) {
 	now := time.Now().UnixMilli()
+	payload := protocol.PongPayload{
+		RequestID:        m.RequestID,
+		ServerReceivedAt: now,
+		ServerSentAt:     now,
+	}
+	if s.isRelay && s.relayRTT != nil {
+		if rttMs, measuredAt, ok := s.relayRTT(); ok && time.Since(measuredAt) <= relayRTTFreshness {
+			payload.RelayRttMs = &rttMs
+		}
+	}
 	pong := protocol.NewSessionMessage(&protocol.PongMessage{
-		Type: "pong",
-		Payload: protocol.PongPayload{
-			RequestID:        m.RequestID,
-			ServerReceivedAt: now,
-			ServerSentAt:     now,
-		},
+		Type:    "pong",
+		Payload: payload,
 	})
 	s.sendMessage(pong)
 }

@@ -84,10 +84,21 @@ import { WorkspaceRpc } from "./workspace-rpc.js";
 import { GitRpc } from "./git-rpc.js";
 import { TerminalRpc } from "./terminal-rpc.js";
 import { ConnectionManager } from "./connection-manager.js";
+import { runSpeedTest } from "./speedtest.js";
+import type { SpeedTestOptions, SpeedTestResult } from "./speedtest.js";
 import type { DaemonTransportFactory, WebSocketFactory } from "./daemon-client-transport.js";
 import type { Logger } from "../shared/logger.js";
 
 export type { Logger } from "../shared/logger.js";
+
+export { runSpeedTest } from "./speedtest.js";
+export type {
+  LatencySegmentStats,
+  SpeedTestOptions,
+  SpeedTestPingResult,
+  SpeedTestResult,
+  SpeedTestSegment,
+} from "./speedtest.js";
 
 export { ConnectionManager } from "./connection-manager.js";
 export type { ConnectionRpcHooks } from "./connection-manager.js";
@@ -768,8 +779,13 @@ export class DaemonClient {
     serverReceivedAt: number;
     serverSentAt: number;
     rttMs: number;
+    relayRttMs?: number;
   }> {
     return this.agentRpc.ping(params);
+  }
+
+  async speedTest(opts?: SpeedTestOptions): Promise<SpeedTestResult> {
+    return runSpeedTest((pingOpts) => this.agentRpc.ping(pingOpts), opts);
   }
 
   getLastServerInfoMessage(): ServerInfoStatusPayload | null {

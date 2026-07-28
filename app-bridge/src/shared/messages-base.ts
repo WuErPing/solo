@@ -279,6 +279,9 @@ export const PongMessageSchema = z.object({
     clientSentAt: z.number().int().optional(),
     serverReceivedAt: z.number().int(),
     serverSentAt: z.number().int(),
+    // daemon↔relay leg RTT (ms); present only for relay sessions with a
+    // fresh measurement. Mirrors protocol.PongPayload.RelayRttMs.
+    relayRttMs: z.number().int().optional(),
   }),
 });
 

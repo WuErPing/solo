@@ -49,6 +49,10 @@ type PongPayload struct {
 	ClientSentAt     *int64 `json:"clientSentAt,omitempty"`
 	ServerReceivedAt int64  `json:"serverReceivedAt"`
 	ServerSentAt     int64  `json:"serverSentAt"`
+	// RelayRttMs is the daemon↔relay control-socket round-trip time in
+	// milliseconds, present only when the session runs over the relay and a
+	// fresh measurement is available.
+	RelayRttMs *int64 `json:"relayRttMs,omitempty"`
 }
 
 func (m *PongMessage) MsgType() string { return "pong" }

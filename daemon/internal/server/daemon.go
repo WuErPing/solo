@@ -242,6 +242,7 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 			logger.Warn("daemon keypair not found, E2EE disabled", "error", err)
 		}
 		d.relayClient = relayclient.NewClient(cfg.ServerID, cfg.RelayEndpoint, ws, logger, keyPair, cfg.RelayDisableControlKeepalive)
+		ws.SetRelayRTTProvider(d.relayClient.RelayLegRTT)
 	}
 
 	return d, nil
@@ -453,6 +454,10 @@ type WSServer struct {
 
 	onHelloMu       sync.Mutex
 	onHelloCallback func()
+
+	// relayRTTProvider reports the daemon↔relay control-socket RTT; set by
+	// the Daemon once the relay client exists. Nil when relay is disabled.
+	relayRTTProvider func() (rttMs int64, measuredAt time.Time, ok bool)
 }
 
 // NewWSServer creates a new WebSocket server with agent dependencies.
@@ -584,6 +589,12 @@ func (s *WSServer) checkOrigin(r *http.Request) bool {
 // inbound connections.
 func (s *WSServer) AttachExternalConnection(conn WSConn) {
 	s.handleNewConnection(conn)
+}
+
+// SetRelayRTTProvider sets the function used to read the current
+// daemon↔relay leg RTT; it is passed to relay sessions for pong replies.
+func (s *WSServer) SetRelayRTTProvider(fn func() (rttMs int64, measuredAt time.Time, ok bool)) {
+	s.relayRTTProvider = fn
 }
 
 // OnHelloProcessed registers a callback that fires when a hello handshake
@@ -775,6 +786,7 @@ func (s *WSServer) handleNewConnection(conn WSConn) { //nolint:gocyclo // grandf
 	})
 	if _, isRelay := conn.(*relayclient.E2EEConn); isRelay {
 		sess.SetIsRelay(true)
+		sess.SetRelayRTTProvider(s.relayRTTProvider)
 	}
 	if s.gracePeriod > 0 {
 		sess.gracePeriod = s.gracePeriod

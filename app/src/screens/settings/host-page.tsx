@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Pressable, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, Text, TextInput, View } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { ChevronRight, Globe, Monitor, Pencil, Trash2 } from "lucide-react-native";
+import { ChevronRight, Gauge, Globe, Monitor, Pencil, Trash2 } from "lucide-react-native";
 import type { HostConnection, HostProfile } from "@/types/host-connection";
 import {
   useHostRuntimeSnapshot,
@@ -15,6 +15,11 @@ import { Button } from "@/components/ui/button";
 import { AdaptiveModalSheet } from "@/components/adaptive-modal-sheet";
 import { useIsLocalDaemon } from "@/hooks/use-is-local-daemon";
 import { SettingsSection } from "@/screens/settings/settings-section";
+import {
+  runConnectionSpeedTest,
+  SpeedTestPanel,
+  type SpeedTestState,
+} from "@/screens/settings/host-speed-test";
 import { PairDeviceModal } from "@/desktop/components/pair-device-modal";
 import { LocalDaemonSection } from "@/desktop/components/desktop-updates-section";
 
@@ -329,6 +334,7 @@ function ConnectionsSection({ host }: { host: HostProfile }) {
           return (
             <ConnectionRow
               key={conn.id}
+              serverId={host.serverId}
               connection={conn}
               showBorder={index > 0}
               latencyMs={probe?.status === "available" ? probe.latencyMs : undefined}
@@ -378,6 +384,7 @@ function ConnectionsSection({ host }: { host: HostProfile }) {
 }
 
 function ConnectionRow({
+  serverId,
   connection,
   showBorder,
   latencyMs,
@@ -385,6 +392,7 @@ function ConnectionRow({
   latencyError,
   onRemove,
 }: {
+  serverId: string;
   connection: HostConnection;
   showBorder: boolean;
   latencyMs: number | null | undefined;
@@ -394,6 +402,9 @@ function ConnectionRow({
 }) {
   const { theme } = useUnistyles();
   const title = formatHostConnectionLabel(connection);
+  const [speedTest, setSpeedTest] = useState<SpeedTestState>({ status: "idle" });
+  const [isBreakdownOpen, setIsBreakdownOpen] = useState(false);
+  const speedTestRunIdRef = useRef(0);
 
   const latencyText = (() => {
     if (latencyLoading) return "...";
@@ -407,10 +418,33 @@ function ConnectionRow({
     onRemove(connection);
   }, [onRemove, connection]);
 
-  const rowStyle = useMemo(
-    () => [settingsStyles.row, showBorder && settingsStyles.rowBorder],
-    [showBorder],
-  );
+  const runSpeedTest = useCallback(async () => {
+    const runId = ++speedTestRunIdRef.current;
+    setSpeedTest({ status: "running" });
+    setIsBreakdownOpen(true);
+    try {
+      const result = await runConnectionSpeedTest(serverId, connection);
+      if (speedTestRunIdRef.current !== runId) return;
+      setSpeedTest({ status: "success", result });
+    } catch (error) {
+      if (speedTestRunIdRef.current !== runId) return;
+      setSpeedTest({
+        status: "error",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }, [serverId, connection]);
+
+  const handleSpeedTestPress = useCallback(() => {
+    if (speedTest.status === "running") return;
+    if (speedTest.status === "idle" || speedTest.status === "error") {
+      void runSpeedTest();
+      return;
+    }
+    setIsBreakdownOpen((open) => !open);
+  }, [speedTest.status, runSpeedTest]);
+
+  const containerStyle = useMemo(() => showBorder && settingsStyles.rowBorder, [showBorder]);
   const latencyTextStyle = useMemo(
     () => [styles.connectionLatency, { color: latencyColor }],
     [latencyColor],
@@ -421,21 +455,39 @@ function ConnectionRow({
   );
 
   return (
-    <View style={rowStyle}>
-      <View style={settingsStyles.rowContent}>
-        <Text style={settingsStyles.rowTitle} numberOfLines={1}>
-          {title}
-        </Text>
+    <View style={containerStyle}>
+      <View style={settingsStyles.row}>
+        <View style={settingsStyles.rowContent}>
+          <Text style={settingsStyles.rowTitle} numberOfLines={1}>
+            {title}
+          </Text>
+        </View>
+        <Text style={latencyTextStyle}>{latencyText}</Text>
+        <Pressable
+          onPress={handleSpeedTestPress}
+          disabled={speedTest.status === "running"}
+          hitSlop={8}
+          style={styles.speedTestButton}
+          accessibilityRole="button"
+          accessibilityLabel="Run speed test"
+          testID={`connection-speed-test-${connection.id}`}
+        >
+          {speedTest.status === "running" ? (
+            <ActivityIndicator size="small" color={theme.colors.foregroundMuted} />
+          ) : (
+            <Gauge size={theme.iconSize.sm} color={theme.colors.foregroundMuted} />
+          )}
+        </Pressable>
+        <Button
+          variant="ghost"
+          size="sm"
+          textStyle={destructiveTextStyle}
+          onPress={handlePressRemove}
+        >
+          Remove
+        </Button>
       </View>
-      <Text style={latencyTextStyle}>{latencyText}</Text>
-      <Button
-        variant="ghost"
-        size="sm"
-        textStyle={destructiveTextStyle}
-        onPress={handlePressRemove}
-      >
-        Remove
-      </Button>
+      {isBreakdownOpen ? <SpeedTestPanel connectionId={connection.id} state={speedTest} /> : null}
     </View>
   );
 }
@@ -625,6 +677,11 @@ const styles = StyleSheet.create((theme) => ({
   connectionLatency: {
     fontSize: theme.fontSize.sm,
     marginRight: theme.spacing[2],
+  },
+  speedTestButton: {
+    padding: theme.spacing[1],
+    marginRight: theme.spacing[1],
+    borderRadius: theme.borderRadius.md,
   },
   confirmText: {
     color: theme.colors.foregroundMuted,

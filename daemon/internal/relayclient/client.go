@@ -20,7 +20,6 @@ import (
 )
 
 const (
-	controlPingInterval = 10 * time.Second
 	controlStaleTimeout = 30 * time.Second
 	maxReconnectDelay   = 30 * time.Second
 
@@ -29,6 +28,13 @@ const (
 	// same session traffic (including image attachments) flows here.
 	dataSocketReadLimit = 16 << 20
 )
+
+// controlPingInterval is the interval between control-socket keepalive pings
+// (nanoseconds). Atomic so tests can shorten it without racing the keepalive
+// goroutines of other clients.
+var controlPingInterval atomic.Int64
+
+func init() { controlPingInterval.Store(int64(10 * time.Second)) }
 
 // dataSocketOpenTimeout is the maximum time allowed from a successful dial to
 // AttachExternalConnection completing the session handshake. If the WSServer
@@ -86,6 +92,15 @@ type Client struct {
 	lastActivityMs atomic.Int64
 
 	disableControlKeepalive bool
+
+	// rttMu guards the relay-leg RTT measurement fields below. The control
+	// ping is sent from the keepalive goroutine while the matching pong is
+	// read on the read-pump goroutine, so all access goes through rttMu.
+	rttMu          sync.Mutex
+	lastPingSentAt time.Time
+	lastRttMs      int64
+	rttMeasuredAt  time.Time
+	rttMeasured    bool
 }
 
 // NewClient creates a relay client.
@@ -166,6 +181,12 @@ func (c *Client) connectControl() {
 	ctx, cancel := context.WithCancel(context.Background())
 	c.controlCancel = cancel
 	c.controlMu.Unlock()
+
+	// A fresh control socket invalidates any RTT measured on the previous one.
+	c.rttMu.Lock()
+	c.lastPingSentAt = time.Time{}
+	c.rttMeasured = false
+	c.rttMu.Unlock()
 
 	// The previous control connection (if any) is gone, and the relay has
 	// dropped every data socket that was associated with it. Close our
@@ -283,7 +304,18 @@ func (c *Client) handleControlMessage(data []byte) {
 	case "ping":
 		c.sendPong()
 	case "pong":
-		// activity already recorded by read pump
+		// Correlate with the last control ping we sent (keepalive is the
+		// only control-ping sender, so a single outstanding ping suffices)
+		// and record the relay-leg round-trip time.
+		c.rttMu.Lock()
+		if !c.lastPingSentAt.IsZero() {
+			if rtt := time.Since(c.lastPingSentAt); rtt >= 0 {
+				c.lastRttMs = rtt.Milliseconds()
+				c.rttMeasuredAt = time.Now()
+				c.rttMeasured = true
+			}
+		}
+		c.rttMu.Unlock()
 	default:
 		c.logger.Debug("unknown control message", "type", base.Type)
 	}
@@ -307,8 +339,31 @@ func (c *Client) sendPong() {
 	_ = conn.WriteMessage(websocket.TextMessage, data)
 }
 
+// RelayLegRTT returns the most recent round-trip-time measurement of the
+// daemon↔relay control socket, in milliseconds, along with the time it was
+// measured. ok is false before the first pong arrives or while no control
+// socket is connected. Callers should treat measurements older than the
+// keepalive cadence as stale.
+func (c *Client) RelayLegRTT() (rttMs int64, measuredAt time.Time, ok bool) {
+	// Lock ordering: never hold rttMu while acquiring controlMu — the
+	// keepalive goroutine takes controlMu first, then rttMu.
+	c.controlMu.Lock()
+	up := c.controlConn != nil
+	c.controlMu.Unlock()
+	if !up {
+		return 0, time.Time{}, false
+	}
+
+	c.rttMu.Lock()
+	defer c.rttMu.Unlock()
+	if !c.rttMeasured {
+		return 0, time.Time{}, false
+	}
+	return c.lastRttMs, c.rttMeasuredAt, true
+}
+
 func (c *Client) controlKeepalive(ctx context.Context, conn *websocket.Conn) {
-	ticker := time.NewTicker(controlPingInterval)
+	ticker := time.NewTicker(time.Duration(controlPingInterval.Load()))
 	defer ticker.Stop()
 
 	for {
@@ -335,6 +390,10 @@ func (c *Client) controlKeepalive(ctx context.Context, conn *websocket.Conn) {
 				data, _ := json.Marshal(ping)
 				if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
 					c.logger.Debug("relay ping write error", "error", err)
+				} else {
+					c.rttMu.Lock()
+					c.lastPingSentAt = time.Now()
+					c.rttMu.Unlock()
 				}
 			}
 			c.controlMu.Unlock()
