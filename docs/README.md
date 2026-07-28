@@ -11,6 +11,7 @@
 docs/
 ├── README.md                              ← You are here (master index)
 ├── handoff.md                             # Tmux Pane Full-Content Fit feature handoff
+├── handoff-usage-providers.md             # Usage providers: Xiaomi MiMo (blocked, cookie path) & Qoder (org-only) investigation
 ├── architecture/                          ← System architecture & design
 │   ├── README.md                          # Architecture overview & diagrams
 │   ├── agent-stall-detection.md           # Agent stuck-loop detection & grace fix

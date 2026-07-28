@@ -15,6 +15,8 @@ import (
 	usageprovider "github.com/WuErPing/solo/usage/provider"
 	_ "github.com/WuErPing/solo/usage/provider/deepseek" // register the deepseek provider
 	_ "github.com/WuErPing/solo/usage/provider/kimi"     // register the kimi provider
+	_ "github.com/WuErPing/solo/usage/provider/qoder"      // register the qoder provider
+	_ "github.com/WuErPing/solo/usage/provider/xiaomimimo" // register the xiaomimimo provider
 )
 
 const (
