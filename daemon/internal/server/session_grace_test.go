@@ -173,17 +173,9 @@ func TestSession_DropsMessagesDuringGrace(t *testing.T) {
 		t.Fatal("session.Run() did not return within timeout")
 	}
 
-	// sendMessage during grace should not panic or block
+	// sendMessage during grace should not panic or block.
+	// The old connection was closed, so sendMessage should drop silently.
 	sess.sendMessage(protocol.NewPongMessage())
-
-	// The old connection should NOT have received the message
-	// (it was closed, and sendMessage should drop silently during grace)
-	conn.mu.Lock()
-	msgCount := len(conn.messages)
-	conn.mu.Unlock()
-	// messages written before disconnect don't count; we only care that the
-	// post-disconnect sendMessage didn't panic or block.
-	_ = msgCount
 }
 
 // --- Step 4: ReplaceConn resumes session ---
@@ -279,17 +271,11 @@ func TestSession_ReplaceConn_PreservesAgentSubscription(t *testing.T) {
 	}()
 	time.Sleep(100 * time.Millisecond)
 
-	// Emit an agent state event by triggering the broadcast function.
-	// Since the session subscribes to agentMgr, we can trigger an event
-	// that the session's handleAgentEvent will process.
-	// We verify indirectly: if the subscription was torn down, this would panic.
-	sess.broadcast(protocol.NewPongMessage())
-
-	// The agent subscription should still be active, so handleAgentEvent
-	// should have been called. We verify by checking that at least a message
-	// was written to conn2 (the agent_update or similar).
-	// Since we have no agents, the event may be a no-op — this test mainly
-	// verifies the subscription wasn't torn down by entering grace.
+	// The agent subscription must still be active after entering grace and
+	// replacing the connection. fullCleanup would have set unsub to nil.
+	if sess.unsub == nil {
+		t.Fatal("agent subscription was torn down during grace/ReplaceConn")
+	}
 
 	// Disconnect conn2 to clean up
 	conn2.injectReadError(&websocket.CloseError{Code: websocket.CloseNormalClosure})

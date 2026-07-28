@@ -89,7 +89,7 @@ func TestClient_Start_AlreadyStopped(t *testing.T) {
 	}
 }
 
-func TestHandleControlMessage_Sync(_ *testing.T) {
+func TestHandleControlMessage_Sync(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	c := NewClient("srv-1", "localhost:9999", &mockWSServer{}, logger, nil, true)
 
@@ -98,9 +98,10 @@ func TestHandleControlMessage_Sync(_ *testing.T) {
 		"connectionIds": []string{"a", "b"},
 	})
 	c.handleControlMessage(msg)
+	// Smoke test: sync handling must not panic.
 }
 
-func TestHandleControlMessage_Connected(_ *testing.T) {
+func TestHandleControlMessage_Connected(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	wsServer := &mockWSServer{}
 	c := NewClient("srv-1", "localhost:9999", wsServer, logger, nil, true)
@@ -111,11 +112,24 @@ func TestHandleControlMessage_Connected(_ *testing.T) {
 	})
 	c.handleControlMessage(msg)
 
-	// connected should spawn a goroutine; give it a moment
+	c.pendingConnsMu.Lock()
+	_, pending := c.pendingConns["conn-1"]
+	c.pendingConnsMu.Unlock()
+	if !pending {
+		t.Error("expected conn-1 to be marked pending immediately after connected message")
+	}
+
+	// The dial to localhost:9999 will fail; wait for the goroutine to clean up.
 	time.Sleep(50 * time.Millisecond)
+	c.pendingConnsMu.Lock()
+	_, stillPending := c.pendingConns["conn-1"]
+	c.pendingConnsMu.Unlock()
+	if stillPending {
+		t.Error("expected conn-1 to be removed from pending after failed dial")
+	}
 }
 
-func TestHandleControlMessage_Connected_Duplicate(_ *testing.T) {
+func TestHandleControlMessage_Connected_Duplicate(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	wsServer := &mockWSServer{}
 	c := NewClient("srv-1", "localhost:9999", wsServer, logger, nil, true)
@@ -126,7 +140,10 @@ func TestHandleControlMessage_Connected_Duplicate(_ *testing.T) {
 		"connectionId": "conn-1",
 	})
 	c.handleControlMessage(msg)
-	// Should skip because already pending
+	// Should skip because already pending; no second goroutine spawned.
+	if wsServer.attachCalled.Load() != 0 {
+		t.Error("expected duplicate connected message to skip opening a new data socket")
+	}
 }
 
 func TestHandleControlMessage_Disconnected(t *testing.T) {
@@ -194,30 +211,36 @@ func TestHandleControlMessage_Ping(t *testing.T) {
 	}
 }
 
-func TestHandleControlMessage_Pong(_ *testing.T) {
+func TestHandleControlMessage_Pong(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	c := NewClient("srv-1", "localhost:9999", &mockWSServer{}, logger, nil, true)
 
 	msg, _ := json.Marshal(map[string]interface{}{"type": "pong"})
 	c.handleControlMessage(msg)
-	// Should be a no-op beyond activity recording
+	// Without a preceding ping, pong is a no-op beyond activity recording.
+	c.rttMu.Lock()
+	measured := c.rttMeasured
+	c.rttMu.Unlock()
+	if measured {
+		t.Error("expected rtt not to be measured without a preceding ping")
+	}
 }
 
-func TestHandleControlMessage_Unknown(_ *testing.T) {
+func TestHandleControlMessage_Unknown(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	c := NewClient("srv-1", "localhost:9999", &mockWSServer{}, logger, nil, true)
 
 	msg, _ := json.Marshal(map[string]interface{}{"type": "unknown_xyz"})
 	c.handleControlMessage(msg)
-	// Should not panic
+	// Smoke test: unknown message type must not panic.
 }
 
-func TestHandleControlMessage_InvalidJSON(_ *testing.T) {
+func TestHandleControlMessage_InvalidJSON(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	c := NewClient("srv-1", "localhost:9999", &mockWSServer{}, logger, nil, true)
 
 	c.handleControlMessage([]byte("not json"))
-	// Should not panic
+	// Smoke test: invalid JSON must not panic.
 }
 
 func TestBuildControlURL(t *testing.T) {
@@ -327,7 +350,7 @@ func TestCloseAllDataConns(t *testing.T) {
 	}
 }
 
-func TestSendPong_NoControlConn(_ *testing.T) {
+func TestSendPong_NoControlConn(t *testing.T) {
 	c := NewClient("srv-1", "localhost:9999", &mockWSServer{}, nil, nil, true)
 	// Should not panic when controlConn is nil
 	c.sendPong()

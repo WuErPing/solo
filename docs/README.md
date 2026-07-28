@@ -182,6 +182,7 @@ Deep dives into specific subsystems.
 | [Tmux Project Matcher Plan](analysis/plan-tmux-project-matcher.md) | Design | Plan for matching tmux sessions to projects |
 | [Tmux Project Matcher Spec](analysis/spec-tmux-project-matcher.md) | Spec | Implementation spec for tmux project matcher |
 | [Test Coverage](analysis/test-coverage.md) | Report | 统一测试覆盖率报告: Go 后端 + App 前端 + E2E + CI/Codecov 集成 |
+| [Test Quality Audit (2026-07-27)](analysis/test-quality-audit-2026-07.md) | Report | 单元测试质量审计：sleep 时序耦合、空断言、基建重复、覆盖缺口 + 按收益排序的修复追踪 |
 | [Tmux Agent Misidentification (kimi → kimi-code)](analysis/tmux-agent-misidentification-kimi-code-2026-06-15.md) | Analysis | `kimi --yolo` 被误识为 `kimi-code`: Bun setproctitle 污染源 + 八层防御级联失败 + 修复 |
 | [Tmux Pane Analysis](analysis/tmux-pane-analysis.md) | Analysis | Jitter 根因与修复 + 4 层架构瓶颈 + xterm.js 迁移方案 |
 | [Makefile Benchmark](analysis/makefile-benchmark.md) | Benchmark | Sequential vs parallel CI targets: test-go, lint, typecheck timing |

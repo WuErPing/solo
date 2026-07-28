@@ -49,7 +49,7 @@ func newPingPongRelayServer(t *testing.T) *httptest.Server {
 // TestRelayLegRTT_NotMeasured verifies the getter reports ok=false before
 // any control ping/pong exchange and while no control socket is up.
 func TestRelayLegRTT_NotMeasured(t *testing.T) {
-	client := NewClient("server-id", "127.0.0.1:1", &fastSessionAttacher{}, testLogger(t), nil, false)
+	client := NewClient("server-id", "127.0.0.1:1", &fastSessionAttacher{}, testLogger(), nil, false)
 	if rtt, _, ok := client.RelayLegRTT(); ok {
 		t.Fatalf("expected ok=false on fresh client, got ok=true rtt=%d", rtt)
 	}
@@ -66,7 +66,7 @@ func TestControlKeepalive_MeasuresRelayRTT(t *testing.T) {
 	defer controlPingInterval.Store(origInterval)
 
 	host := srv.Listener.Addr().String()
-	client := NewClient("server-id", host, &fastSessionAttacher{}, testLogger(t), nil, false)
+	client := NewClient("server-id", host, &fastSessionAttacher{}, testLogger(), nil, false)
 	if err := client.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestControlKeepalive_MeasuresRelayRTT(t *testing.T) {
 // TestRelayLegRTT_ResetOnReconnect verifies that a new control socket
 // invalidates the RTT measured on the previous one.
 func TestRelayLegRTT_ResetOnReconnect(t *testing.T) {
-	client := NewClient("server-id", "127.0.0.1:1", &fastSessionAttacher{}, testLogger(t), nil, false)
+	client := NewClient("server-id", "127.0.0.1:1", &fastSessionAttacher{}, testLogger(), nil, false)
 
 	// Simulate a completed measurement on a live control socket.
 	client.controlMu.Lock()

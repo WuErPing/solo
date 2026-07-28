@@ -69,6 +69,21 @@ func newTransportPair() (*mockTransport, *mockTransport) {
 	return a, b
 }
 
+// waitTimeout waits for a WaitGroup with a timeout and fails the test if it expires.
+func waitTimeout(t *testing.T, wg *sync.WaitGroup, timeout time.Duration) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(timeout):
+		t.Fatal("timed out waiting for condition")
+	}
+}
+
 func TestChannelHandshakeEstablishes(t *testing.T) {
 	daemonTransport, clientTransport := newTransportPair()
 
@@ -87,17 +102,7 @@ func TestChannelHandshakeEstablishes(t *testing.T) {
 	client := e2ee.NewClientChannel(clientTransport, daemonPub)
 	client.OnOpen(func() { wg.Done() })
 
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(3 * time.Second):
-		t.Fatal("handshake did not complete within 3 seconds")
-	}
+	waitTimeout(t, &wg, 3*time.Second)
 
 	if !client.IsOpen() {
 		t.Error("client channel not open after handshake")
@@ -120,36 +125,31 @@ func TestChannelBidirectionalMessages(t *testing.T) {
 	var clientReceived [][]byte
 	var mu sync.Mutex
 
-	var wg sync.WaitGroup
-	wg.Add(2)
+	var openWg sync.WaitGroup
+	openWg.Add(2)
+
+	var msgWg sync.WaitGroup
+	msgWg.Add(3)
 
 	daemon := e2ee.NewDaemonChannel(daemonTransport, daemonKP)
 	daemon.OnMessage(func(msg []byte) {
 		mu.Lock()
 		daemonReceived = append(daemonReceived, append([]byte(nil), msg...))
 		mu.Unlock()
+		msgWg.Done()
 	})
-	daemon.OnOpen(func() { wg.Done() })
+	daemon.OnOpen(func() { openWg.Done() })
 
 	client := e2ee.NewClientChannel(clientTransport, daemonPub)
 	client.OnMessage(func(msg []byte) {
 		mu.Lock()
 		clientReceived = append(clientReceived, append([]byte(nil), msg...))
 		mu.Unlock()
+		msgWg.Done()
 	})
-	client.OnOpen(func() { wg.Done() })
+	client.OnOpen(func() { openWg.Done() })
 
-	waitOpen := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(waitOpen)
-	}()
-
-	select {
-	case <-waitOpen:
-	case <-time.After(3 * time.Second):
-		t.Fatal("handshake timeout")
-	}
+	waitTimeout(t, &openWg, 3*time.Second)
 
 	if err := client.Send([]byte("Hello from client")); err != nil {
 		t.Fatalf("client.Send: %v", err)
@@ -161,7 +161,7 @@ func TestChannelBidirectionalMessages(t *testing.T) {
 		t.Fatalf("client.Send 2: %v", err)
 	}
 
-	time.Sleep(50 * time.Millisecond)
+	waitTimeout(t, &msgWg, 3*time.Second)
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -192,26 +192,16 @@ func TestMessagesOpaqueToTransport(t *testing.T) {
 	}
 	daemonKP := e2ee.KeyPair{PublicKey: daemonPub, SecretKey: daemonSec}
 
-	var wg sync.WaitGroup
-	wg.Add(2)
+	var openWg sync.WaitGroup
+	openWg.Add(2)
 
 	daemon := e2ee.NewDaemonChannel(daemonTransport, daemonKP)
-	daemon.OnOpen(func() { wg.Done() })
+	daemon.OnOpen(func() { openWg.Done() })
 
 	client := e2ee.NewClientChannel(clientTransport, daemonPub)
-	client.OnOpen(func() { wg.Done() })
+	client.OnOpen(func() { openWg.Done() })
 
-	waitOpen := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(waitOpen)
-	}()
-
-	select {
-	case <-waitOpen:
-	case <-time.After(3 * time.Second):
-		t.Fatal("handshake timeout")
-	}
+	waitTimeout(t, &openWg, 3*time.Second)
 
 	// Clear sent history after handshake
 	clientTransport.mu.Lock()
@@ -222,7 +212,6 @@ func TestMessagesOpaqueToTransport(t *testing.T) {
 	if err := client.Send(plaintext); err != nil {
 		t.Fatalf("client.Send: %v", err)
 	}
-	time.Sleep(20 * time.Millisecond)
 
 	clientTransport.mu.Lock()
 	sent := clientTransport.sent
@@ -252,31 +241,21 @@ func TestDaemonRehelloSameKeyResendReady(t *testing.T) {
 
 	var daemonOpenCount int
 	var mu sync.Mutex
-	var wg sync.WaitGroup
-	wg.Add(2)
+	var openWg sync.WaitGroup
+	openWg.Add(2)
 
 	daemon := e2ee.NewDaemonChannel(daemonTransport, daemonKP)
 	daemon.OnOpen(func() {
 		mu.Lock()
 		daemonOpenCount++
 		mu.Unlock()
-		wg.Done()
+		openWg.Done()
 	})
 
 	client := e2ee.NewClientChannel(clientTransport, daemonPub)
-	client.OnOpen(func() { wg.Done() })
+	client.OnOpen(func() { openWg.Done() })
 
-	waitOpen := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(waitOpen)
-	}()
-
-	select {
-	case <-waitOpen:
-	case <-time.After(3 * time.Second):
-		t.Fatal("handshake timeout")
-	}
+	waitTimeout(t, &openWg, 3*time.Second)
 
 	// Record shared key before re-hello
 	sharedBefore := daemon.SharedKey()
@@ -285,7 +264,6 @@ func TestDaemonRehelloSameKeyResendReady(t *testing.T) {
 	clientPub := client.PublicKey()
 	helloMsg := `{"type":"e2ee_hello","key":"` + e2ee.ExportPublicKey(clientPub) + `"}`
 	daemonTransport.handler([]byte(helloMsg))
-	time.Sleep(30 * time.Millisecond)
 
 	sharedAfter := daemon.SharedKey()
 	if sharedBefore != sharedAfter {
@@ -316,26 +294,16 @@ func TestDaemonRehelloDifferentKeyRekeyes(t *testing.T) {
 	}
 	daemonKP := e2ee.KeyPair{PublicKey: daemonPub, SecretKey: daemonSec}
 
-	var wg sync.WaitGroup
-	wg.Add(2)
+	var openWg sync.WaitGroup
+	openWg.Add(2)
 
 	daemon := e2ee.NewDaemonChannel(daemonTransport, daemonKP)
-	daemon.OnOpen(func() { wg.Done() })
+	daemon.OnOpen(func() { openWg.Done() })
 
 	client := e2ee.NewClientChannel(clientTransport, daemonPub)
-	client.OnOpen(func() { wg.Done() })
+	client.OnOpen(func() { openWg.Done() })
 
-	waitOpen := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(waitOpen)
-	}()
-
-	select {
-	case <-waitOpen:
-	case <-time.After(3 * time.Second):
-		t.Fatal("handshake timeout")
-	}
+	waitTimeout(t, &openWg, 3*time.Second)
 
 	sharedBefore := daemon.SharedKey()
 
@@ -346,7 +314,6 @@ func TestDaemonRehelloDifferentKeyRekeyes(t *testing.T) {
 	}
 	helloMsg := `{"type":"e2ee_hello","key":"` + e2ee.ExportPublicKey(newPub) + `"}`
 	daemonTransport.handler([]byte(helloMsg))
-	time.Sleep(30 * time.Millisecond)
 
 	sharedAfter := daemon.SharedKey()
 	if sharedBefore == sharedAfter {
@@ -362,18 +329,12 @@ func TestClientRetriesHello(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	client := e2ee.NewClientChannel(transport, daemonPub)
+	client := e2ee.NewClientChannel(transport, daemonPub, e2ee.WithHandshakeRetryInterval(20*time.Millisecond))
 	_ = client
 
 	// Initial hello should have been sent
-	time.Sleep(20 * time.Millisecond)
-	count1 := transport.sentCount()
-
-	// After 1s, should have retried
-	time.Sleep(1100 * time.Millisecond)
-	count2 := transport.sentCount()
-	if count2 <= count1 {
-		t.Errorf("expected retry hello after 1s, sent count: before=%d after=%d", count1, count2)
+	if err := waitForSentCount(t, transport, 2, 3*time.Second); err != nil {
+		t.Fatalf("expected retry hello, %v", err)
 	}
 }
 
@@ -390,19 +351,23 @@ func TestPendingSendsFlushedAfterHandshake(t *testing.T) {
 	var received [][]byte
 	var mu sync.Mutex
 
-	var wg sync.WaitGroup
-	wg.Add(2)
+	var openWg sync.WaitGroup
+	openWg.Add(2)
+
+	var msgWg sync.WaitGroup
+	msgWg.Add(2)
 
 	daemon := e2ee.NewDaemonChannel(daemonTransport, daemonKP)
 	daemon.OnMessage(func(msg []byte) {
 		mu.Lock()
 		received = append(received, append([]byte(nil), msg...))
 		mu.Unlock()
+		msgWg.Done()
 	})
-	daemon.OnOpen(func() { wg.Done() })
+	daemon.OnOpen(func() { openWg.Done() })
 
 	client := e2ee.NewClientChannel(clientTransport, daemonPub)
-	client.OnOpen(func() { wg.Done() })
+	client.OnOpen(func() { openWg.Done() })
 
 	// Queue sends before open (will be buffered)
 	if err := client.Send([]byte("pending-1")); err != nil {
@@ -412,19 +377,8 @@ func TestPendingSendsFlushedAfterHandshake(t *testing.T) {
 		t.Fatalf("client.Send pending-2: %v", err)
 	}
 
-	waitOpen := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(waitOpen)
-	}()
-
-	select {
-	case <-waitOpen:
-	case <-time.After(3 * time.Second):
-		t.Fatal("handshake timeout")
-	}
-
-	time.Sleep(50 * time.Millisecond)
+	waitTimeout(t, &openWg, 3*time.Second)
+	waitTimeout(t, &msgWg, 3*time.Second)
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -454,6 +408,22 @@ func (n *noopTransport) sentCount() int {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	return n.count
+}
+
+// waitForSentCount polls until the noopTransport has sent at least n messages.
+func waitForSentCount(t *testing.T, n *noopTransport, min int, timeout time.Duration) error {
+	t.Helper()
+	deadline := time.After(timeout)
+	for {
+		if n.sentCount() >= min {
+			return nil
+		}
+		select {
+		case <-deadline:
+			return errors.New("timed out")
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
 }
 
 // failSendTransport returns an error on the Nth Send call.
@@ -498,6 +468,12 @@ func (f *failSendTransport) OnClose(fn func()) {
 	f.mu.Unlock()
 }
 
+func (f *failSendTransport) sentCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.count
+}
+
 func TestDaemonRejectsInvalidHello(t *testing.T) {
 	daemonPub, daemonSec, err := e2ee.GenerateKeyPair()
 	if err != nil {
@@ -540,17 +516,7 @@ func TestDaemonRejectsInvalidHello(t *testing.T) {
 	wg.Add(1)
 	client.OnOpen(func() { wg.Done() })
 
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(3 * time.Second):
-		t.Fatal("handshake did not complete after invalid hello")
-	}
+	waitTimeout(t, &wg, 3*time.Second)
 
 	if !client.IsOpen() {
 		t.Error("client channel not open after handshake")
@@ -570,10 +536,12 @@ func TestClientHelloRetrySendFailure(t *testing.T) {
 	}
 
 	// Create client channel - first send should succeed
-	client := e2ee.NewClientChannel(transport, daemonPub)
+	client := e2ee.NewClientChannel(transport, daemonPub, e2ee.WithHandshakeRetryInterval(20*time.Millisecond))
 
 	// The retry should fail but not panic
-	time.Sleep(1500 * time.Millisecond) // wait for one retry
+	if err := waitForFailSentCount(t, transport, 2, 3*time.Second); err != nil {
+		t.Fatalf("expected at least 2 send attempts, %v", err)
+	}
 
 	// Client should still be in handshaking state
 	if client.IsOpen() {
@@ -582,4 +550,20 @@ func TestClientHelloRetrySendFailure(t *testing.T) {
 
 	// Close to stop retry timer
 	transport.Close()
+}
+
+// waitForFailSentCount polls until the failSendTransport has attempted at least min sends.
+func waitForFailSentCount(t *testing.T, f *failSendTransport, min int, timeout time.Duration) error {
+	t.Helper()
+	deadline := time.After(timeout)
+	for {
+		if f.sentCount() >= min {
+			return nil
+		}
+		select {
+		case <-deadline:
+			return errors.New("timed out")
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
 }

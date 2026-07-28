@@ -18,25 +18,24 @@ func TestStreamCoalescer_ReasoningUsesExtendedWindow(t *testing.T) {
 	var mu sync.Mutex
 	var flushed []FlushPayload
 
-	c := NewStreamCoalescer(500, func(p FlushPayload) {
+	c, clk := newTestCoalescer(500, func(p FlushPayload) {
 		mu.Lock()
 		flushed = append(flushed, p)
 		mu.Unlock()
 	})
 
-	// First reasoning chunk
+	// First reasoning chunk schedules the extended 2s window.
 	c.Handle("agent-1", "timeline", TimelineItem{Type: "reasoning", Text: "Let me think"}, "claude", "")
+	ds := clk.PendingDurations()
+	if len(ds) != 1 || ds[0] != time.Duration(ReasoningCoalesceWindowMs)*time.Millisecond {
+		t.Fatalf("expected extended reasoning window %dms, got %v", ReasoningCoalesceWindowMs, ds)
+	}
 
-	// Wait 800ms — longer than the base 500ms window but within the
-	// extended reasoning window (2s). Without the fix, the timer fires
-	// at 500ms and flushes the first chunk separately.
-	time.Sleep(800 * time.Millisecond)
-
-	// Second reasoning chunk arrives before the extended window expires
+	// Second reasoning chunk arrives before the extended window expires.
 	c.Handle("agent-1", "timeline", TimelineItem{Type: "reasoning", Text: " about this"}, "claude", "")
 
-	// Wait for flush
-	time.Sleep(2500 * time.Millisecond)
+	// Fire the extended window timer.
+	clk.FireAll()
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -61,19 +60,22 @@ func TestStreamCoalescer_AssistantMessageUsesBaseWindow(t *testing.T) {
 	var mu sync.Mutex
 	var flushed []FlushPayload
 
-	c := NewStreamCoalescer(500, func(p FlushPayload) {
+	c, clk := newTestCoalescer(500, func(p FlushPayload) {
 		mu.Lock()
 		flushed = append(flushed, p)
 		mu.Unlock()
 	})
 
-	// First assistant_message chunk
+	// First assistant_message chunk schedules the base window.
 	c.Handle("agent-1", "timeline", TimelineItem{Type: "assistant_message", Text: "Hello"}, "claude", "")
+	ds := clk.PendingDurations()
+	if len(ds) != 1 || ds[0] != 500*time.Millisecond {
+		t.Fatalf("expected base window 500ms, got %v", ds)
+	}
 
-	// Wait 600ms — beyond the base 500ms window
-	time.Sleep(600 * time.Millisecond)
+	// Fire the base window timer.
+	clk.FireAll()
 
-	// The assistant_message should already have been flushed
 	mu.Lock()
 	if len(flushed) != 1 {
 		t.Fatalf("expected assistant_message to be flushed after base window, got %d items", len(flushed))
@@ -83,9 +85,9 @@ func TestStreamCoalescer_AssistantMessageUsesBaseWindow(t *testing.T) {
 	}
 	mu.Unlock()
 
-	// A second chunk arriving later should be a separate flush
+	// A second chunk arriving later should be a separate flush.
 	c.Handle("agent-1", "timeline", TimelineItem{Type: "assistant_message", Text: " World"}, "claude", "")
-	time.Sleep(600 * time.Millisecond)
+	clk.FireAll()
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -101,13 +103,10 @@ func TestStreamCoalescer_AssistantMessageUsesBaseWindow(t *testing.T) {
 // This ensures thinking content is delivered promptly when the block ends,
 // rather than waiting for the full 2s extended window.
 func TestStreamCoalescer_ContentBlockStopFlushesReasoning(t *testing.T) {
-	var mu sync.Mutex
 	var flushed []FlushPayload
 
-	c := NewStreamCoalescer(500, func(p FlushPayload) {
-		mu.Lock()
+	c, _ := newTestCoalescer(500, func(p FlushPayload) {
 		flushed = append(flushed, p)
-		mu.Unlock()
 	})
 
 	// Reasoning event enters the coalescer
@@ -115,9 +114,6 @@ func TestStreamCoalescer_ContentBlockStopFlushesReasoning(t *testing.T) {
 
 	// Before the extended window fires, signal content_block_stop
 	c.FlushFor("agent-1")
-
-	mu.Lock()
-	defer mu.Unlock()
 
 	if len(flushed) != 1 {
 		t.Fatalf("expected reasoning to be flushed on content_block_stop, got %d items", len(flushed))

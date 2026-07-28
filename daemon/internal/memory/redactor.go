@@ -15,3 +15,5 @@ type NoopRedactor struct{}
 
 // Redact returns content unchanged.
 func (NoopRedactor) Redact(content string) string { return content }
+
+var _ Redactor = NoopRedactor{}

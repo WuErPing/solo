@@ -101,7 +101,7 @@ func TestPerformE2EEHandshake(t *testing.T) {
 			return
 		}
 
-		e2eeConn, err = PerformE2EEHandshake(conn, daemonPrivB64, testLogger(t))
+		e2eeConn, err = PerformE2EEHandshake(conn, daemonPrivB64, testLogger())
 		if err != nil {
 			conn.Close()
 			t.Errorf("handshake: %v", err)
@@ -167,7 +167,7 @@ func TestPerformE2EEHandshake_InvalidHelloType(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, _ := upgrader.Upgrade(w, r, nil)
 		defer conn.Close()
-		_, err := PerformE2EEHandshake(conn, daemonPrivB64, testLogger(t))
+		_, err := PerformE2EEHandshake(conn, daemonPrivB64, testLogger())
 		if err == nil {
 			t.Error("expected error for invalid hello type")
 		}
@@ -188,23 +188,11 @@ func TestPerformE2EEHandshake_InvalidHelloType(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 }
 
-func TestE2EEConn_Interface(_ *testing.T) {
-	// Ensure E2EEConn implements the interfaces
-	var _ interface {
-		ReadMessage() (int, []byte, error)
-		WriteMessage(int, []byte) error
-		Close() error
-		WriteControl(int, []byte, time.Time) error
-		SetPongHandler(func(appData string) error)
-		SetReadDeadline(time.Time) error
-		SetWriteDeadline(time.Time) error
-	} = (*E2EEConn)(nil)
-}
 
 func generateBoxKeyPair() (pub, priv *[32]byte, err error) {
 	return box.GenerateKey(rand.Reader)
 }
 
-func testLogger(_ *testing.T) *slog.Logger {
+func testLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 }

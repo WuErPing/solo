@@ -46,7 +46,7 @@ func TestSubscribeToSession_SlowHandleStreamEventDoesNotDropCritical(t *testing.
 	go func() {
 		defer processWg.Done()
 		for evt := range workCh {
-			time.Sleep(10 * time.Millisecond) // simulate slow handleStreamEvent
+			time.Sleep(2 * time.Millisecond) // simulate slow handleStreamEvent
 			if e, ok := evt.Event.(protocol.StreamEvent); ok {
 				mu.Lock()
 				received = append(received, e.StreamEventType())
@@ -80,7 +80,7 @@ func TestSubscribeToSession_SlowHandleStreamEventDoesNotDropCritical(t *testing.
 	}()
 
 	// Emit enough events to overwhelm the slow consumer.
-	// With 10ms processing, 350 events would take 3.5s to process.
+	// With 2ms processing, 350 events would take 700ms to process.
 	// Without the work channel buffer, the dispatcher's 256-capacity subscriber
 	// channel fills up and turn_completed is dropped by the 500ms timeout.
 	for i := 0; i < 350; i++ {
@@ -97,8 +97,7 @@ func TestSubscribeToSession_SlowHandleStreamEventDoesNotDropCritical(t *testing.
 		Timestamp: time.Now(),
 	})
 
-	// Wait for all processing to complete
-	time.Sleep(5 * time.Second)
+	// Close the dispatcher and wait for drain + processing goroutines to finish.
 	dispatcher.Close()
 	drainWg.Wait()
 	processWg.Wait()

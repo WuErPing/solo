@@ -24,18 +24,20 @@ type fakeLoopAgent struct {
 }
 
 type fakeLoopAgentManager struct {
-	mu       sync.Mutex
-	created  []protocol.AgentSessionConfig
-	deleted  []string
-	messages []string
-	agents   map[string]*fakeLoopAgent
-	subs     []agent.AgentEventFunc
-	onSend   func(agentID, text string)
+	mu        sync.Mutex
+	created   []protocol.AgentSessionConfig
+	deleted   []string
+	messages  []string
+	agents    map[string]*fakeLoopAgent
+	subs      []agent.AgentEventFunc
+	onSend    func(agentID, text string)
+	createdCh chan struct{}
 }
 
 func newFakeLoopAgentManager() *fakeLoopAgentManager {
 	return &fakeLoopAgentManager{
-		agents: make(map[string]*fakeLoopAgent),
+		agents:    make(map[string]*fakeLoopAgent),
+		createdCh: make(chan struct{}, 1),
 	}
 }
 
@@ -48,6 +50,10 @@ func (m *fakeLoopAgentManager) CreateAgent(_ context.Context, config *protocol.A
 		id += "-" + *config.Model
 	}
 	m.agents[id] = &fakeLoopAgent{id: id, status: protocol.AgentIdle}
+	select {
+	case m.createdCh <- struct{}{}:
+	default:
+	}
 	return &agent.ManagedAgent{ID: id}, nil
 }
 
@@ -105,6 +111,15 @@ func (m *fakeLoopAgentManager) createdConfigs() []protocol.AgentSessionConfig {
 	return out
 }
 
+func (m *fakeLoopAgentManager) waitForCreated(timeout time.Duration) bool {
+	select {
+	case <-m.createdCh:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
+}
+
 func (m *fakeLoopAgentManager) sentMessages() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -140,9 +155,8 @@ func TestLoopEngineUsesAgentTemplate(t *testing.T) {
 	engine.Start(context.Background())
 
 	// Wait for the worker agent to be created.
-	deadline := time.Now().Add(2 * time.Second)
-	for len(mgr.createdConfigs()) == 0 && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
+	if !mgr.waitForCreated(2 * time.Second) {
+		t.Fatal("no agent created")
 	}
 
 	created := mgr.createdConfigs()
@@ -186,9 +200,8 @@ func TestLoopEngineFallsBackToLegacyProviderModel(t *testing.T) {
 
 	engine.Start(context.Background())
 
-	deadline := time.Now().Add(2 * time.Second)
-	for len(mgr.createdConfigs()) == 0 && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
+	if !mgr.waitForCreated(2 * time.Second) {
+		t.Fatal("no agent created")
 	}
 
 	created := mgr.createdConfigs()

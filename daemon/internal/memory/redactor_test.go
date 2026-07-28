@@ -10,7 +10,3 @@ func TestNoopRedactor_ReturnsUnchanged(t *testing.T) {
 	}
 }
 
-func TestNoopRedactor_ImplementsRedactor(t *testing.T) {
-	t.Helper()
-	var _ Redactor = NoopRedactor{}
-}

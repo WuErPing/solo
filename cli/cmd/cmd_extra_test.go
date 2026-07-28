@@ -4,15 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/spf13/cobra"
 
 	"github.com/WuErPing/solo/cli/internal/output"
@@ -218,223 +216,6 @@ func TestLoadImages_Missing(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for missing file")
 	}
-}
-
-// === Enhanced mock daemon server ===
-
-type enhancedMockDaemon struct{}
-
-func newEnhancedMockDaemon() *enhancedMockDaemon {
-	return &enhancedMockDaemon{}
-}
-
-func (m *enhancedMockDaemon) handler(w http.ResponseWriter, r *http.Request) {
-	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		return
-	}
-	defer conn.Close()
-
-	// Read hello
-	var hello protocol.WSInboundMessage
-	if err := conn.ReadJSON(&hello); err != nil || hello.Type != "hello" {
-		return
-	}
-
-	// Send server_info
-	_ = conn.WriteJSON(protocol.WSOutboundMessage{
-		Type:    "session",
-		Message: map[string]interface{}{"type": "server_info", "status": "server_info", "serverId": "test-srv"},
-	})
-
-	// Send providers_snapshot_update
-	_ = conn.WriteJSON(protocol.WSOutboundMessage{
-		Type: "session",
-		Message: map[string]interface{}{
-			"type": "providers_snapshot_update",
-			"payload": map[string]interface{}{
-				"entries": []map[string]interface{}{
-					{"provider": "openai", "status": "ready", "label": "OpenAI", "models": []map[string]interface{}{{"id": "gpt-4", "label": "GPT-4"}}},
-				},
-				"generatedAt": time.Now().Format(time.RFC3339),
-			},
-		},
-	})
-
-	agents := []map[string]interface{}{
-		{"id": "agent-abc123", "provider": "openai", "status": "running", "cwd": "/tmp", "createdAt": time.Now().Format(time.RFC3339), "title": "Test Agent"},
-		{"id": "agent-idle456", "provider": "openai", "status": "idle", "cwd": "/tmp", "createdAt": time.Now().Format(time.RFC3339), "title": "Idle Agent"},
-	}
-
-	for {
-		_, data, err := conn.ReadMessage()
-		if err != nil {
-			return
-		}
-		var inbound protocol.WSInboundMessage
-		if err := json.Unmarshal(data, &inbound); err != nil {
-			continue
-		}
-		if inbound.Type != "session" {
-			continue
-		}
-
-		var reqPeek struct {
-			Type      string `json:"type"`
-			RequestID string `json:"requestId"`
-			AgentID   string `json:"agentId"`
-		}
-		_ = json.Unmarshal(inbound.Message, &reqPeek)
-
-		var resp map[string]interface{}
-		switch reqPeek.Type {
-		case "fetch_agents_request":
-			resp = map[string]interface{}{
-				"type": "fetch_agents_response",
-				"payload": map[string]interface{}{
-					"requestId": reqPeek.RequestID,
-					"entries": []map[string]interface{}{
-						{"agent": agents[0]},
-					},
-					"pageInfo": map[string]interface{}{"hasMore": false},
-				},
-			}
-		case "fetch_agent_request":
-			var agent map[string]interface{}
-			for _, a := range agents {
-				if a["id"] == reqPeek.AgentID {
-					agent = a
-					break
-				}
-			}
-			resp = map[string]interface{}{
-				"type": "fetch_agent_response",
-				"payload": map[string]interface{}{
-					"requestId": reqPeek.RequestID,
-					"agent":     agent,
-				},
-			}
-		case "archive_agent_request":
-			resp = map[string]interface{}{
-				"type": "agent_archived",
-				"payload": map[string]interface{}{
-					"requestId": reqPeek.RequestID,
-					"agentId":   reqPeek.AgentID,
-				},
-			}
-		case "delete_agent_request":
-			resp = map[string]interface{}{
-				"type": "agent_deleted",
-				"payload": map[string]interface{}{
-					"requestId": reqPeek.RequestID,
-					"agentId":   reqPeek.AgentID,
-				},
-			}
-		case "cancel_agent_request":
-			resp = map[string]interface{}{
-				"type": "cancel_agent_response",
-				"payload": map[string]interface{}{
-					"requestId": reqPeek.RequestID,
-					"agentId":   reqPeek.AgentID,
-				},
-			}
-		case "send_agent_message_request":
-			resp = map[string]interface{}{
-				"type": "send_agent_message_response",
-				"payload": map[string]interface{}{
-					"requestId": reqPeek.RequestID,
-					"agentId":   reqPeek.AgentID,
-				},
-			}
-		case "shutdown_server_request":
-			resp = map[string]interface{}{
-				"type":    "status",
-				"payload": map[string]interface{}{"requestId": reqPeek.RequestID, "type": "server_shutdown"},
-			}
-		case "restart_server_request":
-			resp = map[string]interface{}{
-				"type":    "status",
-				"payload": map[string]interface{}{"requestId": reqPeek.RequestID, "type": "server_restart"},
-			}
-		case "set_agent_mode_request":
-			resp = map[string]interface{}{
-				"type": "set_agent_mode_response",
-				"payload": map[string]interface{}{
-					"requestId": reqPeek.RequestID,
-					"agentId":   reqPeek.AgentID,
-				},
-			}
-		case "fetch_agent_timeline_request":
-			resp = map[string]interface{}{
-				"type": "fetch_agent_timeline_response",
-				"payload": map[string]interface{}{
-					"requestId": reqPeek.RequestID,
-					"entries":   []map[string]interface{}{},
-				},
-			}
-		case "create_agent_request":
-			resp = map[string]interface{}{
-				"type": "agent_created",
-				"payload": map[string]interface{}{
-					"requestId": reqPeek.RequestID,
-					"agentId":   "agent-new789",
-					"status":    "initializing",
-				},
-			}
-		case "wait_for_finish_request":
-			resp = map[string]interface{}{
-				"type": "wait_for_finish_response",
-				"payload": map[string]interface{}{
-					"requestId": reqPeek.RequestID,
-					"status":    "idle",
-					"final": map[string]interface{}{
-						"id":       "agent-new789",
-						"provider": "openai",
-						"status":   "idle",
-						"cwd":      "/tmp",
-					},
-				},
-			}
-		default:
-			resp = map[string]interface{}{
-				"type": "fetch_agents_response",
-				"payload": map[string]interface{}{
-					"requestId": reqPeek.RequestID,
-					"entries":   []map[string]interface{}{},
-					"pageInfo":  map[string]interface{}{"hasMore": false},
-				},
-			}
-		}
-
-		_ = conn.WriteJSON(protocol.WSOutboundMessage{
-			Type:    "session",
-			Message: resp,
-		})
-	}
-}
-
-func setupEnhancedCLI(t *testing.T) (*bytes.Buffer, *bytes.Buffer) {
-	home := t.TempDir()
-	os.Setenv("SOLO_HOME", home)
-	t.Cleanup(func() { os.Unsetenv("SOLO_HOME") })
-
-	oldStdout := cmdStdout
-	oldStderr := cmdStderr
-	var outBuf, errBuf bytes.Buffer
-	cmdStdout = &outBuf
-	cmdStderr = &errBuf
-	t.Cleanup(func() {
-		cmdStdout = oldStdout
-		cmdStderr = oldStderr
-	})
-
-	mock := newEnhancedMockDaemon()
-	srv := httptest.NewServer(http.HandlerFunc(mock.handler))
-	t.Cleanup(srv.Close)
-
-	flagHost = srv.Listener.Addr().String()
-	return &outBuf, &errBuf
 }
 
 func TestRunAgentArchive(t *testing.T) {
@@ -774,6 +555,7 @@ func TestPrintLogEntry(t *testing.T) {
 }
 
 func TestPrintWaitResult(t *testing.T) {
+	resetFlags(t)
 	buf := captureOutput(t)
 	flagFormat = "table"
 	if err := printWaitResult("agent-123", "idle"); err != nil {
@@ -1031,6 +813,7 @@ func TestAgentCountRequest_MsgType(t *testing.T) {
 }
 
 func TestRunDaemonPair(t *testing.T) {
+	resetFlags(t)
 	outBuf := captureOutput(t)
 
 	// Set up a temp home with server-id and config
@@ -1071,6 +854,7 @@ func TestRunDaemonPair(t *testing.T) {
 }
 
 func TestRunDaemonPair_JSON(t *testing.T) {
+	resetFlags(t)
 	outBuf := captureOutput(t)
 
 	home := t.TempDir()
@@ -1100,6 +884,7 @@ func TestRunDaemonPair_JSON(t *testing.T) {
 }
 
 func TestRunDaemonPair_RelayDisabled(t *testing.T) {
+	resetFlags(t)
 	outBuf := captureOutput(t)
 
 	home := t.TempDir()
@@ -1373,6 +1158,7 @@ func TestMapRunStatus(t *testing.T) {
 }
 
 func TestRenderRunResult(t *testing.T) {
+	resetFlags(t)
 	buf := captureOutput(t)
 	flagFormat = "table"
 	flagJSON = false
@@ -1425,20 +1211,20 @@ func TestRequestWaitForFinish(t *testing.T) {
 }
 
 func TestWaitForAgentFinish_InvalidTimeout(t *testing.T) {
+	resetFlags(t)
 	agentRunTimeout = "invalid"
 	result := waitForAgentFinish(t.Context(), nil, "agent-123")
 	if result.err == nil {
 		t.Fatal("expected error for invalid timeout")
 	}
-	agentRunTimeout = ""
 }
 
 func TestResolveDaemonHost(t *testing.T) {
+	resetFlags(t)
 	daemonStartPort = "9090"
 	if got := resolveDaemonHost(); got != "127.0.0.1:9090" {
 		t.Errorf("expected 127.0.0.1:9090, got %q", got)
 	}
-	daemonStartPort = ""
 }
 
 func TestWaitForDaemon_Timeout(t *testing.T) {
@@ -1475,11 +1261,14 @@ func TestRunAgentAttach(t *testing.T) {
 	err := runAgentAttach(cmd, []string{"agent-abc"})
 	// Should return ctx.Err() when context times out during stream loop
 	if err == nil {
-		t.Logf("runAgentAttach returned nil, output: %q", outBuf.String())
+		t.Fatalf("runAgentAttach returned nil, output: %q", outBuf.String())
+	}
+	if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context error, got: %v", err)
 	}
 }
 
-func TestRunAgentLogs_Follow(t *testing.T) {
+func TestRunAgentLogs_Follow_EmptyTimeline(t *testing.T) {
 	outBuf, _ := setupEnhancedCLI(t)
 	flagFormat = "table"
 	flagJSON = false
@@ -1495,7 +1284,10 @@ func TestRunAgentLogs_Follow(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.SetContext(ctx)
 	err := runAgentLogs(cmd, []string{"agent-abc"})
-	if err == nil {
-		t.Logf("runAgentLogs follow returned nil, output: %q", outBuf.String())
+	if err != nil {
+		t.Fatalf("runAgentLogs follow with empty timeline failed: %v", err)
+	}
+	if !strings.Contains(outBuf.String(), "No activity") {
+		t.Errorf("expected 'No activity' in output, got: %q", outBuf.String())
 	}
 }

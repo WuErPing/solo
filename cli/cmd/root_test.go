@@ -4,139 +4,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/spf13/cobra"
 
 	"github.com/WuErPing/solo/cli/internal/output"
 	"github.com/WuErPing/solo/protocol"
 )
-
-// mockDaemonServer creates a minimal Solo daemon for CLI tests.
-type mockDaemonServer struct {
-	upgrader          websocket.Upgrader
-	serverID          string
-	providersSnapshot *protocol.ProvidersSnapshotPayload
-}
-
-func newMockDaemonServer() *mockDaemonServer {
-	return &mockDaemonServer{
-		serverID: "test-server-id",
-		providersSnapshot: &protocol.ProvidersSnapshotPayload{
-			Entries: []protocol.ProviderSnapshotEntry{
-				{Provider: "openai", Status: protocol.ProviderReady, Label: "OpenAI", Models: []protocol.AgentModelDefinition{{ID: "gpt-4"}}},
-				{Provider: "anthropic", Status: protocol.ProviderLoading, Label: "Anthropic", Models: []protocol.AgentModelDefinition{{ID: "claude-3"}}},
-			},
-			GeneratedAt: "2024-01-01T00:00:00Z",
-		},
-		upgrader: websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }},
-	}
-}
-
-func (m *mockDaemonServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	conn, err := m.upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		return
-	}
-	defer conn.Close()
-
-	// Read hello
-	var hello protocol.WSInboundMessage
-	if err := conn.ReadJSON(&hello); err != nil {
-		return
-	}
-	if hello.Type != "hello" {
-		return
-	}
-
-	// Send server_info
-	_ = conn.WriteJSON(protocol.WSOutboundMessage{
-		Type: "session",
-		Message: map[string]interface{}{
-			"type":     "server_info",
-			"status":   "server_info",
-			"serverId": m.serverID,
-			"version":  "0.1.0",
-		},
-	})
-
-	// Send providers_snapshot_update
-	_ = conn.WriteJSON(protocol.WSOutboundMessage{
-		Type: "session",
-		Message: map[string]interface{}{
-			"type":    "providers_snapshot_update",
-			"payload": m.providersSnapshot,
-		},
-	})
-
-	// Echo loop for requests
-	for {
-		_, data, err := conn.ReadMessage()
-		if err != nil {
-			return
-		}
-		var inbound protocol.WSInboundMessage
-		if err := json.Unmarshal(data, &inbound); err != nil {
-			continue
-		}
-		if inbound.Type != "session" {
-			continue
-		}
-
-		var peek struct {
-			Type    string `json:"type"`
-			Payload struct {
-				RequestID string `json:"requestId"`
-			} `json:"payload"`
-		}
-		_ = json.Unmarshal(inbound.Message, &peek)
-
-		// Respond based on message type
-		resp := map[string]interface{}{
-			"type": "fetch_agents_response",
-			"payload": map[string]interface{}{
-				"requestId": peek.Payload.RequestID,
-				"entries":   []interface{}{},
-				"pageInfo":  map[string]interface{}{"hasMore": false},
-			},
-		}
-		_ = conn.WriteJSON(protocol.WSOutboundMessage{
-			Type:    "session",
-			Message: resp,
-		})
-	}
-}
-
-func setupTestCLI(t *testing.T) (*mockDaemonServer, *bytes.Buffer, *bytes.Buffer) {
-	home := t.TempDir()
-	os.Setenv("SOLO_HOME", home)
-	t.Cleanup(func() { os.Unsetenv("SOLO_HOME") })
-
-	mock := newMockDaemonServer()
-	srv := httptest.NewServer(mock)
-	t.Cleanup(srv.Close)
-
-	// Override stdout/stderr for output capture
-	oldStdout := cmdStdout
-	oldStderr := cmdStderr
-	var outBuf, errBuf bytes.Buffer
-	cmdStdout = &outBuf
-	cmdStderr = &errBuf
-	t.Cleanup(func() {
-		cmdStdout = oldStdout
-		cmdStderr = oldStderr
-	})
-
-	flagHost = srv.Listener.Addr().String()
-
-	return mock, &outBuf, &errBuf
-}
 
 func TestResolveAgentID_ExactMatch(t *testing.T) {
 	agents := []agentEntry{
@@ -315,19 +192,21 @@ func TestRunDaemonStatus_JSON(t *testing.T) {
 }
 
 func TestRunDaemonStatus_DaemonNotRunning(t *testing.T) {
+	resetFlags(t)
+
 	home := t.TempDir()
 	os.Setenv("SOLO_HOME", home)
-	defer os.Unsetenv("SOLO_HOME")
+	t.Cleanup(func() { os.Unsetenv("SOLO_HOME") })
 
 	oldStdout := cmdStdout
 	oldStderr := cmdStderr
 	var outBuf, errBuf bytes.Buffer
 	cmdStdout = &outBuf
 	cmdStderr = &errBuf
-	defer func() {
+	t.Cleanup(func() {
 		cmdStdout = oldStdout
 		cmdStderr = oldStderr
-	}()
+	})
 
 	// Point to a port that is definitely not listening
 	flagHost = "127.0.0.1:1"
@@ -397,7 +276,7 @@ func TestRunProviderLs_JSON(t *testing.T) {
 
 func TestRunProviderLs_NoProviders(t *testing.T) {
 	mock, outBuf, _ := setupTestCLI(t)
-	mock.providersSnapshot = &protocol.ProvidersSnapshotPayload{Entries: []protocol.ProviderSnapshotEntry{}}
+	mock.ProvidersSnapshot = &protocol.ProvidersSnapshotPayload{Entries: []protocol.ProviderSnapshotEntry{}}
 
 	flagFormat = "table"
 	flagJSON = false
@@ -417,8 +296,10 @@ func TestRunProviderLs_NoProviders(t *testing.T) {
 	}
 }
 
-func TestExecute(_ *testing.T) {
-	// Execute with no args should not panic.
+func TestExecute(t *testing.T) {
+	// Execute with no args should not panic or error (it prints help).
 	rootCmd.SetArgs([]string{})
-	// Just ensure it doesn't crash; we don't want to actually call os.Exit.
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("rootCmd.Execute() with no args: %v", err)
+	}
 }

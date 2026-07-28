@@ -38,16 +38,7 @@ func TestOpenCodeServerManager_buildEnv(t *testing.T) {
 func TestOpenCodeServerManager_buildEnv_FiltersParentSession(t *testing.T) {
 	m := newTestServerManager(t)
 	// Simulate a parent session env var
-	original := os.Environ()
-	defer func() {
-		for _, e := range original {
-			parts := splitEnv(e)
-			if len(parts) == 2 {
-				os.Setenv(parts[0], parts[1])
-			}
-		}
-	}()
-	os.Setenv("CLAUDECODE", "1")
+	t.Setenv("CLAUDECODE", "1")
 
 	env := m.buildEnv()
 	for _, e := range env {
@@ -140,11 +131,3 @@ func TestOpenCodeServerManager_cleanupRetiredServers_SkipsReferenced(t *testing.
 	}
 }
 
-func splitEnv(e string) []string {
-	for i := 0; i < len(e); i++ {
-		if e[i] == '=' {
-			return []string{e[:i], e[i+1:]}
-		}
-	}
-	return []string{e}
-}

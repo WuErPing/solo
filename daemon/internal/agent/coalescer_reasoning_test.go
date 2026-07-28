@@ -16,24 +16,24 @@ func TestStreamCoalescer_ReasoningDelayedFlush(t *testing.T) {
 	var mu sync.Mutex
 	var flushed []FlushPayload
 
-	c := NewStreamCoalescer(200, func(p FlushPayload) {
+	c, clk := newTestCoalescer(200, func(p FlushPayload) {
 		mu.Lock()
 		flushed = append(flushed, p)
 		mu.Unlock()
 	})
 
-	// First reasoning chunk
+	// First reasoning chunk schedules the extended 2s window.
 	c.Handle("agent-1", "timeline", TimelineItem{Type: "reasoning", Text: "Let me think"}, "claude", "")
-
-	// Wait 250ms — beyond the base 200ms window, but within the extended
-	// 2s reasoning window. With the fix, the timer uses 2s for reasoning.
-	time.Sleep(250 * time.Millisecond)
+	ds := clk.PendingDurations()
+	if len(ds) != 1 || ds[0] != time.Duration(ReasoningCoalesceWindowMs)*time.Millisecond {
+		t.Fatalf("expected extended reasoning window %dms, got %v", ReasoningCoalesceWindowMs, ds)
+	}
 
 	// Second reasoning chunk — should still merge with the first
 	c.Handle("agent-1", "timeline", TimelineItem{Type: "reasoning", Text: " about this"}, "claude", "")
 
-	// Wait for the extended reasoning window to fire (2s)
-	time.Sleep(2200 * time.Millisecond)
+	// Fire the extended window timer.
+	clk.FireAll()
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -57,7 +57,7 @@ func TestStreamCoalescer_ReasoningMergedInWindow(t *testing.T) {
 	var mu sync.Mutex
 	var flushed []FlushPayload
 
-	c := NewStreamCoalescer(200, func(p FlushPayload) {
+	c, clk := newTestCoalescer(200, func(p FlushPayload) {
 		mu.Lock()
 		flushed = append(flushed, p)
 		mu.Unlock()
@@ -67,8 +67,8 @@ func TestStreamCoalescer_ReasoningMergedInWindow(t *testing.T) {
 	c.Handle("agent-1", "timeline", TimelineItem{Type: "reasoning", Text: "Let me think"}, "claude", "")
 	c.Handle("agent-1", "timeline", TimelineItem{Type: "reasoning", Text: " about this"}, "claude", "")
 
-	// Wait for the extended reasoning window to fire (2s)
-	time.Sleep(2200 * time.Millisecond)
+	// Fire the extended window timer.
+	clk.FireAll()
 
 	mu.Lock()
 	defer mu.Unlock()

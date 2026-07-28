@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import React from "react";
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -71,8 +71,9 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  // Flush React Query's notifyManager setTimeout(0) so it fires while the
-  // JSDOM window is still alive instead of after teardown.
+  // Unmount rendered hooks and flush React Query's notifyManager setTimeout(0)
+  // so it fires while the JSDOM window is still alive instead of after teardown.
+  cleanup();
   await new Promise((resolve) => setTimeout(resolve, 0));
   vi.restoreAllMocks();
 });
@@ -279,11 +280,6 @@ describe("useTmuxCapturePane", () => {
     // Simulate client being disposed (e.g., during connection switch)
     mockClient.getConnectionState.mockReturnValue({ status: "disposed" });
 
-    // Trigger a refetch by advancing time
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 10));
-    });
-
     // Content should still be the previous value, not empty or error
     expect(result.current.content).toBe("$ ls\nfile.txt");
     expect(result.current.error).toBeNull();
@@ -299,10 +295,6 @@ describe("useTmuxCapturePane", () => {
     // Simulate store returning null (gap between dispose and new client)
     mockStore.getClient.mockReturnValue(null);
 
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 10));
-    });
-
     // Previous content should be preserved
     expect(result.current.content).toBe("$ ls\nfile.txt");
     expect(result.current.error).toBeNull();
@@ -317,10 +309,6 @@ describe("useTmuxCapturePane", () => {
 
     // Simulate disposal
     mockClient.getConnectionState.mockReturnValue({ status: "disposed" });
-
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 10));
-    });
 
     // Content preserved during disposal
     expect(result.current.content).toBe("$ ls\nfile.txt");
@@ -384,42 +372,52 @@ describe("useTmuxCapturePane", () => {
 
     const { result } = renderCapturePaneHook();
 
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50));
-    });
-
     // The transient "Daemon client not available" error should NOT appear in the UI
     expect(result.current.error).toBeNull();
   });
 
   it("pauses polling when app is backgrounded", async () => {
-    const { result } = renderCapturePaneHook();
+    vi.useFakeTimers();
+    try {
+      const { result } = renderCapturePaneHook();
 
-    await waitFor(() => {
-      expect(result.current.content).toBe("$ ls\nfile.txt");
-    });
+      await vi.waitFor(() => {
+        expect(result.current.content).toBe("$ ls\nfile.txt");
+      });
 
-    // Verify polling is active: changing mock content should eventually be picked up
-    mockClient.tmuxCapturePane.mockResolvedValue({ content: "$ pwd\n/home", error: null });
-    await waitFor(() => {
+      // Verify polling is active: changing mock content should eventually be picked up
+      mockClient.tmuxCapturePane.mockResolvedValue({ content: "$ pwd\n/home", error: null });
+      await vi.waitFor(() => {
+        expect(result.current.content).toBe("$ pwd\n/home");
+      });
+
+      // Simulate app going to background — refetchInterval returns false
+      act(() => {
+        mockAppVisible.value = false;
+      });
+      act(() => {
+        result.current.setAutoRefresh(false);
+        result.current.setAutoRefresh(true);
+      });
+
+      // Drain any already-scheduled poll tick, then clear history.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      mockClient.tmuxCapturePane.mockClear();
+      mockClient.tmuxCapturePane.mockResolvedValue({ content: "SHOULD_NOT_APPEAR", error: null });
+
+      // Advance well past all adaptive poll intervals. If polling were not paused,
+      // the new content would be fetched and the mock would have been called.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(6000);
+      });
+
+      expect(mockClient.tmuxCapturePane).not.toHaveBeenCalled();
       expect(result.current.content).toBe("$ pwd\n/home");
-    });
-
-    // Simulate app going to background — refetchInterval returns false
-    mockAppVisible.value = false;
-    act(() => {
-      result.current.setAutoRefresh(false);
-      result.current.setAutoRefresh(true);
-    });
-
-    // Set up new content — but with polling paused, it should NOT be picked up
-    mockClient.tmuxCapturePane.mockResolvedValue({ content: "SHOULD_NOT_APPEAR", error: null });
-
-    // Wait a bit — content should stay unchanged because polling is paused
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 100));
-    });
-    expect(result.current.content).toBe("$ pwd\n/home");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("refetches immediately when app returns to foreground after being backgrounded", async () => {
@@ -542,32 +540,52 @@ describe("useTmuxCapturePane", () => {
   });
 
   it("stops polling when autoRefresh is turned off", async () => {
-    const { result } = renderCapturePaneHook();
+    vi.useFakeTimers();
+    vi.clearAllTimers();
+    try {
+      const { result } = renderCapturePaneHook();
 
-    await waitFor(() => {
-      expect(result.current.content).toBe("$ ls\nfile.txt");
-    });
+      await vi.waitFor(() => {
+        expect(result.current.content).toBe("$ ls\nfile.txt");
+      });
 
-    // Verify polling is active: changing mock content should eventually be picked up
-    mockClient.tmuxCapturePane.mockResolvedValue({ content: "$ pwd\n/home", error: null });
-    await waitFor(() => {
+      // Verify polling is active: changing mock content should eventually be picked up
+      mockClient.tmuxCapturePane.mockResolvedValue({ content: "$ pwd\n/home", error: null });
+      await vi.waitFor(() => {
+        expect(result.current.content).toBe("$ pwd\n/home");
+      });
+
+      // Turn off auto refresh
+      act(() => {
+        result.current.setAutoRefresh(false);
+      });
+      expect(result.current.autoRefresh).toBe(false);
+
+      // Drain any already-scheduled poll tick before measuring.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+
+      // Set up a tracking mock. Any poll that fires after autoRefresh is off
+      // will increment the counter and return the forbidden content.
+      mockClient.tmuxCapturePane.mockClear();
+      let invocationCount = 0;
+      mockClient.tmuxCapturePane.mockImplementation(async () => {
+        invocationCount += 1;
+        return { content: "SHOULD_NOT_APPEAR", error: null };
+      });
+
+      // Advance past the active poll interval (500ms). If polling were still
+      // active, a refetch would fire and increment the counter.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(550);
+      });
+
+      expect(invocationCount).toBe(0);
       expect(result.current.content).toBe("$ pwd\n/home");
-    });
-
-    // Turn off auto refresh
-    act(() => {
-      result.current.setAutoRefresh(false);
-    });
-    expect(result.current.autoRefresh).toBe(false);
-
-    // Set up new content — but with polling stopped, it should NOT be picked up
-    mockClient.tmuxCapturePane.mockResolvedValue({ content: "SHOULD_NOT_APPEAR", error: null });
-
-    // Wait a bit — content should stay unchanged because polling is stopped
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 100));
-    });
-    expect(result.current.content).toBe("$ pwd\n/home");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("deduplicates query result when content is unchanged across polls", async () => {

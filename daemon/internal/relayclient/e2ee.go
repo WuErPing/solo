@@ -68,6 +68,9 @@ type E2EEConn struct {
 	logger    *slog.Logger
 }
 
+var _ wsconn.WSConn = (*E2EEConn)(nil)
+var _ wsconn.PingableConn = (*E2EEConn)(nil)
+
 // PerformE2EEHandshake performs the daemon-side E2EE handshake on a raw
 // WebSocket connection.  It expects the peer to send
 // {"type":"e2ee_hello","key":"<base64_client_pubkey>"} and replies with

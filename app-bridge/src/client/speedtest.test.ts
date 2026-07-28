@@ -72,16 +72,22 @@ describe("runSpeedTest — direct transport", () => {
   });
 
   it("measures RTT around the ping call when rttMs is absent", async () => {
-    const pingFn = async (): Promise<SpeedTestPingResult> => {
-      await new Promise((resolve) => setTimeout(resolve, 15));
-      return { requestId: "req", clientSentAt: 0, serverReceivedAt: 1, serverSentAt: 2 };
-    };
-    const result = await runSpeedTest(pingFn, { samples: 1, intervalMs: 0 });
-    expect(result.transport).toBe("direct");
-    expect(result.totalRtt.minMs).toBeGreaterThanOrEqual(10);
-    const network = result.segments.find((s) => s.id === "network")!;
-    // daemonMs = 1, so network = total - 1
-    expect(network.stats.minMs).toBeGreaterThanOrEqual(9);
+    vi.useFakeTimers();
+    try {
+      const pingFn = async (): Promise<SpeedTestPingResult> => {
+        await vi.advanceTimersByTimeAsync(15);
+        return { requestId: "req", clientSentAt: 0, serverReceivedAt: 1, serverSentAt: 2 };
+      };
+      const promise = runSpeedTest(pingFn, { samples: 1, intervalMs: 0 });
+      const result = await promise;
+      expect(result.transport).toBe("direct");
+      expect(result.totalRtt.minMs).toBe(15);
+      const network = result.segments.find((s) => s.id === "network")!;
+      // daemonMs = 1, so network = total - 1
+      expect(network.stats.minMs).toBe(14);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -45,6 +45,17 @@ func (fc *fakeClock) PendingCount() int {
 	return len(fc.pending)
 }
 
+// PendingDurations returns the durations of scheduled (unfired) timers.
+func (fc *fakeClock) PendingDurations() []time.Duration {
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+	ds := make([]time.Duration, len(fc.pending))
+	for i, t := range fc.pending {
+		ds[i] = t.d
+	}
+	return ds
+}
+
 // newTestCoalescer creates a StreamCoalescer wired to a fakeClock.
 func newTestCoalescer(windowMs int, onFlush func(FlushPayload)) (*StreamCoalescer, *fakeClock) {
 	clk := &fakeClock{}

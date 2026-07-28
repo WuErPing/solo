@@ -22,7 +22,7 @@ func TestE2EEConn_Close(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, _ := upgrader.Upgrade(w, r, nil)
-		e2eeConn, _ := PerformE2EEHandshake(conn, daemonPrivB64, testLogger(t))
+		e2eeConn, _ := PerformE2EEHandshake(conn, daemonPrivB64, testLogger())
 		e2eeDone <- e2eeConn
 	}))
 	defer srv.Close()
@@ -58,7 +58,7 @@ func TestE2EEConn_SetPongHandler(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, _ := upgrader.Upgrade(w, r, nil)
-		e2eeConn, _ := PerformE2EEHandshake(conn, daemonPrivB64, testLogger(t))
+		e2eeConn, _ := PerformE2EEHandshake(conn, daemonPrivB64, testLogger())
 		e2eeDone <- e2eeConn
 	}))
 	defer srv.Close()
@@ -101,7 +101,7 @@ func TestE2EEConn_SetReadDeadline(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, _ := upgrader.Upgrade(w, r, nil)
-		e2eeConn, _ := PerformE2EEHandshake(conn, daemonPrivB64, testLogger(t))
+		e2eeConn, _ := PerformE2EEHandshake(conn, daemonPrivB64, testLogger())
 		e2eeDone <- e2eeConn
 	}))
 	defer srv.Close()
@@ -140,7 +140,7 @@ func TestE2EEConn_SetWriteDeadline(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, _ := upgrader.Upgrade(w, r, nil)
-		e2eeConn, _ := PerformE2EEHandshake(conn, daemonPrivB64, testLogger(t))
+		e2eeConn, _ := PerformE2EEHandshake(conn, daemonPrivB64, testLogger())
 		e2eeDone <- e2eeConn
 	}))
 	defer srv.Close()
@@ -179,7 +179,7 @@ func TestE2EEConn_WriteControl(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, _ := upgrader.Upgrade(w, r, nil)
-		e2eeConn, _ := PerformE2EEHandshake(conn, daemonPrivB64, testLogger(t))
+		e2eeConn, _ := PerformE2EEHandshake(conn, daemonPrivB64, testLogger())
 		e2eeDone <- e2eeConn
 	}))
 	defer srv.Close()
@@ -224,7 +224,7 @@ func TestE2EEConn_ReadMessage_Encrypted(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, _ := upgrader.Upgrade(w, r, nil)
-		e2eeConn, err := PerformE2EEHandshake(conn, daemonPrivB64, testLogger(t))
+		e2eeConn, err := PerformE2EEHandshake(conn, daemonPrivB64, testLogger())
 		if err != nil {
 			t.Errorf("handshake: %v", err)
 			return

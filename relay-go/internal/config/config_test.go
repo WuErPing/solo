@@ -153,8 +153,11 @@ func TestParseOrigins_TrimsSpaces(t *testing.T) {
 	if len(origins) != 2 {
 		t.Fatalf("expected 2 origins, got %d", len(origins))
 	}
-	if origins[0] != " https://a.com " {
-		t.Errorf("expected origin[0] to preserve inner spaces, got %q", origins[0])
+	expected := []string{"https://a.com", "https://b.com"}
+	for i, v := range expected {
+		if origins[i] != v {
+			t.Errorf("origin[%d] = %q, want %q", i, origins[i], v)
+		}
 	}
 }
 

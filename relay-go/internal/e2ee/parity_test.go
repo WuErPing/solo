@@ -38,14 +38,4 @@ func TestHandshakeMessageTypeParity(t *testing.T) {
 	if !strings.Contains(code, `"e2ee_ready"`) {
 		t.Error("channel.go does not contain \"e2ee_ready\" message type")
 	}
-
-	// Guard against accidentally shipping legacy hello/ready protocol.
-	// The source should NOT contain bare "hello" or "ready" as message types.
-	// We check for the pattern: type: "hello" or "type":"hello" (with possible whitespace)
-	if strings.Contains(code, `"hello"`) && !strings.Contains(code, `"e2ee_hello"`) {
-		t.Error("channel.go contains legacy \"hello\" message type without e2ee_ prefix")
-	}
-	if strings.Contains(code, `"ready"`) && !strings.Contains(code, `"e2ee_ready"`) {
-		t.Error("channel.go contains legacy \"ready\" message type without e2ee_ prefix")
-	}
 }

@@ -1,5 +1,3 @@
-//go:build !short && !external_api
-
 package pi
 
 import (

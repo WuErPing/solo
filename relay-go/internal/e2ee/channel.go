@@ -39,17 +39,30 @@ type e2eeReady struct {
 	Type string `json:"type"`
 }
 
+// ChannelOption customizes EncryptedChannel behaviour (primarily for tests).
+type ChannelOption func(*EncryptedChannel)
+
+// WithHandshakeRetryInterval overrides how often the client re-sends
+// e2ee_hello while the handshake is incomplete. Defaults to
+// handshakeRetryInterval (1s) when not provided.
+func WithHandshakeRetryInterval(d time.Duration) ChannelOption {
+	return func(c *EncryptedChannel) {
+		c.retryInterval = d
+	}
+}
+
 // EncryptedChannel wraps a Transport with E2EE using a pre-computed shared key.
 // It handles the e2ee_hello / e2ee_ready handshake and encrypts/decrypts all messages.
 type EncryptedChannel struct {
-	mu           sync.Mutex
-	transport    Transport
-	sharedKey    [32]byte
-	daemonKP     *KeyPair // non-nil on daemon side; used for re-hello handling
-	clientPubKey [32]byte // non-zero on client side (our ephemeral public key)
-	state        channelState
-	pendingSends [][]byte
-	Logger       *slog.Logger // optional, for logging decrypt failures and other events
+	mu            sync.Mutex
+	transport     Transport
+	sharedKey     [32]byte
+	daemonKP      *KeyPair // non-nil on daemon side; used for re-hello handling
+	clientPubKey  [32]byte // non-zero on client side (our ephemeral public key)
+	state         channelState
+	pendingSends  [][]byte
+	retryInterval time.Duration
+	Logger        *slog.Logger // optional, for logging decrypt failures and other events
 
 	onMessageFn func([]byte)
 	onOpenFns   []func()
@@ -58,7 +71,7 @@ type EncryptedChannel struct {
 
 // NewClientChannel creates the client-side encrypted channel.
 // It immediately sends e2ee_hello and retries every 1s until the channel opens.
-func NewClientChannel(transport Transport, daemonPublicKey [32]byte) *EncryptedChannel {
+func NewClientChannel(transport Transport, daemonPublicKey [32]byte, opts ...ChannelOption) *EncryptedChannel {
 	clientPub, clientSec, err := GenerateKeyPair()
 	if err != nil {
 		panic("e2ee: generate client keypair: " + err.Error())
@@ -66,10 +79,15 @@ func NewClientChannel(transport Transport, daemonPublicKey [32]byte) *EncryptedC
 	sharedKey := DeriveSharedKey(clientSec, daemonPublicKey)
 
 	ch := &EncryptedChannel{
-		transport:    transport,
-		sharedKey:    sharedKey,
-		clientPubKey: clientPub,
-		state:        stateHandshaking,
+		transport:     transport,
+		sharedKey:     sharedKey,
+		clientPubKey:  clientPub,
+		state:         stateHandshaking,
+		retryInterval: handshakeRetryInterval,
+	}
+
+	for _, opt := range opts {
+		opt(ch)
 	}
 
 	transport.OnClose(func() {
@@ -92,7 +110,7 @@ func NewClientChannel(transport Transport, daemonPublicKey [32]byte) *EncryptedC
 	_ = transport.Send(helloJSON)
 
 	// Retry until open
-	ticker := time.NewTicker(handshakeRetryInterval)
+	ticker := time.NewTicker(ch.retryInterval)
 	go func() {
 		defer ticker.Stop()
 		for range ticker.C {
@@ -111,11 +129,15 @@ func NewClientChannel(transport Transport, daemonPublicKey [32]byte) *EncryptedC
 
 // NewDaemonChannel creates the daemon-side encrypted channel.
 // It waits for the first e2ee_hello message to complete the handshake.
-func NewDaemonChannel(transport Transport, daemonKP KeyPair) *EncryptedChannel {
+func NewDaemonChannel(transport Transport, daemonKP KeyPair, opts ...ChannelOption) *EncryptedChannel {
 	ch := &EncryptedChannel{
 		transport: transport,
 		daemonKP:  &daemonKP,
 		state:     stateHandshaking,
+	}
+
+	for _, opt := range opts {
+		opt(ch)
 	}
 
 	transport.OnClose(func() {

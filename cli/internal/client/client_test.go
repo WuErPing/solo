@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/gorilla/websocket"
 
+	"github.com/WuErPing/solo/cli/internal/clienttest"
 	"github.com/WuErPing/solo/protocol"
 )
 
@@ -101,119 +101,8 @@ func TestMustMarshal(t *testing.T) {
 	}
 }
 
-// mockDaemonServer is a test WebSocket server that mimics the Solo daemon handshake.
-type mockDaemonServer struct {
-	serverID          string
-	providersSnapshot *protocol.ProvidersSnapshotPayload
-	upgrader          websocket.Upgrader
-
-	connMu      sync.Mutex
-	connections []*websocket.Conn
-}
-
-func newMockDaemonServer() *mockDaemonServer {
-	return &mockDaemonServer{
-		serverID: "test-server",
-		providersSnapshot: &protocol.ProvidersSnapshotPayload{
-			Entries: []protocol.ProviderSnapshotEntry{
-				{Provider: "test-provider", Status: protocol.ProviderReady},
-			},
-			GeneratedAt: time.Now().Format(time.RFC3339),
-		},
-		upgrader: websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }},
-	}
-}
-
-func (m *mockDaemonServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	conn, err := m.upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		return
-	}
-	m.connMu.Lock()
-	m.connections = append(m.connections, conn)
-	m.connMu.Unlock()
-	defer conn.Close()
-
-	// Read hello
-	var hello protocol.WSInboundMessage
-	if err := conn.ReadJSON(&hello); err != nil {
-		return
-	}
-	if hello.Type != "hello" {
-		return
-	}
-
-	// Send server_info
-	serverInfo := protocol.WSOutboundMessage{
-		Type: "session",
-		Message: map[string]interface{}{
-			"type":     "server_info",
-			"status":   "server_info",
-			"serverId": m.serverID,
-		},
-	}
-	_ = conn.WriteJSON(serverInfo)
-
-	// Send providers_snapshot_update
-	update := protocol.WSOutboundMessage{
-		Type: "session",
-		Message: map[string]interface{}{
-			"type":    "providers_snapshot_update",
-			"payload": m.providersSnapshot,
-		},
-	}
-	_ = conn.WriteJSON(update)
-
-	// Echo loop: respond to session messages
-	for {
-		_, data, err := conn.ReadMessage()
-		if err != nil {
-			return
-		}
-		var inbound protocol.WSInboundMessage
-		if err := json.Unmarshal(data, &inbound); err != nil {
-			continue
-		}
-		if inbound.Type != "session" {
-			continue
-		}
-		// Echo back as outbound with requestId peeked
-		var peek struct {
-			Type      string `json:"type"`
-			RequestID string `json:"requestId"`
-		}
-		_ = json.Unmarshal(inbound.Message, &peek)
-
-		resp := protocol.WSOutboundMessage{
-			Type: "session",
-			Message: map[string]interface{}{
-				"type": "fetch_agents_response",
-				"payload": map[string]interface{}{
-					"requestId": peek.RequestID,
-					"entries":   []interface{}{},
-					"pageInfo": map[string]interface{}{
-						"hasMore": false,
-					},
-				},
-			},
-		}
-		_ = conn.WriteJSON(resp)
-	}
-}
-
-// closeConnections closes all server-side WebSocket connections, simulating
-// the daemon dying. (httptest's CloseClientConnections cannot reach hijacked
-// WebSocket connections, so we close them explicitly.)
-func (m *mockDaemonServer) closeConnections() {
-	m.connMu.Lock()
-	defer m.connMu.Unlock()
-	for _, conn := range m.connections {
-		_ = conn.Close()
-	}
-}
-
 func TestNewDaemonClient_Handshake(t *testing.T) {
-	mock := newMockDaemonServer()
+	mock := clienttest.NewMockDaemon()
 	srv := httptest.NewServer(mock)
 	defer srv.Close()
 
@@ -226,10 +115,10 @@ func TestNewDaemonClient_Handshake(t *testing.T) {
 	}
 	defer c.Close()
 
-	if c.ServerInfo() == nil || c.ServerInfo().ServerID != "test-server" {
+	if c.ServerInfo() == nil || c.ServerInfo().ServerID != mock.ServerID {
 		t.Error("expected server info to be populated")
 	}
-	if c.ProvidersSnapshot() == nil || len(c.ProvidersSnapshot().Entries) != 1 {
+	if c.ProvidersSnapshot() == nil || len(c.ProvidersSnapshot().Entries) == 0 {
 		t.Error("expected providers snapshot to be populated")
 	}
 }
@@ -245,7 +134,7 @@ func TestNewDaemonClient_InvalidHost(t *testing.T) {
 }
 
 func TestRequest_Response(t *testing.T) {
-	mock := newMockDaemonServer()
+	mock := clienttest.NewMockDaemon()
 	srv := httptest.NewServer(mock)
 	defer srv.Close()
 
@@ -269,7 +158,7 @@ func TestRequest_Response(t *testing.T) {
 }
 
 func TestRequest_ContextCancellation(t *testing.T) {
-	mock := newMockDaemonServer()
+	mock := clienttest.NewMockDaemon()
 	srv := httptest.NewServer(mock)
 	defer srv.Close()
 
@@ -292,7 +181,7 @@ func TestRequest_ContextCancellation(t *testing.T) {
 }
 
 func TestClose_Idempotent(t *testing.T) {
-	mock := newMockDaemonServer()
+	mock := clienttest.NewMockDaemon()
 	srv := httptest.NewServer(mock)
 	defer srv.Close()
 
@@ -377,7 +266,7 @@ func (f *triggerFloodServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestDisconnect_ClosesSubscriptionChannels(t *testing.T) {
-	mock := newMockDaemonServer()
+	mock := clienttest.NewMockDaemon()
 	srv := httptest.NewServer(mock)
 	defer srv.Close()
 
@@ -393,7 +282,7 @@ func TestDisconnect_ClosesSubscriptionChannels(t *testing.T) {
 	sub := c.Subscribe("agent_update")
 
 	// Close the server-side connection to simulate the daemon dying.
-	mock.closeConnections()
+	mock.CloseConnections()
 
 	select {
 	case _, ok := <-sub.Messages():

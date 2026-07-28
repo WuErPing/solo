@@ -13,6 +13,13 @@ import (
 
 var testLogger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
+// makeScheduleDue sets a schedule's NextRunAt to the past so the executor sees
+// it as due immediately, removing the need for wall-clock sleeps before Start.
+func makeScheduleDue(sched *protocol.StoredSchedule) {
+	past := time.Now().UTC().Add(-time.Hour).Format(time.RFC3339)
+	sched.NextRunAt = &past
+}
+
 type fakeRunner struct {
 	mu      sync.Mutex
 	calls   []protocol.StoredSchedule
@@ -42,8 +49,7 @@ func TestExecutor_RunsDueSchedules(t *testing.T) {
 		Cadence: protocol.ScheduleCadence{Type: "every", EveryMs: 1},
 		Target:  protocol.ScheduleTarget{Type: "agent", AgentID: "a"},
 	})
-
-	time.Sleep(5 * time.Millisecond)
+	makeScheduleDue(sched)
 
 	runner := &fakeRunner{}
 	executor := NewExecutor(store, runner, 10*time.Millisecond, testLogger)
@@ -78,8 +84,7 @@ func TestExecutor_RecordsFailure(t *testing.T) {
 		Cadence: protocol.ScheduleCadence{Type: "every", EveryMs: 1},
 		Target:  protocol.ScheduleTarget{Type: "agent", AgentID: "a"},
 	})
-
-	time.Sleep(5 * time.Millisecond)
+	makeScheduleDue(sched)
 
 	errMsg := "agent crashed"
 	runner := &fakeRunner{
@@ -116,7 +121,8 @@ func TestExecutor_StopsOnContextCancel(_ *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	executor.Start(ctx)
 
-	time.Sleep(30 * time.Millisecond)
+	// Yield briefly so the executor goroutine starts, then cancel.
+	time.Sleep(time.Millisecond)
 	cancel()
 	executor.Wait()
 }
@@ -153,8 +159,7 @@ func TestExecutor_RespectsMaxRuns(t *testing.T) {
 		Target:  protocol.ScheduleTarget{Type: "agent", AgentID: "a"},
 		MaxRuns: &maxRuns,
 	})
-
-	time.Sleep(5 * time.Millisecond)
+	makeScheduleDue(sched)
 
 	runner := &fakeRunner{}
 	executor := NewExecutor(store, runner, 10*time.Millisecond, testLogger)
