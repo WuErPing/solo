@@ -12,6 +12,9 @@ docs/
 ├── README.md                              ← You are here (master index)
 ├── handoff.md                             # Tmux Pane Full-Content Fit feature handoff
 ├── handoff-usage-providers.md             # Usage providers: Xiaomi MiMo (blocked, cookie path) & Qoder (org-only) investigation
+├── configuration.md                       # ~/.solo/ config files reference (config.json, usage.json, placeholders)
+├── examples/                              ← Config file examples
+│   └── config.json.example                # Daemon config.json full-field reference
 ├── architecture/                          ← System architecture & design
 │   ├── README.md                          # Architecture overview & diagrams
 │   ├── agent-stall-detection.md           # Agent stuck-loop detection & grace fix

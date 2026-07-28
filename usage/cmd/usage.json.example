@@ -1,0 +1,26 @@
+{
+  "providers": {
+    "kimi": {
+      "enabled": true,
+      "apiKey": "${KIMI_API_KEY}",
+      "endpoint": "https://api.kimi.com/coding/v1"
+    },
+    "deepseek": {
+      "enabled": true,
+      "apiKey": "${DEEPSEEK_API_KEY}"
+    },
+    "qoder": {
+      "enabled": true,
+      "apiKey": "${QODER_API_KEY}",
+      "extra": {
+        "organizationId": "${QODER_ORGANIZATION_ID}"
+      }
+    },
+    "xiaomimimo": {
+      "enabled": true,
+      "extra": {
+        "cookie": "${file:~/.solo/xiaomimimo.cookie}"
+      }
+    }
+  }
+}

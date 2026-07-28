@@ -152,19 +152,6 @@ export const UsageQuotaListResponseSchema = z.object({
 });
 export type UsageQuotaListResponse = z.infer<typeof UsageQuotaListResponseSchema>;
 
-export const WorkspaceScriptSchema = z.object({
-  scriptName: z.string(),
-  type: z.string().optional(),
-  hostname: z.string(),
-  port: z.number().nullable().optional(),
-  proxyUrl: z.string().nullable().optional(),
-  lifecycle: z.string(),
-  health: z.string().nullable().optional(),
-  exitCode: z.number().nullable().optional(),
-  terminalId: z.string().nullable().optional(),
-});
-export type WorkspaceScript = z.infer<typeof WorkspaceScriptSchema>;
-
 export const WorkspaceGitRuntimeSchema = z.object({
   currentBranch: z.string().nullable().optional(),
   remoteUrl: z.string().nullable().optional(),
@@ -177,6 +164,19 @@ export const WorkspaceGitHubRuntimeSchema = z.object({
   featuresEnabled: z.boolean().nullable().optional(),
 });
 export type WorkspaceGitHubRuntime = z.infer<typeof WorkspaceGitHubRuntimeSchema>;
+
+export const WorkspaceScriptSchema = z.object({
+  scriptName: z.string(),
+  type: z.string().optional(),
+  hostname: z.string(),
+  port: z.number().nullable().optional(),
+  proxyUrl: z.string().nullable().optional(),
+  lifecycle: z.string(),
+  health: z.string().nullable().optional(),
+  exitCode: z.number().nullable().optional(),
+  terminalId: z.string().nullable().optional(),
+});
+export type WorkspaceScript = z.infer<typeof WorkspaceScriptSchema>;
 
 export const WorkspaceDescriptorSchema = z.object({
   id: z.string(),

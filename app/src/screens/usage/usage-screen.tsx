@@ -78,7 +78,7 @@ function UsageScreenContent({ serverId }: { serverId: string }) {
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>No usage providers configured</Text>
           <Text style={styles.emptySubtext}>
-            Configure usage providers in ~/.solo/usage.json on this host
+            Run solo-usage init on this host, then edit ~/.solo/usage.json
           </Text>
           <Button variant="ghost" leftIcon={ChevronLeft} onPress={handleBack}>
             Back

@@ -193,6 +193,7 @@ describe("UsageScreen", () => {
     });
 
     expect(container?.textContent).toContain("No usage providers configured");
+    expect(container?.textContent).toContain("solo-usage init");
     expect(container?.textContent).toContain("~/.solo/usage.json");
   });
 

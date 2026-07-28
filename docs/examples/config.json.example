@@ -1,0 +1,81 @@
+{
+  "daemon": {
+    "listen": "127.0.0.1:17612",
+    "hostnames": [
+      "myhost.example.com"
+    ],
+    "mcp": {
+      "injectIntoAgents": false
+    },
+    "cors": {
+      "origins": [
+        "https://solo.up2ai.top",
+        "http://localhost:19000"
+      ]
+    },
+    "relay": {
+      "enabled": true,
+      "endpoint": "relay.solo.sh:443",
+      "publicEndpoint": "relay.solo.sh:443",
+      "disableControlKeepalive": false
+    },
+    "providers": {
+      "customModels": {
+        "claude": [
+          {
+            "id": "claude-opus-4-1",
+            "label": "Claude Opus 4.1",
+            "description": "Custom model shown in the model picker",
+            "isDefault": false,
+            "thinkingOptions": [
+              {
+                "id": "off",
+                "label": "Off",
+                "isDefault": true
+              },
+              {
+                "id": "max",
+                "label": "Max",
+                "isDefault": false
+              }
+            ],
+            "defaultThinkingOptionId": "off"
+          }
+        ]
+      },
+      "providerSettings": {
+        "claude": {
+          "enabled": true,
+          "label": "Claude",
+          "description": "Anthropic Claude agent"
+        }
+      }
+    },
+    "llmProviders": [
+      {
+        "id": "my-llm",
+        "label": "My LLM",
+        "description": "OpenAI-compatible endpoint used by the schedule assistant",
+        "enabled": true,
+        "baseURL": "https://api.example.com/v1",
+        "apiKey": "sk-xxx",
+        "models": [
+          {
+            "id": "gpt-4o",
+            "label": "GPT-4o",
+            "description": "Default model",
+            "isDefault": true
+          }
+        ]
+      }
+    ],
+    "tmuxAgentNames": [
+      "aider",
+      "goose"
+    ],
+    "timelineMaxRowsPerAgent": 10000
+  },
+  "app": {
+    "baseUrl": "https://solo.up2ai.top"
+  }
+}

@@ -101,7 +101,8 @@ export function UsageDashboardScreen() {
               <>
                 <Text style={styles.emptyTitle}>No usage providers configured</Text>
                 <Text style={styles.emptySubtitle}>
-                  Configure usage providers in ~/.solo/usage.json on your host
+                  Run solo-usage init on your host, then edit
+                  ~/.solo/usage.json
                 </Text>
               </>
             )}
