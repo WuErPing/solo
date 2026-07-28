@@ -739,14 +739,14 @@ describe("useTmuxCapturePane", () => {
 describe("computeAdaptiveInterval", () => {
   const now = 1_000_000;
 
-  it("returns 500ms when content changed within the last 2 seconds (active phase)", () => {
-    expect(computeAdaptiveInterval(now - 500, now)).toBe(500);
-    expect(computeAdaptiveInterval(now - 2000, now)).toBe(500); // boundary inclusive
+  it("returns 150ms when content changed within the last 5 seconds (active phase)", () => {
+    expect(computeAdaptiveInterval(now - 500, now)).toBe(150);
+    expect(computeAdaptiveInterval(now - 5000, now)).toBe(150); // boundary inclusive
   });
 
-  it("returns 1000ms when content changed 2-10 seconds ago (warm phase)", () => {
-    expect(computeAdaptiveInterval(now - 2001, now)).toBe(1000);
-    expect(computeAdaptiveInterval(now - 5000, now)).toBe(1000);
+  it("returns 1000ms when content changed 5-10 seconds ago (warm phase)", () => {
+    expect(computeAdaptiveInterval(now - 5001, now)).toBe(1000);
+    expect(computeAdaptiveInterval(now - 8000, now)).toBe(1000);
     expect(computeAdaptiveInterval(now - 10000, now)).toBe(1000); // boundary inclusive
   });
 
@@ -755,8 +755,8 @@ describe("computeAdaptiveInterval", () => {
     expect(computeAdaptiveInterval(now - 60000, now)).toBe(5000);
   });
 
-  it("returns 500ms when dataUpdatedAt is 0 (initial mount — assume active to prime the pump)", () => {
-    expect(computeAdaptiveInterval(0, now)).toBe(500);
+  it("returns 150ms when dataUpdatedAt is 0 (initial mount — assume active to prime the pump)", () => {
+    expect(computeAdaptiveInterval(0, now)).toBe(150);
   });
 });
 
@@ -767,17 +767,17 @@ describe("computeAdaptiveQueryInterval", () => {
     const query = { state: { data: { content: "a" } } };
 
     // First observation — treated as just-changed (active)
-    expect(computeAdaptiveQueryInterval(query, t0)).toBe(500);
+    expect(computeAdaptiveQueryInterval(query, t0)).toBe(150);
 
-    // Same reference 3s later — warm (dataUpdatedAt would still say "active" here)
-    expect(computeAdaptiveQueryInterval(query, t0 + 3_000)).toBe(1000);
+    // Same reference 6s later — warm (past the 5s active phase)
+    expect(computeAdaptiveQueryInterval(query, t0 + 6_000)).toBe(1000);
 
     // Same reference 11s later — idle
     expect(computeAdaptiveQueryInterval(query, t0 + 11_000)).toBe(5000);
 
     // New reference — resets to active
     query.state.data = { content: "b" };
-    expect(computeAdaptiveQueryInterval(query, t0 + 12_000)).toBe(500);
+    expect(computeAdaptiveQueryInterval(query, t0 + 12_000)).toBe(150);
 
     // Back to stable — downshifts again from the reset point
     expect(computeAdaptiveQueryInterval(query, t0 + 12_000 + 11_000)).toBe(5000);
@@ -787,12 +787,12 @@ describe("computeAdaptiveQueryInterval", () => {
     const queryA = { state: { data: { content: "a" } } };
     const queryB = { state: { data: { content: "a" } } };
 
-    expect(computeAdaptiveQueryInterval(queryA, t0)).toBe(500);
-    expect(computeAdaptiveQueryInterval(queryB, t0)).toBe(500);
+    expect(computeAdaptiveQueryInterval(queryA, t0)).toBe(150);
+    expect(computeAdaptiveQueryInterval(queryB, t0)).toBe(150);
     expect(computeAdaptiveQueryInterval(queryA, t0 + 11_000)).toBe(5000);
     // B changed recently — still active
     queryB.state.data = { content: "b" };
-    expect(computeAdaptiveQueryInterval(queryB, t0 + 11_500)).toBe(500);
+    expect(computeAdaptiveQueryInterval(queryB, t0 + 11_500)).toBe(150);
   });
 });
 
@@ -824,8 +824,8 @@ describe("useTmuxCapturePane — adaptive polling", () => {
       resolveCurrent!({ content: "active-phase", error: null });
     });
 
-    // ACTIVE PHASE: advance 2s with changing content.
-    // Each resolve schedules the next refetch in 500ms.
+    // ACTIVE PHASE: advance with changing content.
+    // Each resolve schedules the next refetch in 150ms.
     const activeStartCalls = mockClient.tmuxCapturePane.mock.calls.length;
     for (let i = 0; i < 4; i++) {
       await act(async () => {
@@ -854,7 +854,7 @@ describe("useTmuxCapturePane — adaptive polling", () => {
     const idleElapsedMs = 4 * 5000;
     const idleCalls = mockClient.tmuxCapturePane.mock.calls.length - idleStartCalls;
 
-    // During active phase we got ~4 calls in 2s (500ms × 4).
+    // During active phase we got multiple calls in 2s (150ms interval).
     // During idle phase we got ~3-4 calls in 20s (5000ms × 4).
     // Per-second rate active must be >> per-second rate idle.
     const activeRate = activeCalls / 2;

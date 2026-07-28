@@ -10,13 +10,13 @@ const MAX_SCROLLBACK_LINES = 5000;
 
 // Adaptive polling phases — the next-refetch delay depends on how long
 // ago content actually changed (tracked via data identity, see below):
-//   active:  changed within last 2s   → 500ms (2 fps)
-//   warm:    changed 2-10s ago        → 1000ms (ramp-down)
+//   active:  changed within last 5s   → 150ms (~7 fps)
+//   warm:    changed 5-10s ago        → 1000ms (ramp-down)
 //   idle:    stable >10s              → 5000ms (battery saver)
-const ACTIVE_POLL_INTERVAL = 500;
+const ACTIVE_POLL_INTERVAL = 150;
 const WARM_POLL_INTERVAL = 1000;
 const IDLE_POLL_INTERVAL = 5000;
-const ACTIVE_PHASE_MS = 2_000;
+const ACTIVE_PHASE_MS = 5_000;
 const WARM_PHASE_MS = 10_000;
 
 export function computeAdaptiveInterval(lastChangedAt: number, now: number): number {
