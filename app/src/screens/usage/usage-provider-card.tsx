@@ -161,7 +161,9 @@ export function UsageProviderErrorCard({
 
 const styles = StyleSheet.create((theme) => ({
   card: {
-    flex: 1,
+    // flexGrow only (no flex: 1): when the grid falls back to a column
+    // layout (Unistyles web), flex-shrink would squash tall card content.
+    flexGrow: 1,
     minWidth: 280,
     maxWidth: "100%",
     padding: 16,
