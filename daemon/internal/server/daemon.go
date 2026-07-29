@@ -448,6 +448,7 @@ type WSServer struct {
 	scheduleStore   *schedule.Store
 	loopStore       *loop.Store
 	loopEngine      *loop.Engine
+	tmuxWatcher     *TmuxPaneWatcher
 	done            chan struct{}
 	mu              sync.RWMutex
 	gracePeriod     time.Duration // override for SessionDisconnectGraceMs; 0 = use default
@@ -463,7 +464,7 @@ type WSServer struct {
 // NewWSServer creates a new WebSocket server with agent dependencies.
 // Deprecated: use NewWSServerWithConfig
 func NewWSServer(cfg *config.Config, logger *slog.Logger, agentMgr *agent.AgentManager, timelineStore *agent.InMemoryTimelineStore, registry *agent.ProviderRegistry, workspaceStore *WorkspaceStore, terminalMgr *terminal.TerminalManager, projectReg *workspace.ProjectRegistry, workspaceReg *workspace.WorkspaceRegistry, gitSvc workspace.WorkspaceGitService, scriptMgr *workspace.ScriptManager, scriptProxy *workspace.ScriptProxy, pushTokenStore push.TokenStore, pusher push.Pusher, activityTracker ActivityTracker, memoryBridge MemoryBridge, scheduleStore *schedule.Store, loopStore *loop.Store) *WSServer {
-	return &WSServer{
+	ws := &WSServer{
 		cfg:             cfg,
 		logger:          logger,
 		sessions:        make(map[string]*Session),
@@ -485,6 +486,8 @@ func NewWSServer(cfg *config.Config, logger *slog.Logger, agentMgr *agent.AgentM
 		loopStore:       loopStore,
 		done:            make(chan struct{}),
 	}
+	ws.tmuxWatcher = NewTmuxPaneWatcher(logger, ws.broadcast)
+	return ws
 }
 
 // DaemonConfig aggregates all dependencies needed by NewWSServer.
@@ -621,6 +624,7 @@ func (s *WSServer) fireHelloProcessed() {
 // Close shuts down all sessions, including any in the grace period.
 func (s *WSServer) Close() {
 	close(s.done)
+	s.tmuxWatcher.Stop()
 	s.mu.Lock()
 	for _, sess := range s.sessions {
 		if sess.IsInGrace() {
@@ -795,6 +799,7 @@ func (s *WSServer) handleNewConnection(conn WSConn) { //nolint:gocyclo // grandf
 	sess.SetPusher(s.pusher)
 	sess.SetActivityTracker(s.activityTracker)
 	sess.SetMemoryBridge(s.memoryBridge)
+	sess.startTmuxWatcher = s.tmuxWatcher.StartOnce
 
 	// Set callback so the session can remove itself from the map when grace expires.
 	sess.onGraceExpire = func() {

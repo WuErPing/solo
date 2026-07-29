@@ -23,30 +23,31 @@ import (
 
 // Session represents a single client WebSocket connection.
 type Session struct {
-	clientID        string
-	clientType      string
-	conn            WSConn
-	cfg             *config.Config
-	logger          *slog.Logger
-	agentMgr        *agent.AgentManager
-	timelineStore   *agent.InMemoryTimelineStore
-	registry        *agent.ProviderRegistry
-	workspaceStore  *WorkspaceStore
-	terminalMgr     *terminal.TerminalManager
-	projectReg      *workspace.ProjectRegistry
-	workspaceReg    *workspace.WorkspaceRegistry
-	gitSvc          workspace.WorkspaceGitService
-	scriptMgr       *workspace.ScriptManager
-	scriptProxy     *workspace.ScriptProxy
-	broadcast       func(protocol.WSOutboundMessage)
-	coalescer       *agent.StreamCoalescer
-	pushTokenStore  push.TokenStore
-	activityTracker ActivityTracker
-	pusher          push.Pusher
-	memoryBridge    MemoryBridge
-	scheduleStore   *schedule.Store
-	loopStore       *loop.Store
-	loopEngine      *loop.Engine
+	clientID         string
+	clientType       string
+	conn             WSConn
+	cfg              *config.Config
+	logger           *slog.Logger
+	agentMgr         *agent.AgentManager
+	timelineStore    *agent.InMemoryTimelineStore
+	registry         *agent.ProviderRegistry
+	workspaceStore   *WorkspaceStore
+	terminalMgr      *terminal.TerminalManager
+	projectReg       *workspace.ProjectRegistry
+	workspaceReg     *workspace.WorkspaceRegistry
+	gitSvc           workspace.WorkspaceGitService
+	scriptMgr        *workspace.ScriptManager
+	scriptProxy      *workspace.ScriptProxy
+	broadcast        func(protocol.WSOutboundMessage)
+	startTmuxWatcher func()
+	coalescer        *agent.StreamCoalescer
+	pushTokenStore   push.TokenStore
+	activityTracker  ActivityTracker
+	pusher           push.Pusher
+	memoryBridge     MemoryBridge
+	scheduleStore    *schedule.Store
+	loopStore        *loop.Store
+	loopEngine       *loop.Engine
 
 	// scheduleAssist is created lazily on the first schedule/assist request;
 	// per-session instance gives per-connection rate limiting.

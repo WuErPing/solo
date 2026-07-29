@@ -4,6 +4,21 @@ This directory contains analysis documents for the Solo project.
 
 ## Recent Analyses
 
+### 2026-07-28: Tmux 多窗口按键栏布局与合理性分析
+
+**Status:** Analysis Complete
+**Priority:** High (UX)
+
+**Summary:**
+- 评估 native/xterm 两屏共享的 `TmuxKeyBar` 三层按键布局（Contextual Strip / Primary / Expanded）
+- 1 个高危发现：Primary Row 无 wrap/滚动，xterm 屏常驻 3 个文字 extraButton 时估算溢出（~510pt > 390pt），`⋯` 展开按钮可能被裁剪
+- 5 个中低危发现：History 两屏同名异义、Refresh 条件显隐抖动、Esc/^C 相邻误触、选项解析静默失败、缺窗口切换入口
+- 结论：意图分层与两屏一致性方向合理，问题集中在空间预算与可预期性
+
+**Document:** [tmux-keybar-layout-analysis-2026-07-28.md](tmux-keybar-layout-analysis-2026-07-28.md)
+
+---
+
 ### 2026-07-24: Tmux Discovery & Refresh Mechanism Analysis
 
 **Status:** Fixes Implemented & Verified

@@ -5,6 +5,7 @@
 - Status: **Implemented**
 - Author: Andy
 - Created: 2026-06-05
+- Updated: 2026-07-29 (push-driven refresh + snapshot diffing)
 
 ## 1. Overview
 
@@ -13,6 +14,7 @@ This document describes the end-to-end flow for loading tmux pane content into t
 - **Agent detection**: Scanning all connected hosts for AI agent panes (Claude, OpenCode, Qoder, Pi, Cursor, Kimi, etc.)
 - **Pane capture**: Streaming tmux pane content with ANSI escape sequences preserved
 - **Live polling**: Automatic refresh while the pane screen is visible and the app is in the foreground
+- **Push-driven refresh**: Daemon detects pane activity and pushes `tmux/pane_changed`, triggering an immediate refetch instead of waiting for the next poll tick
 - **Key injection**: Sending keystrokes to a remote tmux pane
 - **New session creation**: Create new tmux sessions directly from the dashboard
 - **Non-agent pane display**: Browse and interact with non-agent tmux panes (shells, editors, etc.)
@@ -304,6 +306,59 @@ Users can disable automatic polling via an **"Auto" toggle** in the header. Defa
 | **Auto OFF** | Polling stops; auto-scroll disabled; a **"Refresh"** button appears in the key row for manual refresh |
 
 This prevents the pane from jumping to the latest output while the user is scrolling up to read history.
+
+### 6.4 Push-Driven Refresh
+
+Polling alone introduces up to one poll interval of latency between new output appearing in tmux and the app displaying it. To close this gap, the daemon runs a server-level **`TmuxPaneWatcher`** that detects pane activity and pushes a `tmux/pane_changed` notification. The app refetches the affected pane immediately rather than waiting for the next adaptive-poll tick. Polling remains as a fallback for safety.
+
+```
+Daemon: TmuxPaneWatcher.loop() (every 500ms)
+        │
+        ▼
+tmux list-panes -a -F "#{pane_id} #{window_activity}"
+        │
+        ▼
+compare window_activity vs lastActivity[paneId]
+        │
+        ├── advanced ──► collect changed paneIds
+        │                    │
+        │                    ▼
+        │       broadcast tmux/pane_changed { paneIds }
+        │                    │
+        └── unchanged ──► no-op
+                             │
+                             ▼ (WebSocket push, no requestId)
+App: useTmuxCapturePane subscribes via client.on("tmux/pane_changed")
+        │
+        ▼
+payload.paneIds.includes(paneId)? ──► refetch() immediately
+```
+
+**Watcher characteristics:**
+
+| Property | Value | Rationale |
+|---|---|---|
+| Scope | One per daemon (server-level) | Single tmux poll loop shared by all sessions |
+| Start | Lazy, on first `tmux/list_agents` or `tmux/capture_pane` (`StartOnce`) | No work until a client actually uses tmux |
+| Poll interval | `500ms` | Low activity-detection latency without heavy load |
+| Activity signal | `window_activity` timestamp advancing | Cheap, no content transfer in the watch loop |
+| Stop | On `WSServer.Close()` | Releases the poll goroutine |
+| Pruning | Drops `lastActivity` entries for panes that no longer exist | Prevents unbounded map growth |
+
+The notification is a server-push message (no `requestId`); clients correlate by matching their active `paneId` against `payload.paneIds`.
+
+### 6.5 Incremental Terminal Repaint (Snapshot Diff)
+
+Each refetch returns the full captured pane text. To avoid repainting the entire xterm buffer on every update (which wastes work and can flicker), `TerminalEmulator` diffs the new snapshot against the previous one line-by-line via `diffSnapshots()`:
+
+| Condition | Action |
+|---|---|
+| First render, runtime remount, or line count changed | Full in-place rewrite (`\x1b[3J\x1b[H…\x1b[J`) |
+| Changed lines ≤ 80% of total | Emit a minimal patch: per changed line, cursor-position (`\x1b[{row};1H`), clear line (`\x1b[2K`), write new line |
+| Changed lines > 80% | Full rewrite (patch would be larger than the content) |
+| No change | Skip the write entirely |
+
+This means a typical update (e.g. a spinner or a few new output lines) only repaints the rows that actually changed.
 
 ## 7. Dashboard Status Line
 
@@ -615,6 +670,15 @@ type TmuxGetThemeResponsePayload struct {
     Theme     TmuxThemeColors `json:"theme"`
     Error     *string         `json:"error"`
 }
+
+// Pane changed (server-push notification, no requestId)
+type TmuxPaneChangedNotification struct {
+    Type    string                 `json:"type"`    // "tmux/pane_changed"
+    Payload TmuxPaneChangedPayload `json:"payload"`
+}
+type TmuxPaneChangedPayload struct {
+    PaneIDs []string `json:"paneIds"`
+}
 ```
 
 ### 11.2 TypeScript Zod (app-bridge/src/server/tmux/rpc-schemas.ts)
@@ -721,6 +785,13 @@ export const TmuxGetThemeResponseSchema = z.object({
     error: z.string().nullable(),
   }),
 });
+
+export const TmuxPaneChangedNotificationSchema = z.object({
+  type: z.literal("tmux/pane_changed"),
+  payload: z.object({
+    paneIds: z.array(z.string()),
+  }),
+});
 ```
 
 ## 15. Error Handling and Edge Cases
@@ -746,7 +817,8 @@ export const TmuxGetThemeResponseSchema = z.object({
 | `app/src/app/tmux-pane.tsx` | Pane screen — content rendering and input |
 | `app/src/stores/tmux-agent-store.ts` | Zustand store for selected agent |
 | `app/src/hooks/use-tmux-agents.ts` | `useAggregatedTmuxAgents` hook |
-| `app/src/hooks/use-tmux-capture-pane.ts` | `useTmuxCapturePane` hook |
+| `app/src/hooks/use-tmux-capture-pane.ts` | `useTmuxCapturePane` hook — polling plus push-driven refetch on `tmux/pane_changed` |
+| `app/src/terminal/runtime/snapshot-diff.ts` | `diffSnapshots` — line-level diff producing a minimal ANSI patch or full-rewrite decision |
 | `app/src/hooks/use-tmux-theme.ts` | `useTmuxTheme` hook |
 | `app/src/hooks/use-tmux-status-line.ts` | `useTmuxStatusLine` hook — parse and render tmux status line |
 | `app/src/hooks/use-tmux-status-lines.ts` | `useTmuxStatusLines` hook — aggregate status lines from multiple hosts |
@@ -762,6 +834,8 @@ export const TmuxGetThemeResponseSchema = z.object({
 | `app-bridge/src/server/tmux/rpc-schemas.ts` | Zod schemas for all tmux RPC messages (including `TmuxNewSessionRequestSchema`, `TmuxNewSessionResponseSchema`) |
 | `daemon/internal/server/session_register_handlers.go` | WebSocket handler registration (`tmux/list_agents`, `tmux/capture_pane`, `tmux/send_keys`, `tmux/new_session`, `tmux/get_theme`) |
 | `daemon/internal/server/session_tmux.go` | Core tmux logic: `scanTmuxAgents`, `parseTmuxPaneLines`, `captureTmuxPane`, `sendKeysToTmuxPane`, `createTmuxSession`, `extractTmuxTheme` |
+| `daemon/internal/server/tmux_watcher.go` | `TmuxPaneWatcher` — server-level poller that broadcasts `tmux/pane_changed` on pane activity |
 | `protocol/message_tmux.go` | Go struct definitions for tmux protocol messages |
+| `protocol/message_tmux_notify.go` | Go struct for the `tmux/pane_changed` server-push notification |
 | `docs/analysis/tmux-transport-disposed-race.md` | Transport disposed race condition analysis |
 | `docs/architecture/data-flow.md` | General WebSocket data flow documentation |

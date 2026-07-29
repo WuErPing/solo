@@ -18,6 +18,7 @@ import type { ITheme } from "@xterm/xterm";
 import type { TerminalState } from "@server/shared/messages";
 import type { PendingTerminalModifiers } from "../utils/terminal-keys";
 import { TerminalEmulatorRuntime } from "../terminal/runtime/terminal-emulator-runtime";
+import { diffSnapshots } from "../terminal/runtime/snapshot-diff";
 import { openExternalUrl } from "../utils/open-external-url";
 import { focusWithRetries } from "../utils/web-focus";
 import {
@@ -497,15 +498,22 @@ export default function TerminalEmulator({
     if (prev.text === snapshotText && prev.runtime === runtime) {
       return;
     }
+
+    const prevText = prev.runtime === runtime ? prev.text : undefined;
     prevSnapshotRef.current = { runtime, text: snapshotText };
-    // In-place repaint in a single write: clear scrollback (\x1b[3J, leaves
-    // the viewport untouched), home the cursor (\x1b[H), overwrite the content
-    // cell-by-cell, then clear any trailing cells (\x1b[J). This replaces the
-    // previous clear()+write() which ran terminal.reset() (empties the screen
-    // synchronously) as a separate operation from the async write — xterm
-    // rendered the empty buffer between them, causing a visible flicker on
-    // every poll (e.g. the "Thinking..." spinner updating each second).
-    // Overwriting in place means xterm only re-renders the cells that changed.
+
+    if (prevText) {
+      const diff = diffSnapshots(prevText, snapshotText);
+      if (!diff.fullRewrite && diff.patch) {
+        runtime.write({ text: diff.patch, suppressInput: true });
+        return;
+      }
+    }
+
+    // Full rewrite: first render, runtime remount, or structural change
+    // (line count changed). In-place repaint in a single write: clear
+    // scrollback (\x1b[3J), home cursor (\x1b[H), overwrite content,
+    // clear trailing cells (\x1b[J]). xterm only repaints changed cells.
     runtime.write({
       text: `\x1b[3J\x1b[H${snapshotText}\x1b[J`,
       suppressInput: true,

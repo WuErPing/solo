@@ -185,6 +185,18 @@ export function useTmuxCapturePane(
     }
   }, [isAppVisible, enabled, autoRefresh, refetch]);
 
+  // Push-driven refetch: the daemon broadcasts tmux/pane_changed when it
+  // detects pane activity, so we refetch immediately instead of waiting
+  // for the next adaptive-poll tick.
+  useEffect(() => {
+    if (!client || !isConnected || !enabled || !autoRefresh) return;
+    return client.on?.("tmux/pane_changed", (message) => {
+      if (message.payload.paneIds.includes(paneId)) {
+        void refetch();
+      }
+    });
+  }, [client, isConnected, enabled, autoRefresh, paneId, refetch]);
+
   const loadMoreHistory = useCallback(() => {
     if (scrollbackLines >= MAX_SCROLLBACK_LINES) return;
     setScrollbackLines((prev) => Math.min(prev + SCROLLBACK_INCREMENT, MAX_SCROLLBACK_LINES));

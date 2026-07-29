@@ -179,3 +179,10 @@ export const TmuxDeleteCommandHistoryResponseSchema = z.object({
     error: z.string().nullable(),
   }),
 });
+
+export const TmuxPaneChangedNotificationSchema = z.object({
+  type: z.literal("tmux/pane_changed"),
+  payload: z.object({
+    paneIds: z.array(z.string()),
+  }),
+});

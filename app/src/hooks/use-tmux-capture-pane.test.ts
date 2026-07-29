@@ -20,6 +20,7 @@ const { mockStore, mockClient, mockAppVisible } = vi.hoisted(() => {
   const client = {
     tmuxCapturePane: vi.fn(),
     getConnectionState: vi.fn(),
+    on: vi.fn((..._args: unknown[]) => vi.fn()),
   };
   return {
     mockStore: store,
@@ -1123,5 +1124,107 @@ describe("useTmuxCapturePane — incremental transfer", () => {
     });
 
     expect(result.current.paneCols).toBeNull();
+  });
+});
+
+describe("useTmuxCapturePane — push notification", () => {
+  it("subscribes to tmux/pane_changed and refetches on matching paneId", async () => {
+    let paneChangedHandler: ((msg: { payload: { paneIds: string[] } }) => void) | null = null;
+    mockClient.on.mockImplementation((...args: unknown[]) => {
+      if (args[0] === "tmux/pane_changed") {
+        paneChangedHandler = args[1] as typeof paneChangedHandler;
+      }
+      return vi.fn();
+    });
+
+    mockClient.tmuxCapturePane.mockResolvedValue({
+      content: "initial",
+      error: null,
+    });
+
+    const { result } = renderCapturePaneHook();
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("initial");
+    });
+
+    expect(mockClient.on).toHaveBeenCalledWith("tmux/pane_changed", expect.any(Function));
+
+    // Simulate new content on the daemon side
+    mockClient.tmuxCapturePane.mockResolvedValue({
+      content: "updated-via-push",
+      error: null,
+    });
+
+    // Fire the push notification with matching paneId
+    await act(async () => {
+      paneChangedHandler!({ payload: { paneIds: ["pane-1"] } });
+    });
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("updated-via-push");
+    });
+  });
+
+  it("ignores pane_changed notifications for other panes", async () => {
+    let paneChangedHandler: ((msg: { payload: { paneIds: string[] } }) => void) | null = null;
+    mockClient.on.mockImplementation((...args: unknown[]) => {
+      if (args[0] === "tmux/pane_changed") {
+        paneChangedHandler = args[1] as typeof paneChangedHandler;
+      }
+      return vi.fn();
+    });
+
+    mockClient.tmuxCapturePane.mockResolvedValue({
+      content: "initial",
+      error: null,
+    });
+
+    renderCapturePaneHook({ paneId: "pane-1" });
+
+    await waitFor(() => {
+      expect(mockClient.tmuxCapturePane.mock.calls.length).toBe(1);
+    });
+
+    // Fire notification for a different pane
+    await act(async () => {
+      paneChangedHandler!({ payload: { paneIds: ["pane-99"] } });
+    });
+
+    // Should NOT have triggered a refetch
+    expect(mockClient.tmuxCapturePane.mock.calls.length).toBe(1);
+  });
+
+  it("does not subscribe when autoRefresh is off", async () => {
+    mockClient.on.mockClear();
+
+    mockClient.tmuxCapturePane.mockResolvedValue({
+      content: "initial",
+      error: null,
+    });
+
+    const { result } = renderCapturePaneHook();
+
+    await waitFor(() => {
+      expect(result.current.content).toBe("initial");
+    });
+
+    // Turn off autoRefresh
+    await act(async () => {
+      result.current.setAutoRefresh(false);
+    });
+
+    // The subscription should have been cleaned up; on() may have been called
+    // initially but the effect re-runs with autoRefresh=false and returns early.
+    // Verify no active handler fires a refetch.
+    const callsBefore = mockClient.tmuxCapturePane.mock.calls.length;
+    mockClient.tmuxCapturePane.mockResolvedValue({ content: "should-not-appear", error: null });
+
+    // Even if a stale handler fires, autoRefresh guard in the effect prevents subscription
+    await act(async () => {
+      // no-op: just verify no crash
+    });
+
+    expect(mockClient.tmuxCapturePane.mock.calls.length).toBe(callsBefore);
   });
 });

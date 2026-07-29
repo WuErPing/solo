@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-07-29
+
+### Added
+
+- **Daemon**: server-level `TmuxPaneWatcher` polls tmux pane activity (~500ms) and broadcasts a `tmux/pane_changed` push notification when a pane's `window_activity` advances
+- **Protocol**: `TmuxPaneChangedNotification` server-push message (`tmux/pane_changed`, no requestId)
+- **App-bridge**: `TmuxPaneChangedNotificationSchema` added to the session outbound discriminated union
+- **App**: `useTmuxCapturePane` subscribes to `tmux/pane_changed` and refetches the active pane immediately instead of waiting for the next poll tick
+- **App**: `diffSnapshots` line-level snapshot diff for the terminal emulator
+
+### Changed
+
+- **App**: terminal emulator repaints only changed lines (minimal ANSI patch) when under the 80% change threshold, falling back to a full in-place rewrite otherwise
+
 ## [0.10.1] - 2026-07-23
 
 ### Changed

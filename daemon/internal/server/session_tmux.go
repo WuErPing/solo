@@ -12,6 +12,9 @@ import (
 var capturePaneFlight singleflight.Group
 
 func (s *Session) handleTmuxListAgents(m *protocol.TmuxListAgentsRequest) {
+	if s.startTmuxWatcher != nil {
+		s.startTmuxWatcher()
+	}
 	agentNames := s.cfg.GetTmuxAgentNames()
 	agents, otherPanes, err := scanTmuxAgents(agentNames)
 	if err != nil {
@@ -103,6 +106,9 @@ func (s *Session) sendTmuxListAgentsResponse(requestID string, agents []protocol
 }
 
 func (s *Session) handleTmuxCapturePane(m *protocol.TmuxCapturePaneRequest) {
+	if s.startTmuxWatcher != nil {
+		s.startTmuxWatcher()
+	}
 	startLine := -200
 	if m.StartLine != nil {
 		startLine = *m.StartLine

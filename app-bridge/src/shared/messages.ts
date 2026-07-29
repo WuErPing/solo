@@ -73,6 +73,7 @@ import {
   TmuxKillSessionResponseSchema,
   TmuxDeleteCommandHistoryRequestSchema,
   TmuxDeleteCommandHistoryResponseSchema,
+  TmuxPaneChangedNotificationSchema,
 } from "../server/tmux/rpc-schemas.js";
 import {
   UsageQuotaListRequestSchema,
@@ -576,6 +577,7 @@ export type SessionOutboundMessage =
   | z.infer<typeof TmuxDeleteCommandHistoryResponseSchema>
   | z.infer<typeof TmuxGetThemeResponseSchema>
   | z.infer<typeof TmuxStatusLineResponseSchema>
+  | z.infer<typeof TmuxPaneChangedNotificationSchema>
   | z.infer<typeof LoopRunResponseSchema>
   | z.infer<typeof LoopListResponseSchema>
   | z.infer<typeof LoopInspectResponseSchema>
@@ -706,6 +708,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   TmuxDeleteCommandHistoryResponseSchema,
   TmuxGetThemeResponseSchema,
   TmuxStatusLineResponseSchema,
+  TmuxPaneChangedNotificationSchema,
   LoopRunResponseSchema,
   LoopListResponseSchema,
   LoopInspectResponseSchema,
