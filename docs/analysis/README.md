@@ -1,254 +1,45 @@
 # Analysis Documents
 
-This directory contains analysis documents for the Solo project.
-
-## Recent Analyses
-
-### 2026-07-28: Tmux 多窗口按键栏布局与合理性分析
-
-**Status:** Analysis Complete
-**Priority:** High (UX)
-
-**Summary:**
-- 评估 native/xterm 两屏共享的 `TmuxKeyBar` 三层按键布局（Contextual Strip / Primary / Expanded）
-- 1 个高危发现：Primary Row 无 wrap/滚动，xterm 屏常驻 3 个文字 extraButton 时估算溢出（~510pt > 390pt），`⋯` 展开按钮可能被裁剪
-- 5 个中低危发现：History 两屏同名异义、Refresh 条件显隐抖动、Esc/^C 相邻误触、选项解析静默失败、缺窗口切换入口
-- 结论：意图分层与两屏一致性方向合理，问题集中在空间预算与可预期性
-
-**Document:** [tmux-keybar-layout-analysis-2026-07-28.md](tmux-keybar-layout-analysis-2026-07-28.md)
-
----
-
-### 2026-07-24: Tmux Discovery & Refresh Mechanism Analysis
-
-**Status:** Fixes Implemented & Verified
-**Priority:** High (Correctness / Performance)
-
-**Summary:**
-- End-to-end audit of tmux discovery (daemon request-driven scan, 4-layer agent detection, content-hash dedup) and refresh (100% pull: adaptive RQ polling, zero WS push)
-- 1 correctness fix: multi-host mutations (kill/delete/run) targeted the first connected host instead of the owning host
-- 2 performance fixes: one shared `ps` snapshot per scan (was N+1 subprocesses); sidebar tmux polling now gated on visibility
-- 2 freshness fixes: status lines get adaptive polling; kill-session evicts dead-session caches + daemon prunes vanished-pane state
-- Documents drift in older tmux docs (3→4 detection layers, fixed→adaptive polling); this report is the current source of truth
-
-**Document:** [tmux-discovery-refresh-analysis-2026-07-24.md](tmux-discovery-refresh-analysis-2026-07-24.md)
-
----
-
-### 2026-07-24: App Performance Analysis
-
-**Status:** Analysis Complete
-**Priority:** High (UX / Performance)
-
-**Summary:**
-- Full performance audit of the React Native/Expo app: rendering, state, WS data flow, terminal, polling, memory, animations
-- 1 high-severity finding: `assistant_chunk` streaming bypasses the 48ms batched reducer (per-token Zustand writes)
-- 4 medium findings: unbounded `gcTime`, terminal fit polling, fixed-interval polling, native FlatList config
-- Codebase confirmed well-optimized overall (batched reducers, virtual lists, UI-thread animations, adaptive polling patterns)
-
-**Document:** [app-performance-analysis-2026-07-24.md](app-performance-analysis-2026-07-24.md)
-
----
-
-### 2026-06-20: Tmux Pane First-Principles Analysis
-
-**Status:** Analysis Complete
-**Priority:** High (UX / Architecture)
-
-**Summary:**
-- First-principles analysis of the tmux pane subsystem
-- Evaluates rendering approaches and architectural trade-offs
-
-**Document:** [tmux-pane-first-principles-2026-06-20.md](tmux-pane-first-principles-2026-06-20.md)
-
----
-
-### 2026-06-20: First Turn Completion Signal Loss
-
-**Status:** Analysis Complete
-**Priority:** High
-
-**Summary:**
-- Root cause analysis of first-turn completion signal loss
-- Identifies signal propagation issues in the agent lifecycle
-
-**Document:** [first-turn-completion-signal-loss-2026-06-20.md](first-turn-completion-signal-loss-2026-06-20.md)
-
----
-
-### 2026-06-20: Tmux Pane 客户端终端模拟器路径分析（第一性原理）
-
-**Status:** Analysis Complete
-**Priority:** High (UX / Architecture)
-
-**Summary:**
-- 从第一性原理重新审视 tmux pane 渲染：tmux server 输出的是 cell grid + 增量 VT 流，React Native `<Text>` 树不适合做这件事
-- 明确”在 app/web 端用 tmux 模拟器”应理解为”客户端 terminal emulator（xterm.js）”，而非替代 tmux server
-- 推荐两阶段路线：Phase 1 复用现有 `TerminalEmulator` + `capture-pane` 快照；Phase 2 按需引入 `tmux -C` Control Mode 流
-- 列出具体实施改动点、风险与验证清单
-
-**Document:** [tmux-pane-client-emulator-first-principles.md](tmux-pane-client-emulator-first-principles.md)
-
----
-
-### 2026-06-19: Dead Code Analysis
-
-**Status:** Analysis Complete
-**Priority:** Medium
-
-**Summary:**
-- Dead code identification and analysis across the codebase
-- Verification of unused code paths and dependencies
-
-**Document:** [dead-code-analysis-2026-06-19.md](dead-code-analysis-2026-06-19.md)
-
----
-
-### 2026-06-09: Tmux Pane 子系统分析（合并）
-
-**Status:** Analysis Complete
-**Priority:** High (UX)
-
-**Summary:**
-- 合并 jitter 修复、4 层架构瓶颈分析、渲染优化方案为统一文档
-- v0.4.1 三层防抖（content dedup, React.memo, pagination-only loading）消除静态 jitter
-- 核心架构问题：snapshot polling + React Native Text tree vs cell-based incremental rendering
-- 推荐方案：Phase 1 xterm.js 迁移（3-4 周），Phase 2 tmux Control Mode（视需求）
-
-**Document:** [tmux-pane-analysis.md](tmux-pane-analysis.md)
-
----
-
-### 2026-06-07: Go Provider Type Erasure Analysis
-
-**Status:** Analysis Complete
-**Priority:** P1 (Structural Risk)
-
-**Summary:**
-- Diagnoses Go-side `interface{}` / `map[string]interface{}` growth (~25-30%/cycle)
-- Compares 5 remediation strategies (Gradual, Tagged Union, Code Gen, Boundary Isolation, Linter)
-- Recommends phased D → B approach: Boundary Isolation first, then Tagged Union
-
-**Key Findings:**
-1. Root cause: `protocol.AgentStreamPayload.Event` acts as a type sink
-2. OpenCode provider is the largest contributor (~120 instances)
-3. Boundary Isolation is the most feasible structural fix (~45h, 1-2 weeks)
-
-**Document:** [go-provider-type-erasure-analysis.md](go-provider-type-erasure-analysis.md)
-
----
-
-### 2026-06-03: iTerm2 Agent Observation Analysis
-
-**Status:** Analysis Complete
-**Priority:** High
-
-**Summary:**
-- iOS build status analysis
-- Agent observation architecture design
-- iTerm2 integration solutions
-
-**Key Findings:**
-1. iOS build missing: release build skill, CI workflow, EAS profile, secrets
-2. Agent observation requires iTerm2 integration
-3. Recommended solution: iTerm2 Python API + Daemon Bridge
-
-**Document:** [iterm2-agent-observation.md](iterm2-agent-observation.md)
-
----
-
-### 2026-06-03: App Agent Status Analysis
-
-**Status:** Complete
-**Priority:** Medium
-
-**Summary:**
-- Analysis of agent status display in the app
-- Recommendations for improving status visibility
-
-**Document:** [app-agent-status-analysis.md](app-agent-status-analysis.md)
-
----
-
-### 2026-06-12: Test Coverage Consolidation
-
-**Status:** Complete
-**Priority:** High
-
-**Summary:**
-- 合并 5 个覆盖率文档为统一报告
-- Go 后端 ~75% (加权), App 前端 35.5%, E2E 38 specs
-- CI/Codecov 完整集成, 识别 4 个覆盖率差距根因
-
-**Document:** [test-coverage.md](test-coverage.md)
-
----
-
-### 2026-06-20: Solo Roadmap Architecture Mapping
-
-**Status:** Analysis Complete
-**Priority:** High
-
-**Summary:**
-- Maps existing Solo features (v0.6.3) to the 2026 roadmap pillars
-- Identifies gaps between current implementation and roadmap goals
-- Proposes layered architecture: Provider Hub on ProviderRegistry, Loop as schedule type, Project Memory on memory.Bridge, Chat on existing RPC
-- Provides phased implementation plan and risk mitigations
-
-**Document:** [solo-roadmap-architecture-mapping.md](solo-roadmap-architecture-mapping.md)
-
----
-
-### 2026-06-18: Architecture First-Principles Review
-
-**Status:** Complete
-**Priority:** High
-
-**Summary:**
-- First-principles evaluation of all major architectural decisions
-- Daemon scope assessment (acceptable now, watch for bloat)
-- Relay + E2EE rated as the cleanest part of the architecture
-- Tmux observation rated as pragmatic but transitional
-- Identified long-term risks: daemon bloat, cross-language type drift, tmux coupling
-
-**Document:** [architecture-first-principles-review-2026-06-18.md](architecture-first-principles-review-2026-06-18.md)
-
----
-
-### 2026-06-12: Architecture Review
-
-**Status:** Complete
-**Priority:** High
-
-**Summary:**
-- 4+1 views architecture review
-- Maturity scoring and ATAM evaluation
-- Improvement recommendations
-
-**Document:** [architecture-review-2026-06-12/](architecture-review-2026-06-12/)
-
----
-
-### 2026-06-08: OpenCode Cross-Device Sync Fix
-
-**Status:** Complete
-**Priority:** High
-
-**Summary:**
-- Bug fix: cross-client sync issues for OpenCode provider
-- Root cause analysis and fix record
-
-**Document:** [opencode-cross-device-sync-fix.md](opencode-cross-device-sync-fix.md)
-
----
-
-## Analysis Categories
+This directory contains deep-dive technical analyses, reviews, and decision records for the Solo project. Dated documents record a point-in-time assessment; reference documents describe ongoing structural concerns.
+
+## Dated Analyses (newest first)
+
+| Date | Document | Status | Summary |
+|------|----------|--------|---------|
+| 2026-07-29 | [Tmux Pane Rendering Decision](tmux-pane-rendering-decision.md) | Decided & Implemented | Client-side xterm.js rendering chosen & implemented; tmux control-mode alternative deferred. Supersedes the earlier tmux-pane first-principles analyses. |
+| 2026-07-29 | [Tmux Project Matcher](tmux-project-matcher.md) | Implemented | Spec + plan for matching tmux panes to projects (sidebar badge). |
+| 2026-07-28 | [Tmux Keybar Layout Analysis](tmux-keybar-layout-analysis-2026-07-28.md) | Analysis Complete | Post-implementation UX audit of the three-layer `TmuxKeyBar`; Primary Row overflow risk + 5 medium/low findings. |
+| 2026-07-25 | [Security Deep Analysis](security-deep-analysis-2026-07-25.md) | Analysis | Threat model + 9 High / 14 Medium / 12 Low findings and remediation roadmap. |
+| 2026-07-24 | [Tmux Discovery & Refresh](tmux-discovery-refresh-analysis-2026-07-24.md) | Fixes Implemented & Verified | Source of truth for agent discovery (4-layer) + adaptive refresh; includes the 2026-07-29 refresh-lag tuning addendum. |
+| 2026-07-24 | [App Performance Analysis](app-performance-analysis-2026-07-24.md) | Analysis Complete | RN/Expo rendering, state, WS flow, terminal, polling, memory audit; findings resolved. |
+| 2026-07-27 | [Test Quality Audit](test-quality-audit-2026-07.md) | Complete | Unit-test quality issues (timing coupling, empty assertions, infra duplication) + prioritized fix tracking. |
+| 2026-06-20 | [Solo Roadmap Architecture Mapping](solo-roadmap-architecture-mapping.md) | Analysis Complete | Maps Solo features to 2026 roadmap pillars; layered architecture + phased plan. |
+| 2026-06-19 | [Dead Code Analysis](dead-code-analysis-2026-06-19.md) | Analysis Complete | ~118 findings / ~2940 LOC; phased removal plan. |
+| 2026-06-18 | [Architecture First-Principles Review](architecture-first-principles-review-2026-06-18.md) | Complete | First-principles evaluation of major decisions; long-term risk identification. |
+| 2026-06-16 | [Test Coverage](test-coverage.md) | Complete | Unified coverage report: Go backend + App frontend + E2E + CI/Codecov. |
+| 2026-06-15 | [Tmux Agent Misidentification (kimi → kimi-code)](tmux-agent-misidentification-kimi-code-2026-06-15.md) | Analysis Complete | `kimi --yolo` misidentified as `kimi-code`: setproctitle pollution + cascade failure + fixes. |
+| 2026-06-12 | [Architecture Review](architecture-review-2026-06-12/) | Complete | 4+1 views, maturity scoring, ATAM evaluation, recommendations (4-file review). |
+
+## Reference / Undated
+
+| Document | Status | Summary |
+|----------|--------|---------|
+| [Go Provider Type Erasure](go-provider-type-erasure-analysis.md) | Analysis Complete (P1) | `interface{}` / `map[string]interface{}` growth diagnosis + phased D→B remediation. |
+| [Agent/Provider Status Unification](agent-provider-status-unification.md) | Proposal | OCP-based unification of AgentLifecycleStatus / ProviderStatus across layers. |
+| [App Agent Status Analysis](app-agent-status-analysis.md) | Complete | App agent lifecycle states and Copy button display logic. |
+| [App-Bridge Schedule Module](app-bridge-schedule-module.md) | Reference | Schedule module type contract, RPC schema, domain models. |
+| [Create Schedule Flow](create-schedule-flow.md) | Reference | End-to-end schedule creation flow with timezone-aware cron. |
+| [Host Status Check](host-status-check.md) | Analysis | Probe cycle (2-30 s), adaptive switching, state-machine conflict, grace-period fix. |
+| [Coding Agent Hooks Comparison](coding-agent-hooks-comparison.md) | Reference | Hook systems across 7 coding agents + Solo design suggestions. |
+| [Tmux Transport Disposed Race](tmux-transport-disposed-race.md) | Fixed | `Transport not connected (status: disposed)` root cause + `withLiveTmuxClient` retry. |
+| [iTerm2 Agent Observation](iterm2-agent-observation.md) | Analysis Complete | iTerm2 agent detection observation + CLI discovery (see `demo/`). |
+
+## Related Documentation
 
 ### Architecture
 - [Agent Stall Detection](../architecture/agent-stall-detection.md)
 - [Components](../architecture/components.md)
 - [Data Flow](../architecture/data-flow.md)
-- [Network Architecture](../architecture/network-architecture.md)
 - [Session Memory Persistence](../architecture/session-memory-persistence.md)
 - [Timeline Design](../architecture/timeline-design.md)
 - [Tmux Pane Content Loading](../architecture/tmux-pane-content-loading.md)
@@ -258,15 +49,10 @@ This directory contains analysis documents for the Solo project.
 - [Features](../product/features.md)
 - [2026 Roadmap](../product/roadmap-2026.md)
 - [Loop Schedule Spec](../product/loop-schedule-spec.md)
-- [Session Memory Spec](../product/session-memory-spec.md)
 
 ### Providers
 - [Kimi Cursor Integration](../providers/kimi-cursor-integration.md)
 - [Kimi Wire vs ACP](../providers/kimi-wire-vs-acp.md)
-
-### Tmux Project Matching
-- [Tmux Project Matcher Plan](plan-tmux-project-matcher.md)
-- [Tmux Project Matcher Spec](spec-tmux-project-matcher.md)
 
 ---
 
@@ -274,20 +60,12 @@ This directory contains analysis documents for the Solo project.
 
 When creating a new analysis document:
 
-1. **Use descriptive filename:** `analysis-<topic>.md` or `<topic>-analysis.md`
-2. **Include metadata:** Date, Status, Priority
-3. **Follow structure:**
-   - Executive Summary
-   - Current State
-   - Analysis
-   - Recommendations
-   - Implementation Plan
-   - Related Files
-4. **Update this README** with a link to the new document
+1. **Use a descriptive filename:** `<topic>-analysis.md` or `<topic>-analysis-YYYY-MM-DD.md` for dated work.
+2. **Include metadata:** Date, Status, Priority.
+3. **Follow the template below.**
+4. **Add a row** to the appropriate table above.
 
----
-
-## Analysis Template
+### Template
 
 ```markdown
 # <Topic> Analysis
@@ -296,29 +74,21 @@ When creating a new analysis document:
 **Status:** Analysis Complete | In Progress | Draft
 **Priority:** High | Medium | Low
 
----
-
 ## Executive Summary
-
 Brief summary of the analysis...
 
 ## Current State
-
 Description of the current state...
 
 ## Analysis
-
 Detailed analysis...
 
 ## Recommendations
-
 List of recommendations...
 
 ## Implementation Plan
-
 Phased implementation plan...
 
 ## Related Files
-
 Links to relevant files...
 ```

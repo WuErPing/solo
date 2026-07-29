@@ -41,6 +41,7 @@ Solo is an AI coding assistant platform that connects your local development env
 │  │  · Projects      │  │  · Projects      │  │                  │       │
 │  │  · Workspace     │  │  · Workspace     │  │                  │       │
 │  │  · Settings      │  │  · Settings      │  │                  │       │
+│  │  · Usage         │  │  · Usage         │  │ + solo-usage bin │       │
 │  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘       │
 │           └──────────────────────┴──────────────────────┘                │
 │                                  │                                       │
@@ -163,6 +164,12 @@ Solo is an AI coding assistant platform that connects your local development env
 │  │  │  abstract.   │ │  assembly    │ │  (schedule   │            │ │
 │  │  │              │ │              │ │  assistant)  │            │ │
 │  │  └──────────────┘ └──────────────┘ └──────────────┘            │ │
+│  │  ┌──────────────┐                                              │ │
+│  │  │    usage/    │                                              │ │
+│  │  │ quota track  │                                              │ │
+│  │  │ usage/list   │                                              │ │
+│  │  │ 60s cache    │                                              │ │
+│  │  └──────────────┘                                              │ │
 │  └──────────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -178,6 +185,7 @@ Solo is an AI coding assistant platform that connects your local development env
 | **Daemon** | [`daemon/`](daemon/) | Go | Core service — manages sessions, agents, loops, and provider connections |
 | **Relay** | [`relay-go/`](relay-go/) | Go | Connection relay for remote/mobile access |
 | **CLI** | [`cli/`](cli/) | Go | Command-line tool for session and agent management |
+| **Usage** | [`usage/`](usage/) | Go | Usage/quota tracking CLI (`solo-usage`) and provider module reused by the daemon |
 | **Protocol** | [`protocol/`](protocol/) | Go | Shared protocol definitions |
 | **Highlight** | [`packages/highlight/`](packages/highlight/) | TypeScript | Syntax highlighting library |
 | **Tmux Subsystem** | `daemon/internal/server/session_tmux.go` | Go | Tmux agent detection, pane capture, key injection |
@@ -212,10 +220,10 @@ Solo is an AI coding assistant platform that connects your local development env
 ### Build
 
 ```bash
-# Build all Darwin binaries (daemon, relay, CLI)
+# Build all Darwin binaries (daemon, relay, CLI, usage)
 make darwin
 
-# Build all Linux binaries
+# Build Linux binaries (daemon, relay, CLI; excludes solo-usage)
 make linux
 
 # Build everything
@@ -248,7 +256,7 @@ make dev-web-relay
 # Build and run daemon in background
 make run-daemon
 
-# Stop all dev processes and delete all agent sessions
+# Delete all agent sessions
 make stop-all
 ```
 
@@ -308,6 +316,8 @@ solo/
 ├── packages/highlight/  # Shared syntax highlighting package
 ├── protocol/            # Go protocol definitions
 ├── relay-go/            # Go relay server
+├── scripts/             # Build, CI, and semantic-verify scripts
+├── usage/               # Go usage-tracking service
 ├── Makefile             # Build & development commands
 ├── go.work              # Go workspace
 └── package.json         # Node.js workspace root
@@ -350,7 +360,7 @@ Session memory is **on by default**. To opt out, add to `~/.solo/config.json`:
 }
 ```
 
-Other knobs (`backend`, `root`, `retention_days`, `queue_size`, `overflow`, `redact.*`, `safe.failure_threshold`, `safe.failure_cooldown`) are documented in [`docs/product/session-memory-spec.md`](docs/product/session-memory-spec.md).
+Other knobs (`backend`, `root`, `retention_days`, `queue_size`, `overflow`, `redact.*`, `safe.failure_threshold`, `safe.failure_cooldown`) are documented in [`docs/architecture/session-memory-persistence.md`](docs/architecture/session-memory-persistence.md).
 
 ---
 
@@ -362,7 +372,7 @@ The app includes a Tmux Dashboard that automatically detects AI agents running i
 
 Three-layer detection identifies agents even when `pane_current_command` reports a different process name (e.g., `node` for pi):
 
-1. **Command name** — matches `claude`, `pi`, `kimi`, `kimi-cli`, `opencode`, `qodercli`, `cursor`
+1. **Command name** — matches `claude`, `pi`, `kimi`, `kimi-cli`, `opencode`, `qodercli`, `cursor`, `codex`
 2. **Pane title** — unicode normalization (e.g., `π` → `pi`) with word-boundary matching
 3. **Child process inspection** — `pgrep`/`ps` fallback for wrapped launchers
 
@@ -422,6 +432,22 @@ Solo includes an LLM-driven loop system that evolves scheduled tasks into autono
 
 ---
 
+## Usage Tracking
+
+Solo tracks plan usage, quota, and credit balance across your AI coding platforms, so you can see remaining budget at a glance.
+
+- **`solo-usage` CLI** — a standalone tool that fetches usage from configured providers:
+  - `solo-usage init` — write a starter `~/.solo/usage.json` (mode `0600`; `--print` to preview, `--force` to overwrite)
+  - `solo-usage fetch` — query all enabled providers concurrently (`--provider` to filter, `--json` for machine output)
+  - `solo-usage providers` — list registered providers
+- **Supported providers** — Kimi (API key), DeepSeek (balance), Qoder (org OpenAPI or personal cookie), Xiaomi MiMo (session cookie)
+- **In-app dashboards** — the daemon serves cached snapshots (`usage/quota/list`, 60s TTL) to the app's Usage screen, showing per-provider quota, used %, and reset countdown
+- **Rotating secrets** — config values support `${VAR}` env placeholders and `${file:/path}` file placeholders, so expiring session cookies can be refreshed by overwriting a file (`pbpaste > ~/.solo/xiaomimimo.cookie`) with no config edit or daemon restart
+
+Configuration reference: [`docs/configuration.md`](docs/configuration.md#usagejson--usagequota-providers).
+
+---
+
 ## CLI Reference
 
 Solo includes a comprehensive CLI (`solo-cli`) with the following command groups:
@@ -445,13 +471,16 @@ Solo includes a comprehensive CLI (`solo-cli`) with the following command groups
 
 ## CI/CD
 
-The project uses GitHub Actions (`.github/workflows/ci.yml`) with the following jobs:
+The project uses GitHub Actions. `ci.yml` runs on push/PR to main; E2E runs on a separate nightly workflow.
 
-| Job | Trigger | Steps |
-|-----|---------|-------|
-| **Go** (matrix: protocol, cli, daemon, relay-go) | push/PR to main | `go mod verify` → `go build` → `go test -short -race -coverprofile` → `golangci-lint v2` → Codecov upload |
-| **JS** | push/PR to main | `npm ci` → lint (app, app-bridge, highlight) → typecheck → test (app 1663 tests, app-bridge 32 tests) → Codecov upload |
-| **E2E** (nightly) | daily 02:00 UTC + manual | Playwright E2E (38 specs) with daemon/relay/Metro globalSetup |
+| Job | Workflow | Trigger | Steps |
+|-----|----------|---------|-------|
+| **Go** (matrix: protocol, cli, daemon, relay-go, usage) | `ci.yml` | push/PR to main | `go mod verify` → `go build` → `go test -short -race -coverprofile` → `golangci-lint v2` → Codecov upload |
+| **JS** | `ci.yml` | push/PR to main | `npm ci` → lint (app, app-bridge, highlight) → typecheck → test (app + app-bridge unit tests) → Codecov upload |
+| **arch-boundaries** | `ci.yml` | push/PR to main | `scripts/check-arch-boundaries.sh` — enforces Go module boundaries |
+| **E2E** | `e2e-nightly.yml` | daily 02:00 UTC + manual | Playwright E2E (43 specs) with daemon/relay/Metro globalSetup |
+
+A separate `semantic-check.yml` workflow runs an advisory LLM ADR-consistency check on labeled PRs.
 
 ---
 
@@ -461,7 +490,6 @@ The project uses GitHub Actions (`.github/workflows/ci.yml`) with the following 
 - [Architecture Overview](docs/architecture/README.md)
 - [Component Specifications](docs/architecture/components.md)
 - [Data Flow & Session Lifecycle](docs/architecture/data-flow.md)
-- [Network Architecture](docs/architecture/network-architecture.md)
 - [Session Memory Persistence](docs/architecture/session-memory-persistence.md)
 - [Agent Stall Detection](docs/architecture/agent-stall-detection.md)
 - [Push Notifications](docs/architecture/push-notifications.md)
@@ -469,7 +497,6 @@ The project uses GitHub Actions (`.github/workflows/ci.yml`) with the following 
 - [Deployment Guide](docs/architecture/deployment.md)
 - [Product Features](docs/product/features.md)
 - [2026 Roadmap](docs/product/roadmap-2026.md)
-- [Session Memory Spec](docs/product/session-memory-spec.md)
 - [Technical Analysis](docs/analysis/README.md)
 
 ---

@@ -37,6 +37,7 @@ Solo 是一个 AI 编程助手平台，通过安全、端到端加密的架构�
 │  │  · 项目          │  │  · 项目          │  │                  │       │
 │  │  · 工作区        │  │  · 工作区        │  │                  │       │
 │  │  · 设置          │  │  · 设置          │  │                  │       │
+│  │  · 用量          │  │  · 用量          │  │ + solo-usage bin │       │
 │  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘       │
 │           └──────────────────────┴──────────────────────┘                │
 │                                  │                                       │
@@ -157,6 +158,12 @@ Solo 是一个 AI 编程助手平台，通过安全、端到端加密的架构�
 │  │  │  抽象层      │ │              │ │  (日程助手)  │            │ │
 │  │  │              │ │              │ │              │            │ │
 │  │  └──────────────┘ └──────────────┘ └──────────────┘            │ │
+│  │  ┌──────────────┐                                              │ │
+│  │  │    usage/    │                                              │ │
+│  │  │ quota track  │                                              │ │
+│  │  │ usage/list   │                                              │ │
+│  │  │ 60s cache    │                                              │ │
+│  │  └──────────────┘                                              │ │
 │  └──────────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -172,6 +179,7 @@ Solo 是一个 AI 编程助手平台，通过安全、端到端加密的架构�
 | **守护进程** | [`daemon/`](daemon/) | Go | 核心服务 — 管理会话、代理、循环和提供商连接 |
 | **转发** | [`relay-go/`](relay-go/) | Go | 用于远程/移动访问的连接转发 |
 | **CLI** | [`cli/`](cli/) | Go | 用于会话和代理管理的命令行工具 |
+| **用量** | [`usage/`](usage/) | Go | 用量/配额追踪 CLI（`solo-usage`）及被 daemon 复用的提供商模块 |
 | **协议** | [`protocol/`](protocol/) | Go | 共享协议定义 |
 | **语法高亮** | [`packages/highlight/`](packages/highlight/) | TypeScript | 语法高亮库 |
 | **Tmux 子系统** | `daemon/internal/server/session_tmux.go` | Go | Tmux 代理检测、窗格捕获、按键注入 |
@@ -206,10 +214,10 @@ Solo 是一个 AI 编程助手平台，通过安全、端到端加密的架构�
 ### 构建
 
 ```bash
-# 构建所有 Darwin 二进制文件 (守护进程, 转发, CLI)
+# 构建所有 Darwin 二进制文件 (守护进程, 转发, CLI, usage)
 make darwin
 
-# 构建所有 Linux 二进制文件
+# 构建 Linux 二进制文件 (守护进程, 转发, CLI; 不含 solo-usage)
 make linux
 
 # 构建所有内容
@@ -242,7 +250,7 @@ make dev-web-relay
 # 构建并在后台运行守护进程
 make run-daemon
 
-# 停止所有开发进程并删除所有代理会话
+# 删除所有代理会话
 make stop-all
 ```
 
@@ -302,6 +310,8 @@ solo/
 ├── packages/highlight/  # 共享语法高亮包
 ├── protocol/            # Go 协议定义
 ├── relay-go/            # Go 转发服务器
+├── scripts/             # 构建、CI 与语义校验脚本
+├── usage/               # Go 用量追踪服务
 ├── Makefile             # 构建与开发命令
 ├── go.work              # Go 工作区
 └── package.json         # Node.js 工作区根目录
@@ -344,7 +354,7 @@ solo/
 }
 ```
 
-其他配置项 (`backend`, `root`, `retention_days`, `queue_size`, `overflow`, `redact.*`, `safe.failure_threshold`, `safe.failure_cooldown`) 记录在 [`docs/product/session-memory-spec.md`](docs/product/session-memory-spec.md) 中。
+其他配置项 (`backend`, `root`, `retention_days`, `queue_size`, `overflow`, `redact.*`, `safe.failure_threshold`, `safe.failure_cooldown`) 记录在 [`docs/architecture/session-memory-persistence.md`](docs/architecture/session-memory-persistence.md) 中。
 
 ---
 
@@ -356,7 +366,7 @@ solo/
 
 三层检测机制确保即使 `pane_current_command` 报告不同的进程名（例如 pi 报告为 `node`）也能识别代理：
 
-1. **命令名** — 匹配 `claude`、`pi`、`kimi`、`kimi-cli`、`opencode`、`qodercli`、`cursor`
+1. **命令名** — 匹配 `claude`、`pi`、`kimi`、`kimi-cli`、`opencode`、`qodercli`、`cursor`、`codex`
 2. **窗格标题** — Unicode 归一化（如 `π` → `pi`）配合词边界匹配
 3. **子进程检查** — 通过 `pgrep`/`ps` 回退检测包装启动器
 
@@ -416,6 +426,22 @@ Solo 内置 LLM 驱动的循环系统，将定时任务进化为自治迭代循�
 
 ---
 
+## 用量追踪
+
+Solo 追踪你在各 AI 编码平台上的套餐用量、配额与额度余额，让你一眼掌握剩余额度。
+
+- **`solo-usage` CLI** — 独立工具，从已配置的提供商拉取用量：
+  - `solo-usage init` — 生成初始 `~/.solo/usage.json`（权限 `0600`；`--print` 预览模板，`--force` 覆盖）
+  - `solo-usage fetch` — 并发查询所有已启用的提供商（`--provider` 过滤，`--json` 输出机器可读格式）
+  - `solo-usage providers` — 列出已注册的提供商
+- **支持的提供商** — Kimi（API key）、DeepSeek（余额）、Qoder（组织 OpenAPI 或个人 cookie）、小米 MiMo（会话 cookie）
+- **应用内仪表板** — daemon 提供缓存快照（`usage/quota/list`，60 秒 TTL），供应用的用量页面展示各提供商配额、已用百分比和重置倒计时
+- **轮换密钥** — 配置值支持 `${VAR}` 环境变量占位符和 `${file:/path}` 文件占位符，因此过期的会话 cookie 只需覆盖文件即可刷新（`pbpaste > ~/.solo/xiaomimimo.cookie`），无需改配置或重启 daemon
+
+配置参考：[`docs/configuration.md`](docs/configuration.md#usagejson--usagequota-providers)。
+
+---
+
 ## CLI 参考
 
 Solo 包含一个全面的 CLI (`solo-cli`)，具有以下命令组：
@@ -439,13 +465,16 @@ Solo 包含一个全面的 CLI (`solo-cli`)，具有以下命令组：
 
 ## CI/CD
 
-该项目使用 GitHub Actions (`.github/workflows/ci.yml`)，包含以下任务：
+该项目使用 GitHub Actions。`ci.yml` 在 push/PR 到 main 时运行；E2E 在独立的每日工作流中运行。
 
-| 任务 | 触发条件 | 步骤 |
-|------|---------|------|
-| **Go** (矩阵: protocol, cli, daemon, relay-go) | push/PR 到 main | `go mod verify` → `go build` → `go test -short -race -coverprofile` → `golangci-lint v2` → Codecov 上传 |
-| **JS** | push/PR 到 main | `npm ci` → lint (app, app-bridge, highlight) → typecheck → test (app 1663 测试, app-bridge 32 测试) → Codecov 上传 |
-| **E2E** (每日) | 每日 02:00 UTC + 手动 | Playwright E2E (38 个测试规格) 含 daemon/relay/Metro globalSetup |
+| 任务 | 工作流 | 触发条件 | 步骤 |
+|------|--------|---------|------|
+| **Go** (矩阵: protocol, cli, daemon, relay-go, usage) | `ci.yml` | push/PR 到 main | `go mod verify` → `go build` → `go test -short -race -coverprofile` → `golangci-lint v2` → Codecov 上传 |
+| **JS** | `ci.yml` | push/PR 到 main | `npm ci` → lint (app, app-bridge, highlight) → typecheck → test (app + app-bridge 单元测试) → Codecov 上传 |
+| **arch-boundaries** | `ci.yml` | push/PR 到 main | `scripts/check-arch-boundaries.sh` — 强制 Go 模块边界 |
+| **E2E** | `e2e-nightly.yml` | 每日 02:00 UTC + 手动 | Playwright E2E (43 个测试规格) 含 daemon/relay/Metro globalSetup |
+
+另有 `semantic-check.yml` 工作流，对带标签的 PR 运行建议性 LLM ADR 一致性检查。
 
 ---
 
@@ -455,7 +484,6 @@ Solo 包含一个全面的 CLI (`solo-cli`)，具有以下命令组：
 - [架构概览](docs/architecture/README.md)
 - [组件规范](docs/architecture/components.md)
 - [数据流与会话生命周期](docs/architecture/data-flow.md)
-- [网络架构](docs/architecture/network-architecture.md)
 - [会话记忆持久化](docs/architecture/session-memory-persistence.md)
 - [代理停滞检测](docs/architecture/agent-stall-detection.md)
 - [推送通知](docs/architecture/push-notifications.md)
@@ -463,7 +491,6 @@ Solo 包含一个全面的 CLI (`solo-cli`)，具有以下命令组：
 - [部署指南](docs/architecture/deployment.md)
 - [产品功能](docs/product/features.md)
 - [2026 路线图](docs/product/roadmap-2026.md)
-- [会话记忆规范](docs/product/session-memory-spec.md)
 - [技术分析](docs/analysis/README.md)
 
 ---

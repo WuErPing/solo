@@ -465,8 +465,8 @@ solo usage --agent claude            # 按 agent
 
 ## 参考文档
 
-- [Product Feature Directions 2026](feature-directions-2026.md)
+- [2026 Product/Technical Roadmap](roadmap-2026.md)
 - [Product Features](features.md)
-- [Session Memory Spec](session-memory-spec.md)
+- [Session Memory Persistence](../architecture/session-memory-persistence.md)
 - [Kimi & Cursor-Agent Integration](../providers/kimi-cursor-integration.md)
 - [Architecture Components](../architecture/components.md)

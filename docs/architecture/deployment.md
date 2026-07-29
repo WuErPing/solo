@@ -6,6 +6,7 @@
 
 - [Development Environment](#development-environment)
 - [Production Environment](#production-environment)
+- [Port Mapping](#port-mapping)
 - [Relay Deployment](#relay-deployment)
 - [Nginx Configuration](#nginx-configuration)
 - [Systemd Service](#systemd-service)
@@ -84,6 +85,27 @@ make dev
 | **OS** | Ubuntu 22.04 LTS |
 | **Domain** | solo.up2ai.top |
 | **SSL Certificate** | Let's Encrypt (Certbot) |
+
+## Port Mapping
+
+| 端口 | 服务 | 监听地址 | 说明 | 访问控制 |
+|------|------|----------|------|----------|
+| 80 | Nginx | 0.0.0.0 | HTTP 重定向到 HTTPS | 公网开放 |
+| 443 | Nginx | 0.0.0.0 | HTTPS + WebSocket 代理 | 公网开放 |
+| 8081 | Solo Relay | **127.0.0.1** | Relay WebSocket 服务 | **仅本地** |
+| 17612 | Daemon | 127.0.0.1 | Daemon 本地服务 | 仅本地 |
+
+**⚠️ 重要**: 端口 8081 仅监听在 `127.0.0.1`，外部无法直接访问。所有外部连接必须通过 Nginx (443端口) 反向代理。
+
+对应的域名解析路径：
+
+```
+solo.up2ai.top ──► 106.52.40.152 (腾讯云)
+                      │
+                      ├──► :443 ──► Nginx (SSL) ──► Relay (localhost:8081)
+                      │
+                      └──► :80  ──► Nginx (重定向到 443)
+```
 
 ## Relay 部署
 
@@ -363,6 +385,16 @@ EOF
 | `relay.publicEndpoint` | `solo.up2ai.top:443` | Relay 公网地址 (用于 Pairing Link) |
 | `app.baseUrl` | `https://solo.up2ai.top` | 前端应用地址 (用于生成 Pairing Link) |
 
+### 配置注意事项
+
+> **安全说明**: `cors.origins` 为空列表时，所有携带 Origin 头的 WebSocket 请求将被拒绝（fail-closed）。生产环境必须显式配置允许的来源。
+
+**⚠️ 重要**: `relay.endpoint` 必须使用域名 + 443 端口 (HTTPS/WSS)，**不能**使用直接 IP + 8081 端口。原因：
+
+- 生产环境 Relay 仅监听 `localhost:8081`
+- Nginx 在 `0.0.0.0:443` 提供 SSL 终结并反向代理到 Relay
+- 直接连接 `IP:8081` 会被防火墙/安全组拦截（参见[故障排除](#app-扫码连接超时-handshaketimeout)）
+
 ### 生成 Pairing Link
 
 ```bash
@@ -419,6 +451,38 @@ tail -f ~/.solo/logs/daemon.log
 
 # 或使用 systemd
 journalctl --user -u solo -f
+```
+
+### 健康检查
+
+```bash
+# Relay 健康检查 (服务器本地)
+curl http://localhost:8081/health
+
+# Relay 健康检查 (公网, 通过 Nginx)
+curl https://solo.up2ai.top/health
+```
+
+**响应示例**:
+```json
+{
+  "status": "ok",
+  "sessions": 1,
+  "connections": 1,
+  "version": "relay-go-v1"
+}
+```
+
+判断 Daemon 是否在线：`sessions: 0` 表示 Daemon 未连接到 Relay，`sessions: 1` 表示已连接。
+
+```bash
+# Daemon 健康检查
+curl http://localhost:17612/api/health
+# {"status":"ok","timestamp":"2026-05-19T18:31:48Z"}
+
+# 检查 Daemon 到 Relay 的网络连接
+lsof -p $(pgrep solo) | grep -E 'solo.up2ai|443'
+# 预期: ... TCP 192.168.x.x:xxxxx->solo.up2ai.top:https (ESTABLISHED)
 ```
 
 ## 备份和恢复
@@ -488,4 +552,42 @@ tar xzf solo-backup-20240101.tar.gz -C ~/
 3. 测试 WebSocket
    ```bash
    wscat -c wss://relay.example.com/ws?serverId=test&role=client
+   ```
+
+### App 扫码连接超时 (HandshakeTimeout)
+
+**症状**: App 扫描二维码后，连接约 10 秒后超时断开。
+
+**原因**: Daemon 的 Relay 配置使用了直接 IP + 8081 端口。由于 8081 仅监听在 `127.0.0.1`，外部连接 `IP:8081` 会被防火墙/安全组拦截。
+
+**错误配置**:
+```json
+{
+  "daemon": {
+    "relay": {
+      "endpoint": "106.52.40.152:8081"
+    }
+  }
+}
+```
+
+**正确配置** (域名 + 443 端口):
+```json
+{
+  "daemon": {
+    "relay": {
+      "endpoint": "solo.up2ai.top:443"
+    }
+  }
+}
+```
+
+**修复步骤**:
+1. 修改 `~/.solo/config.json`，将 `endpoint` 改为 `solo.up2ai.top:443`
+2. 重启 Daemon: `pkill -f solo && ~/.solo/bin/solo`
+3. 验证 Relay 连接状态:
+   ```bash
+   ssh tencent_gz_6 "curl -s http://localhost:8081/health"
+   # {"connections":1,"sessions":1,...}  ✅ Daemon 已连接
+   # {"connections":0,"sessions":0,...}  ❌ Daemon 未连接
    ```

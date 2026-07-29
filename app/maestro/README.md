@@ -52,20 +52,20 @@ the wrong route. The header assertion and the `New workspace` negative assertion
 are what prove the redirect actually completed.
 
 The scripts assume a development build with package id `sh.solo.debug`, an
-already-running local daemon on `127.0.0.1:6767`, and a connected Android device
-or emulator. They call `adb reverse tcp:6767 tcp:6767`; they do not restart the
+already-running local daemon on `127.0.0.1:17612`, and a connected Android device
+or emulator. They call `adb reverse tcp:17612 tcp:17612`; they do not restart the
 daemon.
 
 ```bash
-bash packages/app/maestro/test-workspace-create-android-crash.sh
-bash packages/app/maestro/record-workspace-create-android-focus.sh
+bash app/maestro/test-workspace-create-android-crash.sh
+bash app/maestro/record-workspace-create-android-focus.sh
 ```
 
 Optional environment:
 
 ```bash
 SOLO_MAESTRO_APP_ID=sh.solo.debug
-SOLO_MAESTRO_DIRECT_ENDPOINT=127.0.0.1:6767
-SOLO_MAESTRO_DAEMON_WS_URL=ws://127.0.0.1:6767/ws
+SOLO_MAESTRO_DIRECT_ENDPOINT=127.0.0.1:17612
+SOLO_MAESTRO_DAEMON_WS_URL=ws://127.0.0.1:17612/ws
 SOLO_MAESTRO_PROJECT_PATH=/path/to/git/repo
 ```

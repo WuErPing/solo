@@ -6,7 +6,6 @@
 > **基线版本**：Solo v0.6.3
 > **目标读者**：产品、技术负责人、核心开发者、投资者
 > **关联文档**：
-> - [Feature Directions 2026](feature-directions-2026.md)
 > - [Provider Hub / CC-Switch Migration Design](agent-profile-switch-export-design.md)
 > - [Loop Schedule Implementation Spec](loop-schedule-spec.md)
 > - [Solo Roadmap Architecture Mapping](../analysis/solo-roadmap-architecture-mapping.md)
@@ -939,7 +938,6 @@ Project CWD
 
 | 文档 | 用途 |
 |------|------|
-| [Feature Directions 2026](feature-directions-2026.md) | 原始方向分析，含业界对标 |
 | [Provider Hub / CC-Switch Migration Design](agent-profile-switch-export-design.md) | Provider Hub 详细设计 |
 | [Loop Schedule Implementation Spec](loop-schedule-spec.md) | Loop Schedule 实现规范（protocol、模块、迁移计划），含设计原理附录 |
 | [Solo Roadmap Architecture Mapping](../analysis/solo-roadmap-architecture-mapping.md) | 路线图到架构的映射 |

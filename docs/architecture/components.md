@@ -18,11 +18,13 @@
   - `src/screens/schedules/` - Schedule automation dashboard
   - `src/screens/settings/*-section.tsx` - Settings sections (operations, tmux agents, providers, keyboard shortcuts)
   - `src/screens/tmux-dashboard/` - Tmux agent discovery dashboard
+  - `src/screens/usage/` - Usage / quota dashboard screens
   - `src/screens/workspace/` - Workspace management screens
 - `src/components/` - Reusable components
 - `src/app/` - Expo Router routes
-  - `src/app/h/[serverId]/` - Per-host routes (agent, loops, schedules, sessions, settings, workspace, new, open-project)
+  - `src/app/h/[serverId]/` - Per-host routes (agent, loops, schedules, sessions, settings, usage, workspace, new, open-project)
   - `src/app/schedules.tsx` - Schedule entry point
+  - `src/app/usage.tsx` - Usage dashboard entry
   - `src/app/tmux-dashboard.tsx` - Tmux dashboard entry
   - `src/app/tmux-pane.tsx` / `tmux-pane-xterm.tsx` - Tmux pane views
   - `src/app/welcome.tsx` - Onboarding
@@ -90,6 +92,7 @@
 | `loop/` | Main loop |
 | `schedule/` | Scheduler (incl. `schedule/assist` RPC schemas) |
 | `tmux/` | Tmux RPC schemas and types |
+| `usage/` | Usage quota RPC schemas (`usage/quota/list`) |
 
 ### 2.4 Shared & Utils
 
@@ -145,6 +148,7 @@ Core files:
 - `session_tmux.go` - Tmux subprocess management, agent scanning, pane capture, key injection
 - `session_schedule.go` - Schedule message handlers and session-bound schedule state
 - `session_schedule_assist.go` - `schedule/assist` handler; per-session Assistant (NL schedule parse) built lazily via `sync.Once`
+- `session_usage.go` - `usage/quota/list` handler; process-wide quota cache (60s TTL, singleflight) over the shared `usage` module
 - `schedule_runner.go` - Schedule execution wiring
 - `session_register_handlers.go` - WebSocket handler registration (routes tmux/schedule messages)
 - `handler_registry.go` - Handler registry
@@ -201,7 +205,7 @@ Core structure:
 - `bridge/` - Session→turn bridge: seq/parent chain, streaming chunk merging; `SafeBridge` provides panic recovery + circuit breaker
 - `internal/server/memorybridge*.go` - Session scheduler layer hook injection
 
-See [Session Memory Persistence](session-memory-persistence.md) and [`../product/session-memory-spec.md`](../product/session-memory-spec.md).
+See [Session Memory Persistence](session-memory-persistence.md).
 
 ### 3.6 Tmux Subsystem
 
@@ -260,6 +264,16 @@ Core files:
 - `internal/schedule/assistant_extract.go` - Fenced/balanced-brace JSON extraction, per-op schema + semantic validation
 
 See [Schedule Assistant](schedule-assistant.md).
+
+### 3.10 Usage Subsystem
+
+**File**: `internal/server/session_usage.go` (reuses the top-level [`usage/`](#8-usage-usage-tracking-cli--module) module)
+
+Features:
+- Blank-imports the kimi / deepseek / qoder / xiaomimimo providers to register them
+- Serves `usage/quota/list` RPC; responds with `usage/quota/list/response` (snapshots + per-provider errors + `cachedAt`)
+- Process-wide cache with 60s TTL, `singleflight` coalescing of concurrent refreshes, 15s per-fetch timeout
+- Missing `~/.solo/usage.json` or zero enabled providers is not an error (returns an empty snapshot set)
 
 ## 4. Relay (Relay Server)
 
@@ -344,6 +358,7 @@ Features:
 - `message_solo_compat.go` - Solo compatibility messages
 - `message_terminal_msg.go` - Terminal messages
 - `message_tmux.go` - Tmux-related messages
+- `message_usage.go` - Usage quota messages (`usage/quota/list` request/response, snapshots)
 - `message_worktree.go` - Worktree messages
 - `statemachine.go` - State machine logic
 - `stream_event.go` - Streaming event types
@@ -367,6 +382,36 @@ Features:
 - `src/colors.ts` - Color palette
 - `src/types.ts` - Type definitions
 - `src/__tests__/` - Unit tests
+
+## 8. Usage (Usage Tracking CLI & Module)
+
+**Directory**: `usage/`
+
+**Tech Stack**: Go (standalone module, `spf13/cobra`)
+
+**Responsibilities**:
+- Fetch plan usage / quota / credit balance from multiple AI coding platforms
+- Provide the `solo-usage` CLI (`init`, `fetch`, `providers`)
+- Export `config` / `provider` packages reused by the daemon's usage subsystem
+
+**Architecture**:
+
+```
+usage/
+├── main.go              # Entry point (calls cmd.Execute)
+├── cmd/                 # Cobra commands: root, init, fetch, providers (+ provider imports)
+├── config/              # usage.json load + ${VAR} / ${file:/path} placeholder expansion
+├── internal/output/     # Table / JSON rendering
+└── provider/            # Provider interface, registry, and implementations
+    ├── kimi/            # API key — weekly usage, per-window limits
+    ├── deepseek/        # API key — remaining balance
+    ├── qoder/           # Org OpenAPI (apiKey) or personal cookie
+    └── xiaomimimo/      # Session cookie — Token Plan usage
+```
+
+**Config**: `~/.solo/usage.json` (created via `solo-usage init`, mode `0600`). Values support `${VAR}` env and `${file:/path}` file placeholders for rotating secrets. See [Configuration](../configuration.md#usagejson--usagequota-providers).
+
+**Notes**: Darwin-only build target (`make darwin`); excluded from `make linux`. Included in the CI Go test matrix.
 
 ## Component Interaction
 

@@ -2,18 +2,18 @@
 
 > Automatically persist user input and agent output as project-level markdown documents, providing a foundational data layer for future memory, retrieval, and review.
 
-- Status: **Implemented — Phase 1** (see implementation at [`../product/session-memory-spec.md`](../product/session-memory-spec.md))
+- Status: **Implemented — Phase 1** (this document is the authoritative design and implementation reference)
 - Author: Andy
 - Created: 2026-05-28
 - Last revised: 2026-05-29
 
-> This document is the design source. **Implementation has converged on some decisions**, most notably the storage location changed from `<project-root>/.solo/memory/` to fixed **`~/.solo/memory/`** (under SoloHome, shared across projects). Sections §4, §5, §7 below are synchronized. Authoritative implementation spec is [`session-memory-spec.md`](../product/session-memory-spec.md).
+> This document is the authoritative design and implementation reference. **Implementation has converged on some decisions**, most notably the storage location moved from a per-project directory to fixed **`~/.solo/memory/`** (under SoloHome, shared across projects). Sections §4, §5, §7 below reflect the converged design.
 
 ## 1. Goals
 
 - Record **user input** and **agent output** in every session, without loss or omission
 - Store in **Markdown + YAML frontmatter** format, human-readable and tool-parseable
-- Bound to the project (stored in the project directory), facilitating version control and team collaboration
+- Stored under a fixed SoloHome location (**`~/.solo/memory/`**), shared across projects and kept out of the project workspace
 - Clean abstraction, enabling smooth future migration to **database** or **agent memory middleware** (e.g., mem0, Letta, vector stores)
 
 ## 2. Non-Goals
@@ -58,10 +58,10 @@ Reuse existing event/observer mechanisms (referencing event pipelines in `metric
 // daemon/internal/memory/recorder.go
 package memory
 
-// NOTE: the implemented contract is slightly tighter than this sketch —
-// see docs/product/session-memory-spec.md (FR-3) for the final shape,
-// which also drops projectRoot (turns now live under SoloHome) and adds
-// a Flush method for graceful shutdown.
+// Implemented contract: turns live under SoloHome (no projectRoot parameter).
+// RecordTurn enqueues a turn asynchronously; Flush synchronously drains the
+// queue (for testing and graceful shutdown); Close flushes and releases
+// resources, after which RecordTurn must return an error.
 type TurnRecorder interface {
     RecordTurn(ctx context.Context, sessionID string, turn Turn) error
     Flush(ctx context.Context) error
@@ -193,7 +193,56 @@ FileTurnRecorder (now)
 - 中间件适配层（mem0 / Letta）
 - CLI 子命令：`solo memory search / export / prune`
 
-## 10. 开放问题
+## 10. Data Flow
+
+```
+  User/App/Relay
+        │
+        ▼
+┌─────────────────────────┐
+│ session (server)        │
+│   ├─ OnUserTurn ──────┐ │
+│   └─ OnAssistantTurn ─┤ │
+└─────────────────────────┼─┘
+                          │
+                          ▼
+                  ┌──────────────┐
+                  │ Hook bridge  │
+                  │  - Map→Turn  │
+                  │  - Redact    │
+                  └──────┬───────┘
+                         │
+                         ▼
+              ┌────────────────────┐
+              │ TurnRecorder       │
+              │  RecordTurn() ──┐  │
+              └─────────────────┼──┘
+                                │ channel (cap 1024)
+                                ▼
+                  ┌────────────────────────┐
+                  │ writer goroutine       │
+                  │  - mkdir -p            │
+                  │  - write <seq>-<role>.md │
+                  │  - append sessions.jsonl │
+                  └──────────┬─────────────┘
+                             ▼
+                    ~/.solo/memory/
+```
+
+## 11. Acceptance Criteria
+
+| AC | Verification Method |
+|---|---|
+| AC-1: After any Solo session ends, the corresponding `~/.solo/memory/` turn file count = session user + assistant total message count | E2E test |
+| AC-2: No perceptible degradation in agent response latency during writes (P99 increment < 1ms) | Benchmark test |
+| AC-3: Writing 100k turns without loss or duplication | Integration test |
+| AC-4: Under default configuration, `.env` content and OpenAI/GitHub tokens do not appear in any turn file | Redaction test + grep scan |
+| AC-5: After `Close()`, daemon exits cleanly (no dangling goroutines) | Goroutine leak detection (`goleak`) |
+| AC-6: After daemon restart, new turns for old sessions can still be appended with sequential numbering | Integration test |
+| AC-7: All metrics are visible at the `/metrics` endpoint | Smoke test |
+| AC-8: When a turn contains `[redacted:...]`, the original content has been replaced | Redaction unit test |
+
+## 12. 开放问题
 
 - 是否需要在 session 层记录 system prompt？（占 token 但信息量低）—— 仍开放
 - 多 agent 并发时，parent 链如何准确重建？—— 部分解决：`bridge` 维护 session-seq/parentID 链，复杂 subagent 场景待 Phase 2 验证

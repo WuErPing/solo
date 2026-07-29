@@ -4,13 +4,47 @@
 
 - Status: **Implemented** (2026-07-18)
 - Created: 2026-07-18
-- Design doc: [`../product/chat-schedule-assistant-design.md`](../product/chat-schedule-assistant-design.md) (product flows, UX, rationale)
+
+## Product Context
+
+**Why chat-based scheduling.** Cron is the main friction in the existing form: most users cannot write `0 9 * * 1-5` and should not have to. Creating a schedule means filling several fields (prompt, cadence type, cron/interval, target agent); editing is heavier still because `schedule/update` is full-replace, so re-opening the form re-enters every field. Schedules are per-host and often numerous, so small tweaks ("move the daily report to 7:30", "pause everything on this host") mean hunting through the list. The assistant replaces this with one plain-language sentence and the ability to refer to existing schedules by name.
+
+**Interaction model — propose, then confirm.** The LLM only ever *proposes*; nothing applies silently. Every mutation requires an explicit confirm on a structured proposal card (goal: zero accidental mutations) — there is no auto-apply path and no multi-step autonomous chaining. Four response kinds drive the conversation (protocol in §4):
+
+- **proposal** — a confirmable card (create / update / pause / resume / delete).
+- **clarify** — an ambiguous reference or missing info; the assistant never guesses (e.g. "which schedule — 'Nightly test summary' or 'Disk cleanup'?").
+- **answer** — informational, no mutation (e.g. "what runs today?").
+- **error** — an actionable failure card.
+
+Representative flows: create from a sentence; edit by name with a per-field old→new diff; pause/resume/delete by name; clarify on ambiguity; plain answers for read-only questions.
+
+**Locked product decisions.**
+
+- A dedicated, scoped assistant panel in the Schedules area — not schedule tools injected into existing agent chat (a possible later phase).
+- Parse with the host's configured LLM Providers via a stateless daemon-side completion (§5–§6): credentials stay on the daemon, no agent session or CLI harness is spawned, and it works identically for local and relay/E2EE clients.
+- Execution is unchanged — confirmed proposals reuse the existing schedule RPCs and Target Agent runner behavior (§8).
+
+**User-facing surface.**
+
+- Entry points: "Ask AI" header button on the per-host schedules screen; "Edit with AI" on the schedule detail screen (sets `contextScheduleId`); an assistant FAB on the schedules dashboard, with a required host chip selector when more than one host is connected.
+- The panel is **host-scoped** — it parses with the LLM provider configured on the same host whose schedules it manages — and always shows the host and a display-only provider/model indicator (no in-panel switching in v1; the host default is resolved per §5).
+- Proposal card: op badge, the proposed fields (update shows a diff), cadence rendered human-readable via the existing `describeCron()`, a local next-run preview, any warnings, and Confirm / Edit in form / Cancel. Delete is destructive-styled and names the schedule + cadence; there is no bulk delete in v1. After a successful confirm the card collapses to an applied receipt (§8).
+- States: an empty conversation offers example suggestion chips; sending shows a "Thinking…" pending bubble (120s budget); a missing provider is known up front and shown as a setup card deep-linking to Settings → General → LLM Providers; a disconnected host disables the composer. Config/endpoint errors render as a card naming the provider with a settings deep link and Retry; an invalid cadence or unknown reference becomes a clarify card stating the constraint or listing candidates.
+
+**Scope boundaries (v1 non-goals).** No loop-type schedules via chat; no schedule tools inside regular agent chat; no daemon-side transcript persistence (transcripts live in the app, session-only); no in-panel provider/model switching (host default only); no managing provider configs beyond the existing settings UI; no multi-step autonomous schedule management.
 
 ## 1. Overview
 
 The Schedule Assistant lets users manage cron schedules in plain language ("every weekday at 9am, summarize the nightly test runs") instead of writing cron expressions by hand. A chat panel in the app sends each request to the daemon over the new `schedule/assist` RPC; the daemon resolves the host's default LLM provider from `config.llmProviders` (Settings → General → LLM Providers — previously a config with no runtime consumer), makes one stateless chat completion, validates the output, and returns a typed proposal, clarify question, answer, or error.
 
 **Safety invariant: the LLM never mutates schedules.** The daemon parse path has no code path to the schedule store. The LLM output is treated as untrusted text, validated against live state, and rendered as a proposal card; only an explicit user confirm calls the existing, validated `schedule/create|update|pause|resume|delete` RPCs. Execution at fire time is entirely unchanged — Target Agent resolution in `daemonRunner` (`agent` → message to the running agent; `new-agent`/`provider` → ephemeral agent via AgentManager).
+
+**Security posture.**
+
+- LLM output is never executed and never rendered as HTML/markdown-with-links; proposal fields render as plain text and pass schema + semantic validation before reaching the card.
+- Prompt-injection containment: context data (schedule/agent names, existing prompts) is quoted in the prompt; even a manipulated output yields at most a wrong proposal on a confirm card — nothing applies silently, and the parse path has no tool-execution surface (no agent session, no process spawn).
+- Credentials & privacy: `apiKey` lives only in daemon config, is never logged and never echoed in assist responses; transcripts stay in app memory; daemon logs metadata, not prompts.
+- Egress: the parse request egresses from the daemon host to the user-configured endpoint over HTTPS (the same trust posture as existing CLI-harness providers); the app↔daemon channel is unchanged (E2EE via relay, or local).
 
 ## 2. Component Map
 
@@ -69,7 +103,7 @@ Each `schedule/assist` request runs through:
 3. **Resolve default provider** — read fresh from `config.llmProviders` per request (settings changes take effect immediately); unresolvable → `no_llm_provider` (§5).
 4. **Build prompt** — system prompt with a JSON-only output contract plus a context block: agents and schedules (≤50 entries each), timezone, clientNow, transcript (≤10 turns); capped at ~8k chars.
 5. **One completion** — a single non-streaming chat completion via `internal/llm` (§6).
-6. **Extract + validate** — fenced ```` ```json ```` block else balanced-brace extraction; per-op schema validation; semantic validation against live state (cron parses, `everyMs ≥ 60000`, prompt ≤4000 chars, referenced ids resolved name→id with ≤5 fuzzy candidates → `clarify`).
+6. **Extract + validate** — fenced ```` ```json ```` block else balanced-brace extraction; per-op schema validation; semantic validation against live state (cron parses, `everyMs ≥ 60000`, prompt ≤4000 chars, `expiresAt` in the future, `maxRuns > 0`, referenced ids resolved name→id with ≤5 fuzzy candidates → `clarify`).
 7. **One retry** — on validation failure only, the error is appended to the prompt and the completion repeated once; a second failure returns `parse_failed`.
 8. **Enrich** — compute the `nextRunAt` preview via the existing `NextRunAt`, attach warnings, echo the resolved `llmProvider`/`model`, and return the typed payload.
 
@@ -162,15 +196,27 @@ Bundled fix: daemon config responses emitted `tmuxAgentNames: null`, which the a
 | Daemon egress | 1 HTTPS call per parse, +1 only on validation retry | per request |
 | Message size | ≤2000 chars user message; transcript ≤10 turns; context block ~8k chars | per request |
 
-## 11. Testing Surface
+## 11. Observability
+
+Metrics (the `llmProvider` label is the resolved provider's config id, e.g. `"openai"`):
+
+| Metric | Labels |
+|--------|--------|
+| `solo_schedule_assist_requests_total` | `llmProvider`, `kind` |
+| `solo_schedule_assist_parse_failures_total` | `llmProvider`, `stage` |
+| `solo_schedule_assist_duration_seconds` | `llmProvider` |
+| `solo_schedule_assist_confirms_total` | `op` (reported by the app via the existing telemetry path) |
+
+Structured logs carry request id, provider id, model, result kind, retry count, validation errors, and approximate sizes. Raw user prompts and API keys are never logged at any level; prompt logging is debug-gated and off by default.
+
+## 12. Testing Surface
 
 - **Go (daemon, `-short -race`)**: `internal/llm` client against `httptest.Server` (auth header, 401/429/5xx mapping, malformed body, timeout); table-driven resolver / prompt / extractor / orchestration tests; WebSocket round-trip integration against a stub chat-completions endpoint (proposal happy path, garbage → retry → error, empty config → `no_llm_provider`).
 - **App-bridge (Vitest)**: schema round-trip for the assist request/response and union registration; client RPC.
 - **App (Vitest, 75 tests)**: store, hooks, and components — op→RPC mapping incl. `cronToUTC` and update-merge-via-inspect, proposal card variants, clarify/answer/error rendering, `no_llm_provider` deep link.
 - **E2E (Playwright, nightly)**: `app/e2e/schedule-assistant.spec.ts` with `app/e2e/helpers/stub-llm-server.ts` — the daemon under test is configured with a local stub LLM endpoint in `llmProviders`. Four specs: no-provider setup card, create-with-confirm (incl. UTC conversion), update-with-diff, ambiguity → clarify.
 
-## 12. Related Docs
+## 13. Related Docs
 
-- [Chat-Based Schedule Assistant — Product Design](../product/chat-schedule-assistant-design.md) — flows, UX, decision rationale, rollout
 - [App-Bridge Schedule Module](../analysis/app-bridge-schedule-module.md) — schedule RPC type contract
 - [Create Schedule Flow](../analysis/create-schedule-flow.md) — form-based creation path and timezone pipeline

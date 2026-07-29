@@ -5,7 +5,7 @@
 > - **Status:** Analysis Complete(已修复)
 > - **Date:** 2026-06-15
 > - **Author:** Andy, Qoder
-> - **Related:** [tmux-pane-analysis.md](tmux-pane-analysis.md), [tmux-pane-content-loading.md](../architecture/tmux-pane-content-loading.md), `daemon/internal/server/session_tmux.go`, `daemon/internal/server/agent_command_store.go`
+> - **Related:** [tmux-pane-rendering-decision.md](tmux-pane-rendering-decision.md), [tmux-pane-content-loading.md](../architecture/tmux-pane-content-loading.md), `daemon/internal/server/session_tmux.go`, `daemon/internal/server/agent_command_store.go`
 
 ---
 

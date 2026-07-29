@@ -182,6 +182,10 @@ Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
 - **Schedule Dashboard**：Cron 调度任务管理（创建、编辑、列表、详情）
   - 频率预设、时区感知输入、UTC 存储 / 本地显示
   - 支持选择现有 Agent 或新建 Agent 执行
+- **Usage Dashboard**：跨平台用量/配额仪表板
+  - 按提供商展示配额、已用百分比、用量/上限和重置倒计时
+  - 数据来自 daemon 的 `usage/quota/list` 快照（60 秒 TTL 缓存，支持下拉强制刷新）
+  - 空状态引导用户在主机上运行 `solo-usage init`
 - **Workspace Screen**：多标签工作区管理
   - 桌面标签行
   - Agent 可见性控制
@@ -237,11 +241,39 @@ Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
 - `solo provider ls`：列出 Provider
 - `solo provider models`：查看模型列表
 
-### 9. 测试覆盖
+### 9. 用量追踪系统 (Usage)
+
+跨平台追踪 AI 编码套餐的用量、配额与额度余额。由独立的 `solo-usage` CLI 与 daemon 内的共享 `usage` 模块共同实现，应用通过 RPC 消费缓存快照。
+
+#### 9.1 solo-usage CLI
+- `solo-usage init`：生成初始 `~/.solo/usage.json`（权限 `0600`）；`--print` 打印模板到 stdout，`--force` 覆盖已有文件
+- `solo-usage fetch`：并发拉取所有已启用提供商的用量；`--provider` 按名称过滤，`--json` 输出 JSON
+- `solo-usage providers`：列出已注册的提供商
+- 表格输出列：`PROVIDER  QUOTA  USED%  USED/LIMIT  RESETS IN`
+
+#### 9.2 提供商
+| 提供商 | 认证 | 说明 |
+|--------|------|------|
+| `kimi` | API key | 周用量、各窗口限额、并发上限；会员等级 → Plan |
+| `deepseek` | API key | 报告剩余余额（非用量/上限） |
+| `qoder` | API key（组织）/ cookie（个人） | 组织模式用 Teams OpenAPI（仅组织管理员）；个人模式用浏览器会话 cookie，设置后优先于组织模式 |
+| `xiaomimimo` | cookie | 平台会话 cookie（不支持 `tp-` API key） |
+
+#### 9.3 配置与占位符
+- 配置文件 `~/.solo/usage.json`，每个提供商条目含 `enabled` / `apiKey` / `endpoint` / `extra`
+- `${VAR}` — 环境变量占位符；`${file:/path}` — 文件内容占位符（支持 `~`），用于轮换会话 cookie，覆盖文件即可刷新，无需改配置或重启
+- 详见 [`docs/configuration.md`](../configuration.md#usagejson--usagequota-providers)
+
+#### 9.4 Daemon 集成与应用
+- daemon 复用 `usage` 模块的 `config` / `provider` 包，注册 `usage/quota/list` RPC
+- 进程级缓存：60 秒 TTL，`singleflight` 合并并发刷新，15 秒拉取超时；缺少配置或无启用提供商不报错（返回空快照集）
+- app-bridge `UsageRpc.usageQuotaList`（20 秒超时）；应用 Usage 仪表板（react-query，30 秒 staleTime，支持下拉强制刷新）
+
+### 10. 测试覆盖
 
 > 详细覆盖率数据、模块级分析、根因和路线图见: [`docs/analysis/test-coverage.md`](../analysis/test-coverage.md)
 
-#### 9.1 测试规模
+#### 10.1 测试规模
 - **App 单元测试**：**235** 个测试文件，**1,663** 个测试用例（Vitest），已接入 CI（含 tmux dashboard、pane screen、status line、ANSI renderer、SVG preview、loop CRUD 等新增测试）
 - **App browser 测试**：1 个文件（Chromium via Playwright），未接入 CI
 - **App-bridge 测试**：3 个文件，**32 个测试用例**（Vitest），已接入 CI
@@ -252,34 +284,34 @@ Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
 - **E2E 测试**：**35** 个 `.spec.ts`（Playwright），**nightly 运行**（含 loop-crud、tmux-close-session、SVG preview 等 E2E）
 - **Maestro 移动端**：~20 个 YAML flow，ad-hoc / 未接入 CI
 
-#### 9.2 关键测试域
+#### 10.2 关键测试域
 - Agent：dispatcher、coalescer、reasoning/window、duplicate 检测
 - Server：grace integration、reconnect、race 条件
 - Relay：client、E2EE、control channel
 - Terminal：output race、coalescer
 - Workspace：registry、config、project
 
-### 10. 基础设施
+### 11. 基础设施
 
-#### 10.1 构建系统
+#### 11.1 构建系统
 - **Makefile**：多目标构建（daemon、relay、app）
-- **Go Workspace**：cli、daemon、protocol、relay-go
+- **Go Workspace**：cli、daemon、protocol、relay-go、usage
 - **npm Workspace**：app、app-bridge、packages/highlight
 
-#### 10.2 CI/CD
+#### 11.2 CI/CD
 - **GitHub Actions `ci.yml`**：
-  - `go` job（matrix: protocol/cli/daemon/relay-go）：build + `go test -short -race -coverprofile` + golangci-lint v2.10 + Codecov upload
+  - `go` job（matrix: protocol/cli/daemon/relay-go/usage）：build + `go test -short -race -coverprofile` + golangci-lint v2.10 + Codecov upload
   - `js` job：lint（app/app-bridge/highlight）+ typecheck（强制，0 errors）+ test（highlight/app/app-bridge）+ Codecov upload
 - **GitHub Actions `e2e-nightly.yml`**：每天 02:00 UTC 自动运行 Playwright E2E，失败保留 trace/screenshot/video 7 天
 - **Codecov**：`codecov.yml` 配置 flags（js / go-*）+ informational mode，需 `CODECOV_TOKEN` Secret
 - **golangci-lint**：v2.10，`.golangci.yml` 配置 formatters 和 revive 规则
 - **ESLint**：app（expo lint）、app-bridge、highlight 分别配置
 
-#### 10.3 监控
+#### 11.3 监控
 - **Prometheus 指标**：sessions、connections、messages
 - **日志系统**：slog（Go）、结构化日志
 
-### 11. App 导航结构
+### 12. App 导航结构
 
 App 使用 **Expo Router** 文件系统路由：
 
@@ -301,10 +333,11 @@ app/
     ├── workspace/[workspaceId]/  # Workspace 主页
     ├── agent/[agentId].tsx       # Agent 详情
     ├── sessions.tsx              # 会话列表
-    └── schedules.tsx             # 主机调度任务列表
+    ├── schedules.tsx             # 主机调度任务列表
+    └── usage.tsx                 # 主机用量/配额仪表板
 ```
 
-### 12. App 核心组件目录
+### 13. App 核心组件目录
 
 #### Agent 组件
 | 组件 | 文件 | 功能 |
@@ -340,7 +373,7 @@ app/
 #### UI 基础组件
 Button, Dropdown Menu, Combobox, Tooltip, Shortcut, Segmented Control, Context Menu, Isolated Bottom Sheet
 
-### 13. App Hooks / Context / Stores
+### 14. App Hooks / Context / Stores
 
 #### Contexts
 | Context | 功能 |

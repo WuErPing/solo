@@ -57,6 +57,7 @@
   <text x="215" y="176" class="bullet">Projects</text>
   <text x="215" y="188" class="bullet">Workspace</text>
   <text x="215" y="200" class="bullet">Settings</text>
+  <text x="215" y="212" class="bullet">Usage</text>
 
   <!-- Mobile App -->
   <rect x="410" y="100" width="300" height="130" rx="8" class="group-bg" filter="url(#shadow)"/>
@@ -72,6 +73,7 @@
   <text x="535" y="176" class="bullet">Projects</text>
   <text x="535" y="188" class="bullet">Workspace</text>
   <text x="535" y="200" class="bullet">Settings</text>
+  <text x="535" y="212" class="bullet">Usage</text>
 
   <!-- CLI -->
   <rect x="730" y="100" width="200" height="130" rx="8" class="group-bg" filter="url(#shadow)"/>
@@ -81,6 +83,7 @@
   <text x="745" y="176" class="bullet">loop ls / run / stop</text>
   <text x="745" y="188" class="bullet">provider ls / models</text>
   <text x="745" y="200" class="bullet">onboard</text>
+  <text x="745" y="212" class="bullet">solo-usage init / fetch</text>
 
   <!-- Arrows from clients down -->
   <line x1="240" y1="230" x2="240" y2="248" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
@@ -378,8 +381,14 @@
   <text x="120" y="1578" class="bullet">Session scheduler hook injection</text>
   <text x="120" y="1590" class="bullet">server/memorybridge*.go</text>
 
+  <!-- Row 3: usage -->
+  <rect x="340" y="1540" width="240" height="60" rx="6" fill="#f0fdfa" stroke="#14b8a6" stroke-width="1"/>
+  <text x="460" y="1560" class="node-label-sm" font-weight="600" fill="#0f766e">usage/ (quota tracking)</text>
+  <text x="355" y="1578" class="bullet">session_usage.go — usage/quota/list RPC</text>
+  <text x="355" y="1590" class="bullet">60s cache + singleflight · kimi/deepseek/qoder/mimo</text>
+
   <!-- Legend -->
-  <rect x="900" y="1670" width="190" height="120" rx="6" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+  <rect x="900" y="1670" width="190" height="138" rx="6" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
   <text x="915" y="1690" font-size="11px" font-weight="600" fill="#475569">Legend</text>
   <rect x="915" y="1700" width="12" height="12" rx="2" class="accent-bg"/>
   <text x="932" y="1710" font-size="9px" fill="#64748b">Client / Bridge</text>
@@ -391,4 +400,6 @@
   <text x="932" y="1764" font-size="9px" fill="#64748b">Schedule / Push / Metrics</text>
   <rect x="915" y="1772" width="12" height="12" rx="2" class="amber-bg"/>
   <text x="932" y="1782" font-size="9px" fill="#64748b">Loop engine</text>
+  <rect x="915" y="1790" width="12" height="12" rx="2" fill="#f0fdfa" stroke="#14b8a6" stroke-width="1"/>
+  <text x="932" y="1800" font-size="9px" fill="#64748b">Usage subsystem</text>
 </svg>

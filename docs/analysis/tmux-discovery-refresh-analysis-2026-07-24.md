@@ -75,7 +75,7 @@ tickers exist: `session.go:451-461`).
   `["tmux-agents", serverId]`; adaptive `refetchInterval` gated on app visibility;
   no `staleTime` override → inherits global `staleTime: Infinity`
   (`app/src/query/query-client.ts:6`).
-- `app/src/hooks/use-tmux-capture-pane.ts` — adaptive tiers 500ms/1s/5s (2s/10s
+- `app/src/hooks/use-tmux-capture-pane.ts` — adaptive tiers 150ms/1s/5s (5s/10s
   phase thresholds, `:16-28`); change detection via data-reference identity tracked
   in a WeakMap keyed by the RQ query object (`:35-48`); lazy history 200→5000 lines
   (`:181-184`); foreground-edge refetch (`:172-179`); `staleTime: 5000`.
@@ -103,7 +103,7 @@ Global: `refetchOnMount/OnReconnect/OnWindowFocus` all disabled
 | 2 | agents | `refreshAll()` → invalidate on dashboard mount | once per mount | `tmux-dashboard-screen.tsx:374-376` |
 | 3 | agents | Pull-to-refresh | manual | `tmux-dashboard-screen.tsx:644-646` |
 | 4 | agents | `refreshAll()` after new/kill/delete/run | post-mutation | `tmux-dashboard-screen.tsx:389,448,464,478` |
-| 5 | pane content | RQ `refetchInterval`, adaptive; gated on enabled+visible+autoRefresh | 500ms/1s/5s | `use-tmux-capture-pane.ts:118-121` |
+| 5 | pane content | RQ `refetchInterval`, adaptive; gated on enabled+visible+autoRefresh | 150ms/1s/5s | `use-tmux-capture-pane.ts:118-121` |
 | 6 | pane content | Daemon content-hash dedup (`changed=false` → empty payload) | every poll | `session_tmux.go:132-139` |
 | 7 | pane content | `refetch()` after send-keys | post-mutation | `tmux-pane-screen.tsx:173-176` |
 | 8 | pane content | Manual refresh button | manual | `tmux-pane-screen.tsx:423-437` |
@@ -202,3 +202,25 @@ by RN Web and unreachable to tests and screen readers).
   `golangci-lint run ./internal/server/` 0 issues.
 - app: `tsc --noEmit` clean; `expo lint` clean; `npx vitest run` 265 files /
   1944 tests all pass (1941 baseline + 3 new).
+
+---
+
+## Update 2026-07-29: Refresh-lag tuning
+
+Pane content refresh felt laggy/choppy during active agent output. Root cause:
+the adaptive tiers capped the active refresh rate at **~2 fps** (`ACTIVE_POLL_INTERVAL`
+= 500ms), far below what smooth scrolling needs, and round-trip latency stacked on
+top of the timer.
+
+Fix applied in `app/src/hooks/use-tmux-capture-pane.ts` (constants updated
+throughout this doc above):
+
+| Constant | Before | After | Effect |
+|---|---|---|---|
+| `ACTIVE_POLL_INTERVAL` | 500ms | **150ms** | active tier raised to ~7 fps |
+| `ACTIVE_PHASE_MS` | 2,000ms | **5,000ms** | poller stays in the active tier through typical agent think/tool-call pauses |
+
+Warm/idle tiers unchanged (1000ms / 5000ms). In addition, a daemon-side push
+notification (`tmux/pane_changed`) now triggers an immediate client refetch on pane
+activity, so changes no longer wait for the next poll tick; polling remains as a
+fallback. See `docs/architecture/tmux-pane-content-loading.md` §6.4.

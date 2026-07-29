@@ -4,10 +4,8 @@
 
 ## In This Directory
 
-- [Network Architecture](network-architecture.md) — Nginx → Relay → Daemon paths, E2EE, Pairing Link
-- [Network · Data · State Architecture](network-data-state-architecture.md) — Synthesis of the three layers end-to-end: paths, stores, sync
-- [Components](components.md) — App, App-Bridge, Daemon, Relay, CLI, Protocol specs
-- [Data Flow](data-flow.md) — WS message flows, session lifecycle, heartbeat
+- [Components](components.md) — App, App-Bridge, Daemon, Relay, CLI, Usage, Protocol specs
+- [Data Flow](data-flow.md) — Network topology (Nginx → Relay → Daemon), WS message flows, E2EE, Pairing Link, session lifecycle, heartbeat
 - [Timeline Design](timeline-design.md) — Head/Tail stream model, seq gate, bootstrap policy, catch-up
 - [Session Memory Persistence](session-memory-persistence.md) — Turn recording hooks, TurnRecorder interface, file layout, migration path
 - [Agent Stall Detection](agent-stall-detection.md) — Inactivity & repetition detection, grace-period fix, operational tuning
@@ -15,8 +13,6 @@
 - [Push Notifications](push-notifications.md) — Push notification architecture and delivery flow
 - [Schedule Assistant](schedule-assistant.md) — NL schedule parse via configured LLM providers, proposal-only safety, confirm path
 - [Deployment](deployment.md) — Systemd, Docker, Nginx config, env vars
-
-See also [`../product/session-memory-spec.md`](../product/session-memory-spec.md) for the Phase 1 implementation spec (M1–M6 shipped 2026-05-28).
 
 ## Related
 
@@ -188,6 +184,7 @@ See also [`../product/session-memory-spec.md`](../product/session-memory-spec.md
 | **Daemon** | `daemon/` | Go | Core service — manages sessions, agents, loops, and provider connections |
 | **Relay** | `relay-go/` | Go | Connection relay for remote/mobile access |
 | **CLI** | `cli/` | Go | Command-line tool for session and agent management |
+| **Usage** | `usage/` | Go | Usage/quota tracking CLI (`solo-usage`) and provider module reused by the daemon |
 | **Protocol** | `protocol/` | Go | Shared protocol definitions |
 | **Highlight** | `packages/highlight/` | TypeScript | Syntax highlighting library |
 | **LLM Client** | `daemon/internal/llm/` | Go | OpenAI-compatible chat completion client (schedule assistant) |
@@ -196,7 +193,7 @@ See also [`../product/session-memory-spec.md`](../product/session-memory-spec.md
 
 ## Quick Links
 
-- [Network Architecture Details](network-architecture.md)
+- [Session Memory Persistence](session-memory-persistence.md)
 - [View Component Details](components.md)
 - [Learn about Data Flow](data-flow.md)
 - [Deployment Guide](deployment.md)

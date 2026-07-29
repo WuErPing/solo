@@ -1,5 +1,45 @@
 # Data Flow Documentation
 
+## Network Topology
+
+All remote traffic flows through the Nginx reverse proxy to the Relay, which bridges client connections to the user's Daemon:
+
+```
+Client Layer (Web / Mobile / CLI)
+        │  App-Bridge (TypeScript), WebSocket + optional E2EE
+        ▼
+┌─────────────────────────────────────────┐
+│  Nginx (Reverse Proxy)                  │
+│  solo.up2ai.top:443                     │
+│  - SSL termination (Let's Encrypt)      │
+│  - Reverse proxy to localhost:8081      │
+└───────────────────┬─────────────────────┘
+                    │  WebSocket (localhost:8081)
+                    ▼
+┌─────────────────────────────────────────┐
+│  Solo Relay Server (Go)                 │
+│  127.0.0.1:8081                         │
+│  - Control socket / Data socket         │
+│  - Session management & message routing │
+└───────────────────┬─────────────────────┘
+                    │  WebSocket
+                    ▼
+┌─────────────────────────────────────────┐
+│  Solo Daemon (Go, user machine)         │
+│  127.0.0.1:17612                        │
+│  - Agent / Workspace / Terminal         │
+│  - Relay Client (control + data conns)  │
+└─────────────────────────────────────────┘
+```
+
+Key points:
+
+- **App → Nginx**: WSS (WebSocket over TLS) on port 443.
+- **Nginx → Relay**: plain WS on `localhost:8081`; the Relay binds to `127.0.0.1` only and is not reachable from the public internet.
+- **Daemon → Relay**: the Daemon dials out over WSS (port 443) via its Relay Client, so it works behind NAT.
+
+For server details, Nginx/systemd configuration, and port access control, see [Deployment Architecture](deployment.md).
+
 ## WebSocket Message Flow
 
 ### Connection Establishment
@@ -73,6 +113,21 @@ Client                              Relay                              Daemon
 | `response` | Response |
 | `event` | Event notification |
 | `error` | Error |
+
+### Protocol Constants
+
+Defined in `protocol/protocol.go`; these govern the handshake and session lifecycle below:
+
+```go
+const (
+    WSProtocolVersion        = 1
+    HelloTimeoutMs           = 15000
+    SessionDisconnectGraceMs = 90000
+
+    WSEndpoint           = "/ws"
+    RelayProtocolVersion = "2"
+)
+```
 
 ## Session Lifecycle
 
@@ -155,6 +210,70 @@ Client                      Relay                      Daemon
   │                          │                          │
   │  5. Decrypt response     │                          │
 ```
+
+## Pairing Link Flow
+
+The Pairing Link is how a mobile/desktop client bootstraps a connection to a Daemon: it packages the network configuration and the Daemon's public key into a single URL, which then feeds directly into the E2EE handshake above.
+
+### Generation
+
+```
+User ──► solo pair (CLI) ──► GeneratePairingOffer (cli/internal/client)
+                                    │
+                                    ▼
+                  ConnectionOfferV2 (JSON)
+                  {
+                    "v": 2,
+                    "serverId": "75df32ee",
+                    "daemonPublicKeyB64": "LbDipkESA0+8Mzs57k0EnIW8...",
+                    "relay": { "endpoint": "solo.up2ai.top:443" }
+                  }
+                                    │
+                                    ▼  Base64URL encode
+        https://solo.up2ai.top/#offer=eyJ2IjoyLCJzZXJ2ZXJJZCI6...
+                                    │
+                                    ▼
+                          QR Code (shown in terminal)
+```
+
+| Component | Location | Responsibility |
+|-----------|----------|----------------|
+| CLI `pair` command | `cli/cmd/daemon_pair.go` | User entry point, reads config |
+| Pairing logic | `cli/internal/client/pairing.go` | Generate/parse pairing link |
+| Key management | `cli/internal/client/pairing.go` | Curve25519 key pair |
+| Offer schema | `app-bridge/src/shared/connection-offer.ts` | Type definition and validation |
+
+### Usage Sequence
+
+```
+Daemon (server)        User             Mobile App (client)
+     │                  │                       │
+     │  1. solo pair    │                       │
+     │◄─────────────────│                       │
+     │                  │                       │
+     │  2. Generate Pairing Link + QR           │
+     │─────────────────►│                       │
+     │                  │                       │
+     │                  │  3. Scan QR / paste link
+     │──────────────────────────────────────────►│
+     │                  │                       │  4. Parse offer
+     │                  │                       │  5. Connect to Relay
+     │                  │                       │  6. E2EE handshake
+     │◄──────────────────────────────────────────│
+     │                  │                       │
+     │  7. Establish data channel               │
+     │  8. Normal communication                 │
+     │◄────────────────────────────────────────►│
+```
+
+### Security
+
+1. **E2EE**: the Pairing Link carries the Daemon public key used for end-to-end encryption.
+2. **ServerID validation**: uniquely identifies the Daemon and prevents MITM attacks.
+3. **TLS transport**: Relay communication uses WSS (WebSocket over TLS).
+4. **Key persistence**: the Daemon key pair is stored at `~/.solo/daemon-keypair.json`.
+
+Configuration details (Relay endpoint, `app.baseUrl`, etc.) are documented in [Deployment Architecture](deployment.md#pairing-link-配置).
 
 ## Agent Message Flow
 

@@ -80,27 +80,30 @@
   <text x="810.0" y="464.0" class="node-label-sm">Mock</text>
   <rect x="80" y="515" width="800" height="135" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
   <text x="95" y="533" class="group-title" font-size="10px">Supporting Services</text>
-  <rect x="110" y="555" width="105" height="50" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
-  <text x="162.5" y="578.0" class="node-label-sm">Session</text>
-  <text x="162.5" y="592.0" class="node-label-sm">Memory</text>
-  <rect x="230" y="555" width="105" height="50" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
-  <text x="282.5" y="578.0" class="node-label-sm">Tmux</text>
-  <text x="282.5" y="592.0" class="node-label-sm">Inspector</text>
-  <rect x="350" y="555" width="105" height="50" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
-  <text x="402.5" y="578.0" class="node-label-sm">Scheduler</text>
-  <text x="402.5" y="592.0" class="node-label-sm">(Cron)</text>
-  <rect x="470" y="555" width="105" height="50" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
-  <text x="522.5" y="578.0" class="node-label-sm">Push</text>
-  <text x="522.5" y="592.0" class="node-label-sm">Notifier</text>
-  <rect x="590" y="555" width="105" height="50" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
-  <text x="642.5" y="578.0" class="node-label-sm">Relay</text>
-  <text x="642.5" y="592.0" class="node-label-sm">Client</text>
+  <rect x="95" y="555" width="88" height="50" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="139" y="578.0" class="node-label-sm">Session</text>
+  <text x="139" y="592.0" class="node-label-sm">Memory</text>
+  <rect x="193" y="555" width="88" height="50" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="237" y="578.0" class="node-label-sm">Tmux</text>
+  <text x="237" y="592.0" class="node-label-sm">Inspector</text>
+  <rect x="291" y="555" width="88" height="50" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="335" y="578.0" class="node-label-sm">Scheduler</text>
+  <text x="335" y="592.0" class="node-label-sm">(Cron)</text>
+  <rect x="389" y="555" width="88" height="50" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="433" y="578.0" class="node-label-sm">Push</text>
+  <text x="433" y="592.0" class="node-label-sm">Notifier</text>
+  <rect x="487" y="555" width="88" height="50" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="531" y="578.0" class="node-label-sm">Relay</text>
+  <text x="531" y="592.0" class="node-label-sm">Client</text>
+  <rect x="585" y="555" width="88" height="50" rx="6" fill="#f0fdfa" stroke="#14b8a6" stroke-width="1"/>
+  <text x="629" y="578.0" class="node-label-sm">Usage</text>
+  <text x="629" y="592.0" class="node-label-sm">Quota</text>
 
   <!-- Legend -->
-  <rect x="720" y="555" width="145" height="75" rx="6" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
-  <text x="730" y="575" font-size="11px" font-weight="600" fill="#475569">Legend</text>
-  <line x1="730" y1="590" x2="760" y2="590" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
-  <text x="765" y="594" font-size="10px" fill="#64748b">E2EE / WS</text>
-  <line x1="730" y1="610" x2="760" y2="610" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <text x="765" y="614" font-size="10px" fill="#64748b">Request flow</text>
+  <rect x="685" y="555" width="180" height="75" rx="6" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="695" y="575" font-size="11px" font-weight="600" fill="#475569">Legend</text>
+  <line x1="695" y1="590" x2="725" y2="590" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <text x="730" y="594" font-size="10px" fill="#64748b">E2EE / WS</text>
+  <line x1="695" y1="610" x2="725" y2="610" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="730" y="614" font-size="10px" fill="#64748b">Request flow</text>
 </svg>

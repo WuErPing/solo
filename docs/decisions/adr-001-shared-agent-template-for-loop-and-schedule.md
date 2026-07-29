@@ -6,7 +6,7 @@
 | **Date**     | 2026-06-29                                                    |
 | **Author**   | Solo Agent                                                    |
 | **Scope**    | `protocol/`, `daemon/internal/loop/`, `daemon/internal/schedule/`, `daemon/internal/server/`, `app-bridge/src/shared/` |
-| **Related**  | [Loop Schedule Spec](../product/loop-schedule-spec.md), [Loop Schedule Deep Dive](../product/loop-schedule-deep-dive.md), [App-Bridge Schedule Module](../analysis/app-bridge-schedule-module.md) |
+| **Related**  | [Loop Schedule Spec](../product/loop-schedule-spec.md), [App-Bridge Schedule Module](../analysis/app-bridge-schedule-module.md) |
 
 ---
 
@@ -274,5 +274,4 @@ The decision has been implemented as described above. Key files and deviations:
 - `app/src/screens/loop-create-screen.tsx` — loop creation UI with agent template
 - `app/src/screens/loop-detail-screen.tsx` — loop detail/edit UI with agent template
 - `app/src/screens/loops-screen.tsx` — loop list UI showing agent provider/model
-- `docs/product/loop-schedule-spec.md` — Loop-as-Schedule unification spec
-- `docs/product/loop-schedule-deep-dive.md` — Loop Controller and Step Executor deep dive
+- `docs/product/loop-schedule-spec.md` — Loop-as-Schedule unification spec (includes the Loop Controller and Step Executor deep dive)

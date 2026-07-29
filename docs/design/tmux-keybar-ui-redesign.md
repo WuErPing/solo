@@ -1,7 +1,7 @@
 # Tmux-Pane 按键栏 UI 重设计方案
 
 > Date: 2026-07-25
-> Status: Proposal
+> Status: Implemented (2026-07-28)
 
 ## 现状问题
 
