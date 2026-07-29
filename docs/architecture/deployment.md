@@ -1,6 +1,8 @@
 # Deployment Architecture
 
-> **Note**: Deployment configuration templates are tracked in [`deploy/`](../../deploy/) (Nginx: `deploy/nginx/solo-relay.conf`, Systemd: `deploy/systemd/solo-relay.service`, env: `deploy/solo-relay.env.example`). Relay is deployed via `make deploy-solo-relay` (scp + systemctl restart). Mobile builds use EAS (Expo Application Services).
+> **Note**: 发版的构建与部署步骤（如何 cut a release）见 [`../release/`](../release/README.md)。本文聚焦**运行时部署与排障**：拓扑、Nginx、systemd、Docker、端口、监控、故障排除。
+>
+> Deployment configuration templates are tracked in [`deploy/`](../../deploy/) (Nginx: `deploy/nginx/solo-relay.conf`, Systemd: `deploy/systemd/solo-relay.service`, env: `deploy/solo-relay.env.example`). Relay is deployed via `make deploy-solo-relay` (scp + systemctl restart). Mobile builds use EAS (Expo Application Services).
 
 ## Table of Contents
 
@@ -92,10 +94,12 @@ make dev
 |------|------|----------|------|----------|
 | 80 | Nginx | 0.0.0.0 | HTTP 重定向到 HTTPS | 公网开放 |
 | 443 | Nginx | 0.0.0.0 | HTTPS + WebSocket 代理 | 公网开放 |
-| 8081 | Solo Relay | **127.0.0.1** | Relay WebSocket 服务 | **仅本地** |
+| 8081 | Solo Relay (Go) | 0.0.0.0 | Relay WebSocket 服务 | 腾讯云安全组放行内网/本机，公网不可直达 |
 | 17612 | Daemon | 127.0.0.1 | Daemon 本地服务 | 仅本地 |
 
-**⚠️ 重要**: 端口 8081 仅监听在 `127.0.0.1`，外部无法直接访问。所有外部连接必须通过 Nginx (443端口) 反向代理。
+**⚠️ 重要**: 生产环境 Solo Relay 监听 `8081`。虽然进程绑定在 `0.0.0.0`，但腾讯云**安全组**未放行 8081 公网入站，外部无法直接访问，所有外部连接必须通过 Nginx (443端口) 反向代理。
+
+> **现状 vs 加固目标**：上述为当前生产实况（8081、`User=ubuntu`、内联环境变量）。[`deploy/`](../../deploy/) 中的模板描述的是**尚未应用的加固目标**（`127.0.0.1:8080`、专用用户 `solo-relay`、`EnvironmentFile`、systemd 硬化项）。迁移步骤见 [`../release/relay.md`](../release/relay.md)。
 
 对应的域名解析路径：
 
@@ -111,25 +115,17 @@ solo.up2ai.top ──► 106.52.40.152 (腾讯云)
 
 ### 二进制部署
 
-**构建**:
-```bash
-# Linux AMD64
-make solo-relay-linux-amd64
+> 完整的构建与部署步骤（含验证、回滚、加固迁移）见 [`../release/relay.md`](../release/relay.md)。此处仅说明运行时服务配置。
 
-# 或手动构建
-GOOS=linux GOARCH=amd64 go build -o output/linux/solo-relay ./relay-go/cmd/relay
+**构建与部署**（摘要）:
+```bash
+make solo-relay-linux-amd64   # 构建 → output/linux/solo-relay
+make deploy-solo-relay        # scp 二进制 + systemd unit，daemon-reload，restart
 ```
 
-**部署**:
-```bash
-# 1. 复制二进制文件到服务器
-scp output/linux/solo-relay solo.up2ai.top:/opt/solo-relay/solo-relay
+> **⚠️ 注意**：`make deploy-solo-relay` 会推送 [`deploy/systemd/solo-relay.service`](../../deploy/systemd/solo-relay.service)（加固模板，依赖 `solo-relay` 用户与 `/opt/solo-relay/solo-relay.env`）。当前生产主机**尚未满足这些前置条件**，直接执行会导致服务起不来。迁移前先按 [`../release/relay.md`](../release/relay.md#加固迁移) 准备前置条件。
 
-# 或使用 Makefile
-make deploy-solo-relay
-```
-
-**实际 Systemd 服务** (`/etc/systemd/system/solo-relay.service`):
+**当前生产 Systemd 服务**（`/etc/systemd/system/solo-relay.service`，实况）:
 ```ini
 [Unit]
 Description=Solo Relay Server (Go)
@@ -153,6 +149,8 @@ StandardError=journal
 [Install]
 WantedBy=multi-user.target
 ```
+
+**加固目标模板**（[`deploy/systemd/solo-relay.service`](../../deploy/systemd/solo-relay.service)，尚未应用）：专用用户 `solo-relay`、`EnvironmentFile=/opt/solo-relay/solo-relay.env`（`PORT=8080`、`HOST=127.0.0.1`、`ALLOWED_ORIGINS=https://solo.up2ai.top`，模板见 [`deploy/solo-relay.env.example`](../../deploy/solo-relay.env.example)）、`Restart=on-failure`、`LimitNOFILE=65536`，并带一组安全硬化项（`NoNewPrivileges`、`ProtectSystem=strict`、`MemoryDenyWriteExecute` 等）。
 
 **启动服务**:
 ```bash
@@ -236,7 +234,7 @@ server {
 
 ```nginx
 upstream solo_relay {
-    server 127.0.0.1:8081;
+    server 127.0.0.1:8080;
     keepalive 32;
 }
 
@@ -391,9 +389,9 @@ EOF
 
 **⚠️ 重要**: `relay.endpoint` 必须使用域名 + 443 端口 (HTTPS/WSS)，**不能**使用直接 IP + 8081 端口。原因：
 
-- 生产环境 Relay 仅监听 `localhost:8081`
+- 生产环境 Relay 监听 `8081`，安全组未放行其公网入站
 - Nginx 在 `0.0.0.0:443` 提供 SSL 终结并反向代理到 Relay
-- 直接连接 `IP:8081` 会被防火墙/安全组拦截（参见[故障排除](#app-扫码连接超时-handshaketimeout)）
+- 直接连接 `IP:8081` 会被安全组拦截（参见[故障排除](#app-扫码连接超时-handshaketimeout)）
 
 ### 生成 Pairing Link
 
@@ -507,7 +505,7 @@ tar xzf solo-backup-20240101.tar.gz -C ~/
 
 1. 检查端口占用
    ```bash
-   sudo lsof -i :8080
+   sudo lsof -i :8081
    ```
 
 2. 检查权限
@@ -558,7 +556,7 @@ tar xzf solo-backup-20240101.tar.gz -C ~/
 
 **症状**: App 扫描二维码后，连接约 10 秒后超时断开。
 
-**原因**: Daemon 的 Relay 配置使用了直接 IP + 8081 端口。由于 8081 仅监听在 `127.0.0.1`，外部连接 `IP:8081` 会被防火墙/安全组拦截。
+**原因**: Daemon 的 Relay 配置使用了直接 IP + 8081 端口。由于安全组未放行 8081 公网入站，外部连接 `IP:8081` 会被拦截。
 
 **错误配置**:
 ```json

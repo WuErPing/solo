@@ -42,6 +42,13 @@ docs/
 ├── providers/                             ← AI provider integration research
 │   ├── kimi-wire-vs-acp.md                # Kimi Wire vs ACP protocol comparison
 │   └── kimi-cursor-integration.md         # Cursor-Agent integration plan (Kimi: done)
+├── release/                               ← Release process (build + deploy)
+│   ├── README.md                          # Release pipeline overview & module index
+│   ├── versioning.md                      # Version locations, bump rules, CHANGELOG, tags
+│   ├── relay.md                           # solo-relay build + deploy
+│   ├── daemon.md                          # daemon build + local deploy
+│   ├── cli.md                             # CLI build + distribution
+│   └── mobile-app.md                      # App EAS build + store submit
 └── analysis/                              ← Deep-dive technical analysis (see analysis/README.md)
     ├── README.md                          # Analysis directory index
     ├── demo/                              # Demo code (iterm2-agent-detection)
@@ -159,7 +166,22 @@ Deep dives into specific subsystems. The [analysis/README.md](analysis/README.md
 
 ---
 
-## 6 · Build & CI/CD Quick Reference
+## 6 · Release
+
+How to cut a release — build and deploy steps for every deployable module. Runtime topology, Nginx, and troubleshooting stay in [Deployment](architecture/deployment.md).
+
+| Document | Type | Audience | Summary |
+|----------|------|----------|---------|
+| [Release Process](release/README.md) | Runbook | All | Release pipeline (version → CHANGELOG → tag → build → deploy → verify) + module index |
+| [Versioning](release/versioning.md) | Reference | Dev | Per-module version locations, SemVer bump rules, CHANGELOG conventions, release tags |
+| [Relay](release/relay.md) | Runbook | Infra | Build + scp/restart deploy, verify, rollback, hardened-migration steps |
+| [Daemon](release/daemon.md) | Runbook | Dev / Infra | Build + user-systemd deploy, relay connection config |
+| [CLI](release/cli.md) | Runbook | Dev | Build + binary distribution |
+| [Mobile App](release/mobile-app.md) | Runbook | Dev | EAS profiles, cloud build, store submit, local APK |
+
+---
+
+## 7 · Build & CI/CD Quick Reference
 
 > Full commands live in `Makefile`, `.github/workflows/ci.yml`, and `.github/workflows/e2e-nightly.yml`.
 
@@ -195,11 +217,12 @@ Deep dives into specific subsystems. The [analysis/README.md](analysis/README.md
 
 ---
 
-## 7 · How to Use These Docs
+## 8 · How to Use These Docs
 
 1. **Starting a feature** → read the relevant Architecture doc first, then check Product for existing coverage.
 2. **Making or revisiting an architectural decision** → check `decisions/` for ADRs that record the context, alternatives, and consequences.
 3. **Adding a provider** → read `providers/` docs for protocol decisions, then `architecture/components.md` § Daemon.
 4. **Debugging connectivity** → `architecture/data-flow.md` (topology, port ACL, Pairing Link) + `architecture/deployment.md` (troubleshooting).
-5. **CI/CD changes** → check § 6 above + `Makefile` + `.github/workflows/ci.yml`.
-6. **Agent/context boot** → the `solo-dev-base` skill (`.agents/skills/solo-dev-base/SKILL.md`) loads key facts from this index automatically.
+5. **Cutting a release** → `release/README.md` (pipeline + module index) and `release/versioning.md` (versions, CHANGELOG, tags).
+6. **CI/CD changes** → check § 7 above + `Makefile` + `.github/workflows/ci.yml`.
+7. **Agent/context boot** → the `solo-dev-base` skill (`.agents/skills/solo-dev-base/SKILL.md`) loads key facts from this index automatically.

@@ -28,7 +28,7 @@ Solo has multiple independently versioned modules. This skill ensures version bu
 
 ## Helper Scripts
 
-This skill includes two helper scripts in `.agents/skills/update-module-version/scripts/`:
+This skill includes two helper scripts in `.agents/skills/update-version/scripts/`:
 
 - `check-versions.sh [REF]` — Print current versions and show which modules changed since `REF` (default `HEAD~1`).
 - `bump-version.sh <module> <new-version>` — Bump a single module's version string in its source file.
@@ -77,7 +77,7 @@ Edit `version` in the corresponding `package.json`:
 
 ```bash
 # Using the helper script
-.agents/skills/update-module-version/scripts/bump-version.sh app 0.2.0
+.agents/skills/update-version/scripts/bump-version.sh app 0.2.0
 
 # Or manually
 node -e "
@@ -94,8 +94,8 @@ Go modules in this repo use **hardcoded version strings** (not git tags). Use th
 
 | Module | File | Variable / Field |
 |--------|------|------------------|
-| cli | `cli/cmd/root.go` | `Version:` field in root command |
-| daemon | `daemon/internal/config/config.go` | `Version:` field in default config |
+| cli | `cli/internal/config/version.go` | `var Version` (injected via `-ldflags`) |
+| daemon | `daemon/internal/config/config.go` | `var Version` (injected via `-ldflags`) |
 | relay-go | `relay-go/internal/relay/server.go` | `version` constant |
 | protocol | `protocol/protocol.go` | `WSProtocolVersion`, `RelayProtocolVersion` (only when wire format changes) |
 
@@ -103,9 +103,9 @@ Go modules in this repo use **hardcoded version strings** (not git tags). Use th
 >
 > Use `bump-version.sh` for automated edits:
 > ```bash
-> .agents/skills/update-module-version/scripts/bump-version.sh cli 0.2.0
-> .agents/skills/update-module-version/scripts/bump-version.sh daemon 0.2.0
-> .agents/skills/update-module-version/scripts/bump-version.sh relay-go relay-go-v2
+> .agents/skills/update-version/scripts/bump-version.sh cli 0.2.0
+> .agents/skills/update-version/scripts/bump-version.sh daemon 0.2.0
+> .agents/skills/update-version/scripts/bump-version.sh relay-go relay-go-v2
 > ```
 
 ## Step 4: Coordinate Cross-Module Versions
@@ -114,7 +114,7 @@ When `protocol/` constants change, **all consumers must be updated**:
 
 1. Bump `WSProtocolVersion` or `RelayProtocolVersion` in `protocol/protocol.go`
 2. Bump version in `daemon/internal/config/config.go` (daemon is the protocol server)
-3. Bump version in `cli/cmd/root.go` (CLI pairs with daemon)
+3. Bump version in `cli/internal/config/version.go` (CLI pairs with daemon)
 4. Bump `app/package.json` version (app is the protocol client)
 5. Run tests to verify compatibility:
    ```bash
@@ -200,7 +200,7 @@ After editing, confirm the new versions:
 grep -h '"version"' app/package.json app-bridge/package.json packages/highlight/package.json
 
 # Go
-grep -n 'Version.*=' cli/cmd/root.go daemon/internal/config/config.go
+grep -n 'var Version' daemon/internal/config/config.go cli/internal/config/version.go
 grep -n 'const version' relay-go/internal/relay/server.go
 grep -n 'ProtocolVersion.*=' protocol/protocol.go
 ```
@@ -212,8 +212,8 @@ solo/
 ├── app/package.json                          → @getsolo/app version
 ├── app-bridge/package.json                   → @solo/app-bridge version
 ├── packages/highlight/package.json           → @getsolo/highlight version
-├── cli/cmd/root.go                           → CLI version (cobra root cmd)
-├── daemon/internal/config/config.go          → Daemon version (default config)
+├── cli/internal/config/version.go          → CLI version (var Version, ldflags-injected)
+├── daemon/internal/config/config.go          → Daemon version (var Version, ldflags-injected)
 ├── relay-go/internal/relay/server.go         → Relay version (const string)
 └── protocol/protocol.go                      → WSProtocolVersion, RelayProtocolVersion
 ```
@@ -271,3 +271,8 @@ Initial skill creation at commit `05b33fa`. Included:
 - `scripts/bump-version.sh` — bump a single module's version string
 - Version locations reference for all 7 modules (app, app-bridge, highlight, cli, daemon, relay-go, protocol)
 - Examples for patch release and protocol change release
+
+## Related Documentation
+
+- Human-facing release process (build + deploy for all modules): [`docs/release/`](../../../docs/release/README.md)
+- Versioning rules, CHANGELOG conventions, and release tags: [`docs/release/versioning.md`](../../../docs/release/versioning.md)
