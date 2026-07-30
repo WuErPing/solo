@@ -34,6 +34,7 @@ const mockSnapshot = {
       limit: 100,
       usedPct: 42,
       unit: "%",
+      windowStart: null,
       resetAt: "2026-07-30T00:00:00Z",
       resetIn: "3d",
     },

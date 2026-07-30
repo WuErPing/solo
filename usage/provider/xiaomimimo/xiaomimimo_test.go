@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/WuErPing/solo/usage/provider"
 )
@@ -23,8 +24,8 @@ func newTestClient(t *testing.T, handler http.HandlerFunc) *Client {
 	return c
 }
 
-// Real response pasted from the console API (Lite annual plan, 2026-07).
-const realResponse = `{
+// Real responses pasted from the console API (Lite annual plan, 2026-07).
+const realUsageResponse = `{
 	"code": 0,
 	"message": "",
 	"data": {
@@ -44,17 +45,39 @@ const realResponse = `{
 	}
 }`
 
-func TestFetchRealFormat(t *testing.T) {
-	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/tokenPlan/usage" {
-			t.Errorf("unexpected path: %s", r.URL.Path)
-		}
+const realDetailResponse = `{
+	"code": 0,
+	"message": "",
+	"data": {
+		"planCode": "lite:year",
+		"planName": "Lite",
+		"currentPeriodEnd": "2027-07-09 23:59:59",
+		"expired": false,
+		"enableAutoRenew": true
+	}
+}`
+
+func usageAndDetailHandler(t *testing.T, detailStatus int, detailBody string) http.HandlerFunc {
+	t.Helper()
+	return func(w http.ResponseWriter, r *http.Request) {
 		if got := r.Header.Get("Cookie"); got != "api-platform_serviceToken=tok; userId=123" {
 			t.Errorf("cookie header = %q", got)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(realResponse))
-	})
+		switch r.URL.Path {
+		case "/tokenPlan/usage":
+			w.Write([]byte(realUsageResponse))
+		case "/tokenPlan/detail":
+			w.WriteHeader(detailStatus)
+			w.Write([]byte(detailBody))
+		default:
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+	}
+}
+
+func TestFetchRealFormat(t *testing.T) {
+	c := newTestClient(t, usageAndDetailHandler(t, http.StatusOK, realDetailResponse))
 
 	snap, err := c.Fetch(context.Background())
 	if err != nil {
@@ -63,10 +86,13 @@ func TestFetchRealFormat(t *testing.T) {
 	if snap.Provider != "xiaomimimo" {
 		t.Errorf("provider = %q", snap.Provider)
 	}
-	// compensation_total_token (0/0) skipped
-	if len(snap.Quotas) != 2 {
-		t.Fatalf("quotas = %d, want 2 (zero compensation skipped)", len(snap.Quotas))
+	// usage section (plan_total/compensation) is not exposed
+	if len(snap.Quotas) != 1 {
+		t.Fatalf("quotas = %d, want 1 (only monthUsage exposed)", len(snap.Quotas))
 	}
+
+	// currentPeriodEnd 2027-07-09 → quotas reset on the 9th of each month (UTC).
+	wantStart, wantEnd := monthWindow(time.Now(), 9)
 
 	month := snap.Quotas[0]
 	if month.Name != "month_month_total_token" {
@@ -87,42 +113,79 @@ func TestFetchRealFormat(t *testing.T) {
 	if month.Unit != "credits" {
 		t.Errorf("quota[0].unit = %q", month.Unit)
 	}
-
-	plan := snap.Quotas[1]
-	if plan.Name != "plan_plan_total_token" {
-		t.Errorf("quota[1].name = %q", plan.Name)
+	if month.WindowStart == nil || !wantStart.Equal(*month.WindowStart) {
+		t.Errorf("quota[0].windowStart = %v, want %v", month.WindowStart, wantStart)
 	}
-	if plan.Label != "Plan Total" {
-		t.Errorf("quota[1].label = %q", plan.Label)
+	if month.ResetAt == nil || !wantEnd.Equal(*month.ResetAt) {
+		t.Errorf("quota[0].resetAt = %v, want %v", month.ResetAt, wantEnd)
 	}
-	if plan.UsedPct == nil || *plan.UsedPct != 8.0 {
-		t.Errorf("quota[1].usedPct = %v, want 8.0", plan.UsedPct)
+	if month.ResetIn == "" {
+		t.Error("quota[0].resetIn is empty")
 	}
 }
 
-func TestFetchKeepsNonZeroCompensation(t *testing.T) {
-	c := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
-		w.Write([]byte(`{
-			"code": 0, "message": "",
-			"data": {
-				"monthUsage": {"percent": 0, "items": []},
-				"usage": {"percent": 0.5, "items": [
-					{"name": "plan_total_token", "used": 100, "limit": 200, "percent": 0.5},
-					{"name": "compensation_total_token", "used": 10, "limit": 50, "percent": 0.2}
-				]}
-			}
-		}`))
-	})
+func TestFetchDetailFailureDegrades(t *testing.T) {
+	c := newTestClient(t, usageAndDetailHandler(t, http.StatusInternalServerError, `{}`))
+
+	snap, err := c.Fetch(context.Background())
+	if err != nil {
+		t.Fatalf("detail failure must not fail the fetch: %v", err)
+	}
+	for i, q := range snap.Quotas {
+		if q.WindowStart != nil || q.ResetAt != nil {
+			t.Errorf("quota[%d] window = %v/%v, want nil (detail unavailable)", i, q.WindowStart, q.ResetAt)
+		}
+	}
+}
+
+func TestFetchExpiredPlanNoWindow(t *testing.T) {
+	expired := `{"code":0,"message":"","data":{"planCode":"lite:year","currentPeriodEnd":"2025-07-09 23:59:59","expired":true}}`
+	c := newTestClient(t, usageAndDetailHandler(t, http.StatusOK, expired))
 
 	snap, err := c.Fetch(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(snap.Quotas) != 2 {
-		t.Fatalf("quotas = %d, want 2 (non-zero compensation kept)", len(snap.Quotas))
+	for i, q := range snap.Quotas {
+		if q.WindowStart != nil || q.ResetAt != nil {
+			t.Errorf("quota[%d] window = %v/%v, want nil (plan expired)", i, q.WindowStart, q.ResetAt)
+		}
 	}
-	if snap.Quotas[1].Label != "Compensation" {
-		t.Errorf("quota[1].label = %q", snap.Quotas[1].Label)
+}
+
+func TestMonthWindow(t *testing.T) {
+	utc := func(s string) time.Time {
+		t.Helper()
+		tt, err := time.Parse("2006-01-02 15:04:05", s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return tt
+	}
+	cases := []struct {
+		name      string
+		now       string
+		anchorDay int
+		wantStart string
+		wantEnd   string
+	}{
+		{"mid-cycle", "2026-07-30 12:00:00", 9, "2026-07-09 00:00:00", "2026-08-09 00:00:00"},
+		{"before anchor", "2026-07-05 08:00:00", 9, "2026-06-09 00:00:00", "2026-07-09 00:00:00"},
+		{"exactly on anchor", "2026-07-09 00:00:00", 9, "2026-07-09 00:00:00", "2026-08-09 00:00:00"},
+		{"clamp to february", "2026-02-15 00:00:00", 31, "2026-01-31 00:00:00", "2026-02-28 00:00:00"},
+		{"clamp end side", "2026-03-31 12:00:00", 31, "2026-03-31 00:00:00", "2026-04-30 00:00:00"},
+		{"year boundary", "2026-01-05 00:00:00", 31, "2025-12-31 00:00:00", "2026-01-31 00:00:00"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			start, end := monthWindow(utc(tc.now), tc.anchorDay)
+			if !start.Equal(utc(tc.wantStart)) {
+				t.Errorf("start = %v, want %v", start, tc.wantStart)
+			}
+			if !end.Equal(utc(tc.wantEnd)) {
+				t.Errorf("end = %v, want %v", end, tc.wantEnd)
+			}
+		})
 	}
 }
 

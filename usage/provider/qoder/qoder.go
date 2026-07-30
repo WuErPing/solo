@@ -122,7 +122,7 @@ func (c *Client) parsePersonal(body json.RawMessage, snap *provider.Snapshot) bo
 		return false
 	}
 
-	add := func(name, label string, s quotaSummary, resetMs int64) {
+	add := func(name, label string, s quotaSummary, resetMs int64, monthlyWindow bool) {
 		if s.UsedValue == 0 && s.LimitValue == 0 {
 			return
 		}
@@ -142,12 +142,18 @@ func (c *Client) parsePersonal(body json.RawMessage, snap *provider.Snapshot) bo
 			t := time.UnixMilli(resetMs)
 			q.ResetAt = &t
 			q.ResetIn = formatDuration(time.Until(t))
+			if monthlyWindow {
+				// The API only reports the next reset; plan credits reset each
+				// monthly billing cycle, so the window started one month earlier.
+				start := t.AddDate(0, -1, 0)
+				q.WindowStart = &start
+			}
 		}
 		snap.Quotas = append(snap.Quotas, q)
 	}
 
-	add("plan_credits", "Plan Credits", resp.PlanQuota.QuotaSummary, resp.NextResetAt)
-	add("resource_package_credits", "Resource Package", resp.ResourcePackageQuota.QuotaSummary, 0)
+	add("plan_credits", "Plan Credits", resp.PlanQuota.QuotaSummary, resp.NextResetAt, true)
+	add("resource_package_credits", "Resource Package", resp.ResourcePackageQuota.QuotaSummary, 0, false)
 
 	return len(snap.Quotas) > 0
 }

@@ -27,6 +27,19 @@ function formatUpdatedAt(fetchedAt: string): string {
   return formatTimeAgo(date);
 }
 
+function computeWindowElapsedPct(quota: UsageQuota): number | null {
+  if (!quota.windowStart || !quota.resetAt) {
+    return null;
+  }
+  const start = new Date(quota.windowStart).getTime();
+  const end = new Date(quota.resetAt).getTime();
+  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) {
+    return null;
+  }
+  const pct = ((Date.now() - start) / (end - start)) * 100;
+  return Math.min(100, Math.max(0, pct));
+}
+
 function QuotaRow({ quota }: { quota: UsageQuota }) {
   const { theme } = useUnistyles();
 
@@ -45,9 +58,30 @@ function QuotaRow({ quota }: { quota: UsageQuota }) {
   }, [quota.usedPct, theme]);
 
   const pct = quota.usedPct === null ? null : Math.min(100, Math.max(0, quota.usedPct));
+  const elapsedPct = computeWindowElapsedPct(quota);
+  const markerColor = useMemo(() => {
+    if (elapsedPct === null || quota.usedPct === null) {
+      return theme.colors.foregroundMuted;
+    }
+    const drift = Math.abs(quota.usedPct - elapsedPct);
+    if (drift > 25) {
+      return theme.colors.palette.red[500];
+    }
+    if (drift > 10) {
+      return theme.colors.palette.amber[500];
+    }
+    return theme.colors.palette.green[400];
+  }, [elapsedPct, quota.usedPct, theme]);
   const usageText = `${formatQuotaValue(quota.used)}/${formatQuotaValue(quota.limit)}${
     quota.unit ? ` ${quota.unit}` : ""
   }`;
+  const resetParts: string[] = [];
+  if (elapsedPct !== null) {
+    resetParts.push(`${Math.round(elapsedPct)}% elapsed`);
+  }
+  if (quota.resetIn) {
+    resetParts.push(`Resets in ${quota.resetIn}`);
+  }
 
   return (
     <View style={styles.quotaRow}>
@@ -63,9 +97,14 @@ function QuotaRow({ quota }: { quota: UsageQuota }) {
             style={[styles.progressFill, { width: `${pct}%`, backgroundColor: barColor }]}
           />
         ) : null}
+        {elapsedPct !== null ? (
+          <View
+            style={[styles.windowMarker, { left: `${elapsedPct}%`, backgroundColor: markerColor }]}
+          />
+        ) : null}
       </View>
-      {quota.resetIn ? (
-        <Text style={styles.resetText}>Resets in {quota.resetIn}</Text>
+      {resetParts.length > 0 ? (
+        <Text style={styles.resetText}>{resetParts.join(" · ")}</Text>
       ) : null}
     </View>
   );
@@ -237,6 +276,7 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foregroundMuted,
   },
   progressTrack: {
+    position: "relative",
     height: 6,
     borderRadius: theme.borderRadius.full,
     backgroundColor: theme.colors.surface2,
@@ -245,6 +285,12 @@ const styles = StyleSheet.create((theme) => ({
   progressFill: {
     height: 6,
     borderRadius: theme.borderRadius.full,
+  },
+  windowMarker: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: 2,
   },
   resetText: {
     fontSize: theme.fontSize.sm,

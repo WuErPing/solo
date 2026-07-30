@@ -95,6 +95,12 @@ func TestFetchRealFormat(t *testing.T) {
 	if weekly.ResetIn == "" {
 		t.Error("quota[0].resetIn is empty")
 	}
+	if weekly.WindowStart == nil || weekly.ResetAt == nil {
+		t.Fatal("quota[0].windowStart is nil")
+	}
+	if got := weekly.ResetAt.Sub(*weekly.WindowStart); got != 7*24*time.Hour {
+		t.Errorf("quota[0] window length = %v, want 7d", got)
+	}
 
 	rate := snap.Quotas[1]
 	if rate.Name != "5h_limit" {
@@ -106,6 +112,12 @@ func TestFetchRealFormat(t *testing.T) {
 	if rate.UsedPct == nil || *rate.UsedPct != 3.0 {
 		t.Errorf("quota[1].usedPct = %v, want 3.0", rate.UsedPct)
 	}
+	if rate.WindowStart == nil || rate.ResetAt == nil {
+		t.Fatal("quota[1].windowStart is nil")
+	}
+	if got := rate.ResetAt.Sub(*rate.WindowStart); got != 5*time.Hour {
+		t.Errorf("quota[1] window length = %v, want 5h", got)
+	}
 
 	parallel := snap.Quotas[2]
 	if parallel.Name != "parallel" {
@@ -113,6 +125,9 @@ func TestFetchRealFormat(t *testing.T) {
 	}
 	if parallel.Limit == nil || *parallel.Limit != 20 {
 		t.Errorf("quota[2].limit = %v, want 20", parallel.Limit)
+	}
+	if parallel.WindowStart != nil {
+		t.Errorf("quota[2].windowStart = %v, want nil", parallel.WindowStart)
 	}
 }
 

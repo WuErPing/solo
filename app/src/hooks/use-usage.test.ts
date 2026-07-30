@@ -52,6 +52,7 @@ function makeUsageQuotaSnapshot(overrides: Partial<UsageQuotaSnapshot> = {}): Us
         limit: 100,
         usedPct: 10,
         unit: "requests",
+        windowStart: null,
         resetAt: null,
         resetIn: "2h 30m",
       },

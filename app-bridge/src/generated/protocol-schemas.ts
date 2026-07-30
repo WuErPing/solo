@@ -117,6 +117,7 @@ export const UsageQuotaSchema = z.object({
   limit: z.number().nullable(),
   usedPct: z.number().nullable(),
   unit: z.string().optional(),
+  windowStart: z.string().nullable(),
   resetAt: z.string().nullable(),
   resetIn: z.string().optional(),
 });

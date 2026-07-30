@@ -124,6 +124,7 @@ function makeUsageQuotaSnapshot(overrides: Partial<UsageQuotaSnapshot> = {}): Us
         limit: 100,
         usedPct: 10,
         unit: "requests",
+        windowStart: null,
         resetAt: null,
         resetIn: "2h 30m",
       },
@@ -183,6 +184,36 @@ describe("UsageScreen", () => {
     expect(container?.textContent).toContain("Pro · pro");
     expect(container?.textContent).toContain("10/100 requests");
     expect(container?.textContent).toContain("Resets in 2h 30m");
+    expect(container?.textContent).not.toContain("elapsed");
+  });
+
+  it("shows the elapsed window percentage when the quota has a reset window", async () => {
+    const now = Date.now();
+    usageResult.current = makeUsageResult({
+      snapshots: [
+        makeUsageQuotaSnapshot({
+          quotas: [
+            {
+              name: "weekly_usage",
+              label: "Weekly Usage",
+              used: 62,
+              limit: 100,
+              usedPct: 62,
+              unit: "requests",
+              windowStart: new Date(now - 3 * 60 * 60 * 1000).toISOString(),
+              resetAt: new Date(now + 3 * 60 * 60 * 1000).toISOString(),
+              resetIn: "2h 59m",
+            },
+          ],
+        }),
+      ],
+    });
+
+    await act(async () => {
+      root?.render(<UsageScreen serverId="server-1" />);
+    });
+
+    expect(container?.textContent).toContain("50% elapsed · Resets in 2h 59m");
   });
 
   it("renders the empty state when no providers are configured", async () => {

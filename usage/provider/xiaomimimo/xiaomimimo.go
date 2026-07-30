@@ -64,6 +64,7 @@ func (c *Client) Fetch(ctx context.Context) (*provider.Snapshot, error) {
 	if !c.parseResponse(body, snap) {
 		return nil, fmt.Errorf("xiaomimimo: unrecognized response format")
 	}
+	c.applyPlanWindow(ctx, snap)
 	return snap, nil
 }
 
@@ -103,7 +104,6 @@ type envelope struct {
 	Message string `json:"message"`
 	Data    struct {
 		MonthUsage usageSection `json:"monthUsage"`
-		Usage      usageSection `json:"usage"`
 	} `json:"data"`
 }
 
@@ -128,32 +128,75 @@ func (c *Client) parseResponse(body json.RawMessage, snap *provider.Snapshot) bo
 		return false
 	}
 
-	sections := []struct {
-		namePrefix string
-		section    usageSection
-	}{
-		{"month", env.Data.MonthUsage},
-		{"plan", env.Data.Usage},
-	}
-	for _, s := range sections {
-		for _, item := range s.section.Items {
-			// skip empty buckets (e.g. compensation with 0/0)
-			if item.Used == 0 && item.Limit == 0 {
-				continue
-			}
-			pct := item.Percent * 100
-			snap.Quotas = append(snap.Quotas, provider.Quota{
-				Name:    s.namePrefix + "_" + item.Name,
-				Label:   itemLabel(item.Name),
-				Used:    &item.Used,
-				Limit:   &item.Limit,
-				UsedPct: &pct,
-				Unit:    "credits",
-			})
+	// Only the monthUsage section is exposed; the usage section
+	// (plan_total/compensation) aggregates the same monthly bucket.
+	for _, item := range env.Data.MonthUsage.Items {
+		// skip empty buckets (e.g. 0/0)
+		if item.Used == 0 && item.Limit == 0 {
+			continue
 		}
+		pct := item.Percent * 100
+		snap.Quotas = append(snap.Quotas, provider.Quota{
+			Name:    "month_" + item.Name,
+			Label:   itemLabel(item.Name),
+			Used:    &item.Used,
+			Limit:   &item.Limit,
+			UsedPct: &pct,
+			Unit:    "credits",
+		})
 	}
 
 	return len(snap.Quotas) > 0
+}
+
+type planEnvelope struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Data    struct {
+		CurrentPeriodEnd string `json:"currentPeriodEnd"`
+		Expired          bool   `json:"expired"`
+	} `json:"data"`
+}
+
+// applyPlanWindow derives the monthly reset window from the plan detail:
+// quotas reset on the same day-of-month as the plan's currentPeriodEnd.
+// Best-effort: a missing or expired plan leaves quotas without a window.
+func (c *Client) applyPlanWindow(ctx context.Context, snap *provider.Snapshot) {
+	body, err := c.get(ctx, c.endpoint+"/tokenPlan/detail")
+	if err != nil {
+		return
+	}
+	var env planEnvelope
+	if err := json.Unmarshal(body, &env); err != nil || env.Code != 0 || env.Data.Expired {
+		return
+	}
+	periodEnd, err := time.ParseInLocation("2006-01-02 15:04:05", env.Data.CurrentPeriodEnd, time.UTC)
+	if err != nil {
+		return
+	}
+	start, end := monthWindow(time.Now(), periodEnd.Day())
+	for i := range snap.Quotas {
+		q := &snap.Quotas[i]
+		q.WindowStart = &start
+		q.ResetAt = &end
+		q.ResetIn = formatDuration(time.Until(end))
+	}
+}
+
+func monthWindow(now time.Time, anchorDay int) (start, end time.Time) {
+	y, m, _ := now.UTC().Date()
+	anchor := func(yr int, mo time.Month) time.Time {
+		d := anchorDay
+		if dim := time.Date(yr, mo+1, 0, 0, 0, 0, 0, time.UTC).Day(); d > dim {
+			d = dim
+		}
+		return time.Date(yr, mo, d, 0, 0, 0, 0, time.UTC)
+	}
+	thisMonth := anchor(y, m)
+	if thisMonth.After(now) {
+		return anchor(y, m-1), thisMonth
+	}
+	return thisMonth, anchor(y, m+1)
 }
 
 func itemLabel(name string) string {
@@ -170,5 +213,23 @@ func itemLabel(name string) string {
 			label = strings.ToUpper(label[:1]) + label[1:]
 		}
 		return label
+	}
+}
+
+func formatDuration(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	days := int(d.Hours()) / 24
+	hours := int(d.Hours()) % 24
+	mins := int(d.Minutes()) % 60
+
+	switch {
+	case days > 0:
+		return fmt.Sprintf("%dd %dh %dm", days, hours, mins)
+	case hours > 0:
+		return fmt.Sprintf("%dh %dm", hours, mins)
+	default:
+		return fmt.Sprintf("%dm", mins)
 	}
 }

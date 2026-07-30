@@ -186,7 +186,7 @@ func (c *Client) parseResponse(body json.RawMessage, snap *provider.Snapshot) bo
 		Limit: resp.Usage.Limit.ptr(),
 	}
 	computePct(&weekly)
-	applyResetTime(&weekly, resp.Usage.ResetTime)
+	applyResetTime(&weekly, resp.Usage.ResetTime, 7*24*time.Hour)
 	snap.Quotas = append(snap.Quotas, weekly)
 
 	for _, lim := range resp.Limits {
@@ -198,7 +198,7 @@ func (c *Client) parseResponse(body json.RawMessage, snap *provider.Snapshot) bo
 			Limit: lim.Detail.Limit.ptr(),
 		}
 		computePct(&lq)
-		applyResetTime(&lq, lim.Detail.ResetTime)
+		applyResetTime(&lq, lim.Detail.ResetTime, windowDuration(lim.Window.Duration, unit))
 		snap.Quotas = append(snap.Quotas, lq)
 	}
 
@@ -221,7 +221,7 @@ func computePct(q *provider.Quota) {
 	}
 }
 
-func applyResetTime(q *provider.Quota, resetTime string) {
+func applyResetTime(q *provider.Quota, resetTime string, window time.Duration) {
 	if resetTime == "" {
 		return
 	}
@@ -234,6 +234,27 @@ func applyResetTime(q *provider.Quota, resetTime string) {
 	}
 	q.ResetAt = &t
 	q.ResetIn = formatDuration(time.Until(t))
+	if window > 0 {
+		start := t.Add(-window)
+		q.WindowStart = &start
+	}
+}
+
+// windowDuration converts the API's window spec (duration + TIME_UNIT_*) to a
+// time.Duration. MONTH is approximated as 30 days. Unknown units yield 0.
+func windowDuration(duration float64, unit string) time.Duration {
+	switch unit {
+	case "MINUTE":
+		return time.Duration(duration * float64(time.Minute))
+	case "HOUR":
+		return time.Duration(duration * float64(time.Hour))
+	case "DAY":
+		return time.Duration(duration * 24 * float64(time.Hour))
+	case "MONTH":
+		return time.Duration(duration * 30 * 24 * float64(time.Hour))
+	default:
+		return 0
+	}
 }
 
 // normalizeTimeUnit converts "TIME_UNIT_MINUTE" → "MINUTE".

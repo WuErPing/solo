@@ -14,8 +14,11 @@ type Quota struct {
 	Limit   *float64   `json:"limit,omitempty"`
 	UsedPct *float64   `json:"usedPct,omitempty"`
 	Unit    string     `json:"unit,omitempty"`
-	ResetAt *time.Time `json:"resetAt,omitempty"`
-	ResetIn string     `json:"resetIn,omitempty"`
+	// WindowStart is the start of the current reset window. Together with
+	// ResetAt it lets clients compute how far the window has elapsed.
+	WindowStart *time.Time `json:"windowStart,omitempty"`
+	ResetAt     *time.Time `json:"resetAt,omitempty"`
+	ResetIn     string     `json:"resetIn,omitempty"`
 }
 
 type Plan struct {

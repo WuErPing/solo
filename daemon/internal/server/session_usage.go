@@ -152,6 +152,10 @@ func toProtocolUsageSnapshot(snap *usageprovider.Snapshot) protocol.UsageQuotaSn
 			Unit:    q.Unit,
 			ResetIn: q.ResetIn,
 		}
+		if q.WindowStart != nil {
+			s := q.WindowStart.Format(time.RFC3339)
+			quota.WindowStart = &s
+		}
 		if q.ResetAt != nil {
 			s := q.ResetAt.Format(time.RFC3339)
 			quota.ResetAt = &s

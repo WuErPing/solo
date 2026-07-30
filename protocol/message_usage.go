@@ -13,14 +13,15 @@ type UsagePlan struct {
 // UsageQuota is a single quota window reported by a provider.
 // Numeric fields are nullable: providers may omit values they do not expose.
 type UsageQuota struct {
-	Name    string   `json:"name"`
-	Label   string   `json:"label"`
-	Used    *float64 `json:"used"`
-	Limit   *float64 `json:"limit"`
-	UsedPct *float64 `json:"usedPct"`
-	Unit    string   `json:"unit,omitempty"`
-	ResetAt *string  `json:"resetAt"` // RFC3339 timestamp
-	ResetIn string   `json:"resetIn,omitempty"`
+	Name        string   `json:"name"`
+	Label       string   `json:"label"`
+	Used        *float64 `json:"used"`
+	Limit       *float64 `json:"limit"`
+	UsedPct     *float64 `json:"usedPct"`
+	Unit        string   `json:"unit,omitempty"`
+	WindowStart *string  `json:"windowStart"` // RFC3339 timestamp; start of the current reset window
+	ResetAt     *string  `json:"resetAt"`     // RFC3339 timestamp
+	ResetIn     string   `json:"resetIn,omitempty"`
 }
 
 // genzod

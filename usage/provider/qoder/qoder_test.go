@@ -347,6 +347,12 @@ func TestFetchPersonalRealFormat(t *testing.T) {
 	if q.ResetIn == "" {
 		t.Error("resetIn is empty")
 	}
+	if q.WindowStart == nil {
+		t.Fatal("windowStart is nil")
+	}
+	if want := q.ResetAt.AddDate(0, -1, 0); !want.Equal(*q.WindowStart) {
+		t.Errorf("windowStart = %v, want %v (resetAt - 1 month)", q.WindowStart, want)
+	}
 }
 
 func TestFetchPersonalKeepsNonZeroResourcePackage(t *testing.T) {
@@ -369,6 +375,9 @@ func TestFetchPersonalKeepsNonZeroResourcePackage(t *testing.T) {
 	}
 	if snap.Quotas[1].Name != "resource_package_credits" {
 		t.Errorf("quota[1].name = %q", snap.Quotas[1].Name)
+	}
+	if snap.Quotas[1].WindowStart != nil {
+		t.Errorf("quota[1].windowStart = %v, want nil (no reset for resource packages)", snap.Quotas[1].WindowStart)
 	}
 }
 
