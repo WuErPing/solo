@@ -2,6 +2,8 @@
 
 This directory contains deep-dive technical analyses, reviews, and decision records for the Solo project. Dated documents record a point-in-time assessment; reference documents describe ongoing structural concerns.
 
+> **Graduation rule**: Analysis is a staging area, not a destination. When an analysis produces a decision, it graduates to `decisions/` (ADR) or `architecture/`. When it produces test/verification findings, those go to `verification/reports/`. The analysis file gets a "Superseded by" or "Graduated to" link.
+
 ## Dated Analyses (newest first)
 
 | Date | Document | Status | Summary |
@@ -12,11 +14,11 @@ This directory contains deep-dive technical analyses, reviews, and decision reco
 | 2026-07-25 | [Security Deep Analysis](security-deep-analysis-2026-07-25.md) | Analysis | Threat model + 9 High / 14 Medium / 12 Low findings and remediation roadmap. |
 | 2026-07-24 | [Tmux Discovery & Refresh](tmux-discovery-refresh-analysis-2026-07-24.md) | Fixes Implemented & Verified | Source of truth for agent discovery (4-layer) + adaptive refresh; includes the 2026-07-29 refresh-lag tuning addendum. |
 | 2026-07-24 | [App Performance Analysis](app-performance-analysis-2026-07-24.md) | Analysis Complete | RN/Expo rendering, state, WS flow, terminal, polling, memory audit; findings resolved. |
-| 2026-07-27 | [Test Quality Audit](test-quality-audit-2026-07.md) | Complete | Unit-test quality issues (timing coupling, empty assertions, infra duplication) + prioritized fix tracking. |
+| 2026-07-27 | [Test Quality Audit](../verification/reports/test-quality-audit-2026-07.md) | Complete | Unit-test quality issues (timing coupling, empty assertions, infra duplication) + prioritized fix tracking. *(moved to verification/reports/)* |
 | 2026-06-20 | [Solo Roadmap Architecture Mapping](solo-roadmap-architecture-mapping.md) | Analysis Complete | Maps Solo features to 2026 roadmap pillars; layered architecture + phased plan. |
 | 2026-06-19 | [Dead Code Analysis](dead-code-analysis-2026-06-19.md) | Analysis Complete | ~118 findings / ~2940 LOC; phased removal plan. |
 | 2026-06-18 | [Architecture First-Principles Review](architecture-first-principles-review-2026-06-18.md) | Complete | First-principles evaluation of major decisions; long-term risk identification. |
-| 2026-06-16 | [Test Coverage](test-coverage.md) | Complete | Unified coverage report: Go backend + App frontend + E2E + CI/Codecov. |
+| 2026-06-16 | [Test Coverage](../verification/reports/test-coverage.md) | Complete | Unified coverage report: Go backend + App frontend + E2E + CI/Codecov. *(moved to verification/reports/)* |
 | 2026-06-15 | [Tmux Agent Misidentification (kimi → kimi-code)](tmux-agent-misidentification-kimi-code-2026-06-15.md) | Analysis Complete | `kimi --yolo` misidentified as `kimi-code`: setproctitle pollution + cascade failure + fixes. |
 | 2026-06-12 | [Architecture Review](architecture-review-2026-06-12/) | Complete | 4+1 views, maturity scoring, ATAM evaluation, recommendations (4-file review). |
 
@@ -48,7 +50,7 @@ This directory contains deep-dive technical analyses, reviews, and decision reco
 ### Product
 - [Features](../product/features.md)
 - [2026 Roadmap](../product/roadmap-2026.md)
-- [Loop Schedule Spec](../product/loop-schedule-spec.md)
+- [Loop Schedule Spec](../product/prd/loop-schedule-spec.md)
 
 ### Providers
 - [Kimi Cursor Integration](../providers/kimi-cursor-integration.md)

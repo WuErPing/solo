@@ -6,8 +6,8 @@
 > **Author**: AI Coding Assistant
 > **关联文档**：
 > - [Solo 2026 产品/技术路线图](../product/roadmap-2026.md)
-> - [Provider Hub / CC-Switch Migration Design](../product/agent-profile-switch-export-design.md)
-> - [Loop Schedule Spec](../product/loop-schedule-spec.md)
+> - [Provider Hub / CC-Switch Migration Design](../product/prd/provider-hub-design.md)
+> - [Loop Schedule Spec](../product/prd/loop-schedule-spec.md)
 > - [Architecture First-Principles Review](architecture-first-principles-review-2026-06-18.md)
 > - [Components](../architecture/components.md)
 

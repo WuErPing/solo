@@ -6,7 +6,7 @@
 | **Date**     | 2026-06-29                                                    |
 | **Author**   | Solo Agent                                                    |
 | **Scope**    | `protocol/`, `daemon/internal/loop/`, `daemon/internal/schedule/`, `daemon/internal/server/`, `app-bridge/src/shared/` |
-| **Related**  | [Loop Schedule Spec](../product/loop-schedule-spec.md), [App-Bridge Schedule Module](../analysis/app-bridge-schedule-module.md) |
+| **Related**  | [Loop Schedule Spec](../product/prd/loop-schedule-spec.md), [App-Bridge Schedule Module](../analysis/app-bridge-schedule-module.md) |
 
 ---
 
@@ -24,7 +24,7 @@ Both subsystems ultimately call `agent.AgentManager.CreateAgent(ctx, *protocol.A
 
 `protocol.AgentSessionConfig` already contains the canonical agent configuration fields: `Provider`, `Cwd`, `Model`, `ModeID`, `ThinkingOptionID`, `ApprovalPolicy`, `SandboxMode`, `NetworkAccess`, `WebSearch`, `SystemPrompt`, `McpServers`, `Extra`, etc. Neither Loop nor Schedule uses the full surface today.
 
-This ADR is a prerequisite for the broader Loop-as-a-Schedule-type unification documented in [Loop Schedule Spec](../product/loop-schedule-spec.md). Before we can merge the execution paths, we must first merge the *configuration* path.
+This ADR is a prerequisite for the broader Loop-as-a-Schedule-type unification documented in [Loop Schedule Spec](../product/prd/loop-schedule-spec.md). Before we can merge the execution paths, we must first merge the *configuration* path.
 
 ---
 
@@ -199,7 +199,7 @@ The following tests must exist and pass **before** the implementation is conside
 ### Phase 5 — Documentation and deprecation notice (0.5 day)
 
 15. Update this ADR status to **Accepted** once CI is green.
-16. Add a note to `docs/product/loop-schedule-spec.md` §3.1/§3.2 that agent configuration now uses the shared `AgentTemplate`.
+16. Add a note to `docs/product/prd/loop-schedule-spec.md` §3.1/§3.2 that agent configuration now uses the shared `AgentTemplate`.
 17. Open a follow-up ticket to remove `ScheduleAgentConfig` and Loop legacy provider fields after the deprecation window.
 
 ---
@@ -274,4 +274,4 @@ The decision has been implemented as described above. Key files and deviations:
 - `app/src/screens/loop-create-screen.tsx` — loop creation UI with agent template
 - `app/src/screens/loop-detail-screen.tsx` — loop detail/edit UI with agent template
 - `app/src/screens/loops-screen.tsx` — loop list UI showing agent provider/model
-- `docs/product/loop-schedule-spec.md` — Loop-as-Schedule unification spec (includes the Loop Controller and Step Executor deep dive)
+- `docs/product/prd/loop-schedule-spec.md` — Loop-as-Schedule unification spec (includes the Loop Controller and Step Executor deep dive)
