@@ -91,14 +91,16 @@ func TestFetchRealFormat(t *testing.T) {
 		t.Fatalf("quotas = %d, want 1 (only monthUsage exposed)", len(snap.Quotas))
 	}
 
-	// currentPeriodEnd 2027-07-09 → quotas reset on the 9th of each month (UTC).
-	wantStart, wantEnd := monthWindow(time.Now(), 9)
+	// lite:year plan → the quota covers the whole annual period ending at
+	// currentPeriodEnd (2027-07-09 23:59:59 UTC).
+	wantEnd := time.Date(2027, 7, 9, 23, 59, 59, 0, time.UTC)
+	wantStart := time.Date(2026, 7, 10, 0, 0, 0, 0, time.UTC)
 
 	month := snap.Quotas[0]
 	if month.Name != "month_month_total_token" {
 		t.Errorf("quota[0].name = %q", month.Name)
 	}
-	if month.Label != "Monthly Usage" {
+	if month.Label != "Annual Usage" {
 		t.Errorf("quota[0].label = %q", month.Label)
 	}
 	if month.Used == nil || *month.Used != 3846407684 {
@@ -153,39 +155,34 @@ func TestFetchExpiredPlanNoWindow(t *testing.T) {
 	}
 }
 
-func TestMonthWindow(t *testing.T) {
-	utc := func(s string) time.Time {
-		t.Helper()
-		tt, err := time.Parse("2006-01-02 15:04:05", s)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return tt
+func TestPlanPeriod(t *testing.T) {
+	end := time.Date(2027, 7, 9, 23, 59, 59, 0, time.UTC)
+
+	start, label, ok := planPeriod("lite:year", end)
+	if !ok {
+		t.Fatal("lite:year not recognized")
 	}
-	cases := []struct {
-		name      string
-		now       string
-		anchorDay int
-		wantStart string
-		wantEnd   string
-	}{
-		{"mid-cycle", "2026-07-30 12:00:00", 9, "2026-07-09 00:00:00", "2026-08-09 00:00:00"},
-		{"before anchor", "2026-07-05 08:00:00", 9, "2026-06-09 00:00:00", "2026-07-09 00:00:00"},
-		{"exactly on anchor", "2026-07-09 00:00:00", 9, "2026-07-09 00:00:00", "2026-08-09 00:00:00"},
-		{"clamp to february", "2026-02-15 00:00:00", 31, "2026-01-31 00:00:00", "2026-02-28 00:00:00"},
-		{"clamp end side", "2026-03-31 12:00:00", 31, "2026-03-31 00:00:00", "2026-04-30 00:00:00"},
-		{"year boundary", "2026-01-05 00:00:00", 31, "2025-12-31 00:00:00", "2026-01-31 00:00:00"},
+	if want := time.Date(2026, 7, 10, 0, 0, 0, 0, time.UTC); !start.Equal(want) {
+		t.Errorf("year start = %v, want %v", start, want)
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			start, end := monthWindow(utc(tc.now), tc.anchorDay)
-			if !start.Equal(utc(tc.wantStart)) {
-				t.Errorf("start = %v, want %v", start, tc.wantStart)
-			}
-			if !end.Equal(utc(tc.wantEnd)) {
-				t.Errorf("end = %v, want %v", end, tc.wantEnd)
-			}
-		})
+	if label != "Annual Usage" {
+		t.Errorf("year label = %q", label)
+	}
+
+	monthEnd := time.Date(2026, 8, 9, 23, 59, 59, 0, time.UTC)
+	start, label, ok = planPeriod("pro:month", monthEnd)
+	if !ok {
+		t.Fatal("pro:month not recognized")
+	}
+	if want := time.Date(2026, 7, 10, 0, 0, 0, 0, time.UTC); !start.Equal(want) {
+		t.Errorf("month start = %v, want %v", start, want)
+	}
+	if label != "Monthly Usage" {
+		t.Errorf("month label = %q", label)
+	}
+
+	if _, _, ok := planPeriod("lite:lifetime", end); ok {
+		t.Error("unknown plan code must yield ok=false")
 	}
 }
 
@@ -238,9 +235,7 @@ func TestNewRequiresCookie(t *testing.T) {
 
 func TestItemLabel(t *testing.T) {
 	cases := []struct{ in, want string }{
-		{"month_total_token", "Monthly Usage"},
-		{"plan_total_token", "Plan Total"},
-		{"compensation_total_token", "Compensation"},
+		{"month_total_token", "Plan Usage"},
 		{"some_future_item", "Some future item"},
 	}
 	for _, tc := range cases {

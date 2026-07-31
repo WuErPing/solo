@@ -153,14 +153,16 @@ type planEnvelope struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 	Data    struct {
+		PlanCode         string `json:"planCode"`
 		CurrentPeriodEnd string `json:"currentPeriodEnd"`
 		Expired          bool   `json:"expired"`
 	} `json:"data"`
 }
 
-// applyPlanWindow derives the monthly reset window from the plan detail:
-// quotas reset on the same day-of-month as the plan's currentPeriodEnd.
-// Best-effort: a missing or expired plan leaves quotas without a window.
+// applyPlanWindow derives the reset window from the plan detail: the quota
+// covers the whole billing period (e.g. one year for "lite:year") ending at
+// currentPeriodEnd. Best-effort: a missing or expired plan leaves quotas
+// without a window.
 func (c *Client) applyPlanWindow(ctx context.Context, snap *provider.Snapshot) {
 	body, err := c.get(ctx, c.endpoint+"/tokenPlan/detail")
 	if err != nil {
@@ -174,39 +176,37 @@ func (c *Client) applyPlanWindow(ctx context.Context, snap *provider.Snapshot) {
 	if err != nil {
 		return
 	}
-	start, end := monthWindow(time.Now(), periodEnd.Day())
+	start, label, ok := planPeriod(env.Data.PlanCode, periodEnd)
+	if !ok {
+		return
+	}
 	for i := range snap.Quotas {
 		q := &snap.Quotas[i]
 		q.WindowStart = &start
-		q.ResetAt = &end
-		q.ResetIn = formatDuration(time.Until(end))
+		q.ResetAt = &periodEnd
+		q.ResetIn = formatDuration(time.Until(periodEnd))
+		q.Label = label
 	}
 }
 
-func monthWindow(now time.Time, anchorDay int) (start, end time.Time) {
-	y, m, _ := now.UTC().Date()
-	anchor := func(yr int, mo time.Month) time.Time {
-		d := anchorDay
-		if dim := time.Date(yr, mo+1, 0, 0, 0, 0, 0, time.UTC).Day(); d > dim {
-			d = dim
-		}
-		return time.Date(yr, mo, d, 0, 0, 0, 0, time.UTC)
+// planPeriod returns the start of the billing period that ends at periodEnd,
+// derived from the plan code suffix ("lite:year" → annual, "lite:month" →
+// monthly), plus a label describing the period.
+func planPeriod(planCode string, periodEnd time.Time) (start time.Time, label string, ok bool) {
+	switch {
+	case strings.HasSuffix(planCode, ":year"):
+		return periodEnd.AddDate(-1, 0, 0).Add(time.Second), "Annual Usage", true
+	case strings.HasSuffix(planCode, ":month"):
+		return periodEnd.AddDate(0, -1, 0).Add(time.Second), "Monthly Usage", true
+	default:
+		return time.Time{}, "", false
 	}
-	thisMonth := anchor(y, m)
-	if thisMonth.After(now) {
-		return anchor(y, m-1), thisMonth
-	}
-	return thisMonth, anchor(y, m+1)
 }
 
 func itemLabel(name string) string {
 	switch name {
 	case "month_total_token":
-		return "Monthly Usage"
-	case "plan_total_token":
-		return "Plan Total"
-	case "compensation_total_token":
-		return "Compensation"
+		return "Plan Usage"
 	default:
 		label := strings.ReplaceAll(name, "_", " ")
 		if len(label) > 0 {
