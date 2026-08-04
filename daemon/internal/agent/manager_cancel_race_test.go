@@ -12,8 +12,11 @@ import (
 )
 
 // cancelAfterTerminalClient simulates a provider whose Run emits turn_canceled
-// then returns context.Canceled. This reproduces the race where the event stream
-// path sets idle, but the Run-return path overwrites it with error.
+// then returns context.Canceled. The emitted event is an AgentStreamEvent
+// envelope wrapping a typed protocol.TurnCanceledStreamEvent — mirroring what
+// base/pump.go produces after the map-shaped fallback fix — so both the event
+// stream path (applyTerminalStreamState) and the Run-return fallback
+// (Canceled=true) drive the agent to idle in these tests.
 type cancelAfterTerminalClient struct {
 	session *cancelAfterTerminalSession
 }
@@ -49,10 +52,9 @@ func (s *cancelAfterTerminalSession) Run(ctx context.Context, _ string, _ []prot
 	// Emit turn_canceled before returning context.Canceled.
 	// This mirrors what EventPump does when the context is cancelled.
 	s.events <- AgentStreamEvent{
-		Event: map[string]interface{}{
-			"type":     "turn_canceled",
-			"provider": "cancel-terminal",
-			"reason":   "context_cancelled",
+		Event: protocol.TurnCanceledStreamEvent{
+			Provider: "cancel-terminal",
+			Reason:   "context_cancelled",
 		},
 		Timestamp: time.Now(),
 	}
@@ -97,12 +99,15 @@ func (s *cancelAfterTerminalSession) StreamHistory(_ context.Context) ([]AgentSt
 }
 
 // TestAgentManagerDoesNotOverwriteIdleWithErrorOnCancel verifies that when a
-// turn is canceled (Run returns context.Canceled AND a turn_canceled event is
-// emitted), the agent ends in idle, not error.
+// turn is canceled (Run returns context.Canceled with Canceled=true AND a
+// turn_canceled event is emitted), the agent ends in idle, not error.
 //
-// This reproduces the bug: first conversation ends abnormally because
-// SendAgentMessage's Run-return path calls SetError after the event stream
-// path has already applied idle via applyTerminalStreamState.
+// The session emits turn_canceled as a typed protocol.TurnCanceledStreamEvent
+// (like base/pump.go does after the map-shaped fallback fix), which the event
+// stream path applies via applyTerminalStreamState. The Run-return fallback in
+// SendAgentMessage (manager.go:561-567) must then not overwrite that terminal
+// idle state with SetError. See manager_terminal_map_test.go for the pump
+// fallback event contract.
 func TestAgentManagerDoesNotOverwriteIdleWithErrorOnCancel(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	storage := NewAgentStorage(t.TempDir(), logger)
@@ -139,7 +144,8 @@ func TestAgentManagerDoesNotOverwriteIdleWithErrorOnCancel(t *testing.T) {
 		t.Fatalf("SendAgentMessage: %v", err)
 	}
 
-	// Allow the turn_canceled event to be processed before Run returns.
+	// Give the stream goroutine a moment to process the turn_canceled event
+	// before Run returns.
 	time.Sleep(50 * time.Millisecond)
 	cancel()
 
@@ -148,13 +154,13 @@ func TestAgentManagerDoesNotOverwriteIdleWithErrorOnCancel(t *testing.T) {
 		select {
 		case status := <-updates:
 			if status == protocol.AgentIdle {
-				// Success: event stream path applied idle and Run-return path
-				// did not overwrite it with error.
+				// Success: the Run-return fallback (Canceled=true) applied
+				// idle and did not call SetError.
 				return
 			}
 			if status == protocol.AgentError {
 				t.Fatalf("agent ended in error state; expected idle. " +
-					"This means the Run-return path overwrote the idle set by the event stream path.")
+					"The Run-return path must treat Canceled=true as idle, not error.")
 			}
 		case <-deadline:
 			t.Fatalf("agent did not reach a terminal state; status=%s", ag.ToSnapshot().Status)

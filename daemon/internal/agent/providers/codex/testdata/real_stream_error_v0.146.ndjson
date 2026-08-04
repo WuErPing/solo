@@ -1,0 +1,5 @@
+{"type":"thread.started","thread_id":"019fcb1c-bd79-7642-b860-95a60f73fe4b"}
+{"type":"item.completed","item":{"id":"item_0","type":"error","message":"Model metadata for `gpt-nonexistent-model` not found. Defaulting to fallback metadata; this can degrade performance and cause issues."}}
+{"type":"turn.started"}
+{"type":"error","message":"{\"error\":{\"message\":\"The supported API model names are deepseek-v4-pro or deepseek-v4-flash, but you passed gpt-nonexistent-model.\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"}
+{"type":"turn.failed","error":{"message":"{\"error\":{\"message\":\"The supported API model names are deepseek-v4-pro or deepseek-v4-flash, but you passed gpt-nonexistent-model.\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"}}

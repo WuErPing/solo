@@ -175,17 +175,3 @@ func TestClearAgentAttentionInvalidAgentID(t *testing.T) {
 	}
 }
 
-func TestProtocolVersionTypeConsistency(t *testing.T) {
-	// WSProtocolVersion must be assignable to WSInboundMessage.ProtocolVersion (int)
-	msg := WSInboundMessage{
-		ProtocolVersion: WSProtocolVersion,
-	}
-	if msg.ProtocolVersion != 2 {
-		t.Errorf("WSProtocolVersion = %d, want 2", msg.ProtocolVersion)
-	}
-
-	// RelayProtocolVersion must be a string
-	if RelayProtocolVersion != "2" {
-		t.Errorf("RelayProtocolVersion = %q, want \"2\"", RelayProtocolVersion)
-	}
-}

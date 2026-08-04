@@ -82,9 +82,18 @@ func RunWorktreeSetup(
 			Commands:    copySnapshots(snapshots),
 		})
 
-		// Execute command
+		// Execute command, streaming output into the snapshot log as it arrives
+		// so observers see live progress instead of only start/end states.
 		start := time.Now()
-		log, exitCode, execErr := execSetupCommand(cmd, worktreePath, env)
+		log, exitCode, execErr := execSetupCommand(cmd, worktreePath, env, func(partialLog string) {
+			snapshots[i].Log = partialLog
+			onProgress(SetupProgressEvent{
+				WorkspaceID: workspaceID,
+				Worktree:    worktree,
+				Status:      "running",
+				Commands:    copySnapshots(snapshots),
+			})
+		})
 		duration := int(time.Since(start).Milliseconds())
 
 		snapshots[i].Log = log
@@ -121,7 +130,10 @@ func RunWorktreeSetup(
 }
 
 // execSetupCommand runs a single setup command and captures its output.
-func execSetupCommand(command, cwd string, env []string) (log string, exitCode int, err error) {
+// onOutput, when non-nil, is invoked with the accumulated log after each
+// output line so callers can stream progress; it runs in the caller's
+// goroutine.
+func execSetupCommand(command, cwd string, env []string, onOutput func(partialLog string)) (log string, exitCode int, err error) {
 	cmd := exec.Command("/bin/bash", "-lc", command)
 	cmd.Dir = cwd
 	cmd.Env = env
@@ -153,6 +165,9 @@ func execSetupCommand(command, cwd string, env []string) (log string, exitCode i
 		}
 		builder.WriteString(line)
 		builder.WriteByte('\n')
+		if onOutput != nil {
+			onOutput(builder.String())
+		}
 	}
 
 	waitErr := cmd.Wait()

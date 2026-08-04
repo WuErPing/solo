@@ -75,17 +75,26 @@ func TestTurnGuard_Concurrent(t *testing.T) {
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
+	// Channel orchestration instead of a fixed 10ms hold: the winner blocks
+	// until every other goroutine has attempted Acquire and failed, so a
+	// slow-scheduled goroutine can never Acquire after Release and produce a
+	// spurious second winner.
+	start := make(chan struct{})
+	winnerHolding := make(chan struct{})
+	release := make(chan struct{})
+
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			<-start
 			_, err := g.Acquire()
 			if err == nil {
 				mu.Lock()
 				winners++
 				mu.Unlock()
-				// Hold the turn briefly
-				time.Sleep(10 * time.Millisecond)
+				close(winnerHolding)
+				<-release // hold the turn until all losers have tried
 				g.Release()
 			} else {
 				mu.Lock()
@@ -94,10 +103,34 @@ func TestTurnGuard_Concurrent(t *testing.T) {
 			}
 		}()
 	}
+	close(start)
 
+	// Wait for the single winner to be holding the turn.
+	select {
+	case <-winnerHolding:
+	case <-time.After(5 * time.Second):
+		t.Fatal("no goroutine acquired the turn within 5s")
+	}
+
+	// Wait until all 9 remaining goroutines have attempted Acquire and lost.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		mu.Lock()
+		n := losers
+		mu.Unlock()
+		if n == 9 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("expected 9 losers while winner holds the turn, got %d", n)
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	close(release)
 	wg.Wait()
 
-	// Only one goroutine should win the initial race; the rest should fail.
+	// Exactly one goroutine won the race; the rest failed while it held the turn.
 	if winners != 1 {
 		t.Errorf("expected exactly 1 winner in the initial race, got %d", winners)
 	}

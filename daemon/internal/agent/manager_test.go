@@ -228,11 +228,16 @@ func TestSendAgentMessageRejectsWhenAlreadyRunning(t *testing.T) {
 
 	// First message starts running and blocks
 	ctx, cancel := context.WithCancel(context.Background())
-	updates := make(chan AgentEvent, 8)
+	updates := make(chan protocol.AgentLifecycleStatus, 8)
 	unsub := manager.Subscribe(func(e AgentEvent) {
-		if e.AgentID == ag.ID {
+		// Snapshot the status at emit time. e.Agent is a live pointer, so
+		// reading it later in the test loop could observe a lifecycle newer
+		// than the event represents and return while the persist that
+		// precedes the terminal emitState is still in flight — racing
+		// t.TempDir() cleanup ("directory not empty" flake).
+		if e.AgentID == ag.ID && e.Type == EventAgentState && e.Agent != nil {
 			select {
-			case updates <- e:
+			case updates <- e.Agent.ToSnapshot().Status:
 			default:
 			}
 		}
@@ -253,12 +258,14 @@ func TestSendAgentMessageRejectsWhenAlreadyRunning(t *testing.T) {
 	}
 
 	cancel()
-	// Wait for the background Run goroutine to finish so t.TempDir() can clean up.
+	// Wait for the background Run goroutine to finish so t.TempDir() can clean
+	// up. The terminal emitState runs AFTER ApplySnapshot, so observing a
+	// non-running status emitted at that point means persistence has quiesced.
 	deadline := time.After(2 * time.Second)
 	for {
 		select {
-		case e := <-updates:
-			if e.Agent != nil && e.Agent.ToSnapshot().Status != protocol.AgentRunning {
+		case status := <-updates:
+			if status != protocol.AgentRunning {
 				return
 			}
 		case <-deadline:

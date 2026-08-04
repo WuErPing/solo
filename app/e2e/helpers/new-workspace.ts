@@ -14,6 +14,7 @@ type NewWorkspaceDaemonClient = Pick<
   | "close"
   | "connect"
   | "createSoloWorktree"
+  | "fetchWorkspaces"
   | "openProject"
 >;
 

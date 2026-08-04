@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
-	"github.com/WuErPing/solo/daemon/internal/agent/base"
 	"github.com/WuErPing/solo/protocol"
 )
 
@@ -62,21 +61,6 @@ func TestSendToChannel_CriticalEventsBlock(t *testing.T) {
 	case <-time.After(1 * time.Second):
 		t.Error("critical event was not delivered after channel was drained -- " +
 			"sendToChannel must block on critical events")
-	}
-}
-
-func TestOpenCodeTerminalEventValueIsDispatcherCritical(t *testing.T) {
-	evt := agent.AgentStreamEvent{
-		AgentID:   "test-agent",
-		Event:     protocol.TurnCompletedStreamEvent{Provider: opencodeProviderName},
-		Timestamp: time.Now(),
-	}
-
-	if !evt.IsCriticalEvent() {
-		t.Fatal("expected OpenCode turn_completed event to be critical")
-	}
-	if _, ok := interface{}(evt).(base.CriticalEvent); !ok {
-		t.Fatal("OpenCode terminal agent.AgentStreamEvent value must be dispatcher-critical before sendToChannel")
 	}
 }
 

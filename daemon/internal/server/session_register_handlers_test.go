@@ -94,6 +94,8 @@ func TestRegisterHandlers_RegistersAllTypes(t *testing.T) {
 		"read_project_config_request",
 		"write_project_config_request",
 		"checkout_status_request",
+		"branch_suggestions_request",
+		"github_search_request",
 		"schedule/create",
 		"schedule/list",
 		"schedule/inspect",

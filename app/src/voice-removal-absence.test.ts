@@ -34,10 +34,8 @@ const mustNotReference = (
   forbidden: RegExp[],
 ) => {
   const src = readSource(relPath);
+  // A missing file passes by construction; there is nothing to assert on.
   if (src === null) {
-    it(`${relPath} deleted or contains no voice/dictation references`, () => {
-      expect(true).toBe(true);
-    });
     return;
   }
   it(`${relPath} contains no voice/dictation references`, () => {
@@ -126,11 +124,7 @@ describe("desktop permissions no longer expose microphone", () => {
 });
 
 describe("voice readiness helpers are removed", () => {
-  const forbidden = [
-    /getVoiceReadinessState/,
-    /resolveVoiceUnavailableMessage/,
-  ];
-  mustNotReference("utils/server-info-capabilities.ts", forbidden);
+  mustNotExist("utils/server-info-capabilities.ts");
 });
 
 describe("app config no longer requests microphone / audio recording", () => {

@@ -49,6 +49,10 @@ func TestAllOutboundMessageTypes(t *testing.T) {
 		{&ReadProjectConfigResponse{}, "read_project_config_response"},
 		{&WriteProjectConfigResponse{}, "write_project_config_response"},
 
+		// message_git.go
+		{&BranchSuggestionsResponse{}, "branch_suggestions_response"},
+		{&GitHubSearchResponse{}, "github_search_response"},
+
 		// message_terminal_msg.go
 		{&ListTerminalsResponse{}, "list_terminals_response"},
 		{&CreateTerminalResponse{}, "create_terminal_response"},

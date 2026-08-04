@@ -246,25 +246,17 @@ function renderSharedStatusConsumers({ queryClient = createTestQueryClient() } =
 }
 
 async function waitForExpectation(assertion: () => void): Promise<void> {
-  let lastError: unknown;
-
-  for (let attempt = 0; attempt < 60; attempt += 1) {
-    try {
-      assertion();
-      return;
-    } catch (error) {
-      lastError = error;
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      });
-    }
-  }
-
-  throw lastError;
+  // vi.waitFor polls with real safe-timers and advances the fake clock on each
+  // tick, so react-query state settles deterministically without real sleeps.
+  await act(async () => {
+    await vi.waitFor(assertion, { interval: 50, timeout: 2_000 });
+  });
 }
 
 describe("usePrPaneData", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
+
     const dom = new JSDOM("<!doctype html><html><body><div id='root'></div></body></html>", {
       url: "http://localhost",
     });
@@ -513,7 +505,7 @@ describe("usePrPaneData", () => {
             kind: "comment",
             author: "octocat",
             body: "This belongs to another PR",
-            createdAt: Date.now(),
+            createdAt: 1_700_000_000_000,
             url: "https://github.com/getsolo/solo/pull/41#issuecomment-1",
           },
         ],
@@ -554,7 +546,7 @@ describe("usePrPaneData", () => {
     });
 
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      await vi.advanceTimersByTimeAsync(20);
     });
 
     expect(mockClient.pullRequestTimeline).toHaveBeenCalledTimes(1);
@@ -614,7 +606,7 @@ describe("usePrPaneData", () => {
     });
 
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      await vi.advanceTimersByTimeAsync(20);
     });
 
     expect(countTimelineCalls({ cwd: cwdA, prNumber: prNumberA })).toBe(1);
@@ -646,20 +638,18 @@ describe("usePrPaneData", () => {
   });
 
   it("does not poll PR status or timeline after the initial load", async () => {
-    vi.useFakeTimers();
     mockClient.checkoutPrStatus.mockResolvedValue(statusPayload());
     mockClient.pullRequestTimeline.mockResolvedValue(timelinePayload());
 
     const hook = renderPrPaneHook();
     await hook.mount();
 
-    await waitForHookResult(() => {
+    await waitForExpectation(() => {
       expect(hook.latest.data?.number).toBe(42);
     });
 
     await act(async () => {
-      vi.advanceTimersByTime(120_000);
-      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(120_000);
     });
 
     expect(mockClient.checkoutPrStatus).toHaveBeenCalledTimes(1);
@@ -734,25 +724,6 @@ describe("usePrPaneData", () => {
     });
   });
 });
-
-async function waitForHookResult(assertion: () => void): Promise<void> {
-  let lastError: unknown;
-
-  for (let attempt = 0; attempt < 60; attempt += 1) {
-    try {
-      assertion();
-      return;
-    } catch (error) {
-      lastError = error;
-      await act(async () => {
-        vi.advanceTimersByTime(10);
-        await Promise.resolve();
-      });
-    }
-  }
-
-  throw lastError;
-}
 
 function createDeferred<T>(): {
   promise: Promise<T>;

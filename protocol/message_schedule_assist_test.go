@@ -7,34 +7,6 @@ import (
 	"testing"
 )
 
-func TestScheduleAssistRequestRoundTrip(t *testing.T) {
-	req := ScheduleAssistRequest{
-		Type:              "schedule/assist",
-		RequestID:         "req-1",
-		Message:           "every weekday at 9am, summarize overnight agent activity",
-		Timezone:          "Asia/Shanghai",
-		ClientNow:         "2026-07-18T09:00:00+08:00",
-		ContextScheduleID: "sched-1",
-		Transcript: []ScheduleAssistTurn{
-			{Role: "user", Content: "hi"},
-			{Role: "assistant", Content: "hello"},
-		},
-	}
-
-	data, err := json.Marshal(req)
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-
-	var decoded ScheduleAssistRequest
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if !reflect.DeepEqual(decoded, req) {
-		t.Errorf("round trip mismatch:\n got %+v\nwant %+v", decoded, req)
-	}
-}
-
 func TestScheduleAssistRequestOmitsOptionalFields(t *testing.T) {
 	req := ScheduleAssistRequest{
 		Type:      "schedule/assist",

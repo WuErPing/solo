@@ -400,7 +400,7 @@ func (m *AgentManager) ListAllAgents() []*ManagedAgent {
 // extending grace for agents that are stuck but still report "running".
 func (m *AgentManager) HasRunningAgentsWithRecentProgress() bool {
 	for _, ag := range m.ListAgents() {
-		if ag.Lifecycle == protocol.AgentRunning && m.stallMonitor.HasRecentProgress(ag.ID) {
+		if ag.GetLifecycle() == protocol.AgentRunning && m.stallMonitor.HasRecentProgress(ag.ID) {
 			return true
 		}
 	}
@@ -498,7 +498,7 @@ func (m *AgentManager) SendAgentMessage(ctx context.Context, agentID string, tex
 	}
 
 	// Prevent concurrent turns across all providers
-	if agent.Lifecycle == protocol.AgentRunning {
+	if agent.GetLifecycle() == protocol.AgentRunning {
 		return fmt.Errorf("agent %s is already running", agentID)
 	}
 
@@ -559,7 +559,7 @@ func (m *AgentManager) startTurn(ctx context.Context, agent *ManagedAgent, text 
 			// A canceled turn is not an error state. The event stream path already
 			// applied idle via turn_canceled; if that was missed, apply it here.
 			if result != nil && result.Canceled {
-				if agent.Lifecycle == protocol.AgentRunning {
+				if agent.GetLifecycle() == protocol.AgentRunning {
 					agent.SetLifecycle(protocol.AgentIdle)
 					if err := m.storage.ApplySnapshot(agent); err != nil {
 						m.logger.Warn("failed to persist agent canceled state", "agentId", agent.ID, "error", err)
@@ -577,7 +577,7 @@ func (m *AgentManager) startTurn(ctx context.Context, agent *ManagedAgent, text 
 			// If the event stream path already applied a terminal state (idle or
 			// error), don't overwrite it. This prevents the Run-return path from
 			// racing with applyTerminalStreamState.
-			if agent.Lifecycle == protocol.AgentRunning {
+			if agent.GetLifecycle() == protocol.AgentRunning {
 				agent.SetError(err.Error())
 				if err := m.storage.ApplySnapshot(agent); err != nil {
 					m.logger.Warn("failed to persist agent error state", "agentId", agent.ID, "error", err)

@@ -7,6 +7,7 @@ ADRs capture significant design decisions that shape the codebase. Each record d
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
 | [ADR-001](adr-001-shared-agent-template-for-loop-and-schedule.md) | Shared Agent Template for Loop and Schedule | Accepted | 2026-06-29 |
+| [ADR-002](adr-002-product-task-unification.md) | Product + Task Unification | Proposed | 2026-07-31 |
 
 ## Conventions
 

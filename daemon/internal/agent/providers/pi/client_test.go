@@ -422,41 +422,6 @@ func TestPiTranslator_MessageEnd_WithText(t *testing.T) {
 	}
 }
 
-// TestPiTerminalEventValueIsDispatcherCritical verifies that the terminal
-// event emitted by the PI translator is recognized as critical by the dispatcher.
-func TestPiTerminalEventValueIsDispatcherCritical(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	sess := newTestPiSession(logger)
-	translator := &piTranslator{session: sess}
-
-	events, _, err := translator.Translate([]byte(`{"type":"turn_end"}`), time.Now())
-	if err != nil {
-		t.Fatalf("Translate returned error: %v", err)
-	}
-
-	var terminal *agent.AgentStreamEvent
-	for _, raw := range events {
-		evt, ok := raw.(agent.AgentStreamEvent)
-		if !ok {
-			continue
-		}
-		if _, ok := evt.Event.(protocol.TurnCompletedStreamEvent); ok {
-			copied := evt
-			terminal = &copied
-			break
-		}
-	}
-	if terminal == nil {
-		t.Fatal("expected PI turn_end translation to emit turn_completed")
-	}
-	if !terminal.IsCriticalEvent() {
-		t.Fatal("expected PI turn_completed event to be critical")
-	}
-	if _, ok := interface{}(*terminal).(base.CriticalEvent); !ok {
-		t.Fatal("PI terminal agent.AgentStreamEvent value must be dispatcher-critical")
-	}
-}
-
 // TestPiTranslator_TurnEnd_ToolUse_NotTerminal verifies that turn_end with
 // stopReason "toolUse" is NOT treated as terminal. This is the core bug: when
 // querying "date", Pi runs a tool (bash) and emits an intermediate turn_end

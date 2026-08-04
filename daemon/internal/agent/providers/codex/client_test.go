@@ -79,9 +79,10 @@ func TestCodexBuildArgs(t *testing.T) {
 			binaryPath: "/usr/bin/codex",
 		}
 		args := session.buildArgs("hello world", "")
-		// Should contain: exec, --experimental-json, --ephemeral, --skip-git-repo-check, --sandbox workspace-write, prompt
+		// Should contain: exec, --json, --ephemeral, --skip-git-repo-check, --sandbox workspace-write, prompt
 		assertContains(t, args, "exec")
-		assertContains(t, args, "--experimental-json")
+		assertContains(t, args, "--json")
+		assertNotContains(t, args, "--experimental-json")
 		assertContains(t, args, "--ephemeral")
 		assertContains(t, args, "--skip-git-repo-check")
 		assertContains(t, args, "--sandbox")
@@ -116,10 +117,14 @@ func TestCodexBuildArgs(t *testing.T) {
 			base:       base.NewBaseSession("codex", &protocol.AgentSessionConfig{Cwd: "/tmp"}, logger),
 			binaryPath: "/usr/bin/codex",
 		}
-		args := session.buildArgs("test", "abc-123")
-		// Should use resume subcommand instead of exec
+		args := session.buildArgs("continue please", "abc-123")
+		// codex-cli 0.146: resume is `codex exec resume <id> <prompt>`; the
+		// bare top-level `codex resume` rejects --json/--experimental-json.
+		assertContains(t, args, "exec")
 		assertContains(t, args, "resume")
 		assertContains(t, args, "abc-123")
+		assertContains(t, args, "continue please")
+		assertContains(t, args, "--json")
 	})
 }
 

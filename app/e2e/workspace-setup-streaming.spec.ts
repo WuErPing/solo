@@ -8,6 +8,7 @@ import {
   expectSetupPanel,
   openHomeWithProject,
   seedProjectForWorkspaceSetup,
+  waitForWorkspaceRegistered,
   waitForWorkspaceSetupProgress,
 } from "./helpers/workspace-setup";
 
@@ -46,8 +47,7 @@ async function navigateToWorkspaceViaSidebar(
 test.describe("Workspace setup streaming", () => {
   test.describe.configure({ retries: 1 });
 
-  // TODO: implement createSoloWorktree and workspace_setup_progress in daemon
-  test.skip("opens the setup tab when a workspace is created from the sidebar", async ({ page }) => {
+  test("opens the setup tab when a workspace is created from the sidebar", async ({ page }) => {
     const client = await connectWorkspaceSetupClient();
     const repo = await createTempGitRepo("setup-open-", {
       soloConfig: {
@@ -65,6 +65,7 @@ test.describe("Workspace setup streaming", () => {
         cwd: repo.path,
         worktreeSlug: `setup-open-${Date.now()}`,
       });
+      await waitForWorkspaceRegistered(client, workspace.id);
       await openHomeWithProject(page, repo.path);
       await navigateToWorkspaceViaSidebar(page, workspace.id);
 
@@ -75,7 +76,7 @@ test.describe("Workspace setup streaming", () => {
     }
   });
 
-  test.skip("runs setup through the sidebar and leaves the workspace usable", async ({ page }) => {
+  test("runs setup through the sidebar and leaves the workspace usable", async ({ page }) => {
     const client = await connectWorkspaceSetupClient();
     const repo = await createTempGitRepo("setup-ui-flow-", {
       soloConfig: {
@@ -103,6 +104,7 @@ test.describe("Workspace setup streaming", () => {
         worktreeSlug: `setup-ui-flow-${Date.now()}`,
       });
       await completed;
+      await waitForWorkspaceRegistered(client, workspace.id);
 
       // Navigate to workspace and verify it's usable
       await openHomeWithProject(page, repo.path);
@@ -135,7 +137,7 @@ test.describe("Workspace setup streaming", () => {
     }
   });
 
-  test.skip("streams running and completed setup snapshots for a successful setup", async () => {
+  test("streams running and completed setup snapshots for a successful setup", async () => {
     const client = await connectWorkspaceSetupClient();
     const repo = await createTempGitRepo("setup-success-", {
       soloConfig: {
@@ -147,18 +149,25 @@ test.describe("Workspace setup streaming", () => {
 
     try {
       await seedProjectForWorkspaceSetup(client, repo.path);
+      // Partial output streams through detail.commands[i].log; the composed
+      // detail.log string only includes output for finished commands
+      // (daemon buildSetupLog renders running commands as a header line).
+      const firstCommandLog = (
+        payload: Awaited<ReturnType<typeof waitForWorkspaceSetupProgress>>,
+      ) => payload.detail.commands[0]?.log ?? "";
       const initialRunning = waitForWorkspaceSetupProgress(
         client,
-        (payload) => payload.status === "running" && payload.detail.log === "",
+        (payload) => payload.status === "running" && firstCommandLog(payload) === "",
       );
       const runningWithOutput = waitForWorkspaceSetupProgress(
         client,
-        (payload) => payload.status === "running" && payload.detail.log.includes("starting setup"),
+        (payload) =>
+          payload.status === "running" && firstCommandLog(payload).includes("starting setup"),
       );
       const completed = waitForWorkspaceSetupProgress(
         client,
         (payload) =>
-          payload.status === "completed" && payload.detail.log.includes("setup complete"),
+          payload.status === "completed" && firstCommandLog(payload).includes("setup complete"),
       );
 
       await createWorkspaceThroughDaemon(client, {
@@ -170,8 +179,9 @@ test.describe("Workspace setup streaming", () => {
       const runningPayload = await runningWithOutput;
       const completedPayload = await completed;
 
-      expect(initialPayload.detail.log).toBe("");
-      expect(runningPayload.detail.log).toContain("starting setup");
+      expect(firstCommandLog(initialPayload)).toBe("");
+      expect(firstCommandLog(runningPayload)).toContain("starting setup");
+      expect(firstCommandLog(completedPayload)).toContain("setup complete");
       expect(completedPayload.detail.log).toContain("setup complete");
       expect(completedPayload.error).toBeNull();
     } finally {
@@ -180,7 +190,7 @@ test.describe("Workspace setup streaming", () => {
     }
   });
 
-  test.skip("streams a failed setup snapshot when setup fails", async () => {
+  test("streams a failed setup snapshot when setup fails", async () => {
     const client = await connectWorkspaceSetupClient();
     const repo = await createTempGitRepo("setup-failure-", {
       soloConfig: {
@@ -212,7 +222,7 @@ test.describe("Workspace setup streaming", () => {
     }
   });
 
-  test.skip("emits a completed empty snapshot when no setup commands exist", async () => {
+  test("emits a completed empty snapshot when no setup commands exist", async () => {
     const client = await connectWorkspaceSetupClient();
     const repo = await createTempGitRepo("setup-none-");
 
@@ -241,8 +251,7 @@ test.describe("Workspace setup streaming", () => {
     }
   });
 
-  // TODO: implement terminal support in daemon (session.go handleCreateTerminal)
-  test.skip("launches script terminals from the workspace scripts menu", async ({ page }) => {
+  test("launches script terminals from the workspace scripts menu", async ({ page }) => {
     test.setTimeout(90_000);
     const client = await connectWorkspaceSetupClient();
     const repo = await createTempGitRepo("setup-svc-ui-", {
@@ -273,6 +282,7 @@ test.describe("Workspace setup streaming", () => {
         worktreeSlug: `setup-svc-${Date.now()}`,
       });
       await completed;
+      await waitForWorkspaceRegistered(client, workspace.id);
 
       await openHomeWithProject(page, repo.path);
       await navigateToWorkspaceViaSidebar(page, workspace.id);
@@ -313,8 +323,7 @@ test.describe("Workspace setup streaming", () => {
     }
   });
 
-  // TODO: implement createSoloWorktree in daemon (session.go)
-  test.skip("launches workspace scripts through an explicit daemon request", async () => {
+  test("launches workspace scripts through an explicit daemon request", async () => {
     const client = await connectWorkspaceSetupClient();
     const repo = await createTempGitRepo("setup-scripts-", {
       soloConfig: {
@@ -358,7 +367,9 @@ test.describe("Workspace setup streaming", () => {
         error: null,
       });
 
-      const findEditorTerminal = (terminal: { name: string }) => terminal.name === "editor";
+      // The daemon names script terminals "script:<name>"
+      // (daemon/internal/server/session_terminal.go handleStartWorkspaceScript).
+      const findEditorTerminal = (terminal: { name: string }) => terminal.name === "script:editor";
       await expect
         .poll(async () => {
           const terminals = await client.listTerminals(workspaceDir);
@@ -366,7 +377,7 @@ test.describe("Workspace setup streaming", () => {
         })
         .toMatchObject({
           id: expect.any(String),
-          name: "editor",
+          name: "script:editor",
         });
     } finally {
       await client.close();

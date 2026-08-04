@@ -163,14 +163,19 @@ func TestPerformE2EEHandshake_InvalidHelloType(t *testing.T) {
 	_, daemonPriv, _ := generateBoxKeyPair()
 	daemonPrivB64 := base64.StdEncoding.EncodeToString(daemonPriv[:])
 
+	// The handshake runs in the server goroutine; report its result back
+	// through a channel so the assertion cannot pass without it running.
+	handshakeErr := make(chan error, 1)
 	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, _ := upgrader.Upgrade(w, r, nil)
-		defer conn.Close()
-		_, err := PerformE2EEHandshake(conn, daemonPrivB64, testLogger())
-		if err == nil {
-			t.Error("expected error for invalid hello type")
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			handshakeErr <- err
+			return
 		}
+		defer conn.Close()
+		_, err = PerformE2EEHandshake(conn, daemonPrivB64, testLogger())
+		handshakeErr <- err
 	}))
 	defer srv.Close()
 
@@ -182,10 +187,18 @@ func TestPerformE2EEHandshake_InvalidHelloType(t *testing.T) {
 	defer clientConn.Close()
 
 	badHello, _ := json.Marshal(map[string]string{"type": "wrong", "key": "abc"})
-	_ = clientConn.WriteMessage(websocket.TextMessage, badHello)
+	if err := clientConn.WriteMessage(websocket.TextMessage, badHello); err != nil {
+		t.Fatalf("write hello: %v", err)
+	}
 
-	// Give server time to process
-	time.Sleep(100 * time.Millisecond)
+	select {
+	case err := <-handshakeErr:
+		if err == nil {
+			t.Error("expected error for invalid hello type")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("server handshake did not return")
+	}
 }
 
 

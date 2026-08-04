@@ -142,6 +142,8 @@ test.describe("Pi provider: tool-use query returns final text response", () => {
   });
 
   test("multi-turn: second message after tool-use also returns assistant text", async () => {
+    // Depends on the agent created by the first test in this file; skip
+    // defensively if that setup test failed.
     if (!agentId) {
       test.skip();
       return;

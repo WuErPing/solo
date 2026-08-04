@@ -1,0 +1,6 @@
+{"type":"thread.started","thread_id":"019fcb1c-0941-77d2-8bf4-2b8518eb6c2c"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_0","type":"command_execution","command":"/bin/zsh -lc 'echo solo-fixture-test'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_0","type":"command_execution","command":"/bin/zsh -lc 'echo solo-fixture-test'","aggregated_output":"solo-fixture-test\n","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"The command ran successfully and output:\n\n```\nsolo-fixture-test\n```"}}
+{"type":"turn.completed","usage":{"input_tokens":26625,"cached_input_tokens":26496,"cache_write_input_tokens":0,"output_tokens":113,"reasoning_output_tokens":49}}

@@ -196,10 +196,22 @@ export async function setupDeterministicPrompt(page: Page, sentinel?: string): P
   const tag = sentinel ?? `READY_${Date.now()}`;
   const terminal = page.locator('[data-testid="terminal-surface"]');
 
-  await terminal.pressSequentially(`echo ${tag}\n`, { delay: 0 });
-  await waitForTerminalContent(page, (text) => text.includes(tag), 10_000);
+  // Keystrokes sent while the terminal is still attaching are dropped, so
+  // probe with `echo` and retry until the shell actually echoes back.
+  const deadline = Date.now() + 20_000;
+  for (;;) {
+    await terminal.first().pressSequentially(`echo ${tag}\n`, { delay: 0 });
+    try {
+      await waitForTerminalContent(page, (text) => text.includes(tag), 3_000);
+      break;
+    } catch (error) {
+      if (Date.now() >= deadline) {
+        throw error;
+      }
+    }
+  }
 
-  await terminal.pressSequentially("export PS1='$ '\n", { delay: 0 });
+  await terminal.first().pressSequentially("export PS1='$ '\n", { delay: 0 });
   await page.waitForTimeout(300);
 }
 

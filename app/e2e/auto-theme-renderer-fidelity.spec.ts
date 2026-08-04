@@ -9,6 +9,10 @@
 // This spec is TDD-red today: the Auto option does not yet exist in the theme
 // picker. It turns green once the UI change lands in tmux-pane-screen.tsx.
 //
+// TDD-red: the whole suite is skipped until tmux-pane-screen.tsx ships the
+// Auto theme option in the theme picker. Remove the describe-level skip as
+// part of that change — leaving it enabled before then fails every run.
+//
 // Renderer-fidelity assertions (pixel-exact RGB of auto-rendered bg/fg) belong
 // in a separate spec that depends on daemon OSC 10/11 probe plumbing. That
 // integration lives outside TDD scope; see docs/architecture/auto-theme.md
@@ -16,7 +20,9 @@
 
 import { test, expect } from "./fixtures";
 
-test.describe("Auto theme option", () => {
+// TDD-red: skipped until the Auto theme option lands in tmux-pane-screen.tsx
+// (see file header). Enable together with that UI change.
+test.describe.skip("Auto theme option", () => {
   test("theme picker exposes Auto alongside System / Dark / Light / Bash", async ({ page }) => {
     // Navigate to the tmux pane route. The fixture seeds a host + daemon so
     // the pane screen renders (even with no agent selected, the theme picker

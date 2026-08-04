@@ -285,15 +285,11 @@ export async function expectSetupPanel(page: Page): Promise<void> {
   if (await panel.isVisible().catch(() => false)) {
     return;
   }
-  // Otherwise open it manually via workspace header actions menu.
-  // Use the specific testID to avoid matching the sidebar kebab which shares
-  // the same "Workspace actions" accessibility label.
-  const actionsButton = page.getByTestId("workspace-header-menu-trigger");
-  await expect(actionsButton).toBeVisible({ timeout: 10_000 });
-  await actionsButton.click();
-  const showSetup = page.getByTestId("workspace-header-show-setup");
-  await expect(showSetup).toBeVisible({ timeout: 5_000 });
-  await showSetup.click();
+  // The setup panel opens as a workspace tab; activate it if another tab
+  // stole focus.
+  const setupTab = page.locator('[data-testid^="workspace-tab-setup"]').first();
+  await expect(setupTab).toBeVisible({ timeout: 15_000 });
+  await setupTab.click();
   await expect(panel).toBeVisible({ timeout: 30_000 });
 }
 
@@ -332,6 +328,32 @@ export async function createWorkspaceThroughDaemon(
     id: String(result.workspace.id),
     name: result.workspace.name,
   };
+}
+
+/**
+ * Poll fetchWorkspaces until the given workspace is visible in the daemon
+ * registry. The daemon sends workspace_update broadcasts only to the session
+ * that created the workspace, so other clients (and the browser, whose
+ * initial fetch can race registry writes) need the registry to be settled
+ * first. Call this after creating a workspace via the daemon and before
+ * loading the app.
+ */
+export async function waitForWorkspaceRegistered(
+  client: { fetchWorkspaces(): Promise<{ entries: Array<{ id: string }> }> },
+  workspaceId: string,
+  timeoutMs = 15_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const payload = await client.fetchWorkspaces();
+    if (payload.entries.some((entry) => String(entry.id) === workspaceId)) {
+      return;
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(`Workspace ${workspaceId} not visible in daemon registry after ${timeoutMs}ms`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
 }
 
 export async function findWorktreeWorkspaceForProject(

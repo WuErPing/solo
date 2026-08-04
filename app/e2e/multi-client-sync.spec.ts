@@ -121,6 +121,8 @@ test.describe("Multi-client timeline synchronization", () => {
   });
 
   test("second message from client A is visible to client B", async () => {
+    // Depends on the agent created by the first test in this file; skip
+    // defensively if that setup test failed.
     if (!agentId) {
       test.skip();
       return;

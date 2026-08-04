@@ -347,8 +347,14 @@ func TestRecordToManagedAgent(t *testing.T) {
 	if agent.ID != "a1" {
 		t.Errorf("ID: got %q", agent.ID)
 	}
+	if agent.Lifecycle != protocol.AgentIdle {
+		t.Errorf("Lifecycle: got %q, want idle (mapped from LastStatus)", agent.Lifecycle)
+	}
 	if !agent.Attention.Requires {
 		t.Error("expected attention required")
+	}
+	if agent.Attention.Reason != "msg" {
+		t.Errorf("Attention.Reason: got %q, want msg", agent.Attention.Reason)
 	}
 	if !agent.Internal {
 		t.Error("expected internal to be true")

@@ -66,5 +66,22 @@ if [ "$ERRORS" -gt 0 ]; then
   exit 1
 fi
 
+# Handler-file size guard (moved out of Go tests): each domain handler file
+# must stay under 500 lines so the Session struct does not accumulate
+# unrelated concerns.
+LINE_LIMIT=500
+for f in session_terminal.go session_tmux.go session_schedule.go; do
+  path="daemon/internal/server/$f"
+  if [ ! -f "$path" ]; then
+    echo "ERROR: expected handler file not found: $path" >&2
+    exit 1
+  fi
+  lines=$(wc -l < "$path")
+  if [ "$lines" -ge "$LINE_LIMIT" ]; then
+    echo "ERROR: $path has $lines lines (limit $LINE_LIMIT); split domain logic into focused files" >&2
+    exit 1
+  fi
+done
+
 echo "OK: Module boundaries respected (protocol and usage are the only shared dependencies)."
 exit 0

@@ -10,18 +10,16 @@ func TestResolveOnboardHost_Default(t *testing.T) {
 	orig := onboardPort
 	defer func() { onboardPort = orig }()
 
+	// Isolate from the environment so the default is deterministic:
+	// no SOLO_LISTEN override and no config.json with a listen address.
+	t.Setenv("SOLO_LISTEN", "")
+	t.Setenv("SOLO_HOME", t.TempDir())
+
 	onboardPort = ""
 	host := resolveOnboardHost()
-	if host == "" {
-		t.Error("expected non-empty host")
-	}
-	// Should not start with ws://
-	if strings.HasPrefix(host, "ws://") {
-		t.Error("host should not start with ws://")
-	}
-	// Should not end with /ws
-	if strings.HasSuffix(host, "/ws") {
-		t.Error("host should not end with /ws")
+	// Default is client.defaultHost with the ws:// prefix and /ws suffix stripped.
+	if host != "127.0.0.1:17612" {
+		t.Errorf("expected default host 127.0.0.1:17612, got %q", host)
 	}
 }
 

@@ -14,10 +14,10 @@ import { getTerminalBufferText, waitForTerminalContent } from "./helpers/termina
 interface TerminalLayoutMetrics {
   visibleSurfaceCount: number;
   surfaceHeight: number;
-  rowCount: number;
   rows: number | null;
   cols: number | null;
-  renderedRowsHeight: number;
+  /** Non-empty lines in the active xterm buffer (renderer-agnostic). */
+  nonEmptyRowCount: number;
   tabIds: string[];
 }
 
@@ -31,29 +31,41 @@ async function readTerminalLayoutMetrics(page: Page): Promise<TerminalLayoutMetr
       return rect.width > 0 && rect.height > 0;
     });
     const surface = visibleSurfaces[0] ?? null;
-    const renderedRows = Array.from(document.querySelectorAll<HTMLElement>(".xterm-rows > div"));
-    const firstRow = renderedRows[0] ?? null;
-    const lastRow = renderedRows.at(-1) ?? null;
     const surfaceRect = surface?.getBoundingClientRect() ?? null;
-    const firstRowRect = firstRow?.getBoundingClientRect() ?? null;
-    const lastRowRect = lastRow?.getBoundingClientRect() ?? null;
     const term = (
       window as Window & {
         __soloTerminal?: {
           rows?: number;
           cols?: number;
+          buffer?: {
+            active: {
+              length: number;
+              getLine: (i: number) => { translateToString: (trim: boolean) => string } | null;
+            };
+          };
         };
       }
     ).__soloTerminal;
 
+    // The app renders terminals with the WebGL addon, so .xterm-rows DOM nodes
+    // do not exist; measure content coverage through the xterm buffer instead.
+    let nonEmptyRowCount = 0;
+    const buffer = term?.buffer?.active ?? null;
+    if (buffer) {
+      for (let i = 0; i < buffer.length; i += 1) {
+        const line = buffer.getLine(i);
+        if (line && line.translateToString(true).trim().length > 0) {
+          nonEmptyRowCount += 1;
+        }
+      }
+    }
+
     return {
       visibleSurfaceCount: visibleSurfaces.length,
       surfaceHeight: surfaceRect?.height ?? 0,
-      rowCount: renderedRows.length,
       rows: typeof term?.rows === "number" ? term.rows : null,
       cols: typeof term?.cols === "number" ? term.cols : null,
-      renderedRowsHeight:
-        firstRowRect && lastRowRect ? Math.max(0, lastRowRect.bottom - firstRowRect.top) : 0,
+      nonEmptyRowCount,
       tabIds: currentTabIds,
     };
   }, tabIds);
@@ -114,8 +126,7 @@ test.describe("Terminal alternate-screen transitions", () => {
     await harness?.cleanup();
   });
 
-  // TODO: implement terminal support in daemon (session.go handleCreateTerminal)
-  test.skip("restores the normal screen after full-screen alternate buffer exit without remounting", async ({
+  test("restores the normal screen after full-screen alternate buffer exit without remounting", async ({
     page,
   }, testInfo) => {
     test.setTimeout(60_000);
@@ -191,8 +202,7 @@ test.describe("Terminal alternate-screen transitions", () => {
     });
   });
 
-  // TODO: implement terminal support in daemon (session.go handleCreateTerminal)
-  test.skip("opening vim in a new terminal fills the terminal surface", async ({ page }, testInfo) => {
+  test("opening vim in a new terminal fills the terminal surface", async ({ page }, testInfo) => {
     test.setTimeout(60_000);
 
     await page.setViewportSize({ width: 1280, height: 900 });
@@ -208,7 +218,20 @@ test.describe("Terminal alternate-screen transitions", () => {
 
       await startTerminalFrameSampling(page, 2_000);
       await terminalSurface.pressSequentially("vim -Nu NONE -n\n", { delay: 0 });
-      await page.waitForTimeout(1_500);
+
+      // Wait until vim has actually drawn its full-screen UI (tilde rows on
+      // the alternate buffer) instead of sampling on a fixed timer.
+      let vimMetrics = beforeVim;
+      await expect
+        .poll(
+          async () => {
+            vimMetrics = await readTerminalLayoutMetrics(page);
+            const rows = vimMetrics.rows ?? 0;
+            return rows > 0 && vimMetrics.nonEmptyRowCount >= Math.floor(rows * 0.75);
+          },
+          { timeout: 15_000, intervals: [100, 250, 500, 1000] },
+        )
+        .toBe(true);
 
       const probe = await readTerminalRenderProbe(page);
       const samples: TerminalLayoutMetrics[] = [];
@@ -221,6 +244,7 @@ test.describe("Terminal alternate-screen transitions", () => {
         body: JSON.stringify(
           {
             beforeVim,
+            vimMetrics,
             probe: summarizeTerminalRenderProbe(probe),
             samples,
           },
@@ -239,14 +263,18 @@ test.describe("Terminal alternate-screen transitions", () => {
         finalSample?.visibleSurfaceCount ?? 0,
         "opening vim should leave exactly one visible terminal surface",
       ).toBe(1);
+      const finalRows = finalSample?.rows ?? 0;
+      expect(finalRows, "terminal dimensions should be readable via the xterm buffer").toBeGreaterThan(
+        0,
+      );
       expect(
-        finalSample?.renderedRowsHeight ?? 0,
-        "vim should render rows that fill most of the terminal surface",
-      ).toBeGreaterThan((finalSample?.surfaceHeight ?? 0) * 0.75);
+        finalSample?.nonEmptyRowCount ?? 0,
+        "vim should fill most of the terminal rows with content",
+      ).toBeGreaterThanOrEqual(Math.floor(finalRows * 0.75));
       expect(
-        finalSample?.rowCount ?? 0,
-        "vim should leave a substantial number of rendered rows",
-      ).toBeGreaterThan(Math.max(10, Math.floor((beforeVim.rowCount || 0) * 0.75)));
+        finalSample?.nonEmptyRowCount ?? 0,
+        "vim should render substantially more content than the shell prompt",
+      ).toBeGreaterThan(Math.max(10, beforeVim.nonEmptyRowCount));
     });
   });
 });

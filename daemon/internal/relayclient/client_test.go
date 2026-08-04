@@ -60,7 +60,7 @@ func TestOpenDataSocket_TerminatesOnOpenTimeout(t *testing.T) {
 	// Override timeout to something short for test speed
 	origTimeout := dataSocketOpenTimeout
 	dataSocketOpenTimeout = 200 * time.Millisecond
-	defer func() { dataSocketOpenTimeout = origTimeout }()
+	t.Cleanup(func() { dataSocketOpenTimeout = origTimeout })
 
 	// Manually build the data URL using the test server (ws not wss)
 	u := "ws://" + host + "/ws?serverId=server-id&role=server&v=2&connectionId=test-conn-1"
@@ -104,7 +104,7 @@ func TestOpenDataSocket_NoTimeoutOnNormalPath(t *testing.T) {
 
 	origTimeout := dataSocketOpenTimeout
 	dataSocketOpenTimeout = 500 * time.Millisecond
-	defer func() { dataSocketOpenTimeout = origTimeout }()
+	t.Cleanup(func() { dataSocketOpenTimeout = origTimeout })
 
 	u := "ws://" + host + "/ws?serverId=server-id&role=server&v=2&connectionId=test-conn-2"
 
@@ -197,7 +197,7 @@ func TestOpenDataSocket_HelloProcessedCancelsTimer(t *testing.T) {
 
 	origTimeout := dataSocketOpenTimeout
 	dataSocketOpenTimeout = 200 * time.Millisecond
-	defer func() { dataSocketOpenTimeout = origTimeout }()
+	t.Cleanup(func() { dataSocketOpenTimeout = origTimeout })
 
 	u := "ws://" + host + "/ws?serverId=server-id&role=server&v=2&connectionId=test-conn-3"
 

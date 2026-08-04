@@ -146,6 +146,7 @@ Roadmap, feature inventory, and per-feature PRD/specs.
 | [Loop Schedule Spec](product/prd/loop-schedule-spec.md) | PRD/Spec | Loop-as-Schedule unification: protocol, daemon, executors, migration |
 | [Provider Hub Design](product/prd/provider-hub-design.md) | PRD/Design | Provider Hub, Local API Proxy, MCP/Skills/Prompts, config exporter |
 | [Product Layer Evolution](product/prd/product-layer-evolution.md) | PRD | Absorb Multica abstractions: Skills, Profiles, unified Task, Board, Inbox, Triggers |
+| [Product + Task Unification](product/prd/product-task-unification.md) | PRD | Radical simplification: 6 concepts → 2 (Product + Task), full data model, migration plan |
 | [Agent Send Presets](product/agent-send-presets-design.md) | Design | Agent-specific tmux send button presets |
 
 ---

@@ -74,7 +74,9 @@ func TestV2NudgeSendsSync(t *testing.T) {
 	readJSONExtra(t, control) // consume connected
 
 	// After nudgeSyncDelay the relay should send another sync.
-	control.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	// Generous read deadline: nudge timers are 80ms/40ms, but a loaded CI machine
+	// can delay timer delivery. Success returns early, so the slack costs nothing.
+	control.SetReadDeadline(time.Now().Add(2 * time.Second))
 	_, msg, err := control.ReadMessage()
 	if err != nil {
 		t.Fatalf("expected sync nudge, got error: %v", err)
@@ -102,11 +104,15 @@ func TestV2NudgeResetsControlWhenUnresponsive(t *testing.T) {
 	readJSONExtra(t, control) // consume connected
 
 	// After nudgeSyncDelay: sync arrives.
-	control.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	// Generous read deadline: nudge timers are 80ms/40ms, but a loaded CI machine
+	// can delay timer delivery. Success returns early, so the slack costs nothing.
+	control.SetReadDeadline(time.Now().Add(2 * time.Second))
 	control.ReadMessage() // consume sync nudge
 
 	// After another nudgeResetDelay: control should be force-closed.
-	control.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	// Generous read deadline: nudge timers are 80ms/40ms, but a loaded CI machine
+	// can delay timer delivery. Success returns early, so the slack costs nothing.
+	control.SetReadDeadline(time.Now().Add(2 * time.Second))
 	_, _, err := control.ReadMessage()
 	if err == nil {
 		t.Fatal("expected control socket to be closed by relay, but read succeeded")
@@ -133,7 +139,10 @@ func TestV2NudgeCancelledWhenServerDataArrives(t *testing.T) {
 	readJSONExtra(t, control) // consume "connected" notification for server-data socket
 
 	// Wait beyond both nudge delays; control must NOT receive a sync.
-	control.SetReadDeadline(time.Now().Add(400 * time.Millisecond))
+	// Negative assertion: the wait window must be much larger than the nudge
+	// timer periods (80ms/40ms) so a wrongly-fired nudge still has time to
+	// arrive even on a heavily loaded CI machine. 2s gives ~25x headroom.
+	control.SetReadDeadline(time.Now().Add(2 * time.Second))
 	_, _, err := control.ReadMessage()
 	if err == nil {
 		t.Fatal("control received an unexpected message after server-data connected")
@@ -158,7 +167,10 @@ func TestV2NudgeCancelledWhenClientDisconnects(t *testing.T) {
 	readJSONExtra(t, control) // consume disconnected
 
 	// Wait beyond both nudge delays; control must NOT receive a sync.
-	control.SetReadDeadline(time.Now().Add(400 * time.Millisecond))
+	// Negative assertion: the wait window must be much larger than the nudge
+	// timer periods (80ms/40ms) so a wrongly-fired nudge still has time to
+	// arrive even on a heavily loaded CI machine. 2s gives ~25x headroom.
+	control.SetReadDeadline(time.Now().Add(2 * time.Second))
 	_, _, err := control.ReadMessage()
 	if err == nil {
 		t.Fatal("control received an unexpected message after client disconnected")
@@ -232,7 +244,9 @@ func TestV2OneClientDisconnectKeepsServerDataSocket(t *testing.T) {
 	client1.Close()
 
 	// Control must NOT receive a "disconnected" message (client2 still alive).
-	control.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
+	// Negative assertion: the wait window must be much larger than any relay
+	// notification delay, so use a generous deadline (see nudge tests above).
+	control.SetReadDeadline(time.Now().Add(2 * time.Second))
 	_, _, err := control.ReadMessage()
 	if err == nil {
 		t.Fatal("control received unexpected message after one of two clients disconnected")
@@ -435,7 +449,10 @@ func TestV2BufferedFramesFlushedOnServerDataConnect(t *testing.T) {
 	for i := 0; i < numFrames; i++ {
 		client.WriteMessage(websocket.TextMessage, []byte(`{"seq":"`+string(rune('0'+i))+`"}`))
 	}
-	time.Sleep(50 * time.Millisecond)
+	// Give the relay ample time to buffer the frames before server-data connects.
+	// There is no observable condition to poll here (the buffer is internal), so
+	// use a generous sleep instead of the previous 50ms, which was flaky under load.
+	time.Sleep(500 * time.Millisecond)
 
 	serverData := dialWSExtra(t, ts, protocol.WSEndpoint+"?serverId=buf2&role=server&v=2&connectionId=bf2")
 	defer serverData.Close()
@@ -468,7 +485,9 @@ func TestV2ServerDataNudgeSendsSync(t *testing.T) {
 	defer serverData.Close()
 
 	// After nudgeSyncDelay the relay should send a sync nudge.
-	control.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	// Generous read deadline: nudge timers are 80ms/40ms, but a loaded CI machine
+	// can delay timer delivery. Success returns early, so the slack costs nothing.
+	control.SetReadDeadline(time.Now().Add(2 * time.Second))
 	_, msg, err := control.ReadMessage()
 	if err != nil {
 		t.Fatalf("expected sync nudge after server-data connect, got error: %v", err)
@@ -500,7 +519,10 @@ func TestV2ServerDataNudgeCancelledWhenClientArrives(t *testing.T) {
 	readJSONExtra(t, control) // consume "connected"
 
 	// Wait beyond both nudge delays; control must NOT receive a sync.
-	control.SetReadDeadline(time.Now().Add(400 * time.Millisecond))
+	// Negative assertion: the wait window must be much larger than the nudge
+	// timer periods (80ms/40ms) so a wrongly-fired nudge still has time to
+	// arrive even on a heavily loaded CI machine. 2s gives ~25x headroom.
+	control.SetReadDeadline(time.Now().Add(2 * time.Second))
 	_, _, err := control.ReadMessage()
 	if err == nil {
 		t.Fatal("control received an unexpected sync after client connected")
@@ -523,11 +545,15 @@ func TestV2ServerDataNudgeResetsControlWhenUnresponsive(t *testing.T) {
 	defer serverData.Close()
 
 	// After nudgeSyncDelay: sync arrives.
-	control.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	// Generous read deadline: nudge timers are 80ms/40ms, but a loaded CI machine
+	// can delay timer delivery. Success returns early, so the slack costs nothing.
+	control.SetReadDeadline(time.Now().Add(2 * time.Second))
 	control.ReadMessage() // consume sync nudge
 
 	// After another nudgeResetDelay: control should be force-closed.
-	control.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	// Generous read deadline: nudge timers are 80ms/40ms, but a loaded CI machine
+	// can delay timer delivery. Success returns early, so the slack costs nothing.
+	control.SetReadDeadline(time.Now().Add(2 * time.Second))
 	_, _, err := control.ReadMessage()
 	if err == nil {
 		t.Fatal("expected control socket to be closed by relay, but read succeeded")

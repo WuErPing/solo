@@ -1,5 +1,7 @@
+/**
+ * @vitest-environment jsdom
+ */
 import { renderHook, waitFor } from "@testing-library/react";
-import { JSDOM } from "jsdom";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentProvider, ProviderSnapshotEntry } from "@server/server/agent/agent-sdk-types";
 import type { FormPreferences } from "./use-form-preferences";
@@ -53,25 +55,8 @@ beforeAll(() => {
   });
 });
 
-describe("useAgentFormState live preference hydration", () => {
+describe("useAgentFormState preference hydration (integration)", () => {
   beforeEach(() => {
-    const dom = new JSDOM("<!doctype html><html><body></body></html>", {
-      url: "http://localhost",
-    });
-
-    Object.defineProperty(globalThis, "document", {
-      value: dom.window.document,
-      configurable: true,
-    });
-    Object.defineProperty(globalThis, "window", {
-      value: dom.window,
-      configurable: true,
-    });
-    Object.defineProperty(globalThis, "navigator", {
-      value: dom.window.navigator,
-      configurable: true,
-    });
-
     mocks.preferences = {};
     mocks.isPreferencesLoading = false;
     mocks.snapshotEntries = [

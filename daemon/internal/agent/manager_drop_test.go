@@ -35,11 +35,12 @@ func TestAgentManager_DroppedEventCount_IncrementOnDrop(t *testing.T) {
 	mockSession.events = make(chan AgentStreamEvent, 500)
 
 	// Create a minimal ManagedAgent pointing at our mock session.
+	sess := newSubscribeSignalSession(mockSession)
 	ag := &ManagedAgent{
 		ID:        "drop-test-agent",
 		Provider:  "mock",
 		Lifecycle: protocol.AgentRunning,
-		Session:   mockSession,
+		Session:   sess,
 	}
 
 	// Start subscribeToSession — it reads from mockSession.events via Subscribe().
@@ -47,8 +48,8 @@ func TestAgentManager_DroppedEventCount_IncrementOnDrop(t *testing.T) {
 	// (blocked on workCh <- event) because workChCapacity=1.
 	go mgr.subscribeToSession(ag)
 
-	// Give subscribeToSession goroutine time to start
-	time.Sleep(30 * time.Millisecond)
+	// Wait until the drain goroutine has subscribed before flooding.
+	waitForSubscribe(t, sess)
 
 	// Send 200 non-critical timeline events rapidly.
 	// With workChCapacity=1, most will be dropped.
@@ -62,10 +63,21 @@ func TestAgentManager_DroppedEventCount_IncrementOnDrop(t *testing.T) {
 	// Close the channel to signal end of events
 	close(mockSession.events)
 
-	// Wait for the subscriber goroutine to drain
-	time.Sleep(300 * time.Millisecond)
+	// Poll until at least one non-critical event has been dropped, instead of
+	// sleeping a fixed duration for the subscriber goroutine to drain.
+	deadline := time.Now().Add(5 * time.Second)
+	var dropped int64
+	for {
+		dropped = mgr.DroppedEventCount()
+		if dropped > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 
-	dropped := mgr.DroppedEventCount()
 	if dropped == 0 {
 		t.Error("DroppedEventCount() = 0; expected >0 after flooding workCh with non-critical events")
 	}

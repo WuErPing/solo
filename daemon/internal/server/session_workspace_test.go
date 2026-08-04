@@ -3,12 +3,128 @@ package server
 import (
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 
 	"github.com/WuErPing/solo/daemon/internal/workspace"
 	"github.com/WuErPing/solo/protocol"
 )
+
+// TestBuildWorkspaceDescriptor_PopulatesScriptsFromProjectConfig verifies that
+// buildWorkspaceDescriptor fills Scripts from the project's solo.json scripts
+// config instead of always sending an empty list. The app only renders the
+// workspace scripts menu when descriptor.scripts is non-empty, so a hardcoded
+// empty array hides the menu even when the project defines scripts.
+func TestBuildWorkspaceDescriptor_PopulatesScriptsFromProjectConfig(t *testing.T) {
+	repoRoot := t.TempDir()
+	soloJSON := `{
+  "scripts": {
+    "dev":   {"type": "service", "command": "npm run dev", "port": 3000},
+    "build": {"command": "make build"}
+  }
+}`
+	if err := os.WriteFile(filepath.Join(repoRoot, "solo.json"), []byte(soloJSON), 0o644); err != nil {
+		t.Fatalf("write solo.json: %v", err)
+	}
+
+	s := &Session{
+		gitSvc:       &mockGitService{},
+		workspaces:   make(map[string]*protocol.WorkspaceDescriptor),
+		workspacesMu: sync.RWMutex{},
+		logger:       slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+	}
+
+	persistedWs := &workspace.PersistedWorkspaceRecord{
+		WorkspaceID: repoRoot,
+		ProjectID:   repoRoot,
+		Cwd:         repoRoot,
+		Kind:        workspace.WorkspaceKindLocalCheckout,
+		DisplayName: "proj",
+	}
+	proj := &workspace.PersistedProjectRecord{
+		ProjectID:   repoRoot,
+		RootPath:    repoRoot,
+		Kind:        workspace.ProjectKindNonGit,
+		DisplayName: "proj",
+	}
+
+	desc := s.buildWorkspaceDescriptor(persistedWs, proj)
+
+	if len(desc.Scripts) != 2 {
+		t.Fatalf("Scripts: got %d entries, want 2 (%+v)", len(desc.Scripts), desc.Scripts)
+	}
+
+	// Scripts are sorted by name for a stable wire payload.
+	byName := make(map[string]protocol.WorkspaceScript, len(desc.Scripts))
+	for _, script := range desc.Scripts {
+		byName[script.ScriptName] = script
+	}
+
+	dev, ok := byName["dev"]
+	if !ok {
+		t.Fatal("Scripts: missing 'dev' entry")
+	}
+	if dev.Type != "service" {
+		t.Errorf("dev.Type: got %q, want %q", dev.Type, "service")
+	}
+	if dev.Lifecycle != "stopped" {
+		t.Errorf("dev.Lifecycle: got %q, want %q (not started yet)", dev.Lifecycle, "stopped")
+	}
+
+	build, ok := byName["build"]
+	if !ok {
+		t.Fatal("Scripts: missing 'build' entry")
+	}
+	// A script without an explicit type defaults to "script".
+	if build.Type != "script" {
+		t.Errorf("build.Type: got %q, want %q", build.Type, "script")
+	}
+	if build.Lifecycle != "stopped" {
+		t.Errorf("build.Lifecycle: got %q, want %q", build.Lifecycle, "stopped")
+	}
+
+	if desc.Scripts[0].ScriptName != "build" || desc.Scripts[1].ScriptName != "dev" {
+		t.Errorf("Scripts not sorted by name: got [%s %s]",
+			desc.Scripts[0].ScriptName, desc.Scripts[1].ScriptName)
+	}
+}
+
+// TestBuildWorkspaceDescriptor_NoProjectConfigKeepsScriptsEmpty verifies that a
+// project without solo.json still yields an empty (non-nil) Scripts list.
+func TestBuildWorkspaceDescriptor_NoProjectConfigKeepsScriptsEmpty(t *testing.T) {
+	repoRoot := t.TempDir()
+
+	s := &Session{
+		gitSvc:       &mockGitService{},
+		workspaces:   make(map[string]*protocol.WorkspaceDescriptor),
+		workspacesMu: sync.RWMutex{},
+		logger:       slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+	}
+
+	persistedWs := &workspace.PersistedWorkspaceRecord{
+		WorkspaceID: repoRoot,
+		ProjectID:   repoRoot,
+		Cwd:         repoRoot,
+		Kind:        workspace.WorkspaceKindLocalCheckout,
+		DisplayName: "proj",
+	}
+	proj := &workspace.PersistedProjectRecord{
+		ProjectID:   repoRoot,
+		RootPath:    repoRoot,
+		Kind:        workspace.ProjectKindNonGit,
+		DisplayName: "proj",
+	}
+
+	desc := s.buildWorkspaceDescriptor(persistedWs, proj)
+
+	if desc.Scripts == nil {
+		t.Fatal("Scripts: expected empty non-nil slice, got nil")
+	}
+	if len(desc.Scripts) != 0 {
+		t.Fatalf("Scripts: got %d entries, want 0", len(desc.Scripts))
+	}
+}
 
 // TestBuildWorkspaceDescriptor_ColdCachePopulatesGitRuntimeAndName verifies that
 // buildWorkspaceDescriptor populates GitRuntime and uses the branch name (not the
@@ -72,6 +188,42 @@ func TestBuildWorkspaceDescriptor_ColdCachePopulatesGitRuntimeAndName(t *testing
 	// Name must be the branch name, not the stale directory name.
 	if desc.Name != branch {
 		t.Errorf("Name: got %q, want %q (branch name, not directory name)", desc.Name, branch)
+	}
+}
+
+// TestUpsertWorkspaceForCwd_PopulatesScriptsFromProjectConfig verifies that
+// the open-project path (upsertWorkspaceForCwd) also fills Scripts from
+// solo.json — otherwise the scripts menu stays hidden for workspaces that
+// never go through buildWorkspaceDescriptor.
+func TestUpsertWorkspaceForCwd_PopulatesScriptsFromProjectConfig(t *testing.T) {
+	repoRoot := t.TempDir()
+	soloJSON := `{"scripts": {"dev": {"type": "service", "command": "npm run dev"}}}`
+	if err := os.WriteFile(filepath.Join(repoRoot, "solo.json"), []byte(soloJSON), 0o644); err != nil {
+		t.Fatalf("write solo.json: %v", err)
+	}
+
+	s := &Session{
+		gitSvc:       &mockGitService{},
+		workspaces:   make(map[string]*protocol.WorkspaceDescriptor),
+		workspacesMu: sync.RWMutex{},
+		logger:       slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+	}
+
+	desc, created, err := s.upsertWorkspaceForCwd(repoRoot)
+	if err != nil {
+		t.Fatalf("upsertWorkspaceForCwd: %v", err)
+	}
+	if !created {
+		t.Fatal("expected workspace to be created")
+	}
+	if len(desc.Scripts) != 1 {
+		t.Fatalf("Scripts: got %d entries, want 1 (%+v)", len(desc.Scripts), desc.Scripts)
+	}
+	if desc.Scripts[0].ScriptName != "dev" || desc.Scripts[0].Type != "service" {
+		t.Errorf("unexpected script entry: %+v", desc.Scripts[0])
+	}
+	if desc.Scripts[0].Lifecycle != "stopped" {
+		t.Errorf("Lifecycle: got %q, want %q", desc.Scripts[0].Lifecycle, "stopped")
 	}
 }
 

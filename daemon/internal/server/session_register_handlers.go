@@ -95,6 +95,10 @@ func (s *Session) registerHandlers() {
 		s.sendRPCError(m.RequestID, m.MsgType(), "not implemented", nil)
 	})
 
+	// --- Git handlers (session_git.go) ---
+	r.Register("branch_suggestions_request", typeHandler(s.handleBranchSuggestions))
+	r.Register("github_search_request", typeHandler(s.handleGitHubSearch))
+
 	// --- Schedule handlers (session_schedule.go) ---
 	r.Register("schedule/create", typeHandler(s.handleScheduleCreate))
 	r.Register("schedule/list", typeHandler(s.handleScheduleList))

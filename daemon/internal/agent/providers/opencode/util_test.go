@@ -349,38 +349,6 @@ func TestBuildToolCallTimelineItemWithError(t *testing.T) {
 
 // --- Tier 4: HTTP transport helpers ---
 
-func TestDecodeOpencodeResponse(t *testing.T) {
-	// Wrapped format: {data: ...}
-	body := strings.NewReader(`{"data": {"status": "ok"}}`)
-	var result map[string]interface{}
-	if err := decodeOpencodeResponse(body, &result); err != nil {
-		t.Fatalf("decodeOpencodeResponse wrapped: %v", err)
-	}
-	if result["status"] != "ok" {
-		t.Errorf("wrapped result = %v", result)
-	}
-
-	// Direct JSON format
-	body2 := strings.NewReader(`{"name": "test"}`)
-	var result2 map[string]interface{}
-	if err := decodeOpencodeResponse(body2, &result2); err != nil {
-		t.Fatalf("decodeOpencodeResponse direct: %v", err)
-	}
-	if result2["name"] != "test" {
-		t.Errorf("direct result = %v", result2)
-	}
-
-	// Error response
-	body3 := strings.NewReader(`{"error": "not found"}`)
-	var result3 map[string]interface{}
-	if err := decodeOpencodeResponse(body3, &result3); err != nil {
-		t.Fatalf("decodeOpencodeResponse error: %v", err)
-	}
-	if result3["error"] != "not found" {
-		t.Errorf("error result = %v", result3)
-	}
-}
-
 func TestFindAvailablePort(t *testing.T) {
 	port, err := findAvailablePort()
 	if err != nil {

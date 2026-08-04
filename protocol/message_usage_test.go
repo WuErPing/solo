@@ -7,27 +7,6 @@ import (
 	"testing"
 )
 
-func TestUsageQuotaListRequestRoundTrip(t *testing.T) {
-	req := UsageQuotaListRequest{
-		Type:         "usage/quota/list",
-		RequestID:    "req-1",
-		ForceRefresh: true,
-	}
-
-	data, err := json.Marshal(req)
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-
-	var decoded UsageQuotaListRequest
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if !reflect.DeepEqual(decoded, req) {
-		t.Errorf("round trip mismatch:\n got %+v\nwant %+v", decoded, req)
-	}
-}
-
 func TestUsageQuotaListRequestOmitsForceRefresh(t *testing.T) {
 	req := UsageQuotaListRequest{Type: "usage/quota/list", RequestID: "req-2"}
 

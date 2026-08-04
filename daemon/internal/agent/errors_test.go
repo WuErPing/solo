@@ -6,30 +6,6 @@ import (
 	"testing"
 )
 
-func TestErrProviderCrashed_IsSelf(t *testing.T) {
-	if !errors.Is(ErrProviderCrashed, ErrProviderCrashed) {
-		t.Error("ErrProviderCrashed should match itself")
-	}
-}
-
-func TestErrProviderTimeout_IsSelf(t *testing.T) {
-	if !errors.Is(ErrProviderTimeout, ErrProviderTimeout) {
-		t.Error("ErrProviderTimeout should match itself")
-	}
-}
-
-func TestErrProviderStreaming_IsSelf(t *testing.T) {
-	if !errors.Is(ErrProviderStreaming, ErrProviderStreaming) {
-		t.Error("ErrProviderStreaming should match itself")
-	}
-}
-
-func TestErrProviderUnavailable_IsSelf(t *testing.T) {
-	if !errors.Is(ErrProviderUnavailable, ErrProviderUnavailable) {
-		t.Error("ErrProviderUnavailable should match itself")
-	}
-}
-
 func TestErrProviderCrashed_Wrapped(t *testing.T) {
 	wrapped := fmt.Errorf("claude process died: %w", ErrProviderCrashed)
 	if !errors.Is(wrapped, ErrProviderCrashed) {

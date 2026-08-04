@@ -173,6 +173,7 @@ func (s *codexSession) Run(ctx context.Context, text string, _ []protocol.ImageA
 	pump := base.NewEventPump(s.base.Logger(), s.dispatcher)
 	pump.SetProvider(codexProviderName)
 	translator := newCodexTranslator(s.base.Logger(), messageID, text)
+	translator.session = s
 	detector := streamevents.TerminalDetector{}
 
 	result, err := pump.RunBlocking(runCtx, s.stdoutPipe, translator, detector)
@@ -223,6 +224,7 @@ func (s *codexSession) StartTurn(ctx context.Context, text string, _ []protocol.
 	pump := base.NewEventPump(s.base.Logger(), s.dispatcher)
 	pump.SetProvider(codexProviderName)
 	translator := newCodexTranslator(s.base.Logger(), "", text)
+	translator.session = s
 	detector := streamevents.TerminalDetector{}
 
 	go func() {
@@ -270,11 +272,15 @@ func (s *codexSession) startProcessLocked(ctx context.Context, prompt string) er
 func (s *codexSession) buildArgs(prompt string, sessionID string) []string {
 	var args []string
 
+	// codex-cli 0.146: JSON output is the documented `--json` flag
+	// (`--experimental-json` still works as a hidden legacy alias but is not
+	// accepted by the top-level `resume` command). Resume is a subcommand of
+	// `exec` and takes the prompt positionally after the session id —
+	// omitting it silently drops the turn's text.
 	if sessionID != "" {
-		// Resume existing session
-		args = []string{"resume", sessionID, "--experimental-json", "--ephemeral", "--skip-git-repo-check"}
+		args = []string{"exec", "resume", sessionID, prompt, "--json", "--ephemeral", "--skip-git-repo-check"}
 	} else {
-		args = []string{"exec", "--experimental-json", "--ephemeral", "--skip-git-repo-check"}
+		args = []string{"exec", "--json", "--ephemeral", "--skip-git-repo-check"}
 	}
 
 	// Sandbox mode based on current mode
@@ -289,7 +295,7 @@ func (s *codexSession) buildArgs(prompt string, sessionID string) []string {
 		args = append(args, "--model", model)
 	}
 
-	// Prompt (only for exec, not resume)
+	// Prompt (only for exec, not resume — resume got it above)
 	if sessionID == "" {
 		args = append(args, prompt)
 	}
@@ -416,9 +422,10 @@ func (s *codexSession) StreamHistory(_ context.Context) ([]agent.AgentStreamEven
 // --- Translator ---
 
 type codexTranslator struct {
-	logger         *slog.Logger
-	messageID      string
-	prompt         string
+	logger    *slog.Logger
+	session   *codexSession // set by Run/StartTurn; nil in translator-only tests
+	messageID string
+	prompt    string
 	threadStarted  bool
 	userMsgEmitted bool
 	textBuf        string
@@ -455,6 +462,59 @@ func (t *codexTranslator) Translate(raw []byte, now time.Time) ([]interface{}, b
 	b := streamevents.New(codexProviderName, now)
 
 	switch typ {
+	// --- Current schema (codex-cli >= 0.146; verified against
+	// testdata/real_stream_v0.146.ndjson, a real stdout capture) ---
+
+	case "thread.started":
+		threadID, _ := event["thread_id"].(string)
+		// Write the real thread id back to the session so subsequent turns
+		// resume natively (`codex exec resume <id>`) — same pattern as the
+		// claude init message and pi session event writebacks.
+		if threadID != "" && t.session != nil {
+			t.session.base.SetSessionID(threadID)
+		}
+		b.ThreadStarted(threadID)
+		t.threadStarted = true
+
+	case "turn.started":
+		// Synthesize user_message event (codex exec does not echo the prompt)
+		if !t.userMsgEmitted && t.messageID != "" {
+			b.UserMessage(t.prompt, t.messageID)
+			t.userMsgEmitted = true
+		}
+
+	case "item.started":
+		t.translateItem(b, event, false)
+
+	case "item.completed":
+		t.translateItem(b, event, true)
+
+	case "turn.completed":
+		if usage := parseCodexUsage(event["usage"]); usage != nil {
+			t.usage = usage
+			b.Usage(usage)
+		}
+		b.TurnCompleted(t.usage)
+
+	case "turn.failed":
+		msg := "turn failed"
+		if e, ok := event["error"].(map[string]interface{}); ok {
+			if m, ok := e["message"].(string); ok && m != "" {
+				msg = m
+			}
+		}
+		b.TurnFailed(msg)
+
+	case "error":
+		// Non-fatal diagnostic line; the terminal failure follows as
+		// turn.failed. Log only.
+		if t.logger != nil {
+			t.logger.Warn("codex error event", "event", event)
+		}
+
+	// --- Legacy schema (codex-cli < 0.146 experimental JSON). Kept for
+	// backward compatibility with older installed binaries. ---
+
 	case "TurnStartedNotification":
 		b.ThreadStarted("")
 		t.threadStarted = true
@@ -518,6 +578,89 @@ func (t *codexTranslator) Translate(raw []byte, now time.Time) ([]interface{}, b
 	}
 
 	return b.Events(), b.Terminal(), nil
+}
+
+// translateItem handles item.started / item.completed events (current
+// schema). Assistant text arrives whole on item.completed — there are no
+// delta events in the current schema.
+func (t *codexTranslator) translateItem(b *streamevents.Builder, event map[string]interface{}, completed bool) {
+	item, _ := event["item"].(map[string]interface{})
+	if item == nil {
+		return
+	}
+	itemType, _ := item["type"].(string)
+	id, _ := item["id"].(string)
+
+	switch itemType {
+	case "agent_message":
+		if !completed {
+			return
+		}
+		text := codexItemText(item["text"])
+		if text != "" {
+			t.textBuf += text
+			b.AssistantMessage(text)
+		}
+
+	case "reasoning":
+		if !completed {
+			return
+		}
+		b.Reasoning(codexItemText(item["text"]))
+
+	case "error":
+		// Diagnostic item (e.g. model metadata fallback); the terminal
+		// failure arrives as turn.failed. Log only.
+		if t.logger != nil {
+			t.logger.Warn("codex error item", "item", item)
+		}
+
+	default:
+		// Tool-call-like items: command_execution, file_change,
+		// mcp_tool_call, web_search, etc.
+		status := "running"
+		if completed {
+			status = "completed"
+		}
+		b.ToolCall(id, itemType, protocol.UnknownDetail{Type: "codex_tool_call", Input: item}, status)
+	}
+}
+
+// codexItemText normalizes an item text field: a plain string, or a list of
+// strings (some codex versions emit reasoning text as an array).
+func codexItemText(v interface{}) string {
+	switch t := v.(type) {
+	case string:
+		return t
+	case []interface{}:
+		parts := make([]string, 0, len(t))
+		for _, p := range t {
+			if s, ok := p.(string); ok {
+				parts = append(parts, s)
+			}
+		}
+		return strings.Join(parts, "")
+	}
+	return ""
+}
+
+// parseCodexUsage converts the usage object attached to turn.completed.
+func parseCodexUsage(v interface{}) *protocol.AgentUsage {
+	m, _ := v.(map[string]interface{})
+	if m == nil {
+		return nil
+	}
+	usage := &protocol.AgentUsage{}
+	if n, ok := m["input_tokens"].(float64); ok {
+		usage.InputTokens = &n
+	}
+	if n, ok := m["cached_input_tokens"].(float64); ok {
+		usage.CachedInputTokens = &n
+	}
+	if n, ok := m["output_tokens"].(float64); ok {
+		usage.OutputTokens = &n
+	}
+	return usage
 }
 
 func buildCodexToolCallDetail(args interface{}) protocol.ToolCallDetail {

@@ -363,7 +363,10 @@ func TestV2FrameBuffering(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		client.WriteMessage(websocket.TextMessage, []byte(`{"msg":"buffered"}`))
 	}
-	time.Sleep(100 * time.Millisecond)
+	// Give the relay ample time to buffer the frames before server-data connects.
+	// The buffer is internal (no condition to poll), so use a generous sleep
+	// instead of the previous 100ms, which was flaky under load.
+	time.Sleep(500 * time.Millisecond)
 
 	serverData := dialWS(t, ts, protocol.WSEndpoint+"?serverId=test6&role=server&v=2&connectionId=buf")
 	defer serverData.Close()

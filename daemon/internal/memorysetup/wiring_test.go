@@ -1,8 +1,10 @@
 package memorysetup
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/WuErPing/solo/daemon/internal/config"
@@ -48,22 +50,6 @@ func TestBuild_Enabled_ReturnsFeatureWithBridgeAndRecorder(t *testing.T) {
 	}
 	if f.Recorder == nil {
 		t.Error("Recorder is nil")
-	}
-}
-
-func TestBuild_FileBackend_CreatesRootDirectory(t *testing.T) {
-	cfg := newTestConfig(t, true)
-	f, err := Build(cfg)
-	if err != nil {
-		t.Fatalf("Build: %v", err)
-	}
-	defer f.Close()
-
-	// The recorder should have been configured with the .solo/memory
-	// root under SoloHome. The directory is created lazily on first
-	// write, so we just verify the base SoloHome exists.
-	if _, err := os.Stat(cfg.SoloHome); err != nil {
-		t.Errorf("SoloHome missing: %v", err)
 	}
 }
 
@@ -120,11 +106,50 @@ func TestBuild_RedactorComposition_HonorsConfig(t *testing.T) {
 	}
 	defer f.Close()
 
-	// The bridge must have received a redactor that combines both
-	// capabilities. Probe by recording a turn with sensitive content.
-	// This is a smoke check; deep unit tests live in the redact package.
+	// Record a turn carrying an API-key-shaped secret through the wired
+	// Bridge, then verify the content persisted on disk was redacted.
+	// Deep redactor unit tests live in the redact package; this proves
+	// Build actually composes the configured redactors into the Bridge.
 	if f.Bridge == nil {
 		t.Fatal("Bridge is nil")
 	}
-	_ = filepath.Join(cfg.SoloHome, "probe") // keep import
+	const secret = "sk-abcdefghij1234567890ABCD" // matches the default openai pattern
+	f.Bridge.OnUserTurn("sess-redact", "agent-1", "my token is "+secret)
+	if err := f.Recorder.Flush(context.Background()); err != nil {
+		t.Fatalf("Flush: %v", err)
+	}
+
+	var files []string
+	root := filepath.Join(cfg.SoloHome, "memory")
+	err = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && filepath.Ext(path) == ".md" {
+			files = append(files, path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk %s: %v", root, err)
+	}
+	if len(files) == 0 {
+		t.Fatalf("no turn files persisted under %s", root)
+	}
+	redacted := false
+	for _, path := range files {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		if strings.Contains(string(data), secret) {
+			t.Errorf("turn file %s contains unredacted secret", path)
+		}
+		if strings.Contains(string(data), "[redacted:openai]") {
+			redacted = true
+		}
+	}
+	if !redacted {
+		t.Error("no persisted turn shows the redaction placeholder")
+	}
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"golang.org/x/crypto/nacl/box"
 )
 
 func TestE2EEConn_Close(t *testing.T) {
@@ -210,17 +211,17 @@ func TestE2EEConn_WriteControl(t *testing.T) {
 }
 
 func TestE2EEConn_ReadMessage_Encrypted(t *testing.T) {
-	_, daemonPriv, _ := generateBoxKeyPair()
+	daemonPub, daemonPriv, _ := generateBoxKeyPair()
 	daemonPrivB64 := base64.StdEncoding.EncodeToString(daemonPriv[:])
 	clientPub, clientPriv, _ := generateBoxKeyPair()
 
+	// Client-side derivation of the shared key, exactly as a real client
+	// would compute it from the daemon's advertised public key.
+	var sharedKey [32]byte
+	box.Precompute(&sharedKey, daemonPub, clientPriv)
+
 	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 	e2eeDone := make(chan *E2EEConn, 1)
-
-	var daemonPubBytes [32]byte
-	// Derive daemon public from private (not directly available, regenerate)
-	daemonPub2, _, _ := generateBoxKeyPair()
-	_ = daemonPub2
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, _ := upgrader.Upgrade(w, r, nil)
@@ -252,44 +253,85 @@ func TestE2EEConn_ReadMessage_Encrypted(t *testing.T) {
 		clientConn.Close()
 	}()
 
-	// Send encrypted message from client using server's public key
-	// We need to encrypt with the shared key that both sides computed
-	var nonce [24]byte
-	rand.Read(nonce[:])
+	// Consume the daemon's plaintext e2ee_ready handshake reply before any
+	// encrypted traffic, exactly as a real client does.
+	clientConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_, readyRaw, err := clientConn.ReadMessage()
+	if err != nil {
+		t.Fatalf("read e2ee_ready: %v", err)
+	}
+	var ready struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(readyRaw, &ready); err != nil || ready.Type != "e2ee_ready" {
+		t.Fatalf("expected e2ee_ready frame, got: %s", readyRaw)
+	}
 
-	// Since we can't easily compute the same shared key from client side
-	// without the daemon's public key, use WriteMessage on the server
-	// side and ReadMessage on the client side instead.
+	// Daemon → client: the client must be able to decrypt the frame with its
+	// own derivation of the shared key and recover the exact plaintext.
 	msg := []byte(`{"type":"test","data":"hello"}`)
 	if err := e2eeConn.WriteMessage(websocket.TextMessage, msg); err != nil {
 		t.Fatalf("WriteMessage: %v", err)
 	}
 
-	// Read on client side (raw encrypted)
+	clientConn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	_, raw, err := clientConn.ReadMessage()
 	if err != nil {
 		t.Fatalf("client ReadMessage: %v", err)
 	}
 	if len(raw) == 0 {
-		t.Error("expected non-empty encrypted data")
+		t.Fatal("expected non-empty encrypted data")
+	}
+	if string(raw) == string(msg) {
+		t.Fatal("frame was sent as plaintext — encryption not applied")
 	}
 
-	// Now test ReadMessage: have client send encrypted data back
-	// The server's E2EEConn.ReadMessage should decrypt it
-	// We need to encrypt with the shared key...
-	// Let's use the e2eeConn to test ReadMessage by having it read its own write
-	// Actually, let's just verify ReadMessage with a stray handshake frame skip
+	decoded, err := base64.StdEncoding.DecodeString(string(raw))
+	if err != nil {
+		t.Fatalf("base64 decode frame: %v", err)
+	}
+	if len(decoded) < 24 {
+		t.Fatalf("frame too short for nonce: %d bytes", len(decoded))
+	}
+	var nonce [24]byte
+	copy(nonce[:], decoded[:24])
+	plaintext, ok := box.OpenAfterPrecomputation(nil, decoded[24:], &nonce, &sharedKey)
+	if !ok {
+		t.Fatal("client failed to decrypt daemon frame under the negotiated key")
+	}
+	if string(plaintext) != string(msg) {
+		t.Fatalf("decrypted %q, want %q", plaintext, msg)
+	}
 
-	// Send a stray e2ee_hello frame (should be skipped by ReadMessage)
+	// Client → daemon: a stray handshake frame must be skipped, then
+	// ReadMessage must return the decrypted reply (previously the result was
+	// discarded without any assertion).
 	strayHello, _ := json.Marshal(map[string]string{"type": "e2ee_hello"})
-	clientConn.WriteMessage(websocket.TextMessage, strayHello)
+	if err := clientConn.WriteMessage(websocket.TextMessage, strayHello); err != nil {
+		t.Fatalf("write stray hello: %v", err)
+	}
 
-	// Set a deadline so ReadMessage doesn't block forever
-	e2eeConn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
+	reply := []byte(`{"type":"pong"}`)
+	var replyNonce [24]byte
+	if _, err := rand.Read(replyNonce[:]); err != nil {
+		t.Fatalf("generate nonce: %v", err)
+	}
+	ciphertext := box.SealAfterPrecomputation(nil, reply, &replyNonce, &sharedKey)
+	bundle := append(replyNonce[:], ciphertext...)
+	if err := clientConn.WriteMessage(websocket.TextMessage,
+		[]byte(base64.StdEncoding.EncodeToString(bundle))); err != nil {
+		t.Fatalf("write encrypted reply: %v", err)
+	}
 
-	_, _, _ = e2eeConn.ReadMessage()
-	// Should timeout (stray frame skipped, then no more data).
-	// Might get the stray or timeout, both are acceptable.
-	_ = clientPriv
-	_ = daemonPubBytes
+	e2eeConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	msgType, decrypted, err := e2eeConn.ReadMessage()
+	if err != nil {
+		t.Fatalf("server ReadMessage after stray frame: %v", err)
+	}
+	if msgType != websocket.TextMessage {
+		t.Errorf("message type: got %d, want TextMessage", msgType)
+	}
+	if string(decrypted) != string(reply) {
+		t.Fatalf("server decrypted %q, want %q", decrypted, reply)
+	}
 }

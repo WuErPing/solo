@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -63,7 +64,7 @@ func TestControlKeepalive_MeasuresRelayRTT(t *testing.T) {
 
 	origInterval := controlPingInterval.Load()
 	controlPingInterval.Store(int64(50 * time.Millisecond))
-	defer controlPingInterval.Store(origInterval)
+	t.Cleanup(func() { controlPingInterval.Store(origInterval) })
 
 	host := srv.Listener.Addr().String()
 	client := NewClient("server-id", host, &fastSessionAttacher{}, testLogger(), nil, false)
@@ -91,36 +92,125 @@ func TestControlKeepalive_MeasuresRelayRTT(t *testing.T) {
 	}
 }
 
-// TestRelayLegRTT_ResetOnReconnect verifies that a new control socket
-// invalidates the RTT measured on the previous one.
+// TestRelayLegRTT_ResetOnReconnect verifies that establishing a fresh
+// control socket invalidates the RTT measured on the previous one, by
+// driving the real connectControl reconnect path against a fake relay.
 func TestRelayLegRTT_ResetOnReconnect(t *testing.T) {
-	client := NewClient("server-id", "127.0.0.1:1", &fastSessionAttacher{}, testLogger(), nil, false)
+	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 
-	// Simulate a completed measurement on a live control socket.
-	client.controlMu.Lock()
-	client.controlConn = &websocket.Conn{}
-	client.controlMu.Unlock()
-	client.rttMu.Lock()
-	client.lastPingSentAt = time.Now()
-	client.lastRttMs = 12
-	client.rttMeasuredAt = time.Now()
-	client.rttMeasured = true
-	client.rttMu.Unlock()
+	// Fake relay: answers ping with pong on every control socket and lets
+	// the test drop individual connections to force a reconnect.
+	var mu sync.Mutex
+	var conns []*websocket.Conn
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		mu.Lock()
+		conns = append(conns, conn)
+		mu.Unlock()
+		for {
+			_, data, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+			var base struct {
+				Type string `json:"type"`
+			}
+			if err := json.Unmarshal(data, &base); err != nil {
+				continue
+			}
+			if base.Type == "ping" {
+				pong := struct {
+					Type string `json:"type"`
+					Ts   int64  `json:"ts"`
+				}{Type: "pong", Ts: time.Now().UnixMilli()}
+				out, _ := json.Marshal(pong)
+				if err := conn.WriteMessage(websocket.TextMessage, out); err != nil {
+					return
+				}
+			}
+		}
+	}))
+	defer srv.Close()
 
-	if _, _, ok := client.RelayLegRTT(); !ok {
-		t.Fatal("expected ok=true after simulated measurement")
+	origInterval := controlPingInterval.Load()
+	controlPingInterval.Store(int64(50 * time.Millisecond))
+	t.Cleanup(func() { controlPingInterval.Store(origInterval) })
+
+	host := srv.Listener.Addr().String()
+	client := NewClient("server-id", host, &fastSessionAttacher{}, testLogger(), nil, false)
+	if err := client.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer client.Stop()
+
+	// Wait for the first ping/pong exchange to produce an RTT measurement.
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		if _, _, ok := client.RelayLegRTT(); ok {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("no RTT measurement within 3s of keepalive")
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 
-	// Same reset as connectControl performs for a fresh control socket.
-	client.rttMu.Lock()
-	client.lastPingSentAt = time.Time{}
-	client.rttMeasured = false
-	client.rttMu.Unlock()
-	client.controlMu.Lock()
-	client.controlConn = nil
-	client.controlMu.Unlock()
+	// Stretch the ping interval so the new keepalive cannot re-measure
+	// before the reset assertion below.
+	controlPingInterval.Store(int64(time.Hour))
 
+	// Drop the control socket server-side; the read pump exits and
+	// schedules a reconnect.
+	mu.Lock()
+	first := conns[0]
+	mu.Unlock()
+	_ = first.Close()
+
+	deadline = time.Now().Add(3 * time.Second)
+	for {
+		client.reconnectMu.Lock()
+		pending := client.reconnectTimer != nil
+		client.reconnectMu.Unlock()
+		if pending {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("reconnect was not scheduled after control socket drop")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Fire the reconnect immediately — equivalent to the timer expiring.
+	client.reconnectMu.Lock()
+	if client.reconnectTimer != nil {
+		client.reconnectTimer.Stop()
+		client.reconnectTimer = nil
+	}
+	client.reconnectAttempt = 0
+	client.reconnectMu.Unlock()
+
+	client.connectControl()
+
+	// Wait until the second control connection is up server-side.
+	deadline = time.Now().Add(3 * time.Second)
+	for {
+		mu.Lock()
+		n := len(conns)
+		mu.Unlock()
+		if n >= 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("reconnect did not establish a new control connection")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// The fresh control socket must have invalidated the old measurement.
 	if _, _, ok := client.RelayLegRTT(); ok {
-		t.Fatal("expected ok=false after control socket reset")
+		t.Fatal("expected ok=false after reconnect reset the RTT measurement")
 	}
 }

@@ -96,6 +96,30 @@ func TestOpencodePost_NoContent(t *testing.T) {
 	}
 }
 
+func TestDecodeOpencodeResponse_DirectObject(t *testing.T) {
+	body := strings.NewReader(`{"name": "test"}`)
+	var result map[string]interface{}
+	if err := decodeOpencodeResponse(body, &result); err != nil {
+		t.Fatalf("decodeOpencodeResponse direct: %v", err)
+	}
+	if result["name"] != "test" {
+		t.Errorf("direct result = %v", result)
+	}
+}
+
+func TestDecodeOpencodeResponse_DirectErrorFieldPassthrough(t *testing.T) {
+	// Without a "data" wrapper key, an "error" field is treated as plain
+	// payload and passed through without an error.
+	body := strings.NewReader(`{"error": "not found"}`)
+	var result map[string]interface{}
+	if err := decodeOpencodeResponse(body, &result); err != nil {
+		t.Fatalf("decodeOpencodeResponse error field: %v", err)
+	}
+	if result["error"] != "not found" {
+		t.Errorf("error result = %v", result)
+	}
+}
+
 func TestDecodeOpencodeResponse_DirectArray(t *testing.T) {
 	body := strings.NewReader(`[{"id":"1"},{"id":"2"}]`)
 	var result []map[string]string

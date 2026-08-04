@@ -1,12 +1,40 @@
 package agent
 
 import (
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/WuErPing/solo/protocol"
 )
+
+// subscribeSignalSession wraps an AgentSession and closes subscribed the
+// first time Subscribe is called, so tests can wait until subscribeToSession
+// has actually started instead of sleeping a fixed duration.
+type subscribeSignalSession struct {
+	AgentSession
+	subscribed chan struct{}
+	once       sync.Once
+}
+
+func newSubscribeSignalSession(inner AgentSession) *subscribeSignalSession {
+	return &subscribeSignalSession{AgentSession: inner, subscribed: make(chan struct{})}
+}
+
+func (s *subscribeSignalSession) Subscribe() <-chan AgentStreamEvent {
+	s.once.Do(func() { close(s.subscribed) })
+	return s.AgentSession.Subscribe()
+}
+
+func waitForSubscribe(t *testing.T, s *subscribeSignalSession) {
+	t.Helper()
+	select {
+	case <-s.subscribed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("subscribeToSession did not call Subscribe within 5s")
+	}
+}
 
 // TestSubscribeToSession_CriticalEventFallback_WhenWorkChFull verifies that
 // when the workCh consumer is stalled (slow global subscriber blocking
@@ -42,16 +70,17 @@ func TestSubscribeToSession_CriticalEventFallback_WhenWorkChFull(t *testing.T) {
 
 	eventsCh := make(chan AgentStreamEvent, 100)
 	mockSession := &MockAgentSession{events: eventsCh}
+	sess := newSubscribeSignalSession(mockSession)
 	ag := &ManagedAgent{
 		ID:          "freeze-test-agent",
 		Provider:    "mock",
 		Lifecycle:   protocol.AgentRunning,
-		Session:     mockSession,
+		Session:     sess,
 		subscribers: make(map[uint64]AgentEventFunc),
 	}
 
 	go mgr.subscribeToSession(ag)
-	time.Sleep(20 * time.Millisecond) // let drain goroutine start
+	waitForSubscribe(t, sess)
 
 	// Flood with non-critical events to fill workCh (capacity=1) and stall consumer.
 	for i := 0; i < 10; i++ {
@@ -105,16 +134,17 @@ func TestSubscribeToSession_OpenCodeTerminalEventFallback_WhenWorkChFull(t *test
 
 	eventsCh := make(chan AgentStreamEvent, 100)
 	mockSession := &MockAgentSession{events: eventsCh}
+	sess := newSubscribeSignalSession(mockSession)
 	ag := &ManagedAgent{
 		ID:          "opencode-freeze-test-agent",
 		Provider:    "opencode",
 		Lifecycle:   protocol.AgentRunning,
-		Session:     mockSession,
+		Session:     sess,
 		subscribers: make(map[uint64]AgentEventFunc),
 	}
 
 	go mgr.subscribeToSession(ag)
-	time.Sleep(20 * time.Millisecond)
+	waitForSubscribe(t, sess)
 
 	for i := 0; i < 10; i++ {
 		eventsCh <- AgentStreamEvent{
@@ -177,16 +207,17 @@ func TestSubscribeToSession_SlowSubscriberDoesNotStallWorkCh(t *testing.T) {
 
 	eventsCh := make(chan AgentStreamEvent, 100)
 	mockSession := &MockAgentSession{events: eventsCh}
+	sess := newSubscribeSignalSession(mockSession)
 	ag := &ManagedAgent{
 		ID:          "slow-sub-test-agent",
 		Provider:    "mock",
 		Lifecycle:   protocol.AgentRunning,
-		Session:     mockSession,
+		Session:     sess,
 		subscribers: make(map[uint64]AgentEventFunc),
 	}
 
 	go mgr.subscribeToSession(ag)
-	time.Sleep(20 * time.Millisecond)
+	waitForSubscribe(t, sess)
 
 	// Flood with non-critical events to stall the consumer (workCh capacity=1).
 	for i := 0; i < 5; i++ {

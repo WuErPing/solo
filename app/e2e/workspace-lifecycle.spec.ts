@@ -65,8 +65,7 @@ test.describe("Workspace lifecycle", () => {
       }
     });
 
-    // TODO: implement terminal support in daemon (session.go handleCreateTerminal)
-    test.skip("creates a terminal with correct CWD", async ({ page }) => {
+    test("creates a terminal with correct CWD", async ({ page }) => {
       test.setTimeout(60_000);
 
       const client = await connectWorkspaceSetupClient();
@@ -92,8 +91,7 @@ test.describe("Workspace lifecycle", () => {
   });
 
   test.describe("Worktree workspace", () => {
-    // TODO: implement worktree workspace support in daemon
-    test.skip("creates an agent chat via New Chat", async ({ page }) => {
+    test("creates an agent chat via New Chat", async ({ page }) => {
       test.setTimeout(90_000);
 
       const client = await connectWorkspaceSetupClient();
@@ -143,8 +141,7 @@ test.describe("Workspace lifecycle", () => {
       }
     });
 
-    // TODO: implement terminal support in daemon (session.go handleCreateTerminal)
-    test.skip("creates a terminal with correct CWD", async ({ page }) => {
+    test("creates a terminal with correct CWD", async ({ page }) => {
       test.setTimeout(90_000);
 
       const client = await connectWorkspaceSetupClient();

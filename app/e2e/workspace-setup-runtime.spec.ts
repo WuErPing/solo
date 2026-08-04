@@ -7,6 +7,7 @@ import {
   createWorkspaceThroughDaemon,
   findWorktreeWorkspaceForProject,
   openHomeWithProject,
+  waitForWorkspaceRegistered,
 } from "./helpers/workspace-setup";
 
 function getServerId(): string {
@@ -30,8 +31,7 @@ async function navigateToWorkspaceViaSidebar(
 test.describe("Workspace setup runtime authority", () => {
   test.describe.configure({ retries: 1 });
 
-  // TODO: implement createSoloWorktree in daemon (session.go)
-  test.skip("worktree workspace is created in its own directory", async ({ page }) => {
+  test("worktree workspace is created in its own directory", async ({ page }) => {
     test.setTimeout(90_000);
 
     const client = await connectWorkspaceSetupClient();
@@ -59,8 +59,7 @@ test.describe("Workspace setup runtime authority", () => {
     }
   });
 
-  // TODO: implement terminal support in daemon (session.go handleCreateTerminal)
-  test.skip("first terminal opens in the created workspace directory", async ({ page }) => {
+  test("first terminal opens in the created workspace directory", async ({ page }) => {
     test.setTimeout(90_000);
 
     const client = await connectWorkspaceSetupClient();
@@ -81,6 +80,11 @@ test.describe("Workspace setup runtime authority", () => {
       }
       const workspaceDir = result.workspace.workspaceDirectory;
       const workspaceId = String(result.workspace.id);
+
+      // The daemon only broadcasts workspace_update to the session that
+      // created the worktree; give the registry a moment and confirm the
+      // workspace is visible before the browser fetches its initial list.
+      await waitForWorkspaceRegistered(client, workspaceId);
 
       // Navigate to the worktree workspace via sidebar click (direct URL
       // navigation for freshly created worktree workspaces can race with

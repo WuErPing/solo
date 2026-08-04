@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuErPing/solo/daemon/internal/agent/base"
 	"github.com/WuErPing/solo/protocol"
 )
 
@@ -280,33 +281,14 @@ type AgentEvent struct {
 }
 
 // AgentStreamEvent wraps a protocol stream event with metadata.
-type AgentStreamEvent struct {
-	AgentID   string
-	Event     interface{} // one of the AgentStreamEventPayload variants
-	Timestamp time.Time
-}
-
-// IsCriticalEvent returns true for terminal stream events that must never be dropped.
-func (e AgentStreamEvent) IsCriticalEvent() bool {
-	switch e.Event.(type) {
-	case protocol.TurnCompletedStreamEvent,
-		protocol.TurnFailedStreamEvent,
-		protocol.TurnCanceledStreamEvent:
-		return true
-	}
-	return false
-}
-
-// IsSemiCriticalEvent returns true for reasoning/thinking timeline events that
-// should survive transient backpressure with a short blocking timeout rather
-// than being silently dropped.
-func (e AgentStreamEvent) IsSemiCriticalEvent() bool {
-	switch evt := e.Event.(type) {
-	case protocol.TimelineStreamEvent:
-		return evt.Item.Type == "reasoning"
-	}
-	return false
-}
+//
+// It is an alias of base.AgentStreamEvent: the type lives in the base package
+// so that base.EventPump can emit envelope-wrapped typed terminal events
+// (turn_canceled/turn_failed) without an import cycle. Being the identical
+// type, pump-emitted events pass the agent.AgentStreamEvent type assertions
+// in provider sessions and are recognized by IsCriticalEvent and
+// applyTerminalStreamState.
+type AgentStreamEvent = base.AgentStreamEvent
 
 // AgentEventFunc is a callback for agent events.
 type AgentEventFunc func(AgentEvent)
@@ -345,6 +327,13 @@ func (a *ManagedAgent) IsBusy() bool {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	return a.Lifecycle == protocol.AgentInitializing || a.Lifecycle == protocol.AgentRunning
+}
+
+// GetLifecycle returns the current lifecycle state under the read lock.
+func (a *ManagedAgent) GetLifecycle() protocol.AgentStatus {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.Lifecycle
 }
 
 // GetSession returns the current session under the read lock.

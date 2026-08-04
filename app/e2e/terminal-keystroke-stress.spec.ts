@@ -15,6 +15,10 @@ const BIG_DIFF_BYTES = 256_000;
 const SMALL_AGENT_STREAM_UPDATES = 1000;
 const STRESS_TIMEOUT_MS = 15_000;
 const RUN_MANUAL_TERMINAL_PERF = process.env.SOLO_TERMINAL_PERF_E2E === "1";
+// Manual stress benchmark, not a regression test: burst-input latency numbers
+// are environment-sensitive and meant for ad hoc investigation.
+// Enable explicitly with SOLO_TERMINAL_PERF_E2E=1; skipped by default so CI
+// stays deterministic.
 const terminalPerfDescribe = RUN_MANUAL_TERMINAL_PERF ? test.describe : test.describe.skip;
 
 interface DaemonEchoReport {

@@ -7,28 +7,6 @@ import (
 	"time"
 )
 
-func TestStreamCoalescerFlushAll(t *testing.T) {
-	var mu sync.Mutex
-	var flushed []FlushPayload
-
-	c := NewStreamCoalescer(1000, func(p FlushPayload) {
-		mu.Lock()
-		flushed = append(flushed, p)
-		mu.Unlock()
-	})
-
-	c.Handle("agent-1", "timeline", TimelineItem{Type: "assistant_message", Text: "a1"}, "mock", "")
-	c.Handle("agent-2", "timeline", TimelineItem{Type: "assistant_message", Text: "a2"}, "mock", "")
-
-	c.FlushAll()
-
-	mu.Lock()
-	defer mu.Unlock()
-	if len(flushed) != 2 {
-		t.Errorf("expected 2 flushed items, got %d", len(flushed))
-	}
-}
-
 func TestStreamCoalescerFlushAndDiscard(t *testing.T) {
 	var mu sync.Mutex
 	var flushed []FlushPayload
@@ -84,26 +62,6 @@ func TestStreamCoalescerFlushAllEmpty(t *testing.T) {
 	}
 }
 
-func TestStreamCoalescerFlushForExisting(t *testing.T) {
-	var mu sync.Mutex
-	var flushed []FlushPayload
-
-	c := NewStreamCoalescer(1000, func(p FlushPayload) {
-		mu.Lock()
-		flushed = append(flushed, p)
-		mu.Unlock()
-	})
-
-	c.Handle("agent-1", "timeline", TimelineItem{Type: "assistant_message", Text: "hello"}, "mock", "")
-	c.FlushFor("agent-1")
-
-	mu.Lock()
-	defer mu.Unlock()
-	if len(flushed) != 1 {
-		t.Errorf("expected 1 flushed item, got %d", len(flushed))
-	}
-}
-
 func TestStreamCoalescerFlushForNonExistent(t *testing.T) {
 	var flushed bool
 	c := NewStreamCoalescer(1000, func(_ FlushPayload) {
@@ -113,27 +71,6 @@ func TestStreamCoalescerFlushForNonExistent(t *testing.T) {
 	c.FlushFor("nonexistent")
 	if flushed {
 		t.Error("expected no flush for non-existent agent")
-	}
-}
-
-func TestStreamCoalescerTimerFlush(t *testing.T) {
-	var mu sync.Mutex
-	var flushed []FlushPayload
-
-	c := NewStreamCoalescer(50, func(p FlushPayload) {
-		mu.Lock()
-		flushed = append(flushed, p)
-		mu.Unlock()
-	})
-
-	c.Handle("agent-1", "timeline", TimelineItem{Type: "assistant_message", Text: "hello"}, "mock", "")
-
-	time.Sleep(100 * time.Millisecond)
-
-	mu.Lock()
-	defer mu.Unlock()
-	if len(flushed) != 1 {
-		t.Errorf("expected 1 flushed item after timer, got %d", len(flushed))
 	}
 }
 

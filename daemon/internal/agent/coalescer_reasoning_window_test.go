@@ -95,30 +95,3 @@ func TestStreamCoalescer_AssistantMessageUsesBaseWindow(t *testing.T) {
 		t.Fatalf("expected 2 separate flushes for assistant_message, got %d", len(flushed))
 	}
 }
-
-// TestStreamCoalescer_ContentBlockStopFlushesReasoning verifies that when
-// a content_block_stop event arrives (indicating the thinking block is complete),
-// the coalescer immediately flushes any buffered reasoning entries.
-//
-// This ensures thinking content is delivered promptly when the block ends,
-// rather than waiting for the full 2s extended window.
-func TestStreamCoalescer_ContentBlockStopFlushesReasoning(t *testing.T) {
-	var flushed []FlushPayload
-
-	c, _ := newTestCoalescer(500, func(p FlushPayload) {
-		flushed = append(flushed, p)
-	})
-
-	// Reasoning event enters the coalescer
-	c.Handle("agent-1", "timeline", TimelineItem{Type: "reasoning", Text: "Done thinking"}, "claude", "")
-
-	// Before the extended window fires, signal content_block_stop
-	c.FlushFor("agent-1")
-
-	if len(flushed) != 1 {
-		t.Fatalf("expected reasoning to be flushed on content_block_stop, got %d items", len(flushed))
-	}
-	if flushed[0].Item.Text != "Done thinking" {
-		t.Errorf("text: got %q, want %q", flushed[0].Item.Text, "Done thinking")
-	}
-}

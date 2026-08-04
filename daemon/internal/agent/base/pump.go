@@ -8,6 +8,8 @@ import (
 	"io"
 	"log/slog"
 	"time"
+
+	"github.com/WuErPing/solo/protocol"
 )
 
 // EventTranslator converts raw bytes into events.
@@ -46,7 +48,8 @@ func NewEventPump(logger *slog.Logger, dispatcher EventDispatcher) *EventPump {
 	}
 }
 
-// SetProvider sets the provider name for fallback events (turn_canceled, turn_failed, error).
+// SetProvider sets the provider name for pump-emitted fallback events
+// (turn_canceled, turn_failed, translation-error timeline items).
 func (p *EventPump) SetProvider(provider string) {
 	p.provider = provider
 }
@@ -113,10 +116,12 @@ func (p *EventPump) pump(
 	for scanner.Scan() {
 		select {
 		case <-ctx.Done():
-			p.emitEvent(map[string]interface{}{
-				"type":     "turn_canceled",
-				"provider": p.provider,
-				"reason":   "context_cancelled",
+			p.emitEvent(AgentStreamEvent{
+				Event: protocol.TurnCanceledStreamEvent{
+					Provider: p.provider,
+					Reason:   "context_cancelled",
+				},
+				Timestamp: time.Now(),
 			})
 			return &AgentRunResult{Canceled: true}, ctx.Err()
 		default:
@@ -130,10 +135,18 @@ func (p *EventPump) pump(
 		events, isTerminal, err := translator.Translate(line, time.Now())
 		if err != nil {
 			p.logger.Warn("event translation failed", "error", err, "line", string(line))
-			p.emitEvent(map[string]interface{}{
-				"type":     "error",
-				"provider": p.provider,
-				"error":    err.Error(),
+			// Surface the diagnostic as a typed, envelope-wrapped timeline
+			// "error" item (the established convention, e.g. kimi's step-retry
+			// items). A raw map would be silently dropped by provider session
+			// filters, which only forward agent.AgentStreamEvent envelopes.
+			// This is non-terminal: the turn continues and the provider's own
+			// terminal event (or the pump's turn_failed fallback) follows.
+			p.emitEvent(AgentStreamEvent{
+				Event: protocol.TimelineStreamEvent{
+					Item:     protocol.TimelineItem{Type: "error", Message: err.Error()},
+					Provider: p.provider,
+				},
+				Timestamp: time.Now(),
 			})
 			continue
 		}
@@ -165,10 +178,12 @@ func (p *EventPump) pump(
 	// If the context was cancelled (either via rc.Close() above or between
 	// scan iterations), emit turn_canceled rather than turn_failed.
 	if ctx.Err() != nil {
-		p.emitEvent(map[string]interface{}{
-			"type":     "turn_canceled",
-			"provider": p.provider,
-			"reason":   "context_cancelled",
+		p.emitEvent(AgentStreamEvent{
+			Event: protocol.TurnCanceledStreamEvent{
+				Provider: p.provider,
+				Reason:   "context_cancelled",
+			},
+			Timestamp: time.Now(),
 		})
 		return &AgentRunResult{Canceled: true}, ctx.Err()
 	}
@@ -178,10 +193,12 @@ func (p *EventPump) pump(
 	// wrap with ErrProviderCrashed for upstream crash recovery.
 	if !terminalReached {
 		p.logger.Warn("event stream ended before terminal state")
-		p.emitEvent(map[string]interface{}{
-			"type":     "turn_failed",
-			"provider": p.provider,
-			"error":    "event stream ended before reaching terminal state",
+		p.emitEvent(AgentStreamEvent{
+			Event: protocol.TurnFailedStreamEvent{
+				Provider: p.provider,
+				Error:    "event stream ended before reaching terminal state",
+			},
+			Timestamp: time.Now(),
 		})
 		return &AgentRunResult{}, fmt.Errorf("%w: event stream ended before terminal state", ErrProviderCrashed)
 	}

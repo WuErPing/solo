@@ -88,8 +88,7 @@ test.describe("Tab creation", () => {
     expect(draftCountAfter).toBeGreaterThanOrEqual(1);
   });
 
-  // TODO: implement terminal support in daemon (session.go handleCreateTerminal)
-  test.skip("clicking terminal button creates a standalone terminal", async ({ page }) => {
+  test("clicking terminal button creates a standalone terminal", async ({ page }) => {
     test.setTimeout(45_000);
     await gotoWorkspace(page, workspaceId);
 
@@ -132,6 +131,11 @@ test.describe("Terminal title propagation", () => {
     if (client) await client.close();
   });
 
+  // Blocked: OSC title propagation is not implemented. The daemon only sets a
+  // terminal title at creation (daemon/internal/terminal/terminal.go) and the
+  // app terminal runtime has no OSC 0 handler (app/src/terminal/runtime),
+  // so the tab label can never observe a runtime title change.
+  // Enable after wiring xterm OSC 0/2 title events through to the tab label.
   test.skip("terminal tab title updates from OSC title escape sequence", async ({ page }) => {
     test.setTimeout(60_000);
 
@@ -163,6 +167,8 @@ test.describe("Terminal title propagation", () => {
     }
   });
 
+  // Blocked by the same missing OSC title propagation as the test above;
+  // enable together with it once xterm OSC title events reach the tab label.
   test.skip("title debouncing coalesces rapid changes", async ({ page }) => {
     test.setTimeout(60_000);
 
@@ -225,12 +231,13 @@ test.describe("Tab transitions (no flash)", () => {
     expect(maxCount).toBeLessThanOrEqual(initialCount + 2);
   });
 
-  // TODO: implement terminal support in daemon (session.go handleCreateTerminal)
-  test.skip("Terminal transition completes within visual budget", async ({ page }) => {
+  test("Terminal transition completes within visual budget", async ({ page }) => {
     test.setTimeout(30_000);
     await gotoWorkspace(page, workspaceId);
 
-    const terminal = page.locator('[data-testid="terminal-surface"]');
+    // Earlier tests in this file may leave background terminal tabs whose
+    // surfaces stay mounted but hidden — only measure the visible one.
+    const terminal = page.locator('[data-testid="terminal-surface"]:visible');
     const elapsed = await measureTileTransition(
       page,
       () => clickTerminal(page),

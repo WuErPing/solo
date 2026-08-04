@@ -85,21 +85,27 @@ func TestKimiAgentClient_ListModels_ReturnsStaticModels(t *testing.T) {
 func TestKimiAgentClient_ListClientCommands_ReturnsStaticCommands(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	client := NewClient("", logger)
+	// ListClientCommands requires the kimi binary only for its IsAvailable
+	// gate; skip explicitly when the binary is absent instead of silently
+	// passing on error.
+	if err := client.IsAvailable(context.Background()); err != nil {
+		t.Skipf("kimi binary not available in test environment: %v", err)
+	}
 	cmds, err := client.ListClientCommands(context.Background(), "/tmp")
-	if err == nil {
-		// Binary may not be found in test environment; that's acceptable.
-		if len(cmds) == 0 {
-			t.Error("expected non-empty command list")
+	if err != nil {
+		t.Fatalf("ListClientCommands() = %v", err)
+	}
+	if len(cmds) == 0 {
+		t.Fatal("expected non-empty command list")
+	}
+	foundInit := false
+	for _, c := range cmds {
+		if c.Name == "init" {
+			foundInit = true
 		}
-		foundInit := false
-		for _, c := range cmds {
-			if c.Name == "init" {
-				foundInit = true
-			}
-		}
-		if !foundInit {
-			t.Error("expected 'init' command in list")
-		}
+	}
+	if !foundInit {
+		t.Error("expected 'init' command in list")
 	}
 }
 

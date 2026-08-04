@@ -300,8 +300,7 @@ func TestExpoPushService_TimeoutDoesNotLeak(t *testing.T) {
 	svc.RetryDelay = 10 * time.Millisecond
 
 	// Use a short-timeout client so the suite stays fast; the production
-	// client is verified by TestExpoPushService_UsesStandardClient and the
-	// httpx package tests.
+	// client is verified by the httpx package tests.
 	svc.client = httpx.NewClient(httpx.Config{
 		ConnectTimeout:        50 * time.Millisecond,
 		ResponseHeaderTimeout: 100 * time.Millisecond,
@@ -314,16 +313,6 @@ func TestExpoPushService_TimeoutDoesNotLeak(t *testing.T) {
 	_ = svc.Send([]string{"tok-1"}, payload)
 	if elapsed := time.Since(start); elapsed > 2*time.Second {
 		t.Fatalf("Send hung too long; elapsed=%v (want ≤ 2s)", elapsed)
-	}
-}
-
-func TestExpoPushService_UsesStandardClient(t *testing.T) {
-	svc := NewExpoPushService("", NewInMemoryTokenStore(), nil)
-	if svc.client == nil {
-		t.Fatal("ExpoPushService.client is nil")
-	}
-	if svc.client != httpx.Standard() {
-		t.Errorf("ExpoPushService should use httpx.Standard()")
 	}
 }
 

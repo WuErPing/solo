@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -221,6 +222,7 @@ func (s *Session) upsertWorkspaceForCwd(cwd string) (*protocol.WorkspaceDescript
 		Name:               gitMeta.WorkspaceDisplayName,
 		Status:             "done",
 		ActivityAt:         &now,
+		Scripts:            s.configuredWorkspaceScripts(projectID),
 	}
 
 	if gitMeta.ProjectKind == workspace.ProjectKindGit {
@@ -268,6 +270,22 @@ func (s *Session) emitWorkspaceUpdate(ws *protocol.WorkspaceDescriptor) {
 			Kind:      "upsert",
 			Workspace: ws,
 		},
+	})
+	if s.broadcast != nil {
+		s.broadcast(msg)
+	} else {
+		s.sendMessage(msg)
+	}
+}
+
+// emitWorkspaceSetupProgress broadcasts a worktree setup progress event to all
+// sessions (falling back to the local session when no broadcast is wired), so
+// observers other than the creating session (e.g. a browser tab) see live
+// setup status.
+func (s *Session) emitWorkspaceSetupProgress(payload protocol.WorkspaceSetupProgressPayload) {
+	msg := protocol.NewSessionMessage(&protocol.WorkspaceSetupProgressMessage{
+		Type:    "workspace_setup_progress",
+		Payload: payload,
 	})
 	if s.broadcast != nil {
 		s.broadcast(msg)
@@ -531,15 +549,12 @@ func (s *Session) handleCreateSoloWorktree(m *protocol.CreateSoloWorktreeRequest
 					Commands:     convertCommandSnapshots(event.Commands),
 				}
 
-				s.sendMessage(protocol.NewSessionMessage(&protocol.WorkspaceSetupProgressMessage{
-					Type: "workspace_setup_progress",
-					Payload: protocol.WorkspaceSetupProgressPayload{
-						WorkspaceID: event.WorkspaceID,
-						Status:      event.Status,
-						Detail:      detail,
-						Error:       event.Error,
-					},
-				}))
+				s.emitWorkspaceSetupProgress(protocol.WorkspaceSetupProgressPayload{
+					WorkspaceID: event.WorkspaceID,
+					Status:      event.Status,
+					Detail:      detail,
+					Error:       event.Error,
+				})
 			},
 		)
 		if err != nil {
@@ -887,7 +902,7 @@ func (s *Session) buildWorkspaceDescriptor(ws *workspace.PersistedWorkspaceRecor
 		Name:               ws.DisplayName,
 		Status:             "done",
 		ActivityAt:         nil,
-		Scripts:            []protocol.WorkspaceScript{},
+		Scripts:            s.configuredWorkspaceScripts(proj.RootPath),
 	}
 
 	// Use blocking GetMetadata to handle cold cache (e.g. after daemon restart).
@@ -916,4 +931,45 @@ func (s *Session) buildWorkspaceDescriptor(ws *workspace.PersistedWorkspaceRecor
 	s.workspacesMu.Unlock()
 
 	return desc
+}
+
+// configuredWorkspaceScripts reads the project's solo.json and converts its
+// script definitions into descriptor entries. Configured-but-not-started
+// scripts are reported with lifecycle "stopped" and no runtime fields
+// (hostname/port/proxyUrl); runtime state is filled in once the script is
+// started via start_workspace_script_request. Entries are sorted by script
+// name so the wire payload is stable.
+func (s *Session) configuredWorkspaceScripts(repoRoot string) []protocol.WorkspaceScript {
+	scripts := []protocol.WorkspaceScript{}
+	cfg, err := workspace.ReadProjectConfig(repoRoot)
+	if err != nil {
+		s.logger.Warn("read project config for workspace scripts failed", "repoRoot", repoRoot, "error", err)
+		return scripts
+	}
+	if cfg == nil || len(cfg.Scripts) == 0 {
+		return scripts
+	}
+
+	names := make([]string, 0, len(cfg.Scripts))
+	for name := range cfg.Scripts {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		scriptCfg := cfg.Scripts[name]
+		scriptType := ""
+		if scriptCfg != nil {
+			scriptType = scriptCfg.Type
+		}
+		if scriptType == "" {
+			scriptType = "script"
+		}
+		scripts = append(scripts, protocol.WorkspaceScript{
+			ScriptName: name,
+			Type:       scriptType,
+			Lifecycle:  "stopped",
+		})
+	}
+	return scripts
 }

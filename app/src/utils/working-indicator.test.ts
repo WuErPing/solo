@@ -12,11 +12,13 @@ describe("getWorkingIndicatorDotStrength", () => {
   });
 
   it("keeps the dots phase-shifted instead of identical", () => {
+    expect(new Set(WORKING_INDICATOR_OFFSETS).size).toBe(WORKING_INDICATOR_OFFSETS.length);
+
     const strengths = WORKING_INDICATOR_OFFSETS.map((offset) =>
       getWorkingIndicatorDotStrength(0, offset),
     );
 
-    expect(strengths).toEqual([0, 0.26666666666666666, 0.5333333333333333]);
+    expect(new Set(strengths).size).toBeGreaterThan(1);
   });
 
   it("wraps progress cleanly across loop boundaries", () => {

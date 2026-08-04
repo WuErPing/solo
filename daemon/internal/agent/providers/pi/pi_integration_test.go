@@ -1,5 +1,3 @@
-//go:build !short && !external_api
-
 package pi
 
 import (
@@ -14,6 +12,9 @@ import (
 )
 
 func TestPiIntegration_RealProcess(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping real pi process integration test in -short mode")
+	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	client := NewClient("", logger)
 

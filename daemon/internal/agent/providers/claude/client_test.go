@@ -54,39 +54,6 @@ func newTestClaudeSession(logger *slog.Logger) *claudeSession {
 	return s
 }
 
-func TestClaudeTerminalEventValueIsDispatcherCritical(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	sess := newTestClaudeSession(logger)
-	translator := &claudeTranslator{session: sess, streamedContentBlocks: make(map[int]int)}
-
-	events, _, err := translator.Translate([]byte(`{"type":"result","subtype":"success","session_id":"claude-test"}`), time.Now())
-	if err != nil {
-		t.Fatalf("Translate returned error: %v", err)
-	}
-
-	var terminal *agent.AgentStreamEvent
-	for _, raw := range events {
-		evt, ok := raw.(agent.AgentStreamEvent)
-		if !ok {
-			continue
-		}
-		if _, ok := evt.Event.(protocol.TurnCompletedStreamEvent); ok {
-			copied := evt
-			terminal = &copied
-			break
-		}
-	}
-	if terminal == nil {
-		t.Fatal("expected Claude result translation to emit turn_completed")
-	}
-	if !terminal.IsCriticalEvent() {
-		t.Fatal("expected Claude turn_completed event to be critical")
-	}
-	if _, ok := interface{}(*terminal).(base.CriticalEvent); !ok {
-		t.Fatal("Claude terminal agent.AgentStreamEvent value must be dispatcher-critical")
-	}
-}
-
 // TestClaudeSession_Run_RejectsConcurrentRun verifies that a second Run fails
 // while a foreground turn is already active.
 func TestClaudeSession_Run_RejectsConcurrentRun(t *testing.T) {
@@ -263,8 +230,10 @@ func TestClaudeSession_Interrupt_ClearsActiveTurnID(t *testing.T) {
 }
 
 // TestClaudeSession_ConcurrentRunAndInterrupt_NoRace runs Run and Interrupt
-// concurrently to ensure the mutex prevents data races.
-func TestClaudeSession_ConcurrentRunAndInterrupt_NoRace(_ *testing.T) {
+// concurrently to ensure the mutex prevents data races, and asserts that an
+// interrupted Run always terminates — returning either an error or a result
+// marked Canceled — instead of hanging on the fake (never-ending) process.
+func TestClaudeSession_ConcurrentRunAndInterrupt_NoRace(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	for i := 0; i < 100; i++ {
@@ -272,8 +241,14 @@ func TestClaudeSession_ConcurrentRunAndInterrupt_NoRace(_ *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 
+		type runOutcome struct {
+			result *agent.AgentRunResult
+			err    error
+		}
+		outcomeCh := make(chan runOutcome, 1)
 		go func() {
-			sess.Run(ctx, "test", nil, nil, "")
+			result, err := sess.Run(ctx, "test", nil, nil, "")
+			outcomeCh <- runOutcome{result: result, err: err}
 		}()
 
 		go func() {
@@ -281,11 +256,18 @@ func TestClaudeSession_ConcurrentRunAndInterrupt_NoRace(_ *testing.T) {
 			sess.Interrupt(context.Background())
 		}()
 
-		time.Sleep(20 * time.Millisecond)
-		cancel()
-		time.Sleep(10 * time.Millisecond)
+		cancelTimer := time.AfterFunc(20*time.Millisecond, cancel)
 
-		// No assertion needed — if there is a race, the race detector will flag it.
+		select {
+		case outcome := <-outcomeCh:
+			if outcome.err == nil && (outcome.result == nil || !outcome.result.Canceled) {
+				t.Errorf("iteration %d: interrupted Run returned no error and result=%+v, want Canceled or error", i, outcome.result)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("iteration %d: Run did not return after Interrupt", i)
+		}
+		cancelTimer.Stop()
+		cancel()
 	}
 }
 

@@ -60,7 +60,6 @@ type Session struct {
 	// Terminal slot mapping for binary frame routing (slot byte <-> terminal ID)
 	slotToTerminal map[byte]*terminal.TerminalProcess
 	terminalToSlot map[string]byte
-	nextSlot       byte
 	slotMu         sync.Mutex
 
 	terminalSubscriptions []func() // cleanup funcs for terminal subscriptions

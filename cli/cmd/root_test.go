@@ -74,39 +74,6 @@ func TestResolveAgentID_Empty(t *testing.T) {
 	}
 }
 
-func TestToLower(t *testing.T) {
-	if got := toLower("Hello World"); got != "hello world" {
-		t.Errorf("expected hello world, got %q", got)
-	}
-	if got := toLower("ABC123"); got != "abc123" {
-		t.Errorf("expected abc123, got %q", got)
-	}
-	if got := toLower(""); got != "" {
-		t.Errorf("expected empty string, got %q", got)
-	}
-}
-
-func TestContains(t *testing.T) {
-	if !contains("hello world", "world") {
-		t.Error("expected true")
-	}
-	if contains("hello", "world") {
-		t.Error("expected false")
-	}
-	if !contains("hello", "") {
-		t.Error("expected true for empty substring")
-	}
-}
-
-func TestSearchSubstring(t *testing.T) {
-	if !searchSubstring("hello world", "world") {
-		t.Error("expected true")
-	}
-	if searchSubstring("hello", "world") {
-		t.Error("expected false")
-	}
-}
-
 func TestGetOutputOpts_Default(t *testing.T) {
 	opts := getOutputOpts("table", false, false, false, false)
 	if opts.Format != output.FormatTable {
@@ -128,15 +95,6 @@ func TestGetOutputOpts_Quiet(t *testing.T) {
 	opts := getOutputOpts("table", false, true, false, false)
 	if opts.Format != output.FormatQuiet {
 		t.Errorf("expected quiet format, got %v", opts.Format)
-	}
-}
-
-func TestGetOutputOpts_InvalidFormat(t *testing.T) {
-	// getOutputOpts with invalid format calls os.Exit(1).
-	// We can't easily test os.Exit, but we can verify ParseOutputFormat.
-	_, err := output.ParseOutputFormat("invalid")
-	if err == nil {
-		t.Error("expected error for invalid format")
 	}
 }
 

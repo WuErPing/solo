@@ -17,6 +17,10 @@ const THROUGHPUT_BUDGET_MS = 30_000;
 const KEYSTROKE_SAMPLE_COUNT = 20;
 const KEYSTROKE_P95_BUDGET_MS = 150;
 const RUN_MANUAL_TERMINAL_PERF = process.env.SOLO_TERMINAL_PERF_E2E === "1";
+// Manual benchmark, not a regression test: these latency/throughput budgets are
+// environment-sensitive and meant for ad hoc performance investigation.
+// Enable explicitly with SOLO_TERMINAL_PERF_E2E=1; skipped by default so CI
+// stays deterministic.
 const terminalPerfDescribe = RUN_MANUAL_TERMINAL_PERF ? test.describe : test.describe.skip;
 
 terminalPerfDescribe("Terminal wire performance", () => {

@@ -149,69 +149,6 @@ func TestConfigFromPersistenceHandle_NilMetadata(t *testing.T) {
 	}
 }
 
-// --- attachPersistenceMetadata ---
-
-func TestAttachPersistenceMetadata_NilInput(t *testing.T) {
-	got := attachPersistenceMetadata(nil, "/tmp", nil)
-	if got != nil {
-		t.Error("expected nil for nil handle")
-	}
-}
-
-func TestAttachPersistenceMetadata_SyncsSessionIDs(t *testing.T) {
-	handle := &protocol.AgentPersistenceHandle{SessionID: "sess-1"}
-	got := attachPersistenceMetadata(handle, "/tmp", nil)
-	if got.NativeHandle != "sess-1" {
-		t.Errorf("expected NativeHandle=sess-1, got %q", got.NativeHandle)
-	}
-
-	handle2 := &protocol.AgentPersistenceHandle{NativeHandle: "native-1"}
-	got2 := attachPersistenceMetadata(handle2, "/tmp", nil)
-	if got2.SessionID != "native-1" {
-		t.Errorf("expected SessionID=native-1, got %q", got2.SessionID)
-	}
-}
-
-func TestAttachPersistenceMetadata_AttachesCwdAndModel(t *testing.T) {
-	model := "sonnet"
-	mode := "default"
-	thinking := "low"
-	config := &protocol.AgentSessionConfig{
-		Cwd:              "/project",
-		Model:            &model,
-		ModeID:           &mode,
-		ThinkingOptionID: &thinking,
-	}
-	handle := &protocol.AgentPersistenceHandle{SessionID: "s1"}
-	got := attachPersistenceMetadata(handle, "", config)
-	if got.Metadata["cwd"] != "/project" {
-		t.Errorf("expected cwd in metadata, got %v", got.Metadata["cwd"])
-	}
-	if got.Metadata["model"] != "sonnet" {
-		t.Errorf("expected model in metadata, got %v", got.Metadata["model"])
-	}
-	if got.Metadata["modeId"] != "default" {
-		t.Errorf("expected modeId in metadata, got %v", got.Metadata["modeId"])
-	}
-	if got.Metadata["thinkingOptionId"] != "low" {
-		t.Errorf("expected thinkingOptionId in metadata, got %v", got.Metadata["thinkingOptionId"])
-	}
-}
-
-func TestAttachPersistenceMetadata_PreservesExistingMetadata(t *testing.T) {
-	handle := &protocol.AgentPersistenceHandle{
-		SessionID: "s1",
-		Metadata:  map[string]interface{}{"custom": "value"},
-	}
-	got := attachPersistenceMetadata(handle, "/tmp", nil)
-	if got.Metadata["custom"] != "value" {
-		t.Error("expected existing metadata to be preserved")
-	}
-	if got.Metadata["cwd"] != "/tmp" {
-		t.Error("expected cwd to be added")
-	}
-}
-
 // --- streamEventTypeString ---
 
 func TestStreamEventTypeString(t *testing.T) {
@@ -238,47 +175,6 @@ func TestStreamEventTypeString(t *testing.T) {
 }
 
 // --- recordToManagedAgent ---
-
-func TestRecordToManagedAgent_Basic(t *testing.T) {
-	r := &StoredAgentRecord{
-		ID:         "agent-1",
-		Provider:   "opencode",
-		Cwd:        "/project",
-		CreatedAt:  "2025-01-01T00:00:00Z",
-		UpdatedAt:  "2025-01-01T00:00:00Z",
-		LastStatus: "idle",
-	}
-	got := recordToManagedAgent(r)
-	if got.ID != "agent-1" {
-		t.Errorf("expected ID agent-1, got %q", got.ID)
-	}
-	if got.Provider != "opencode" {
-		t.Errorf("expected provider opencode, got %q", got.Provider)
-	}
-	if got.Lifecycle != protocol.AgentIdle {
-		t.Errorf("expected lifecycle idle, got %q", got.Lifecycle)
-	}
-}
-
-func TestRecordToManagedAgent_WithAttention(t *testing.T) {
-	reason := "needs input"
-	r := &StoredAgentRecord{
-		ID:                "agent-1",
-		Provider:          "opencode",
-		Cwd:               "/project",
-		CreatedAt:         "2025-01-01T00:00:00Z",
-		UpdatedAt:         "2025-01-01T00:00:00Z",
-		RequiresAttention: true,
-		AttentionReason:   &reason,
-	}
-	got := recordToManagedAgent(r)
-	if !got.Attention.Requires {
-		t.Error("expected attention to be required")
-	}
-	if got.Attention.Reason != "needs input" {
-		t.Errorf("expected attention reason 'needs input', got %q", got.Attention.Reason)
-	}
-}
 
 func TestRecordToManagedAgent_WithConfig(t *testing.T) {
 	model := "sonnet"

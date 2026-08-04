@@ -490,6 +490,9 @@ async function attachSummary(testInfo: TestInfo, summary: WireSummary): Promise<
 }
 
 test.describe("ad hoc startup wire metrics", () => {
+  // Ad hoc measurement tool, not a regression test: it only logs/attaches
+  // websocket traffic stats and has no stable pass/fail signal for CI.
+  // Run explicitly with E2E_WIRE_METRICS=1.
   test.skip(
     process.env.E2E_WIRE_METRICS !== "1",
     "Set E2E_WIRE_METRICS=1 to run this ad hoc measurement.",

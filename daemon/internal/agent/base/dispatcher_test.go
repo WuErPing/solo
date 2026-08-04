@@ -1,11 +1,32 @@
 package base
 
 import (
+	"bytes"
 	"io"
 	"log/slog"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 )
+
+// syncLogBuffer is a goroutine-safe buffer for capturing slog output.
+type syncLogBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncLogBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncLogBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
 
 // testCriticalEvent is a test-only critical event.
 type testCriticalEvent struct{}
@@ -167,11 +188,19 @@ func TestChannelDispatcher_Emit_MainChannelReceivesEvent(t *testing.T) {
 }
 
 // TestChannelDispatcher_Emit_CriticalEventMainChannelTimeout verifies that
-// a critical event still waits (up to criticalSendTimeout) to send to the
-// main events channel when a consumer exists, but uses the shorter timeout
-// for subscribers.
+// when the main events channel is full and a consumer exists, a critical
+// event blocks for the full criticalSendTimeout on the main channel (and the
+// timeout is logged), while subscribers still receive the event afterwards
+// via their own shorter timeout path.
+//
+// Observable behavior pinned here: (1) Emit takes at least
+// criticalSendTimeout — a time.After timer cannot fire early, so this proves
+// the main-channel timeout branch actually ran rather than dropping the
+// event; (2) the timeout is logged; (3) the fast subscriber still gets the
+// event. Total runtime is ~5s by design.
 func TestChannelDispatcher_Emit_CriticalEventMainChannelTimeout(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logs := &syncLogBuffer{}
+	logger := slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	d := NewChannelDispatcher(logger)
 	defer d.Close()
 
@@ -183,31 +212,36 @@ func TestChannelDispatcher_Emit_CriticalEventMainChannelTimeout(t *testing.T) {
 		d.events <- "filler"
 	}
 
-	// A critical event to a full main channel should still return relatively
-	// quickly since criticalSendTimeout applies only to the main channel and
-	// the subscriber timeout is separate.
-	start := time.Now()
-
-	// Subscribe a fast subscriber to verify the subscriber path works.
+	// Subscribe a fast subscriber to verify the subscriber path still works.
 	fastCh := d.Subscribe()
 
+	start := time.Now()
 	d.Emit(testCriticalEvent{})
 	elapsed := time.Since(start)
 
-	// Even with the main channel timeout, the subscriber should have received
-	// the event or timed out at the shorter subscriber timeout.
-	select {
-	case <-fastCh:
-		// Good — subscriber got it even though main channel was full
-	case <-time.After(100 * time.Millisecond):
-		// Subscriber may not have gotten it if main channel blocked first,
-		// but total time should still be reasonable
+	// The full main channel must have blocked for the full criticalSendTimeout
+	// (lower bound proves the timeout path ran; upper bound catches hangs).
+	if elapsed < criticalSendTimeout {
+		t.Fatalf("Emit returned after %v (< criticalSendTimeout) — critical event to a full main channel must wait for the timeout, not drop", elapsed)
+	}
+	if elapsed > criticalSendTimeout+2*time.Second {
+		t.Fatalf("Emit took %v — exceeded criticalSendTimeout margin, possible deadlock", elapsed)
 	}
 
-	// Total time should not exceed criticalSendTimeout (5s) — this is
-	// mainly a sanity check that we don't deadlock.
-	if elapsed > criticalSendTimeout+1*time.Second {
-		t.Fatalf("Emit took %v — exceeded criticalSendTimeout", elapsed)
+	// The timeout on the main channel must have been logged.
+	if !strings.Contains(logs.String(), "CRITICAL event timed out") {
+		t.Fatalf("expected main-channel critical timeout to be logged, logs: %s", logs.String())
+	}
+
+	// The fast subscriber must still receive the event (subscriber sends use
+	// their own 500ms timeout and run after the main-channel attempt).
+	select {
+	case evt := <-fastCh:
+		if _, ok := evt.(testCriticalEvent); !ok {
+			t.Fatalf("fast subscriber received wrong event type: %T", evt)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("fast subscriber did not receive critical event after main-channel timeout")
 	}
 }
 
@@ -314,12 +348,16 @@ func TestChannelDispatcher_Emit_SemiCriticalEvent_SlowSubscriberTimeout(t *testi
 		t.Fatal("fast subscriber did not receive semi-critical event")
 	}
 
-	// Should complete within ~200ms (100ms timeout for slow subscriber),
-	// not silently drop (0ms) or block for criticalSendTimeout (5s).
-	if elapsed > 300*time.Millisecond {
-		t.Fatalf("Emit took %v — semi-critical should use short timeout, not criticalSendTimeout", elapsed)
-	}
-	if elapsed < 50*time.Millisecond {
+	// Behavior assertions instead of thin timing margins:
+	//   - elapsed >= semiCriticalSendTimeout proves the send to the full
+	//     subscriber channel waited for its timeout (time.After cannot fire
+	//     early), i.e. the event was not silently dropped.
+	//   - elapsed well under criticalSendTimeout proves the 5s critical path
+	//     was not used. The 2s bound is generous to stay stable under -race.
+	if elapsed < semiCriticalSendTimeout {
 		t.Fatalf("Emit took %v — semi-critical should block briefly, not drop immediately", elapsed)
+	}
+	if elapsed > 2*time.Second {
+		t.Fatalf("Emit took %v — semi-critical should use the short %v timeout, not criticalSendTimeout", elapsed, semiCriticalSendTimeout)
 	}
 }

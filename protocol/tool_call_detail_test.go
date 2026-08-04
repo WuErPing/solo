@@ -84,11 +84,6 @@ func TestToolErrorMarshalRoundTrip(t *testing.T) {
 			err:      &ToolError{Message: "oops"},
 			wantJSON: `"oops"`,
 		},
-		{
-			name:     "object",
-			err:      &ToolError{Message: "failed"},
-			wantJSON: `"failed"`,
-		},
 	}
 
 	for _, tt := range tests {

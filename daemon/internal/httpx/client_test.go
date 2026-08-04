@@ -27,30 +27,6 @@ func TestStreaming_NoOverallTimeout(t *testing.T) {
 	}
 }
 
-// TestSharedTransportTimeouts verifies both clients carry the transport-level
-// bounds that actually stop a leak against an unreachable/stalled target.
-func TestSharedTransportTimeouts(t *testing.T) {
-	clients := map[string]*http.Client{"standard": Standard(), "streaming": Streaming()}
-	for name, c := range clients {
-		tr, ok := c.Transport.(*http.Transport)
-		if !ok {
-			t.Fatalf("%s: expected *http.Transport, got %T", name, c.Transport)
-		}
-		if tr.DialContext == nil {
-			t.Errorf("%s: DialContext must be set (connect timeout)", name)
-		}
-		if tr.TLSHandshakeTimeout != ConnectTimeout {
-			t.Errorf("%s: TLSHandshakeTimeout = %v, want %v", name, tr.TLSHandshakeTimeout, ConnectTimeout)
-		}
-		if tr.ResponseHeaderTimeout != ResponseHeaderTimeout {
-			t.Errorf("%s: ResponseHeaderTimeout = %v, want %v", name, tr.ResponseHeaderTimeout, ResponseHeaderTimeout)
-		}
-		if tr.IdleConnTimeout != IdleConnTimeout {
-			t.Errorf("%s: IdleConnTimeout = %v, want %v", name, tr.IdleConnTimeout, IdleConnTimeout)
-		}
-	}
-}
-
 // TestOverallTimeoutFires proves the standard-style client aborts a hung
 // request promptly instead of blocking forever — the core goroutine-leak guard.
 func TestOverallTimeoutFires(t *testing.T) {

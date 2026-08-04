@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { describe, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { ToolCallDetail } from "@server/server/agent/agent-sdk-types";
 import { hasMeaningfulToolCallDetail, isPendingToolCallDetail } from "./tool-call-detail-state";
@@ -12,7 +11,7 @@ describe("tool-call detail state", () => {
       output: null,
     };
 
-    assert.strictEqual(hasMeaningfulToolCallDetail(detail), false);
+    expect(hasMeaningfulToolCallDetail(detail)).toBe(false);
   });
 
   it("treats partial unknown payloads with real values as meaningful", () => {
@@ -22,11 +21,11 @@ describe("tool-call detail state", () => {
       output: null,
     };
 
-    assert.strictEqual(hasMeaningfulToolCallDetail(detail), true);
+    expect(hasMeaningfulToolCallDetail(detail)).toBe(true);
   });
 
   it("marks running calls with no meaningful detail as pending", () => {
-    assert.strictEqual(
+    expect(
       isPendingToolCallDetail({
         detail: {
           type: "unknown",
@@ -36,12 +35,11 @@ describe("tool-call detail state", () => {
         status: "running",
         error: null,
       }),
-      true,
-    );
+    ).toBe(true);
   });
 
   it("does not mark completed calls as pending", () => {
-    assert.strictEqual(
+    expect(
       isPendingToolCallDetail({
         detail: {
           type: "unknown",
@@ -51,8 +49,7 @@ describe("tool-call detail state", () => {
         status: "completed",
         error: null,
       }),
-      false,
-    );
+    ).toBe(false);
   });
 
   it("treats enriched search detail as meaningful", () => {
@@ -64,7 +61,7 @@ describe("tool-call detail state", () => {
       filePaths: ["src/index.ts"],
     };
 
-    assert.strictEqual(hasMeaningfulToolCallDetail(detail), true);
+    expect(hasMeaningfulToolCallDetail(detail)).toBe(true);
   });
 
   it("treats fetch detail as meaningful", () => {
@@ -74,6 +71,6 @@ describe("tool-call detail state", () => {
       result: "Fetched summary",
     };
 
-    assert.strictEqual(hasMeaningfulToolCallDetail(detail), true);
+    expect(hasMeaningfulToolCallDetail(detail)).toBe(true);
   });
 });

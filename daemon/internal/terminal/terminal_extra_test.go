@@ -1,6 +1,8 @@
 package terminal
 
 import (
+	"bytes"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -43,33 +45,34 @@ func TestTerminalProcess_Resize_NoPTY(t *testing.T) {
 }
 
 func TestTerminalProcess_Subscribe(t *testing.T) {
-	proc := &TerminalProcess{
-		ID:          "t1",
-		Name:        "Test",
-		done:        make(chan struct{}),
-		subscribers: make(map[uint64]OutputFunc),
+	proc := NewTerminalProcess("t1", "Test", t.TempDir(), "/bin/sh",
+		[]string{"-c", "echo solo-subscribe-probe; sleep 0.2"}, 24, 80, newTestLogger(t))
+	if err := proc.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
 	}
+	defer proc.Close()
 
-	var received [][]byte
+	received := make(chan []byte, 16)
 	unsub := proc.Subscribe(func(data []byte) {
-		received = append(received, data)
+		select {
+		case received <- data:
+		default:
+		}
 	})
 
-	// Manually trigger subscribers (simulating readLoop behavior)
-	proc.mu.Lock()
-	for _, fn := range proc.subscribers {
-		fn([]byte("test output"))
-	}
-	proc.mu.Unlock()
-
-	if len(received) != 1 {
-		t.Fatalf("expected 1 callback, got %d", len(received))
-	}
-	if string(received[0]) != "test output" {
-		t.Errorf("unexpected data: %q", received[0])
+	// The readLoop must deliver PTY output to subscribers.
+	deadline := time.After(2 * time.Second)
+	var got []byte
+	for !bytes.Contains(got, []byte("solo-subscribe-probe")) {
+		select {
+		case data := <-received:
+			got = append(got, data...)
+		case <-deadline:
+			t.Fatalf("subscriber did not receive PTY output; got %q", got)
+		}
 	}
 
-	// Unsubscribe
+	// Unsubscribe removes the callback from the registry.
 	unsub()
 	proc.mu.Lock()
 	count := len(proc.subscribers)
@@ -80,32 +83,26 @@ func TestTerminalProcess_Subscribe(t *testing.T) {
 }
 
 func TestTerminalProcess_OnExit(t *testing.T) {
-	proc := &TerminalProcess{
-		ID:   "t1",
-		Name: "Test",
-		done: make(chan struct{}),
-	}
+	proc := NewTerminalProcess("t1", "Test", t.TempDir(), "/bin/sh",
+		[]string{"-c", "exit 3"}, 24, 80, newTestLogger(t))
 
-	var called bool
-	proc.OnExit(func(_ ExitInfo) {
-		called = true
+	exitCh := make(chan ExitInfo, 1)
+	proc.OnExit(func(info ExitInfo) {
+		exitCh <- info
 	})
 
-	proc.mu.Lock()
-	count := len(proc.onExitFuncs)
-	proc.mu.Unlock()
-	if count != 1 {
-		t.Errorf("expected 1 onExitFunc, got %d", count)
+	if err := proc.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
 	}
 
-	// Manually invoke
-	proc.mu.Lock()
-	for _, fn := range proc.onExitFuncs {
-		fn(ExitInfo{Code: 0})
-	}
-	proc.mu.Unlock()
-	if !called {
-		t.Error("OnExit callback not invoked")
+	// The cmd.Wait goroutine must invoke OnExit with the real exit code.
+	select {
+	case info := <-exitCh:
+		if info.Code != 3 {
+			t.Errorf("exit code: got %d, want 3", info.Code)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("OnExit callback not invoked after process exit")
 	}
 }
 
@@ -127,12 +124,31 @@ func TestTerminalProcess_Done(t *testing.T) {
 	}
 }
 
-func TestTerminalProcess_Kill_AlreadyExited(_ *testing.T) {
-	proc := &TerminalProcess{
-		ID:     "t1",
-		exited: true,
-		done:   make(chan struct{}),
+func TestTerminalProcess_Kill_AlreadyExited(t *testing.T) {
+	proc := NewTerminalProcess("t1", "Test", t.TempDir(), "/bin/sh",
+		[]string{"-c", "exit 0"}, 24, 80, newTestLogger(t))
+
+	var exitCalls atomic.Int32
+	proc.OnExit(func(_ ExitInfo) {
+		exitCalls.Add(1)
+	})
+
+	if err := proc.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
 	}
-	// Should be a no-op (no panic, no signal sent)
+
+	// Wait for the process to exit on its own.
+	select {
+	case <-proc.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("process did not exit")
+	}
+
+	// Kill on an already-exited process must be a safe no-op.
 	proc.Kill()
+
+	// OnExit must have fired exactly once (from cmd.Wait, not from Kill).
+	if n := exitCalls.Load(); n != 1 {
+		t.Errorf("OnExit fired %d times, want exactly 1", n)
+	}
 }

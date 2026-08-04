@@ -65,6 +65,19 @@ type KillTerminalRequest struct {
 
 func (m *KillTerminalRequest) MsgType() string { return "kill_terminal_request" }
 
+type KillTerminalResponse struct {
+	Type    string              `json:"type"`
+	Payload KillTerminalPayload `json:"payload"`
+}
+
+type KillTerminalPayload struct {
+	TerminalID string `json:"terminalId"`
+	Success    bool   `json:"success"`
+	RequestID  string `json:"requestId"`
+}
+
+func (m *KillTerminalResponse) MsgType() string { return "kill_terminal_response" }
+
 type SubscribeTerminalsRequest struct {
 	Type string `json:"type"`
 	Cwd  string `json:"cwd"`
@@ -86,6 +99,22 @@ type SubscribeTerminalRequest struct {
 }
 
 func (m *SubscribeTerminalRequest) MsgType() string { return "subscribe_terminal_request" }
+
+type SubscribeTerminalResponse struct {
+	Type    string                   `json:"type"`
+	Payload SubscribeTerminalPayload `json:"payload"`
+}
+
+// SubscribeTerminalPayload mirrors the app-bridge SubscribeTerminalResponseSchema:
+// on success Slot is set and Error is null; on failure Error is set and Slot omitted.
+type SubscribeTerminalPayload struct {
+	TerminalID string  `json:"terminalId"`
+	Slot       *int    `json:"slot,omitempty"`
+	Error      *string `json:"error"`
+	RequestID  string  `json:"requestId"`
+}
+
+func (m *SubscribeTerminalResponse) MsgType() string { return "subscribe_terminal_response" }
 
 type UnsubscribeTerminalRequest struct {
 	Type       string `json:"type"`
@@ -128,13 +157,14 @@ type StartWorkspaceScriptResponse struct {
 }
 
 type StartWorkspaceScriptResponsePayload struct {
-	RequestID  string  `json:"requestId"`
-	ScriptName string  `json:"scriptName"`
-	Hostname   string  `json:"hostname"`
-	Port       int     `json:"port"`
-	ProxyURL   string  `json:"proxyUrl,omitempty"`
-	TerminalID string  `json:"terminalId,omitempty"`
-	Error      *string `json:"error"`
+	RequestID   string  `json:"requestId"`
+	WorkspaceID string  `json:"workspaceId"`
+	ScriptName  string  `json:"scriptName"`
+	Hostname    string  `json:"hostname"`
+	Port        int     `json:"port"`
+	ProxyURL    string  `json:"proxyUrl,omitempty"`
+	TerminalID  string  `json:"terminalId,omitempty"`
+	Error       *string `json:"error"`
 }
 
 func (m *StartWorkspaceScriptResponse) MsgType() string { return "start_workspace_script_response" }

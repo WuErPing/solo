@@ -114,6 +114,8 @@ test.describe("Timeline pagination", () => {
   });
 
   test("before and after cursors return correct slices", async () => {
+    // Depends on the agent created by the first test in this file; skip
+    // defensively if that setup test failed.
     if (!agentId) {
       test.skip();
       return;

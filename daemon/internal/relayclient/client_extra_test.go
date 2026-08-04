@@ -39,29 +39,6 @@ func (m *mockWSServer) AttachExternalConnection(conn wsconn.WSConn) {
 	}
 }
 
-func TestNewClient(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	wsServer := &mockWSServer{}
-	kp := &DaemonKeyPair{PublicKeyB64: "test", SecretKeyB64: "test"}
-
-	c := NewClient("srv-1", "relay.example.com:443", wsServer, logger, kp, true)
-	if c == nil {
-		t.Fatal("expected non-nil client")
-	}
-	if c.serverID != "srv-1" {
-		t.Errorf("expected serverID srv-1, got %s", c.serverID)
-	}
-	if c.endpoint != "relay.example.com:443" {
-		t.Errorf("expected endpoint relay.example.com:443, got %s", c.endpoint)
-	}
-	if c.keyPair != kp {
-		t.Error("expected keypair to match")
-	}
-	if !c.disableControlKeepalive {
-		t.Error("expected disableControlKeepalive true")
-	}
-}
-
 func TestClient_StartStop(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	wsServer := &mockWSServer{}
@@ -87,18 +64,6 @@ func TestClient_Start_AlreadyStopped(t *testing.T) {
 	if err := c.Start(); err == nil {
 		t.Error("expected error when starting stopped client")
 	}
-}
-
-func TestHandleControlMessage_Sync(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	c := NewClient("srv-1", "localhost:9999", &mockWSServer{}, logger, nil, true)
-
-	msg, _ := json.Marshal(map[string]interface{}{
-		"type":          "sync",
-		"connectionIds": []string{"a", "b"},
-	})
-	c.handleControlMessage(msg)
-	// Smoke test: sync handling must not panic.
 }
 
 func TestHandleControlMessage_Connected(t *testing.T) {

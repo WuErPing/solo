@@ -32,8 +32,7 @@ async function navigateToWorkspaceViaSidebar(
 }
 
 test.describe("Workspace cwd correctness", () => {
-  // TODO: implement terminal support in daemon (session.go handleCreateTerminal)
-  test.skip("main checkout workspace opens terminals in the project root", async ({ page }) => {
+  test("main checkout workspace opens terminals in the project root", async ({ page }) => {
     test.setTimeout(60_000);
 
     const client = await connectWorkspaceSetupClient();
@@ -67,8 +66,7 @@ test.describe("Workspace cwd correctness", () => {
     }
   });
 
-  // TODO: implement terminal support in daemon (session.go handleCreateTerminal)
-  test.skip("worktree workspace opens terminals in the worktree directory", async ({ page }) => {
+  test("worktree workspace opens terminals in the worktree directory", async ({ page }) => {
     test.setTimeout(90_000);
 
     const client = await connectWorkspaceSetupClient();

@@ -19,6 +19,7 @@ import {
   selectGitHubPrInPicker,
 } from "./helpers/new-workspace";
 import { createTempGitRepo, readWorktreeBranchInfo } from "./helpers/workspace";
+import { waitForWorkspaceRegistered } from "./helpers/workspace-setup";
 import {
   expectSidebarWorkspaceSelected,
   expectWorkspaceHeader,
@@ -212,7 +213,7 @@ test.describe("New workspace flow", () => {
     }
   });
 
-  test.skip("same-project workspaces switch content without requiring refresh", async ({ page }) => {
+  test("same-project workspaces switch content without requiring refresh", async ({ page }) => {
     const serverId = process.env.E2E_SERVER_ID;
     if (!serverId) {
       throw new Error("E2E_SERVER_ID is not set.");
@@ -228,6 +229,10 @@ test.describe("New workspace flow", () => {
       });
       localWorkspaceIds.add(rootWorkspace.workspaceId);
       createdWorktreeIds.add(worktreeWorkspace.workspaceId);
+
+      // The daemon only sends workspace_update to the creating session; make
+      // sure the registry has settled before the browser fetches its list.
+      await waitForWorkspaceRegistered(client, worktreeWorkspace.workspaceId);
 
       await gotoAppShell(page);
       await waitForSidebarHydration(page);
@@ -293,7 +298,7 @@ test.describe("New workspace flow", () => {
     }
   });
 
-  test.skip("clicking new workspace redirects, renders header, shows sidebar row, and keeps one agent tab", async ({
+  test("clicking new workspace redirects, renders header, shows sidebar row, and keeps one agent tab", async ({
     page,
   }) => {
     const serverId = process.env.E2E_SERVER_ID;
@@ -370,7 +375,7 @@ test.describe("New workspace flow", () => {
     }
   });
 
-  test.skip("redirects to the optimistic draft tab before agent creation resolves", async ({ page }) => {
+  test("redirects to the optimistic draft tab before agent creation resolves", async ({ page }) => {
     const serverId = process.env.E2E_SERVER_ID;
     if (!serverId) {
       throw new Error("E2E_SERVER_ID is not set.");
@@ -445,7 +450,7 @@ test.describe("New workspace flow", () => {
     }
   });
 
-  test.skip("selected branch becomes the base of a new workspace worktree", async ({ page }) => {
+  test("selected branch becomes the base of a new workspace worktree", async ({ page }) => {
     const serverId = process.env.E2E_SERVER_ID;
     if (!serverId) {
       throw new Error("E2E_SERVER_ID is not set.");
@@ -505,7 +510,7 @@ test.describe("New workspace flow", () => {
     }
   });
 
-  test.skip("selected GitHub PR shows PR context in the trigger and composer", async ({ page }) => {
+  test("selected GitHub PR shows PR context in the trigger and composer", async ({ page }) => {
     const tempRepo = await createTempGitRepo("new-workspace-pr-ref-");
 
     try {

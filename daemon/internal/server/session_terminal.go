@@ -64,8 +64,11 @@ func (s *Session) handleCreateTerminal(m *protocol.CreateTerminalRequest) {
 		return
 	}
 
-	// Auto-subscribe to the new terminal's output
-	s.subscribeTerminalOutput(proc)
+	// Auto-subscribe to the new terminal's output. Failure (slots exhausted)
+	// does not fail terminal creation — the terminal just streams no output.
+	if _, err := s.subscribeTerminalOutput(proc); err != nil {
+		s.logger.Warn("auto-subscribe terminal output failed", "terminalId", proc.ID, "error", err)
+	}
 
 	info := protocol.TerminalInfo{
 		ID:    proc.ID,
@@ -89,6 +92,16 @@ func (s *Session) handleKillTerminal(m *protocol.KillTerminalRequest) {
 		s.sendRPCError(m.RequestID, m.MsgType(), fmt.Sprintf("kill terminal: %v", err), nil)
 		return
 	}
+	// Free the output subscription slot so it can be reused.
+	s.releaseTerminalSlot(m.TerminalID)
+	s.sendMessage(protocol.NewSessionMessage(&protocol.KillTerminalResponse{
+		Type: "kill_terminal_response",
+		Payload: protocol.KillTerminalPayload{
+			TerminalID: m.TerminalID,
+			Success:    true,
+			RequestID:  m.RequestID,
+		},
+	}))
 }
 
 func (s *Session) handleSubscribeTerminals(_ *protocol.SubscribeTerminalsRequest) {
@@ -119,17 +132,34 @@ func (s *Session) handleSubscribeTerminal(m *protocol.SubscribeTerminalRequest) 
 		s.sendRPCError(m.RequestID, m.MsgType(), fmt.Sprintf("terminal %s not found", m.TerminalID), nil)
 		return
 	}
-	s.subscribeTerminalOutput(proc)
+	slot, err := s.subscribeTerminalOutput(proc)
+	if err != nil {
+		errMsg := err.Error()
+		s.sendMessage(protocol.NewSessionMessage(&protocol.SubscribeTerminalResponse{
+			Type: "subscribe_terminal_response",
+			Payload: protocol.SubscribeTerminalPayload{
+				TerminalID: m.TerminalID,
+				Slot:       nil,
+				Error:      &errMsg,
+				RequestID:  m.RequestID,
+			},
+		}))
+		return
+	}
+	slotInt := int(slot)
+	s.sendMessage(protocol.NewSessionMessage(&protocol.SubscribeTerminalResponse{
+		Type: "subscribe_terminal_response",
+		Payload: protocol.SubscribeTerminalPayload{
+			TerminalID: m.TerminalID,
+			Slot:       &slotInt,
+			Error:      nil,
+			RequestID:  m.RequestID,
+		},
+	}))
 }
 
 func (s *Session) handleUnsubscribeTerminal(m *protocol.UnsubscribeTerminalRequest) {
-	s.slotMu.Lock()
-	slot, ok := s.terminalToSlot[m.TerminalID]
-	if ok {
-		delete(s.terminalToSlot, m.TerminalID)
-		delete(s.slotToTerminal, slot)
-	}
-	s.slotMu.Unlock()
+	s.releaseTerminalSlot(m.TerminalID)
 }
 
 func (s *Session) handleTerminalInput(m *protocol.TerminalInputMessage) {
@@ -270,13 +300,14 @@ func (s *Session) handleStartWorkspaceScript(m *protocol.StartWorkspaceScriptReq
 	s.sendMessage(protocol.NewSessionMessage(&protocol.StartWorkspaceScriptResponse{
 		Type: "start_workspace_script_response",
 		Payload: protocol.StartWorkspaceScriptResponsePayload{
-			RequestID:  m.RequestID,
-			ScriptName: m.ScriptName,
-			Hostname:   hostname,
-			Port:       port,
-			ProxyURL:   proxyURL,
-			TerminalID: proc.ID,
-			Error:      nil,
+			RequestID:   m.RequestID,
+			WorkspaceID: m.WorkspaceID,
+			ScriptName:  m.ScriptName,
+			Hostname:    hostname,
+			Port:        port,
+			ProxyURL:    proxyURL,
+			TerminalID:  proc.ID,
+			Error:       nil,
 		},
 	}))
 }
@@ -313,16 +344,25 @@ func (s *Session) handleTerminalResizeBinary(slot byte, payload []byte) {
 	}
 }
 
-func (s *Session) subscribeTerminalOutput(proc *terminal.TerminalProcess) {
+// subscribeTerminalOutput subscribes to the terminal's output stream and
+// returns the slot byte used in binary frames. Subscribing an already
+// subscribed terminal is idempotent and returns its existing slot. Slots are
+// allocated as the lowest free value in [0,255]; when all 256 slots are taken
+// an error is returned instead of wrapping around and overwriting an active
+// subscriber's slot.
+func (s *Session) subscribeTerminalOutput(proc *terminal.TerminalProcess) (byte, error) {
 	s.slotMu.Lock()
 	// Check if already subscribed
-	if _, ok := s.terminalToSlot[proc.ID]; ok {
+	if slot, ok := s.terminalToSlot[proc.ID]; ok {
 		s.slotMu.Unlock()
-		return
+		return slot, nil
 	}
 
-	slot := s.nextSlot
-	s.nextSlot++
+	slot, ok := allocateFreeSlotLocked(s.slotToTerminal)
+	if !ok {
+		s.slotMu.Unlock()
+		return 0, fmt.Errorf("terminal output slots exhausted (max 256 subscriptions)")
+	}
 	s.slotToTerminal[slot] = proc
 	s.terminalToSlot[proc.ID] = slot
 	s.slotMu.Unlock()
@@ -343,4 +383,28 @@ func (s *Session) subscribeTerminalOutput(proc *terminal.TerminalProcess) {
 		unsub()
 		coalescer.Stop()
 	})
+	return slot, nil
+}
+
+// allocateFreeSlotLocked returns the lowest slot in [0,255] not present in
+// slotToTerminal. ok is false when all slots are taken.
+func allocateFreeSlotLocked(slotToTerminal map[byte]*terminal.TerminalProcess) (slot byte, ok bool) {
+	for i := 0; i < 256; i++ {
+		candidate := byte(i)
+		if _, taken := slotToTerminal[candidate]; !taken {
+			return candidate, true
+		}
+	}
+	return 0, false
+}
+
+// releaseTerminalSlot frees the output subscription slot held by terminalID,
+// making it available for reuse. Safe to call for terminals without a slot.
+func (s *Session) releaseTerminalSlot(terminalID string) {
+	s.slotMu.Lock()
+	defer s.slotMu.Unlock()
+	if slot, ok := s.terminalToSlot[terminalID]; ok {
+		delete(s.terminalToSlot, terminalID)
+		delete(s.slotToTerminal, slot)
+	}
 }

@@ -153,6 +153,8 @@ func init() {
 	RegisterInbound("list_provider_features_request", func() SessionInboundMessage { return &ListProviderFeaturesRequest{} })
 	RegisterInbound("checkout_status_request", func() SessionInboundMessage { return &CheckoutStatusRequest{} })
 	RegisterInbound("checkout_pr_status_request", func() SessionInboundMessage { return &CheckoutPrStatusRequest{} })
+	RegisterInbound("branch_suggestions_request", func() SessionInboundMessage { return &BranchSuggestionsRequest{} })
+	RegisterInbound("github_search_request", func() SessionInboundMessage { return &GitHubSearchRequest{} })
 	RegisterInbound("workspace_setup_status_request", func() SessionInboundMessage { return &WorkspaceSetupStatusRequest{} })
 	RegisterInbound("read_project_config_request", func() SessionInboundMessage { return &ReadProjectConfigRequest{} })
 	RegisterInbound("write_project_config_request", func() SessionInboundMessage { return &WriteProjectConfigRequest{} })

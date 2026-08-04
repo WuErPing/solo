@@ -80,6 +80,59 @@ func TestRunWorktreeSetup_FailingCommand(t *testing.T) {
 	}
 }
 
+func TestRunWorktreeSetup_StreamsOutputWhileRunning(t *testing.T) {
+	dir := t.TempDir()
+	repoRoot := t.TempDir()
+	data := []byte(`{"worktree":{"setup":["echo first && echo second"]}}`)
+	_ = os.WriteFile(filepath.Join(repoRoot, "solo.json"), data, 0644)
+
+	var events []SetupProgressEvent
+	onProgress := func(e SetupProgressEvent) {
+		events = append(events, e)
+	}
+
+	err := RunWorktreeSetup(dir, WorktreeConfig{WorktreePath: dir, BranchName: "main"}, "ws1", repoRoot, onProgress)
+	if err != nil {
+		t.Fatalf("RunWorktreeSetup: %v", err)
+	}
+
+	// First event: running with an empty log (command not started producing yet).
+	if len(events) < 3 {
+		t.Fatalf("expected at least 3 events (initial running, streaming, completed), got %d", len(events))
+	}
+	if events[0].Status != "running" {
+		t.Errorf("first event status: got %q, want running", events[0].Status)
+	}
+	if events[0].Commands[0].Log != "" {
+		t.Errorf("first running event log: got %q, want empty", events[0].Commands[0].Log)
+	}
+
+	// Intermediate event: still running but the log already contains partial
+	// output — this is the state the old implementation could never produce.
+	var sawPartial bool
+	for _, e := range events[1:] {
+		if e.Status != "running" {
+			continue
+		}
+		log := e.Commands[0].Log
+		if strings.Contains(log, "first") && !strings.Contains(log, "second") {
+			sawPartial = true
+		}
+	}
+	if !sawPartial {
+		t.Error("expected an intermediate running event whose log contains partial output")
+	}
+
+	// Final event: completed with the full log.
+	last := events[len(events)-1]
+	if last.Status != "completed" {
+		t.Errorf("final status: got %q, want completed", last.Status)
+	}
+	if !strings.Contains(last.Commands[0].Log, "first") || !strings.Contains(last.Commands[0].Log, "second") {
+		t.Errorf("final log: got %q, want both lines", last.Commands[0].Log)
+	}
+}
+
 func TestBuildSetupEnv(t *testing.T) {
 	env := buildSetupEnv("/repo", "/worktree", "feat-x")
 	envMap := make(map[string]string)
@@ -101,7 +154,7 @@ func TestBuildSetupEnv(t *testing.T) {
 }
 
 func TestExecSetupCommand_CaptureOutput(t *testing.T) {
-	log, exitCode, err := execSetupCommand("echo hello", t.TempDir(), os.Environ())
+	log, exitCode, err := execSetupCommand("echo hello", t.TempDir(), os.Environ(), nil)
 	if err != nil {
 		t.Fatalf("execSetupCommand: %v", err)
 	}
@@ -114,7 +167,7 @@ func TestExecSetupCommand_CaptureOutput(t *testing.T) {
 }
 
 func TestExecSetupCommand_ExitCode(t *testing.T) {
-	log, exitCode, err := execSetupCommand("exit 42", t.TempDir(), os.Environ())
+	log, exitCode, err := execSetupCommand("exit 42", t.TempDir(), os.Environ(), nil)
 	if err != nil {
 		t.Fatalf("execSetupCommand: %v", err)
 	}
