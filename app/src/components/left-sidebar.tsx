@@ -1,5 +1,5 @@
 import { router, usePathname } from "expo-router";
-import { Calendar, FolderPlus, Gauge, LayoutDashboard, MessagesSquare, Repeat, Settings, Terminal } from "lucide-react-native";
+import { Calendar, FolderPlus, Gauge, LayoutDashboard, MessagesSquare, Repeat, Settings, Terminal, Users } from "lucide-react-native";
 import {
   type Dispatch,
   memo,
@@ -128,6 +128,7 @@ interface MobileSidebarProps extends SidebarSharedProps {
   handleUsageNavigate: () => void;
   handleDashboardNavigate: () => void;
   handleTmuxDashboardNavigate: () => void;
+  handleTaskGroupsNavigate: () => void;
 }
 
 interface DesktopSidebarProps extends SidebarSharedProps {
@@ -139,6 +140,7 @@ interface DesktopSidebarProps extends SidebarSharedProps {
   handleUsageNavigate: () => void;
   handleDashboardNavigate: () => void;
   handleTmuxDashboardNavigate: () => void;
+  handleTaskGroupsNavigate: () => void;
 }
 
 export const LeftSidebar = memo(function LeftSidebar({
@@ -314,6 +316,11 @@ export const LeftSidebar = memo(function LeftSidebar({
     }
   }, [daemons, pathname]);
 
+  const handleTaskGroupsNavigate = useCallback(() => {
+    // Task Groups is a local mock-data prototype — the route is global, not host-scoped.
+    router.push("/task-groups" as never);
+  }, []);
+
   const handlePaneBadgePress = useCallback(
     (projectRootPath: string) => {
       const serverId = resolveActiveHost({ hosts: daemons, pathname })?.serverId;
@@ -395,6 +402,7 @@ export const LeftSidebar = memo(function LeftSidebar({
         handleUsageNavigate={handleUsageNavigate}
         handleDashboardNavigate={handleDashboardNavigate}
         handleTmuxDashboardNavigate={handleTmuxDashboardNavigate}
+        handleTaskGroupsNavigate={handleTaskGroupsNavigate}
       />
     );
   }
@@ -412,6 +420,7 @@ export const LeftSidebar = memo(function LeftSidebar({
       handleUsageNavigate={handleUsageNavigate}
       handleDashboardNavigate={handleDashboardNavigate}
       handleTmuxDashboardNavigate={handleTmuxDashboardNavigate}
+      handleTaskGroupsNavigate={handleTaskGroupsNavigate}
     />
   );
 });
@@ -641,6 +650,7 @@ function MobileSidebar({
   handleUsageNavigate,
   handleDashboardNavigate,
   handleTmuxDashboardNavigate,
+  handleTaskGroupsNavigate,
 }: MobileSidebarProps) {
   const pathname = usePathname();
   const isSessionsActive = pathname.includes("/sessions");
@@ -650,6 +660,7 @@ function MobileSidebar({
   const isDashboardActive = pathname === "/dashboard" || /^\/h\/[^/]+\/dashboard$/.test(pathname);
   const isTmuxDashboardActive =
     pathname === "/tmux-dashboard" || /^\/h\/[^/]+\/tmux-dashboard$/.test(pathname);
+  const isTaskGroupsActive = pathname.startsWith("/task-groups");
   const {
     translateX,
     backdropOpacity,
@@ -746,6 +757,19 @@ function MobileSidebar({
     backdropOpacity,
     closeToAgent,
     handleTmuxDashboardNavigate,
+    translateX,
+    windowWidth,
+  ]);
+
+  const handleTaskGroups = useCallback(() => {
+    translateX.value = -windowWidth;
+    backdropOpacity.value = 0;
+    closeToAgent();
+    handleTaskGroupsNavigate();
+  }, [
+    backdropOpacity,
+    closeToAgent,
+    handleTaskGroupsNavigate,
     translateX,
     windowWidth,
   ]);
@@ -904,6 +928,15 @@ function MobileSidebar({
               testID="sidebar-tmux-dashboard"
             />
             <SidebarHeaderRow
+              icon={Users}
+              iconColor={theme.colors.palette.yellow[400]}
+              label="Task Groups"
+              onPress={handleTaskGroups}
+              isActive={isTaskGroupsActive}
+              badgeLabel="Beta"
+              testID="sidebar-task-groups"
+            />
+            <SidebarHeaderRow
               icon={Calendar}
               iconColor={theme.colors.palette.blue[500]}
               label="Schedules"
@@ -1003,6 +1036,7 @@ function DesktopSidebar({
   handleUsageNavigate,
   handleDashboardNavigate,
   handleTmuxDashboardNavigate,
+  handleTaskGroupsNavigate,
 }: DesktopSidebarProps) {
   const pathname = usePathname();
   const isSessionsActive = pathname.includes("/sessions");
@@ -1012,6 +1046,7 @@ function DesktopSidebar({
   const isDashboardActive = pathname === "/dashboard" || /^\/h\/[^/]+\/dashboard$/.test(pathname);
   const isTmuxDashboardActive =
     pathname === "/tmux-dashboard" || /^\/h\/[^/]+\/tmux-dashboard$/.test(pathname);
+  const isTaskGroupsActive = pathname.startsWith("/task-groups");
   const padding = useWindowControlsPadding("sidebar");
   const sidebarWidth = usePanelStore((state) => state.sidebarWidth);
   const setSidebarWidth = usePanelStore((state) => state.setSidebarWidth);
@@ -1102,6 +1137,15 @@ function DesktopSidebar({
             isActive={isTmuxDashboardActive}
             testID="sidebar-tmux-dashboard"
             iconColor={theme.colors.palette.orange[500]}
+          />
+          <SidebarHeaderRow
+            icon={Users}
+            label="Task Groups"
+            onPress={handleTaskGroupsNavigate}
+            isActive={isTaskGroupsActive}
+            badgeLabel="Beta"
+            testID="sidebar-task-groups"
+            iconColor={theme.colors.palette.yellow[400]}
           />
           <SidebarHeaderRow
             icon={Calendar}

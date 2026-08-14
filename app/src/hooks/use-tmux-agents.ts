@@ -50,10 +50,19 @@ export interface AgentCommandEntry {
   serverLabel: string;
 }
 
+export interface TmuxInputEntry {
+  text: string;
+  count: number;
+  lastUsed: string;
+  serverId: string;
+  serverLabel: string;
+}
+
 export interface AggregatedTmuxAgentsResult {
   agents: TmuxAgent[];
   otherPanes: TmuxPane[];
   commandHistory: AgentCommandEntry[];
+  inputHistory: TmuxInputEntry[];
   isLoading: boolean;
   isInitialLoad: boolean;
   isRevalidating: boolean;
@@ -96,6 +105,7 @@ export function useAggregatedTmuxAgents(options?: {
             agents: payload.agents ?? [],
             otherPanes: payload.otherPanes ?? [],
             commandHistory: payload.commandHistory ?? [],
+            inputHistory: payload.inputHistory ?? [],
             error: payload.error ?? null,
             serverId: host.serverId,
             serverLabel: host.label,
@@ -109,6 +119,7 @@ export function useAggregatedTmuxAgents(options?: {
     const allAgents: TmuxAgent[] = [];
     const allOtherPanes: TmuxPane[] = [];
     const allCommandHistory: AgentCommandEntry[] = [];
+    const inputByText = new Map<string, TmuxInputEntry>();
     let anyError: string | null = null;
     let isLoading = false;
     let isFetching = false;
@@ -163,6 +174,27 @@ export function useAggregatedTmuxAgents(options?: {
           });
         }
       }
+      if (query.data?.inputHistory) {
+        for (const entry of query.data.inputHistory) {
+          // Merge identical inputs across hosts: sum counts, keep the most
+          // recent lastUsed.
+          const existing = inputByText.get(entry.text);
+          if (existing) {
+            existing.count += entry.count;
+            if (entry.lastUsed > existing.lastUsed) {
+              existing.lastUsed = entry.lastUsed;
+              existing.serverId = host.serverId;
+              existing.serverLabel = host.label;
+            }
+          } else {
+            inputByText.set(entry.text, {
+              ...entry,
+              serverId: host.serverId,
+              serverLabel: host.label,
+            });
+          }
+        }
+      }
     }
 
     // Sort by most recent session activity descending, fall back to agentName
@@ -183,6 +215,13 @@ export function useAggregatedTmuxAgents(options?: {
 
     // Sort command history by lastSeen descending.
     allCommandHistory.sort((a, b) => b.lastSeen.localeCompare(a.lastSeen));
+
+    // Sort input history by usage count descending, then most recent use.
+    const allInputHistory = Array.from(inputByText.values());
+    allInputHistory.sort((a, b) => {
+      if (a.count !== b.count) return b.count - a.count;
+      return b.lastUsed.localeCompare(a.lastUsed);
+    });
 
     const hasAnyData = allAgents.length > 0 || allOtherPanes.length > 0;
 
@@ -205,6 +244,7 @@ export function useAggregatedTmuxAgents(options?: {
       agents: allAgents,
       otherPanes: allOtherPanes,
       commandHistory: allCommandHistory,
+      inputHistory: allInputHistory,
       isLoading,
       isInitialLoad,
       isRevalidating,

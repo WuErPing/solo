@@ -2,6 +2,7 @@ package server
 
 import (
 	"strconv"
+	"strings"
 
 	"golang.org/x/sync/singleflight"
 
@@ -20,7 +21,7 @@ func (s *Session) handleTmuxListAgents(m *protocol.TmuxListAgentsRequest) {
 	if err != nil {
 		errMsg := err.Error()
 		s.logger.Error("tmux list agents failed", "error", errMsg)
-		s.sendTmuxListAgentsResponse(m.RequestID, nil, nil, nil, &errMsg)
+		s.sendTmuxListAgentsResponse(m.RequestID, nil, nil, nil, nil, &errMsg)
 		return
 	}
 
@@ -57,6 +58,7 @@ func (s *Session) handleTmuxListAgents(m *protocol.TmuxListAgentsRequest) {
 
 	// Persist command history and include it in the response.
 	var history []protocol.AgentCommandEntry
+	var inputHistory []protocol.TmuxInputEntry
 	if s.cfg.SoloHome != "" {
 		store := NewAgentCommandStore(s.cfg.SoloHome)
 		var newEntries []AgentCommandEntry
@@ -88,11 +90,19 @@ func (s *Session) handleTmuxListAgents(m *protocol.TmuxListAgentsRequest) {
 				LastSeen:  e.LastSeen,
 			})
 		}
+		inputStore := NewInputHistoryStore(s.cfg.SoloHome)
+		for _, e := range inputStore.Entries() {
+			inputHistory = append(inputHistory, protocol.TmuxInputEntry{
+				Text:     e.Text,
+				Count:    e.Count,
+				LastUsed: e.LastUsed,
+			})
+		}
 	}
-	s.sendTmuxListAgentsResponse(m.RequestID, agents, otherPanes, history, nil)
+	s.sendTmuxListAgentsResponse(m.RequestID, agents, otherPanes, history, inputHistory, nil)
 }
 
-func (s *Session) sendTmuxListAgentsResponse(requestID string, agents []protocol.TmuxAgentInfo, otherPanes []protocol.TmuxPaneInfo, history []protocol.AgentCommandEntry, errMsg *string) {
+func (s *Session) sendTmuxListAgentsResponse(requestID string, agents []protocol.TmuxAgentInfo, otherPanes []protocol.TmuxPaneInfo, history []protocol.AgentCommandEntry, inputHistory []protocol.TmuxInputEntry, errMsg *string) {
 	s.sendMessage(protocol.NewSessionMessage(&protocol.TmuxListAgentsResponse{
 		Type: "tmux/list_agents/response",
 		Payload: protocol.TmuxListAgentsResponsePayload{
@@ -100,6 +110,7 @@ func (s *Session) sendTmuxListAgentsResponse(requestID string, agents []protocol
 			Agents:         agents,
 			OtherPanes:     otherPanes,
 			CommandHistory: history,
+			InputHistory:   inputHistory,
 			Error:          errMsg,
 		},
 	}))
@@ -169,6 +180,14 @@ func (s *Session) handleTmuxSendKeys(m *protocol.TmuxSendKeysRequest) {
 		errMsg := err.Error()
 		s.sendTmuxSendKeysResponse(m.RequestID, &errMsg)
 		return
+	}
+	// Record submitted text inputs (sendEnter=true) for frequency ranking.
+	// Pure key presses (arrows, Esc, ^C, ...) arrive with sendEnter=false and
+	// are excluded.
+	if sendEnter && s.cfg.SoloHome != "" {
+		if text := strings.TrimSpace(m.Keys); text != "" {
+			NewInputHistoryStore(s.cfg.SoloHome).Record(text)
+		}
 	}
 	s.sendTmuxSendKeysResponse(m.RequestID, nil)
 }

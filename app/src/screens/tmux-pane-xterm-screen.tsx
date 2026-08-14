@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { Send, ChevronDown, ChevronUp, ArrowDownToLine } from "lucide-react-native";
+import { Send, ChevronDown, ChevronUp, ArrowDownToLine, Play } from "lucide-react-native";
 import { BackHeader } from "@/components/headers/back-header";
 import { ErrorBoundary } from "@/components/error-boundary";
 import TerminalEmulator, { type TerminalEmulatorHandle } from "@/components/terminal-emulator";
@@ -237,6 +237,12 @@ function TmuxPaneXtermScreenInner() {
             onSendKey={(key) => void sendKeys(key, false)}
             content={content}
             extraButtons={[
+              {
+                key: "continue",
+                icon: Play,
+                onPress: () => void sendKeys("continue", true),
+                testID: "tmux-xterm-continue-button",
+              },
               {
                 key: "width",
                 label: viewMode === "fit" ? "1:1" : "Fit",

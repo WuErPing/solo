@@ -10,6 +10,7 @@ interface SidebarHeaderRowProps {
   label: string;
   onPress: () => void;
   isActive?: boolean;
+  badgeLabel?: string;
   testID?: string;
   nativeID?: string;
   accessibilityLabel?: string;
@@ -27,6 +28,7 @@ export function SidebarHeaderRow({
   label,
   onPress,
   isActive = false,
+  badgeLabel,
   testID,
   nativeID,
   accessibilityLabel,
@@ -49,6 +51,7 @@ export function SidebarHeaderRow({
         <>
           <Icon size={theme.iconSize.md} color={resolvedIconColor} />
           <SidebarHeaderRowLabel label={label} isHighlighted={isHighlighted} />
+          {badgeLabel ? <SidebarHeaderRowBadge label={badgeLabel} /> : null}
         </>
       );
     },
@@ -56,6 +59,7 @@ export function SidebarHeaderRow({
       Icon,
       iconColor,
       isActive,
+      badgeLabel,
       label,
       theme.colors.foreground,
       theme.colors.foregroundMuted,
@@ -94,6 +98,14 @@ function SidebarHeaderRowLabel({
   return <Text style={labelStyle}>{label}</Text>;
 }
 
+function SidebarHeaderRowBadge({ label }: { label: string }) {
+  return (
+    <View style={styles.badge}>
+      <Text style={styles.badgeText}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create((theme) => ({
   container: {
     height: {
@@ -124,5 +136,18 @@ const styles = StyleSheet.create((theme) => ({
   },
   labelHighlighted: {
     color: theme.colors.foreground,
+  },
+  badge: {
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: 1,
+    borderRadius: theme.borderRadius.full,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface2,
+  },
+  badgeText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.foregroundMuted,
   },
 }));

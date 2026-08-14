@@ -58,12 +58,21 @@ type AgentCommandEntry struct {
 	LastSeen  string `json:"lastSeen"`
 }
 
+// TmuxInputEntry represents a deduplicated user text input submitted to a tmux
+// pane, with a usage counter for frequency ranking.
+type TmuxInputEntry struct {
+	Text     string `json:"text"`
+	Count    int    `json:"count"`
+	LastUsed string `json:"lastUsed"`
+}
+
 // TmuxListAgentsResponsePayload is the payload for TmuxListAgentsResponse.
 type TmuxListAgentsResponsePayload struct {
 	RequestID      string              `json:"requestId"`
 	Agents         []TmuxAgentInfo     `json:"agents"`
 	OtherPanes     []TmuxPaneInfo      `json:"otherPanes"`
 	CommandHistory []AgentCommandEntry `json:"commandHistory,omitempty"`
+	InputHistory   []TmuxInputEntry    `json:"inputHistory,omitempty"`
 	Error          *string             `json:"error"`
 }
 

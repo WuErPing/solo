@@ -1,51 +1,73 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 640" width="960" height="640" role="img" aria-label="Solo 2026 以项目为中心的四层架构">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 770" width="960" height="770" role="img" aria-label="Solo 2026 v3.0 架构：领域模型 + 四层聚合 + AI-Native 工位">
   <rect width="100%" height="100%" fill="#ffffff"/>
-  <rect x="320" y="50" width="320" height="80" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
-  <text x="480" y="76" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">项目工作目录（Project CWD）</text>
-  <text x="334" y="98" font-size="12" fill="#374151">例如：~/work/solo</text>
-  <rect x="320" y="170" width="320" height="80" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
-  <text x="480" y="196" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">项目上下文层</text>
-  <text x="334" y="218" font-size="12" fill="#374151">AGENTS.md / CLAUDE.md / .kimi-code/</text>
-  <line x1="480" y1="130" x2="480" y2="170" stroke="#2563eb" stroke-width="2"/>
-  <polygon points="480,170 484.2,160.9 475.8,160.9" fill="#2563eb"/>
-  <rect x="320" y="290" width="320" height="80" rx="8" fill="#faf5ff" stroke="#9333ea" stroke-width="2"/>
-  <text x="480" y="316" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">运行时与工具层</text>
-  <text x="334" y="338" font-size="12" fill="#374151">solo-cli / solo-daemon / app-bridge</text>
-  <line x1="480" y1="250" x2="480" y2="290" stroke="#2563eb" stroke-width="2"/>
-  <polygon points="480,290 484.2,280.9 475.8,280.9" fill="#2563eb"/>
-  <rect x="320" y="410" width="320" height="80" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
-  <text x="480" y="436" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">外部 Agent 与协议层</text>
-  <text x="334" y="458" font-size="12" fill="#374151">Editor / Claude Code / MCP / Protocol</text>
-  <line x1="480" y1="370" x2="480" y2="410" stroke="#2563eb" stroke-width="2"/>
-  <polygon points="480,410 484.2,400.9 475.8,400.9" fill="#2563eb"/>
-  <rect x="60" y="185" width="180" height="70" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
-  <text x="150" y="211" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">规则注入</text>
-  <text x="74" y="233" font-size="11" fill="#374151">每个项目独立配置</text>
-  <line x1="260" y1="220" x2="320" y2="220" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
-  <polygon points="320,220 310.9,215.8 310.9,224.2" fill="#9ca3af"/>
-  <rect x="700" y="185" width="180" height="70" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
-  <text x="790" y="211" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">动态发现</text>
-  <text x="714" y="233" font-size="11" fill="#374151">进入目录自动加载</text>
-  <line x1="640" y1="220" x2="700" y2="220" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
-  <polygon points="700,220 690.9,215.8 690.9,224.2" fill="#9ca3af"/>
-  <rect x="60" y="305" width="180" height="70" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
-  <text x="150" y="331" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">统一命令</text>
-  <text x="74" y="353" font-size="11" fill="#374151">CLI 编排 Daemon 与 Bridge</text>
-  <line x1="260" y1="340" x2="320" y2="340" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
-  <polygon points="320,340 310.9,335.8 310.9,344.2" fill="#9ca3af"/>
-  <rect x="700" y="305" width="180" height="70" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
-  <text x="790" y="331" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">状态同步</text>
-  <text x="714" y="353" font-size="11" fill="#374151">WebSocket / gRPC 实时同步</text>
-  <line x1="640" y1="340" x2="700" y2="340" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
-  <polygon points="700,340 690.9,335.8 690.9,344.2" fill="#9ca3af"/>
-  <rect x="60" y="425" width="180" height="70" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
-  <text x="150" y="451" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">多 Agent 接入</text>
-  <text x="74" y="473" font-size="11" fill="#374151">Editor/Claude/MCP</text>
-  <line x1="260" y1="460" x2="320" y2="460" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
-  <polygon points="320,460 310.9,455.8 310.9,464.2" fill="#9ca3af"/>
-  <rect x="700" y="425" width="180" height="70" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
-  <text x="790" y="451" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">协议互操作</text>
-  <text x="714" y="473" font-size="11" fill="#374151">JSON-RPC + Solo Protocol</text>
-  <line x1="640" y1="460" x2="700" y2="460" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
-  <polygon points="700,460 690.9,455.8 690.9,464.2" fill="#9ca3af"/>
+  <rect x="330" y="40" width="300" height="80" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="480" y="66" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">Product（项目工作目录）</text>
+  <text x="344" y="88" font-size="12" fill="#374151">例如：~/work/solo</text>
+  <rect x="330" y="150" width="300" height="80" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="480" y="176" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">领域模型层</text>
+  <text x="344" y="198" font-size="12" fill="#374151">Task / Run / Evidence · Delivery Loop</text>
+  <line x1="480" y1="120" x2="480" y2="150" stroke="#2563eb" stroke-width="2"/>
+  <polygon points="480,150 484.2,140.9 475.8,140.9" fill="#2563eb"/>
+  <rect x="330" y="260" width="300" height="80" rx="8" fill="#faf5ff" stroke="#9333ea" stroke-width="2"/>
+  <text x="480" y="286" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">上下文层</text>
+  <text x="344" y="308" font-size="12" fill="#374151">AGENTS.md · Project Memory · Task 历史</text>
+  <line x1="480" y1="230" x2="480" y2="260" stroke="#2563eb" stroke-width="2"/>
+  <polygon points="480,260 484.2,250.9 475.8,250.9" fill="#2563eb"/>
+  <rect x="330" y="370" width="300" height="80" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+  <text x="480" y="396" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">工具层</text>
+  <text x="344" y="418" font-size="12" fill="#374151">MCP · Skills · Local API Proxy · Exporter</text>
+  <line x1="480" y1="340" x2="480" y2="370" stroke="#2563eb" stroke-width="2"/>
+  <polygon points="480,370 484.2,360.9 475.8,360.9" fill="#2563eb"/>
+  <rect x="330" y="480" width="300" height="80" rx="8" fill="#fdf2f8" stroke="#db2777" stroke-width="2"/>
+  <text x="480" y="506" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">智能体层</text>
+  <text x="344" y="528" font-size="12" fill="#374151">Runtime Bus · Provider Hub · Solo Agent</text>
+  <line x1="480" y1="450" x2="480" y2="480" stroke="#2563eb" stroke-width="2"/>
+  <polygon points="480,480 484.2,470.9 475.8,470.9" fill="#2563eb"/>
+  <rect x="330" y="590" width="300" height="80" rx="8" fill="#f0f9ff" stroke="#0284c7" stroke-width="2"/>
+  <text x="480" y="616" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">交互层</text>
+  <text x="344" y="638" font-size="12" fill="#374151">Task Board · Inbox · CLI · Push</text>
+  <line x1="480" y1="560" x2="480" y2="590" stroke="#2563eb" stroke-width="2"/>
+  <polygon points="480,590 484.2,580.9 475.8,580.9" fill="#2563eb"/>
+  <rect x="60" y="155" width="180" height="70" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="150" y="181" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">状态机语义</text>
+  <text x="74" y="203" font-size="11" fill="#374151">run ≠ done · 自动回退</text>
+  <line x1="240" y1="190" x2="330" y2="190" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="330,190 320.9,185.8 320.9,194.2" fill="#9ca3af"/>
+  <rect x="700" y="155" width="200" height="70" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="800" y="181" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">确定性交付控制</text>
+  <text x="714" y="203" font-size="11" fill="#374151">证据门 · 有界返工 · 合并条件</text>
+  <line x1="630" y1="190" x2="700" y2="190" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="700,190 690.9,185.8 690.9,194.2" fill="#9ca3af"/>
+  <rect x="60" y="265" width="180" height="70" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="150" y="291" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">规则注入</text>
+  <text x="74" y="313" font-size="11" fill="#374151">进入目录自动加载</text>
+  <line x1="240" y1="300" x2="330" y2="300" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="330,300 320.9,295.8 320.9,304.2" fill="#9ca3af"/>
+  <rect x="700" y="265" width="200" height="70" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="800" y="291" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">Task 历史复用</text>
+  <text x="714" y="313" font-size="11" fill="#374151">下一个 run 不从零开始</text>
+  <line x1="630" y1="300" x2="700" y2="300" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="700,300 690.9,295.8 690.9,304.2" fill="#9ca3af"/>
+  <rect x="60" y="485" width="180" height="70" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="150" y="511" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">Runtime 治理</text>
+  <text x="74" y="533" font-size="11" fill="#374151">目录锁 · 心跳 · GC</text>
+  <line x1="240" y1="520" x2="330" y2="520" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="330,520 320.9,515.8 320.9,524.2" fill="#9ca3af"/>
+  <rect x="700" y="485" width="200" height="70" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="800" y="511" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">智能路由与成本</text>
+  <text x="714" y="533" font-size="11" fill="#374151">按 Run / Task 聚合成本</text>
+  <line x1="630" y1="520" x2="700" y2="520" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="700,520 690.9,515.8 690.9,524.2" fill="#9ca3af"/>
+  <rect x="60" y="595" width="180" height="70" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="150" y="621" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">对等工位</text>
+  <text x="74" y="643" font-size="11" fill="#374151">Web / App 能力对等</text>
+  <line x1="240" y1="630" x2="330" y2="630" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="330,630 320.9,625.8 320.9,634.2" fill="#9ca3af"/>
+  <rect x="700" y="595" width="200" height="70" rx="8" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="800" y="621" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">CLI 一等接口</text>
+  <text x="714" y="643" font-size="11" fill="#374151">agent 可驱动 Solo</text>
+  <line x1="630" y1="630" x2="700" y2="630" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6,4"/>
+  <polygon points="700,630 690.9,625.8 690.9,634.2" fill="#9ca3af"/>
+  <rect x="90" y="700" width="780" height="48" rx="8" fill="#f3f4f6" stroke="#6b7280" stroke-width="2"/>
+  <text x="480" y="729" text-anchor="middle" font-size="14" font-weight="600" fill="#111827">AI-Native 工位模型（横向贯穿）：意图归一化 → 编排 → 观测/干预 → 验收</text>
 </svg>

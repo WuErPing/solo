@@ -8,6 +8,7 @@ This directory contains deep-dive technical analyses, reviews, and decision reco
 
 | Date | Document | Status | Summary |
 |------|----------|--------|---------|
+| 2026-08-11 | [Multica Capability Research](multica-capability-research.md) | Analysis Complete | Multica（multica-ai/multica）领域模型、runtime/daemon 机制、oh-my-multica 交付控制层调研；Solo 可借鉴清单。Roadmap v3.0 的外部输入。 |
 | 2026-07-29 | [Tmux Pane Rendering Decision](tmux-pane-rendering-decision.md) | Decided & Implemented | Client-side xterm.js rendering chosen & implemented; tmux control-mode alternative deferred. Supersedes the earlier tmux-pane first-principles analyses. |
 | 2026-07-29 | [Tmux Project Matcher](tmux-project-matcher.md) | Implemented | Spec + plan for matching tmux panes to projects (sidebar badge). |
 | 2026-07-28 | [Tmux Keybar Layout Analysis](tmux-keybar-layout-analysis-2026-07-28.md) | Analysis Complete | Post-implementation UX audit of the three-layer `TmuxKeyBar`; Primary Row overflow risk + 5 medium/low findings. |

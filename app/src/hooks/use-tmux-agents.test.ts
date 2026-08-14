@@ -274,4 +274,64 @@ describe("useAggregatedTmuxAgents", () => {
       expect(result.current.otherPanes[1].sessionName).toBe("zebra");
     });
   });
+
+  describe("input history", () => {
+    it("sorts input history by count descending, then most recent lastUsed", async () => {
+      mockClient.tmuxListAgents.mockResolvedValue({
+        agents: [],
+        error: null,
+        inputHistory: [
+          { text: "fix lint", count: 2, lastUsed: "2026-08-09T00:00:00Z" },
+          { text: "continue", count: 5, lastUsed: "2026-08-08T00:00:00Z" },
+          { text: "ship it", count: 2, lastUsed: "2026-08-10T00:00:00Z" },
+        ],
+      });
+
+      const { result } = renderAgentsHook();
+
+      await waitFor(() => {
+        expect(result.current.inputHistory).toHaveLength(3);
+      });
+      expect(result.current.inputHistory.map((e) => e.text)).toEqual(["continue", "ship it", "fix lint"]);
+      expect(result.current.inputHistory[0].serverId).toBe("s1");
+    });
+
+    it("merges identical inputs across hosts by summing counts", async () => {
+      const remoteClient = {
+        tmuxListAgents: vi.fn().mockResolvedValue({
+          agents: [],
+          error: null,
+          inputHistory: [{ text: "continue", count: 3, lastUsed: "2026-08-11T00:00:00Z" }],
+        }),
+        getConnectionState: vi.fn().mockReturnValue({ status: "connected" }),
+      };
+      mockClient.tmuxListAgents.mockResolvedValue({
+        agents: [],
+        error: null,
+        inputHistory: [
+          { text: "continue", count: 2, lastUsed: "2026-08-09T00:00:00Z" },
+          { text: "local only", count: 1, lastUsed: "2026-08-09T00:00:00Z" },
+        ],
+      });
+      mockHosts.value = [
+        { serverId: "s1", label: "local" },
+        { serverId: "s2", label: "remote" },
+      ];
+      mockStore.getClient.mockImplementation((serverId: string) =>
+        serverId === "s2" ? remoteClient : mockClient,
+      );
+
+      const { result } = renderAgentsHook();
+
+      await waitFor(() => {
+        expect(result.current.inputHistory).toHaveLength(2);
+      });
+      const merged = result.current.inputHistory[0];
+      expect(merged.text).toBe("continue");
+      expect(merged.count).toBe(5);
+      // Server attribution follows the most recent lastUsed.
+      expect(merged.lastUsed).toBe("2026-08-11T00:00:00Z");
+      expect(merged.serverId).toBe("s2");
+    });
+  });
 });

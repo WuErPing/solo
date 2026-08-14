@@ -74,6 +74,7 @@ vi.mock("lucide-react-native", () => {
     ChevronUp: icon("ChevronUp"),
     ArrowDownToLine: icon("ArrowDownToLine"),
     MoreHorizontal: icon("MoreHorizontal"),
+    Play: icon("Play"),
   };
 });
 
@@ -201,8 +202,14 @@ const mockAgent = {
   serverLabel: "local",
 };
 
-const { agentRef } = vi.hoisted(() => ({
+const { agentRef, historyRef } = vi.hoisted(() => ({
   agentRef: { current: null as typeof mockAgent | null },
+  historyRef: {
+    current: {
+      commandHistory: [] as { agentName: string; launchCmd: string; lastSeen: string; serverId: string; serverLabel: string }[],
+      inputHistory: [] as { text: string; count: number; lastUsed: string; serverId: string; serverLabel: string }[],
+    },
+  },
 }));
 agentRef.current = mockAgent;
 
@@ -210,7 +217,8 @@ vi.mock("@/hooks/use-tmux-agents", () => ({
   useAggregatedTmuxAgents: () => ({
     agents: [],
     otherPanes: [],
-    commandHistory: [],
+    commandHistory: historyRef.current.commandHistory,
+    inputHistory: historyRef.current.inputHistory,
     isLoading: false,
     isInitialLoad: false,
     error: null,
@@ -257,6 +265,7 @@ describe("TmuxPaneScreen", () => {
     autoRefreshRef.current = true;
     contentRef.current = "$ ls\nfile1.txt\nfile2.txt\n$ _";
     terminalThemeRef.current = "light";
+    historyRef.current = { commandHistory: [], inputHistory: [] };
   });
 
   it("renders pane content text", () => {
@@ -312,6 +321,44 @@ describe("TmuxPaneScreen", () => {
     await vi.waitFor(() => {
       expect(mockRefetch).toHaveBeenCalled();
     });
+  });
+
+  it("sends 'continue' prompt when continue button is pressed", async () => {
+    render(<TmuxPaneScreen />);
+    fireEvent.click(screen.getByTestId("tmux-continue-button"));
+    expect(mockSendKeys).toHaveBeenCalledWith("%0", "continue");
+    await vi.waitFor(() => {
+      expect(mockRefetch).toHaveBeenCalled();
+    });
+  });
+
+  it("shows frequent inputs with count badges in the history dropdown", () => {
+    historyRef.current.inputHistory = [
+      { text: "continue", count: 5, lastUsed: "2026-08-10T00:00:00Z", serverId: "server1", serverLabel: "local" },
+      { text: "fix lint", count: 2, lastUsed: "2026-08-09T00:00:00Z", serverId: "server1", serverLabel: "local" },
+    ];
+    render(<TmuxPaneScreen />);
+    fireEvent.click(screen.getByTestId("history-key-button"));
+    expect(screen.getByTestId("history-input-continue")).toBeDefined();
+    expect(screen.getByTestId("history-input-fix lint")).toBeDefined();
+    expect(screen.getByText("5×")).toBeDefined();
+    expect(screen.getByText("2×")).toBeDefined();
+  });
+
+  it("fills the input box when a frequent input entry is clicked", () => {
+    historyRef.current.inputHistory = [
+      { text: "continue", count: 5, lastUsed: "2026-08-10T00:00:00Z", serverId: "server1", serverLabel: "local" },
+    ];
+    render(<TmuxPaneScreen />);
+    fireEvent.click(screen.getByTestId("history-key-button"));
+    fireEvent.click(screen.getByTestId("history-input-continue"));
+    const input = screen.getByPlaceholderText(/type a command/i) as HTMLInputElement;
+    expect(input.value).toBe("continue");
+  });
+
+  it("hides the history button when both histories are empty", () => {
+    render(<TmuxPaneScreen />);
+    expect(screen.queryByTestId("history-key-button")).toBeNull();
   });
 
   it("triggers loadMoreHistory when scrolling near top", () => {

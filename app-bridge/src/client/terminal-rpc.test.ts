@@ -114,6 +114,7 @@ describe("TerminalRpc", () => {
         agents: [],
         otherPanes: [],
         commandHistory: [],
+        inputHistory: [],
         error: null,
       },
     });

@@ -2,7 +2,7 @@
 
 > **Purpose**: Persistent context base for Solo development, CI/CD, and architecture decisions.
 > **Organizing principle**: PADD (Product & Architecture Driven Development) — all context as code, co-located with the repo.
-> **Last updated**: 2026-07-30
+> **Last updated**: 2026-08-05
 
 ---
 
@@ -61,7 +61,8 @@ docs/
 │   └── review-checklist.md                # Dual-impact review (product + architecture)
 │
 ├── design/                                ← Feature design proposals
-│   └── tmux-keybar-ui-redesign.md         # Three-layer keybar (Implemented 2026-07-28)
+│   ├── tmux-keybar-ui-redesign.md         # Three-layer keybar (Implemented 2026-07-28)
+│   └── multi-agent-collaboration.md       # Task Groups: L1/L2 multi-agent collab (Proposal)
 │
 ├── providers/                             ← AI provider integration research
 │   ├── kimi-wire-vs-acp.md
@@ -141,7 +142,7 @@ Roadmap, feature inventory, and per-feature PRD/specs.
 
 | Document | Type | Summary |
 |----------|------|---------|
-| [2026 Roadmap](product/roadmap-2026.md) | Roadmap | Vision, three pillars, quarterly plan, KPIs, risks |
+| [2026 Roadmap](product/roadmap-2026.md) | Roadmap | v3.0 Task-delivery edition: Product/Task domain model, Delivery Loop, three pillars, quarterly plan, KPIs, risks |
 | [Features](product/features.md) | Analysis | Full feature tree + UI component catalogue |
 | [Loop Schedule Spec](product/prd/loop-schedule-spec.md) | PRD/Spec | Loop-as-Schedule unification: protocol, daemon, executors, migration |
 | [Provider Hub Design](product/prd/provider-hub-design.md) | PRD/Design | Provider Hub, Local API Proxy, MCP/Skills/Prompts, config exporter |
@@ -181,6 +182,7 @@ Feature design proposals (pre-implementation or recently implemented).
 | Document | Status | Summary |
 |----------|--------|---------|
 | [Tmux Keybar UI Redesign](design/tmux-keybar-ui-redesign.md) | Implemented (2026-07-28) | Three-layer keybar layout |
+| [Multi-Agent Collaboration](design/multi-agent-collaboration.md) | Proposal | Task Groups: L1 parallel + L2 pipeline first, L3 converged, L4/A2A deferred |
 
 ---
 

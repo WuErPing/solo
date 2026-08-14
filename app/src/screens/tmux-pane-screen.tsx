@@ -13,7 +13,7 @@ import {
   type PressableStateCallbackType,
 } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { Send, Palette, TextSelect, Clock, ChevronDown, ChevronUp, ArrowDownToLine } from "lucide-react-native";
+import { Send, Palette, TextSelect, Clock, ChevronDown, ChevronUp, ArrowDownToLine, Play } from "lucide-react-native";
 import { BackHeader } from "@/components/headers/back-header";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { AnsiTextLine } from "@/components/ansi-text-line";
@@ -94,7 +94,7 @@ function TmuxPaneScreenInner() {
   const [inputText, setInputText] = useState("");
   const [sendError, setSendError] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const { commandHistory } = useAggregatedTmuxAgents();
+  const { commandHistory, inputHistory } = useAggregatedTmuxAgents();
 
   const agentName = agent && "agentName" in agent ? agent.agentName : undefined;
   const paneTitle = agentName ?? (agent && "currentCmd" in agent ? agent.currentCmd : "Tmux Pane");
@@ -166,6 +166,13 @@ function TmuxPaneScreenInner() {
       .catch(() => setSendError(true));
     setInputText("");
   }, [inputText, agent, refetch]);
+
+  const handleContinue = useCallback(() => {
+    if (!agent) return;
+    withLiveTmuxClient(agent.serverId, (c) => c.tmuxSendKeys(agent.paneId, "continue"))
+      .then(() => refetch())
+      .catch(() => setSendError(true));
+  }, [agent, refetch]);
 
   const sendKey = useCallback(
     (key: string) => {
@@ -384,6 +391,12 @@ function TmuxPaneScreenInner() {
         onSendKey={sendKey}
         content={content}
         extraButtons={[
+          {
+            key: "continue",
+            icon: Play,
+            onPress: handleContinue,
+            testID: "tmux-continue-button",
+          },
           ...(!autoRefresh
             ? [
                 {
@@ -394,7 +407,7 @@ function TmuxPaneScreenInner() {
                 },
               ]
             : []),
-          ...(commandHistory.length > 0
+          ...(commandHistory.length > 0 || inputHistory.length > 0
             ? [
                 {
                   key: "history",
@@ -432,8 +445,31 @@ function TmuxPaneScreenInner() {
           ))}
         </View>
       )}
-      {showHistory && commandHistory.length > 0 ? (
+      {showHistory && (commandHistory.length > 0 || inputHistory.length > 0) ? (
         <View style={[styles.slashDropdown, { backgroundColor: theme.colors.surface0, borderColor: theme.colors.border }]}>
+          {inputHistory.map((entry) => (
+            <Pressable
+              key={`input-${entry.text}`}
+              testID={`history-input-${entry.text}`}
+              onPress={() => {
+                setInputText(entry.text);
+                setShowHistory(false);
+              }}
+              style={({ pressed }) => [
+                styles.slashItem,
+                pressed ? { backgroundColor: theme.colors.surface1 } : null,
+              ]}
+            >
+              <View style={styles.historyItemRow}>
+                <Text style={[styles.historyCountBadge, { color: theme.colors.background, backgroundColor: theme.colors.primary }]}>
+                  {entry.count}×
+                </Text>
+                <Text style={[styles.slashItemText, { color: theme.colors.foreground }]} numberOfLines={1}>
+                  {entry.text}
+                </Text>
+              </View>
+            </Pressable>
+          ))}
           {commandHistory.map((entry) => (
             <Pressable
               key={entry.launchCmd}
@@ -618,6 +654,16 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: 11,
     fontWeight: "600",
     minWidth: 50,
+  },
+  historyCountBadge: {
+    fontSize: 11,
+    fontWeight: "600",
+    minWidth: 32,
+    textAlign: "center",
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    overflow: "hidden",
   },
   headerRightRow: {
     flexDirection: "row",

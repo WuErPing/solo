@@ -37,6 +37,12 @@ export const AgentCommandEntrySchema = z.object({
   lastSeen: z.string(),
 });
 
+export const TmuxInputEntrySchema = z.object({
+  text: z.string(),
+  count: z.number().int(),
+  lastUsed: z.string(),
+});
+
 export const TmuxListAgentsRequestSchema = z.object({
   type: z.literal("tmux/list_agents"),
   requestId: z.string(),
@@ -49,6 +55,7 @@ export const TmuxListAgentsResponseSchema = z.object({
     agents: z.array(TmuxAgentInfoSchema).nullish().default([]),
     otherPanes: z.array(TmuxPaneInfoSchema).nullish().default([]),
     commandHistory: z.array(AgentCommandEntrySchema).nullish().default([]),
+    inputHistory: z.array(TmuxInputEntrySchema).nullish().default([]),
     error: z.string().nullable(),
   }),
 });

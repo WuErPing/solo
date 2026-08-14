@@ -1,26 +1,38 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 360" width="900" height="360" role="img" aria-label="Solo 2026 产品支柱">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 400" width="900" height="400" role="img" aria-label="Solo 2026 产品支柱（v3.0 Task 交付视角）">
   <rect width="100%" height="100%" fill="#ffffff"/>
-  <rect x="80" y="100" width="220" height="160" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
-  <text x="190" y="126" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">项目级上下文</text>
-  <text x="94" y="148" font-size="13" fill="#374151">AGENTS.md 规则</text>
-  <text x="94" y="166" font-size="13" fill="#374151">CLAUDE.md 模板</text>
-  <text x="94" y="184" font-size="13" fill="#374151">.kimi-code/ 注入</text>
-  <rect x="360" y="100" width="220" height="160" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
-  <text x="470" y="126" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">统一工具链</text>
-  <text x="374" y="148" font-size="13" fill="#374151">CLI 入口</text>
-  <text x="374" y="166" font-size="13" fill="#374151">Daemon 服务</text>
-  <text x="374" y="184" font-size="13" fill="#374151">App Bridge UI</text>
-  <rect x="640" y="100" width="220" height="160" rx="8" fill="#faf5ff" stroke="#9333ea" stroke-width="2"/>
-  <text x="750" y="126" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">可观测与复用</text>
-  <text x="654" y="148" font-size="13" fill="#374151">覆盖率 / Lint</text>
-  <text x="654" y="166" font-size="13" fill="#374151">Handoff / Metrics</text>
-  <text x="654" y="184" font-size="13" fill="#374151">模板化最佳实践</text>
-  <rect x="150" y="300" width="600" height="44" rx="8" fill="#f3f4f6" stroke="#6b7280" stroke-width="2"/>
-  <text x="450" y="328" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">项目工作目录（Project CWD）作为统一锚点</text>
-  <line x1="190" y1="260" x2="190" y2="300" stroke="#6b7280" stroke-width="2"/>
-  <polygon points="190,300 194.2,290.9 185.8,290.9" fill="#6b7280"/>
-  <line x1="470" y1="260" x2="470" y2="300" stroke="#6b7280" stroke-width="2"/>
-  <polygon points="470,300 474.2,290.9 465.8,290.9" fill="#6b7280"/>
-  <line x1="750" y1="260" x2="750" y2="300" stroke="#6b7280" stroke-width="2"/>
-  <polygon points="750,300 754.2,290.9 745.8,290.9" fill="#6b7280"/>
+  <rect x="60" y="80" width="240" height="200" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="180" y="106" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">Task Board + Intent</text>
+  <text x="180" y="126" text-anchor="middle" font-size="12" fill="#6b7280">任务入口与意图归一化</text>
+  <text x="74" y="152" font-size="12" fill="#374151">Product/Task 领域模型</text>
+  <text x="74" y="172" font-size="12" fill="#374151">Board + Inbox 主界面</text>
+  <text x="74" y="192" font-size="12" fill="#374151">Intent Normalizer</text>
+  <text x="74" y="212" font-size="12" fill="#374151">Trigger: manual/cron/webhook</text>
+  <text x="74" y="232" font-size="12" fill="#374151">mention 即触发</text>
+  <text x="74" y="252" font-size="12" fill="#374151">Human-Agent Handoff</text>
+  <rect x="330" y="80" width="240" height="200" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="450" y="106" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">Runtime Bus + Hub</text>
+  <text x="450" y="126" text-anchor="middle" font-size="12" fill="#6b7280">执行总线与模型/工具中枢</text>
+  <text x="344" y="152" font-size="12" fill="#374151">Tmux Runtime 抽象</text>
+  <text x="344" y="172" font-size="12" fill="#374151">目录锁 / worktree / GC</text>
+  <text x="344" y="192" font-size="12" fill="#374151">External Agent Adapters</text>
+  <text x="344" y="212" font-size="12" fill="#374151">Provider Hub / Router</text>
+  <text x="344" y="232" font-size="12" fill="#374151">MCP / Skill / Local API Proxy</text>
+  <text x="344" y="252" font-size="12" fill="#374151">成本按 Run/Task 聚合</text>
+  <rect x="600" y="80" width="240" height="200" rx="8" fill="#faf5ff" stroke="#9333ea" stroke-width="2"/>
+  <text x="720" y="106" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">Delivery Loop + Evidence</text>
+  <text x="720" y="126" text-anchor="middle" font-size="12" fill="#6b7280">确定性交付与证据验收</text>
+  <text x="614" y="152" font-size="12" fill="#374151">Manifest DAG 拓扑派发</text>
+  <text x="614" y="172" font-size="12" fill="#374151">Evidence Gate + 独立评审</text>
+  <text x="614" y="192" font-size="12" fill="#374151">有界返工 / 中途恢复</text>
+  <text x="614" y="212" font-size="12" fill="#374151">merge-to-Done 条件</text>
+  <text x="614" y="232" font-size="12" fill="#374151">Execution Stream / Intervention</text>
+  <text x="614" y="252" font-size="12" fill="#374151">In-App Diff Review / PR</text>
+  <rect x="150" y="330" width="600" height="48" rx="8" fill="#f3f4f6" stroke="#6b7280" stroke-width="2"/>
+  <text x="450" y="359" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">Product（项目工作目录）作为统一锚点</text>
+  <line x1="180" y1="280" x2="180" y2="330" stroke="#6b7280" stroke-width="2"/>
+  <polygon points="180,330 184.2,320.9 175.8,320.9" fill="#6b7280"/>
+  <line x1="450" y1="280" x2="450" y2="330" stroke="#6b7280" stroke-width="2"/>
+  <polygon points="450,330 454.2,320.9 445.8,320.9" fill="#6b7280"/>
+  <line x1="720" y1="280" x2="720" y2="330" stroke="#6b7280" stroke-width="2"/>
+  <polygon points="720,330 724.2,320.9 715.8,320.9" fill="#6b7280"/>
 </svg>

@@ -75,6 +75,7 @@ vi.mock("lucide-react-native", () => {
     ChevronUp: icon("ChevronUp"),
     ArrowDownToLine: icon("ArrowDownToLine"),
     MoreHorizontal: icon("MoreHorizontal"),
+    Play: icon("Play"),
   };
 });
 
@@ -298,6 +299,15 @@ describe("TmuxPaneXtermScreen", () => {
 
     await vi.waitFor(() => {
       expect(mockSendKeys).toHaveBeenCalledWith("%0", "Enter", false);
+    });
+  });
+
+  it("sends 'continue' prompt with Enter when the continue button is pressed", async () => {
+    render(<TmuxPaneXtermScreen />);
+    fireEvent.click(screen.getByTestId("tmux-xterm-continue-button"));
+
+    await vi.waitFor(() => {
+      expect(mockSendKeys).toHaveBeenCalledWith("%0", "continue", true);
     });
   });
 
