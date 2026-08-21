@@ -1,8 +1,8 @@
 # Solo - Product Feature Detailed Analysis
 
-> Analysis Date: 2026-07-23
+> Analysis Date: 2026-08-21
 > Repository: /Users/wuerping/code/wuerping/solo
-> Version: v0.10.0
+> Version: v0.12.0
 
 ## Product Overview
 
@@ -13,6 +13,8 @@
 - **CLI** (Go): Command-line tool for managing daemon and agents
 - **Relay** (Go): WebSocket relay service with end-to-end encryption (E2EE)
 - **Protocol** (Go): Communication protocol definitions
+- **Supervisor** (Go): Daemon watchdog — spawn/respawn daemon, crash-breaker fallback (see [`docs/architecture/daemon-supervision.md`](../architecture/daemon-supervision.md))
+- **Usage** (Go): Quota/usage tracking module + `solo-usage` CLI
 
 ## Core Feature Modules
 
@@ -81,7 +83,7 @@ Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
 - **Project 注册表**：项目根目录追踪
 - **Git 工作流**：分支检测、dirty 状态
 - **Workspace 设置**：setup 命令执行
-- **Project Config 读写**：paseo.json 原子读写 + revision 冲突检测
+- **Project Config 读写**：solo.json 原子读写 + revision 冲突检测
 
 #### 3.2 终端系统
 - **PTY 终端**：creack/pty 实现
@@ -178,7 +180,7 @@ Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
   - 斜杠命令过滤（`agent-commands.ts`）：输入 `/` 时显示代理专属快捷命令
   - ErrorBoundary 崩溃保护
   - 快捷操作按钮：方向键（↑↓←→）、Enter、Esc、Tab、Ctrl+C、数字键（1–4）
-  - 支持代理：claude、pi、kimi、kimi-cli、opencode、qoder、cursor
+  - 支持代理：claude、pi、kimi、kimi-cli、opencode、qodercli、cursor、codex
 - **Schedule Dashboard**：Cron 调度任务管理（创建、编辑、列表、详情）
   - 频率预设、时区感知输入、UTC 存储 / 本地显示
   - 支持选择现有 Agent 或新建 Agent 执行
@@ -200,7 +202,6 @@ Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
 - **Sessions Screen**：会话历史
 - **Settings Screen**：设置管理
   - 终端主题选择器（`system` / `dark` / `light` / `tmux`）
-  - Operations 设置区（`operations-section.tsx`）
   - Tmux Agents 设置区（`tmux-agents-section.tsx`）
   - Providers / Keyboard Shortcuts 设置区
 - **Mermaid Preview**：Markdown 文件面板内嵌 Mermaid 图表实时渲染
@@ -210,6 +211,8 @@ Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
 
 #### 7.2 连接管理
 - **Host 管理**：添加/编辑/删除主机
+- **Host 页面**（`app/src/screens/settings/host-page.tsx`，路由 `/settings/hosts/<id>`）：
+  - Operations 设置区（`operations-section.tsx`）：Restart daemon、Daemon 版本切换（version picker）、Inject Solo tools
 - **连接方式**：直接连接、Relay 连接、QR 码配对
 - **连接状态**：实时状态指示器
 
@@ -271,8 +274,6 @@ Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
 
 ### 10. 测试覆盖
 
-> 详细覆盖率数据、模块级分析、根因和路线图见: [`docs/analysis/test-coverage.md`](../analysis/test-coverage.md)
-
 #### 10.1 测试规模
 - **App 单元测试**：**235** 个测试文件，**1,663** 个测试用例（Vitest），已接入 CI（含 tmux dashboard、pane screen、status line、ANSI renderer、SVG preview、loop CRUD 等新增测试）
 - **App browser 测试**：1 个文件（Chromium via Playwright），未接入 CI
@@ -294,13 +295,13 @@ Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
 ### 11. 基础设施
 
 #### 11.1 构建系统
-- **Makefile**：多目标构建（daemon、relay、app）
-- **Go Workspace**：cli、daemon、protocol、relay-go、usage
+- **Makefile**：多目标构建（daemon、relay、cli、usage、supervisor、app）；`make darwin` 输出 solo、solo-relay、solo-cli、solo-usage、solo-supervisor
+- **Go Workspace**：cli、daemon、protocol、relay-go、supervisor、usage
 - **npm Workspace**：app、app-bridge、packages/highlight
 
 #### 11.2 CI/CD
 - **GitHub Actions `ci.yml`**：
-  - `go` job（matrix: protocol/cli/daemon/relay-go/usage）：build + `go test -short -race -coverprofile` + golangci-lint v2.10 + Codecov upload
+  - `go` job（matrix: protocol/cli/daemon/relay-go/supervisor/usage）：build + `go test -short -race -coverprofile` + golangci-lint v2.10 + Codecov upload
   - `js` job：lint（app/app-bridge/highlight）+ typecheck（强制，0 errors）+ test（highlight/app/app-bridge）+ Codecov upload
 - **GitHub Actions `e2e-nightly.yml`**：每天 02:00 UTC 自动运行 Playwright E2E，失败保留 trace/screenshot/video 7 天
 - **Codecov**：`codecov.yml` 配置 flags（js / go-*）+ informational mode，需 `CODECOV_TOKEN` Secret
@@ -310,6 +311,9 @@ Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
 #### 11.3 监控
 - **Prometheus 指标**：sessions、connections、messages
 - **日志系统**：slog（Go）、结构化日志
+
+#### 11.4 Daemon Supervision
+- **solo-supervisor 看门狗**：spawn/respawn daemon，退出码契约（42=重启 / 0=干净停止 / 其他=崩溃退避+熔断），crash-breaker fallback 拉黑失败构建并重写 `~/.solo/versions/current` 指针；详见 [`docs/architecture/daemon-supervision.md`](../architecture/daemon-supervision.md)
 
 ### 12. App 导航结构
 
@@ -323,6 +327,7 @@ app/
 ├── tmux-dashboard.tsx       # Tmux Dashboard
 ├── tmux-pane.tsx            # Tmux Pane (全屏)
 ├── schedules.tsx            # Schedule Dashboard 入口
+├── task-groups/             # Task Groups 页面（mock-data 原型，无后端）
 ├── pair-scan.tsx            # QR 码配对
 ├── settings/
 │   ├── index.tsx            # 设置首页

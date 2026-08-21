@@ -20,11 +20,11 @@
 Kimi Wire mode provider 已完整实现，无需进一步工作。
 
 **实现文件**:
-- `daemon/internal/agent/provider_kimi.go` — ~737 LOC, Wire mode, JSON-RPC 2.0 stdio, EventPump
-- `daemon/internal/agent/provider_kimi_test.go` — 17 top-level tests, 31 executed test cases
+- `daemon/internal/agent/providers/kimi/client.go` — Wire mode, JSON-RPC 2.0 stdio, EventPump
+- `daemon/internal/agent/providers/kimi/client_test.go` — 单元测试
 - `daemon/internal/agent/provider_registry.go` — `kimi` ID/Label/Modes 注册
 - `app-bridge/src/server/agent/provider-manifest.ts` — `KIMI_MODES` 定义
-- `app/src/utils/provider-command-templates.ts` — `kimi --resume {sessionId}` 命令模板
+- `app/src/utils/provider-command-templates.ts` — `kimi-cli --resume {sessionId}` 命令模板
 
 **技术选型**: `kimi --wire`（JSON-RPC 2.0 over stdin/stdout）提供真正的双向流式传输，避免了 `--print --output-format stream-json` 的"整轮缓冲"问题。
 
@@ -119,9 +119,9 @@ Usage: cursor agent [options] [command] [prompt...]
 
 | # | 文件 | 操作 | 描述 |
 |---|------|------|------|
-| 1 | `daemon/internal/agent/provider_cursor_agent.go` | 新建 | `CursorAgentClient` + `cursorSession` + `cursorTranslator` |
+| 1 | `daemon/internal/agent/providers/cursor_agent/client.go` | 新建 | `CursorAgentClient` + `cursorSession` + `cursorTranslator` |
 | 2 | `daemon/internal/server/daemon.go` | 修改 | 注册 `NewCursorAgentClient` |
-| 3 | `daemon/internal/agent/provider_cursor_agent_test.go` | 新建 | 单元测试 |
+| 3 | `daemon/internal/agent/providers/cursor_agent/client_test.go` | 新建 | 单元测试 |
 | 4 | `app-bridge/src/server/agent/provider-manifest.ts` | 修改 | 添加 `CURSOR_AGENT_MODES` |
 | 5 | `daemon/internal/agent/provider_registry.go` | 修改 | 添加 `cursor-agent` 定义 |
 | 6 | `app/src/utils/provider-command-templates.ts` | 修改 | 添加 resume 模板 |
@@ -151,10 +151,12 @@ Usage: cursor agent [options] [command] [prompt...]
 **AgentSession** (Session 级): `Run()`, `StartTurn()`, `Subscribe()`, `Interrupt()`, `Close()`, `RespondPermission()`, `SetMode()`, `SetModel()`, `StreamHistory()` 等
 
 **已有参考实现**:
-- Claude (`provider_claude.go`): stdio, `--print --output-format stream-json`, 逐行 SDK message 解析
-- OpenCode (`provider_opencode.go`): HTTP server, `/session` API + SSE `/global/event`
-- Kimi (`provider_kimi.go`): Wire mode, JSON-RPC 2.0 stdio, EventPump
-- Pi (`provider_pi.go`): minimal terminal harness
+- Claude (`providers/claude/client.go`): stdio, `--print --output-format stream-json`, 逐行 SDK message 解析
+- OpenCode (`providers/opencode/`): HTTP server, `/session` API + SSE `/global/event`
+- Kimi (`providers/kimi/client.go`): Wire mode, JSON-RPC 2.0 stdio, EventPump
+- Codex (`providers/codex/client.go`): `codex` CLI resume 支持
+- Copilot (`COPILOT_MODES` in `provider-manifest.ts`): 模式定义参考
+- Pi (`providers/pi/client.go`): minimal terminal harness
 - Mock (`provider_mock.go`): 内存测试用（opt-in via `SOLO_ENABLE_MOCK_PROVIDER=1`）
 
 **关键基础设施**:

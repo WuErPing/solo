@@ -121,6 +121,7 @@ daemon/
 └── internal/
     ├── agent/           # Agent management
     ├── config/          # Configuration (includes MemoryConfig)
+    ├── httpx/           # Shared HTTP clients with sane timeouts
     ├── loop/            # Loop automation engine (engine, store, types, templates, instance grouping)
     ├── llm/             # OpenAI-compatible chat completion client (schedule assistant)
     ├── memory/          # Session memory: TurnRecorder / bridge / filebackend / redact
@@ -196,7 +197,7 @@ Features:
 Features:
 - Persists each user / assistant turn as Markdown + YAML frontmatter
 - Disk path: `~/.solo/memory/sessions/{YYYY-MM-DD}/{sessionID}/turns/{seq:04d}-{role}.md`, index at `~/.solo/memory/sessions.jsonl`
-- Enabled by default, opt-out via config.json `"memory": {"enabled": false}`
+- Enabled by default; note: the `config.json` opt-out (`"memory": {"enabled": false}`) is **not currently wired** — `PersistedConfig` only has `daemon`/`app` keys, so memory cannot be disabled via the config file today (tracked as [DEBT-001](../debt/debt-001-memory-config-opt-out.md), target v0.13.0)
 
 Core structure:
 - `recorder.go` - `TurnRecorder` stable interface (Phase 1 implemented as `filebackend`)
@@ -412,6 +413,24 @@ usage/
 **Config**: `~/.solo/usage.json` (created via `solo-usage init`, mode `0600`). Values support `${VAR}` env and `${file:/path}` file placeholders for rotating secrets. See [Configuration](../configuration.md#usagejson--usagequota-providers).
 
 **Notes**: Darwin-only build target (`make darwin`); excluded from `make linux`. Included in the CI Go test matrix.
+
+## 9. Supervisor (Daemon Watchdog)
+
+**Directory**: `supervisor/`
+
+**Tech Stack**: Go (standalone module)
+
+**Responsibilities**:
+- Spawn/respawn the daemon and enforce the exit-code contract: `42` = restart requested, `0` = clean stop, anything else = crash (backoff + circuit breaker)
+- Crash fallback: blacklists a repeatedly failing build and rewrites the `~/.solo/versions/current` pointer to the last working version
+- Owns `~/.solo/solo.pid` and `~/.solo/logs/daemon.log` when the daemon runs supervised
+
+**Core Files**:
+- `supervisor/main.go` - Entry point
+- `supervisor/internal/supervisor/supervisor.go` - Supervisor logic (spawn loop, backoff, crash breaker)
+- `protocol/process_contract.go` - Shared exit-code contract (`ExitCodeRestartRequested = 42`)
+
+See [Daemon Supervision](daemon-supervision.md), [ADR-003](../decisions/adr-003-supervisor-exit-code-restart-contract.md) and [ADR-005](../decisions/adr-005-supervisor-crash-fallback.md).
 
 ## Component Interaction
 

@@ -1,5 +1,7 @@
 # Agent-Specific Send Button Presets
 
+> **Status: Proposed (not implemented)**
+
 ## Problem
 
 The tmux pane "Send" view (`app/src/screens/tmux-pane-screen.tsx`, lines 480-511) shows a hardcoded set of buttons identical for every agent: `Up`, `Down`, `Enter`, `Esc`, `Tab`, `S-Tab`, `1-4`. Different agents (claude, opencode, codex, kimi) have different common workflows and key bindings. The view should adapt to the detected agent.

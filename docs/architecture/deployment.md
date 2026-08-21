@@ -307,6 +307,8 @@ server {
 
 ## Daemon 部署
 
+> **Supervised 运行模型**：Daemon 通常由 `solo-supervisor` 看门狗托管运行（spawn/respawn、退出码契约 42=重启/0=干净停止、崩溃回退），版本二进制放在 `~/.solo/versions/solo-*` 并通过 `current` 指针切换；开发环境用 `make restart` 构建、发布版本并启动 supervisor。详见 [Daemon Supervision](daemon-supervision.md)。
+
 ### 本地部署
 
 **Systemd 服务** (`~/.config/systemd/user/solo.service`):

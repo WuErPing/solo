@@ -151,7 +151,9 @@ parent: turn_01H...
 
 ## 7. 配置示例
 
-存储在 `~/.solo/config.json`（**默认开启，无需配置**；以下仅示意 opt-out 与可调旋钮）：
+存储在 `~/.solo/config.json`（**默认开启，无需配置**）。
+
+> ⚠️ **注意**：`config.MemoryConfig` 的 `enabled` 旋钮目前**未接入 config.json**——`PersistedConfig` 只有 `daemon`/`app` 两个顶层键，下面的 `"memory"` 配置块写在 config.json 里会被忽略，暂无法通过配置文件 opt-out（已登记为 [DEBT-001](../debt/debt-001-memory-config-opt-out.md)，目标 v0.13.0 修复）：
 
 ```json
 {

@@ -9,7 +9,7 @@ you edit by hand: `config.json` (daemon) and `usage.json` (usage providers).
 | Path | Purpose | Created by | When |
 |------|---------|-----------|------|
 | `server-id` | Stable daemon identity (random hex) | daemon | auto on first start |
-| `solo.pid` | Daemon process ID (removed on clean exit) | daemon | auto on first start |
+| `solo.pid` | Daemon process ID (removed on clean exit); owned by `solo-supervisor` when the daemon runs supervised | daemon / supervisor | auto on first start |
 | `agents/` | Per-agent runtime state | daemon | auto on first start |
 | `cli-client-id` | CLI client identity | CLI (`solo onboard`) | auto on pairing |
 | `daemon-keypair.json` | E2EE keypair for the daemon | CLI (`solo onboard`) | auto on pairing |
@@ -23,6 +23,7 @@ you edit by hand: `config.json` (daemon) and `usage.json` (usage providers).
 | `logs/` | Daemon logs | daemon | lazy on first write |
 | `memory/` | Session memory store | daemon | lazy on first write |
 | `worktrees/` | Git worktrees managed by Solo | daemon | lazy on first write |
+| `versions/` | Daemon version builds (`solo-*` binaries) + `current` pointer file | `make restart` / daemon version-switch handler / supervisor crash fallback | on first publish or switch |
 | `timeline/` | Timeline data (legacy, no longer written) | daemon | legacy |
 | `usage.json` | Usage/quota provider credentials (see below) | you | manual (`solo-usage init`) |
 | `*.cookie` | Session cookie files referenced from `usage.json` | you | manual |
@@ -59,7 +60,7 @@ A full-field reference file is available at
 Most fields can also be set via environment variables (`SOLO_LISTEN`, `PORT`,
 `SOLO_RELAY_ENABLED`, `SOLO_RELAY_ENDPOINT`, `SOLO_RELAY_PUBLIC_ENDPOINT`,
 `SOLO_RELAY_DISABLE_CONTROL_KEEPALIVE`, `SOLO_CORS_ORIGINS`, `SOLO_HOSTNAMES`,
-`SOLO_APP_BASE_URL`, `SOLO_SUPERVISED`), which take precedence over the file.
+`SOLO_APP_BASE_URL`, `SOLO_SUPERVISED`, `SOLO_MCP_ENABLED`), which take precedence over the file.
 The daemon keeps the file owner-only (`0600`) because it may contain API keys.
 
 ## `usage.json` — usage/quota providers

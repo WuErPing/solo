@@ -12,6 +12,7 @@
 - [Tmux Pane Content Loading](tmux-pane-content-loading.md) — Tmux agent detection, pane capture, polling, and key injection flow
 - [Push Notifications](push-notifications.md) — Push notification architecture and delivery flow
 - [Schedule Assistant](schedule-assistant.md) — NL schedule parse via configured LLM providers, proposal-only safety, confirm path
+- [Daemon Supervision](daemon-supervision.md) — `solo-supervisor` watchdog, exit-code restart contract, daemon version switching, crash fallback
 - [Deployment](deployment.md) — Systemd, Docker, Nginx config, env vars
 
 ## Related
@@ -184,6 +185,7 @@
 | **Daemon** | `daemon/` | Go | Core service — manages sessions, agents, loops, and provider connections |
 | **Relay** | `relay-go/` | Go | Connection relay for remote/mobile access |
 | **CLI** | `cli/` | Go | Command-line tool for session and agent management |
+| **Supervisor** | `supervisor/` | Go | Watchdog process (`solo-supervisor`) — spawns/respawns the daemon by exit-code contract, version switching, crash fallback |
 | **Usage** | `usage/` | Go | Usage/quota tracking CLI (`solo-usage`) and provider module reused by the daemon |
 | **Protocol** | `protocol/` | Go | Shared protocol definitions |
 | **Highlight** | `packages/highlight/` | TypeScript | Syntax highlighting library |

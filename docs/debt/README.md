@@ -15,7 +15,7 @@
 
 | ID | Title | Introduced | ADR / Source | Repayment Target | Status |
 |----|-------|------------|--------------|------------------|--------|
-| — | _(none yet)_ | — | — | — | — |
+| [DEBT-001](debt-001-memory-config-opt-out.md) | Session-memory config opt-out not wired | 2026-06-01 | [session-memory-persistence](../architecture/session-memory-persistence.md) | v0.13.0 | Active |
 
 ## Resolved Debt
 

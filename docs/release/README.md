@@ -23,8 +23,10 @@
 | 模块 | 文档 | 构建命令 | 部署方式 |
 |------|------|----------|----------|
 | Relay（Go） | [relay.md](relay.md) | `make solo-relay-linux-amd64` | scp 二进制 + `systemctl restart`（加固迁移用 `make deploy-solo-relay`） |
-| Daemon | [daemon.md](daemon.md) | `make solo` / `make solo-linux-amd64` | 用户态 systemd（`~/.config/systemd/user/solo.service`） |
+| Daemon | [daemon.md](daemon.md) | `make solo` / `make solo-linux-amd64` | 首选由 solo-supervisor 看护（见 [daemon.md](daemon.md#部署supervised-模式)）；也可用户态 systemd（`~/.config/systemd/user/solo.service`） |
 | CLI | [cli.md](cli.md) | `make solo-cli` / `make solo-cli-linux-amd64` | 拷贝二进制 |
+| Supervisor | [daemon.md](daemon.md#部署supervised-模式) | `make solo-supervisor` / `make solo-supervisor-linux-amd64` | 看护 daemon 的 watchdog，随 `make restart` 启动 |
+| Usage | — | `make solo-usage`（无 linux target） | 本地运行的配额仪表盘 |
 | Mobile App | [mobile-app.md](mobile-app.md) | `eas build --profile production` | EAS Submit / 本地 APK |
 | 版本规范 | [versioning.md](versioning.md) | — | 各模块版本位置、bump 规则、CHANGELOG、tag |
 

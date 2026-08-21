@@ -20,7 +20,7 @@
 |-----------|---------------|--------|
 | Listen address | 127.0.0.1:17612 | config.json |
 | Max concurrent agents | unbounded (OS-limited) | — |
-| Tmux pane snapshot interval | adaptive (2–30s) | host-status-check |
+| Tmux pane snapshot interval | fixed 500ms poll (TmuxPaneWatcher) | daemon/internal/server/tmux_watcher.go |
 
 ## Scaling Ceiling (current single-instance)
 

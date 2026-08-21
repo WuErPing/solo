@@ -2,7 +2,7 @@
 
 > **Purpose**: Persistent context base for Solo development, CI/CD, and architecture decisions.
 > **Organizing principle**: PADD (Product & Architecture Driven Development) — all context as code, co-located with the repo.
-> **Last updated**: 2026-08-05
+> **Last updated**: 2026-08-21
 
 ---
 
@@ -35,12 +35,17 @@ docs/
 │   ├── agent-stall-detection.md           # Stuck-loop detection & grace fix
 │   ├── timeline-design.md                 # Head/Tail buffers, Seq Gate, deduplication
 │   ├── tmux-pane-content-loading.md       # Tmux agent detection, capture, push refresh, diffing
+│   ├── daemon-supervision.md              # solo-supervisor watchdog, exit-code contract, version switching
 │   └── *.svg / *.png                      # Architecture diagrams
 │
 ├── decisions/                             ← ── ADR (Architecture Decision Records) ──
 │   ├── README.md                          # ADR index + conventions
 │   ├── adr-template.md                    # Template (includes tech-debt repayment section)
-│   └── adr-001-*.md                       # Shared Agent Template for Loop & Schedule
+│   ├── adr-001-*.md                       # Shared Agent Template for Loop & Schedule
+│   ├── adr-002-*.md                       # Product + Task Unification
+│   ├── adr-003-*.md                       # Supervisor exit-code restart contract
+│   ├── adr-004-*.md                       # Daemon version switching (versions dir + pointer)
+│   └── adr-005-*.md                       # Supervisor crash fallback to a working build
 │
 ├── debt/                                  ← ── Tech Debt Registry (PADD §4) ──
 │   └── README.md                          # Registry rules + entry template
@@ -87,8 +92,10 @@ Architecture Decision Records capture significant design decisions, including co
 | Document | Status | Summary |
 |----------|--------|---------|
 | [ADR-001: Shared Agent Template](decisions/adr-001-shared-agent-template-for-loop-and-schedule.md) | Accepted | Unify Loop and Schedule on `protocol.AgentSessionConfig` (`AgentTemplate`). |
+| [ADR-002: Product + Task Unification](decisions/adr-002-product-task-unification.md) | Proposed | Radical simplification of the product domain model: 6 concepts → 2 (Product + Task). |
 | [ADR-003: Supervisor Process with Exit-Code Restart Contract](decisions/adr-003-supervisor-exit-code-restart-contract.md) | Accepted | `solo-supervisor` respawns the daemon by exit code (42=restart, 0=shutdown); WS protocol is the only control channel. |
 | [ADR-004: Daemon Version Switching via Versions Directory and Pointer File](decisions/adr-004-daemon-version-switching.md) | Accepted | `~/.solo/versions/` + `current` pointer; supervisor re-resolves the binary per spawn; switch = write pointer + exit 42. |
+| [ADR-005: Supervisor Crash Fallback to a Working Daemon Build](decisions/adr-005-supervisor-crash-fallback.md) | Accepted | Crash breaker blacklists a failing build and rewrites `~/.solo/versions/current` to the last working version. |
 
 Conventions & template: [`decisions/README.md`](decisions/README.md)
 
@@ -232,8 +239,9 @@ How to cut a release — build and deploy per module.
 
 | Target | Command | Output |
 |--------|---------|--------|
-| Darwin binaries | `make darwin` | `output/darwin/{solo,solo-relay,solo-cli,solo-usage}` |
-| Linux binaries | `make linux` | `output/linux/{solo,solo-relay,solo-cli}` |
+| Darwin binaries | `make darwin` | `output/darwin/{solo,solo-relay,solo-cli,solo-usage,solo-supervisor}` |
+| Linux binaries | `make linux` | `output/linux/{solo,solo-relay,solo-cli,solo-supervisor}` |
+| Restart daemon (supervised) | `make restart` | Builds, publishes `solo-$(VERSION)` into `~/.solo/versions/`, updates the `current` pointer, starts `solo-supervisor` |
 | Dev (daemon + web) | `make dev` | daemon :17612 + Expo :19000 |
 | Deploy relay | `make deploy-solo-relay` | scp + systemctl restart |
 

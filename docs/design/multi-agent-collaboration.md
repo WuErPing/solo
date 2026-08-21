@@ -40,7 +40,7 @@ What already exists in the codebase (with paths), and what is missing.
 
 | Capability | Where | Notes |
 |---|---|---|
-| Multiple concurrent heterogeneous agent sessions per daemon | `daemon/internal/agent/manager.go` (`agents map[string]*ManagedAgent`) | No per-project limit; providers live behind the `AgentClient` / `AgentSession` interface in `daemon/internal/agent/providers/{claude,kimi,opencode,pi}` |
+| Multiple concurrent heterogeneous agent sessions per daemon | `daemon/internal/agent/manager.go` (`agents map[string]*ManagedAgent`) | No per-project limit; providers live behind the `AgentClient` / `AgentSession` interface in `daemon/internal/agent/providers/{claude,kimi,opencode,pi,codex}` |
 | Project linkage of agents | `Cwd` string on agent config | String matching only — no `projectID` foreign key; the protocol agent registry is flat |
 | Worktree creation | `daemon/internal/workspace/worktree.go`, `protocol/message_worktree.go` | Used by workspace setup; not yet tied to agents automatically |
 | Loop engine (2-agent pipeline) | `daemon/internal/loop/engine.go` (`runWorker` / `runVerifier`) | Hardcoded worker → verifier with text handoff; failure feedback folded into the next prompt; templates unified via ADR-001 (`AgentTemplate`) |
@@ -213,7 +213,7 @@ Diff view reusing the existing file pane; conflict warnings across member worktr
 
 ## Companion Prototype
 
-A mock-data prototype page is being built in the app (`app/src/screens/task-groups/` + route) as a companion to this document. Status: **prototype, no backend** — it validates the Layer 1/2 information architecture against realistic data before P0 protocol work begins.
+A mock-data prototype page exists in the app (`app/src/screens/task-groups/` + route `app/src/app/task-groups/`) as a companion to this document. Status: **prototype, no backend** — it validates the Layer 1/2 information architecture against realistic data before P0 protocol work begins.
 
 ## Design Principles
 

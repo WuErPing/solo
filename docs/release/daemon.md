@@ -36,6 +36,21 @@ systemctl --user status solo
 
 unit 示例见 [`../architecture/deployment.md`](../architecture/deployment.md#daemon-部署)。
 
+## 部署（supervised 模式）
+
+Daemon 的首选运行方式是由 **solo-supervisor**（`supervisor/`）拉起并看护：
+
+- **看门狗**：supervisor 负责 spawn / respawn daemon，按退出码决定行为——`42` = 主动重启、`0` = 干净停止、其它 = 崩溃（退避 + 熔断）。
+- **版本目录**：可切换的 daemon 构建放在 `~/.solo/versions/solo-*`，`~/.solo/versions/current` 指针指向当前激活的构建。
+- **开发环境**：`make restart` 构建并把 `solo-$(VERSION)` 发布进 `~/.solo/versions/`、更新 `current` 指针，然后启动 solo-supervisor。
+- **App 触发**：host 页面的 Operations（Restart daemon / Daemon version picker）通过退出码契约让 supervisor 完成重启或版本切换；daemon 直接运行（非 supervised）时这些操作返回 `NOT_SUPERVISED`。
+- **崩溃兜底**：若某个构建反复崩溃，crash-breaker 会将其拉黑并把 `current` 指针改写回可用的旧版本。
+- **所有权**：supervised 模式下 `~/.solo/solo.pid` 与 `~/.solo/logs/daemon.log` 由 supervisor 管理。
+
+细节见 [`../architecture/daemon-supervision.md`](../architecture/daemon-supervision.md) 与 [ADR-003](../decisions/adr-003-supervisor-exit-code-restart-contract.md) / [ADR-004](../decisions/adr-004-daemon-version-switching.md) / [ADR-005](../decisions/adr-005-supervisor-crash-fallback.md)。
+
+> systemd 仍可直跑 `solo`（见上一节），也可以把 unit 的 `ExecStart` 指向 **solo-supervisor**，由 systemd 管 supervisor、supervisor 管 daemon。
+
 ## 配置 Relay 连接
 
 ```bash

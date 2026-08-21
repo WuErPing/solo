@@ -5,7 +5,7 @@
 - Status: **Implemented**
 - Author: Andy
 - Created: 2026-06-05
-- Updated: 2026-07-29 (push-driven refresh + snapshot diffing)
+- Updated: 2026-08-21 (input history in list-agents response)
 
 ## 1. Overview
 
@@ -19,6 +19,7 @@ This document describes the end-to-end flow for loading tmux pane content into t
 - **New session creation**: Create new tmux sessions directly from the dashboard
 - **Non-agent pane display**: Browse and interact with non-agent tmux panes (shells, editors, etc.)
 - **Command history**: Track and display recent commands sent to coding agents
+- **Input history**: Deduplicated user text inputs (with usage counters) recorded by the daemon and returned in the `list-agents` response as `inputHistory`
 - **Terminal themes**: User-selected theme presets (system, dark, light, bash, auto) for consistent terminal appearance
 - **ANSI rendering**: Full ANSI color support in pane content and dashboard status lines
 - **Window list**: Tmux window information displayed in dashboard status line
@@ -611,10 +612,19 @@ type TmuxAgentInfo struct {
 // List agents
 type TmuxListAgentsRequest  struct { Type string; RequestID string }
 type TmuxListAgentsResponse struct { Type string; Payload TmuxListAgentsResponsePayload }
+
+// Deduplicated user text input with a usage counter for frequency ranking
+type TmuxInputEntry struct {
+    Text     string `json:"text"`
+    Count    int    `json:"count"`
+    LastUsed string `json:"lastUsed"`
+}
+
 type TmuxListAgentsResponsePayload struct {
-    RequestID string          `json:"requestId"`
-    Agents    []TmuxAgentInfo `json:"agents"`
-    Error     *string         `json:"error"`
+    RequestID    string           `json:"requestId"`
+    Agents       []TmuxAgentInfo  `json:"agents"`
+    InputHistory []TmuxInputEntry `json:"inputHistory,omitempty"`
+    Error        *string          `json:"error"`
 }
 
 // Capture pane
@@ -700,11 +710,18 @@ export const TmuxListAgentsRequestSchema = z.object({
   requestId: z.string(),
 });
 
+export const TmuxInputEntrySchema = z.object({
+  text: z.string(),
+  count: z.number().int(),
+  lastUsed: z.string(),
+});
+
 export const TmuxListAgentsResponseSchema = z.object({
   type: z.literal("tmux/list_agents/response"),
   payload: z.object({
     requestId: z.string(),
     agents: z.array(TmuxAgentInfoSchema),
+    inputHistory: z.array(TmuxInputEntrySchema).nullish().default([]),
     error: z.string().nullable(),
   }),
 });
@@ -833,7 +850,8 @@ export const TmuxPaneChangedNotificationSchema = z.object({
 | `app-bridge/src/client/daemon-client.ts` | `DaemonClient` — `tmuxListAgents`, `tmuxCapturePane`, `tmuxSendKeys`, `tmuxNewSession`, `tmuxGetTheme` |
 | `app-bridge/src/server/tmux/rpc-schemas.ts` | Zod schemas for all tmux RPC messages (including `TmuxNewSessionRequestSchema`, `TmuxNewSessionResponseSchema`) |
 | `daemon/internal/server/session_register_handlers.go` | WebSocket handler registration (`tmux/list_agents`, `tmux/capture_pane`, `tmux/send_keys`, `tmux/new_session`, `tmux/get_theme`) |
-| `daemon/internal/server/session_tmux.go` | Core tmux logic: `scanTmuxAgents`, `parseTmuxPaneLines`, `captureTmuxPane`, `sendKeysToTmuxPane`, `createTmuxSession`, `extractTmuxTheme` |
+| `daemon/internal/server/session_tmux.go` | Core tmux logic: `scanTmuxAgents`, `parseTmuxPaneLines`, `captureTmuxPane`, `sendKeysToTmuxPane`, `createTmuxSession`, `extractTmuxTheme`; records user text inputs into the input history store |
+| `daemon/internal/server/input_history_store.go` | Input history store — deduplicated `TmuxInputEntry` records surfaced as `inputHistory` in `tmux/list_agents/response` |
 | `daemon/internal/server/tmux_watcher.go` | `TmuxPaneWatcher` — server-level poller that broadcasts `tmux/pane_changed` on pane activity |
 | `protocol/message_tmux.go` | Go struct definitions for tmux protocol messages |
 | `protocol/message_tmux_notify.go` | Go struct for the `tmux/pane_changed` server-push notification |

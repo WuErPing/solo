@@ -120,7 +120,7 @@ Defined in `protocol/protocol.go`; these govern the handshake and session lifecy
 
 ```go
 const (
-    WSProtocolVersion        = 1
+    WSProtocolVersion        = 2
     HelloTimeoutMs           = 15000
     SessionDisconnectGraceMs = 90000
 

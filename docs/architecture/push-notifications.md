@@ -84,7 +84,7 @@ Solo App starts
              { type: "register_push_token", token: "ExponentPushToken[...]" }
                │
                └─ Session.handleRegisterPushToken()
-                    daemon/internal/server/session.go:787
+                    daemon/internal/server/session.go:813
                     └─ PersistedTokenStore.Register(token)
                          deduplicates, then writes atomically to
                          ~/.solo/push-tokens.json
@@ -162,8 +162,8 @@ The notification icon and color on Android come from the Expo plugin config:
 | File | Role |
 |------|------|
 | `app/src/hooks/use-push-token-registration.ts` | Token acquisition and registration |
-| `app-bridge/src/client/daemon-client.ts:1322` | Sends `register_push_token` over WebSocket |
-| `daemon/internal/server/session.go:787` | Receives and stores token |
+| `app-bridge/src/client/daemon-client.ts:780` | Sends `register_push_token` over WebSocket |
+| `daemon/internal/server/session.go:813` | Receives and stores token |
 | `daemon/internal/push/token_store.go` | In-memory + file-persisted token store |
 | `daemon/internal/push/notification.go` | Builds notification payload |
 | `daemon/internal/push/service.go` | Expo HTTP client with retry |

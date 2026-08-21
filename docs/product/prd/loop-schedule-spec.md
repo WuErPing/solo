@@ -5,10 +5,10 @@
 > **基线版本**：Solo v0.6.3
 > **目标读者**：后端、前端、CLI 开发者
 > **关联文档**：
-> - [Solo 2026 产品/技术路线图](roadmap-2026.md)
-> - [Solo Roadmap Architecture Mapping](../analysis/solo-roadmap-architecture-mapping.md)
-> - [Schedule Module Analysis](../analysis/app-bridge-schedule-module.md)
-> - [Create Schedule Flow](../analysis/create-schedule-flow.md)
+> - [Solo 2026 产品/技术路线图](../roadmap-2026.md)
+> - [Solo Roadmap Architecture Mapping](../../analysis/solo-roadmap-architecture-mapping.md)
+> - [Schedule Module Analysis](../../analysis/app-bridge-schedule-module.md)
+> - [Create Schedule Flow](../../analysis/create-schedule-flow.md)
 
 ---
 
@@ -157,7 +157,7 @@ type StoredSchedule struct {
 > agent capability exposed to chat agents—`systemPrompt`, `mcpServers`,
 > `approvalPolicy`, `sandboxMode`, `networkAccess`, `webSearch`, etc.—is also
 > available to scheduled and loop agents. See
-> [ADR-001: Shared Agent Template for Loop and Schedule](../decisions/adr-001-shared-agent-template-for-loop-and-schedule.md).
+> [ADR-001: Shared Agent Template for Loop and Schedule](../../decisions/adr-001-shared-agent-template-for-loop-and-schedule.md).
 
 ### 3.2 新增 Loop 类型
 
@@ -1151,7 +1151,7 @@ Controller 应按 provider 选择最优适配路径；fallback 策略：JSON 解
 
 ## 参考文档
 
-- [Solo 2026 产品/技术路线图](roadmap-2026.md)
-- [Solo Roadmap Architecture Mapping](../analysis/solo-roadmap-architecture-mapping.md)
-- [Schedule Module Analysis](../analysis/app-bridge-schedule-module.md)
-- [Create Schedule Flow](../analysis/create-schedule-flow.md)
+- [Solo 2026 产品/技术路线图](../roadmap-2026.md)
+- [Solo Roadmap Architecture Mapping](../../analysis/solo-roadmap-architecture-mapping.md)
+- [Schedule Module Analysis](../../analysis/app-bridge-schedule-module.md)
+- [Create Schedule Flow](../../analysis/create-schedule-flow.md)

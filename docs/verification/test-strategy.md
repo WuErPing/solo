@@ -10,10 +10,10 @@
 ```
         ╱ E2E (Playwright) ╲           — 43 specs, nightly
        ╱─────────────────────╲
-      ╱ Integration (Go, Jest) ╲        — store/runner/schema round-trips
-     ╱───────────────────────────╲
-    ╱    Unit (Go -short, Jest)    ╲    — per-module, every PR
-   ╱─────────────────────────────────╲
+      ╱ Integration (Go, Vitest) ╲        — store/runner/schema round-trips
+     ╱─────────────────────────────╲
+    ╱   Unit (Go -short, Vitest)   ╲    — per-module, every PR
+   ╱───────────────────────────────────╲
 ```
 
 ## Commands
@@ -21,12 +21,11 @@
 | Scope | Command |
 |-------|---------|
 | All CI checks | `make ci` |
-| Go unit (all modules) | `go test -short -race ./...` |
-| Go single module | `cd daemon && go test -short -race ./...` |
-| App + app-bridge JS | `npm test` (root) |
+| Go unit (all modules) | `make test-go` (`-short -race -count=1 -tags external_api`) |
+| Go single module | `cd daemon && go test -short -race -count=1 -tags external_api ./...` |
+| App + app-bridge JS | `make test-app` (or per-workspace: `cd app && npm run test -- --project=unit`, `cd app-bridge && npm test`) |
 | E2E | `npx playwright test` (requires running daemon+relay+Metro) |
-| Lint Go | `golangci-lint run` |
-| Lint JS | `npx eslint app/ app-bridge/` |
+| Lint (Go + JS) | `make lint` |
 | Typecheck | `cd app && npx tsc --noEmit` |
 
 ## Coverage Thresholds
@@ -35,6 +34,7 @@
 - **daemon/ core** (agent, loop, schedule): ≥80%
 - **app-bridge/**: ≥80% (schema + transform correctness)
 - **app/ UI**: no hard threshold; focus on stores and hooks
+- **cli/, supervisor/, usage/**: no fixed threshold yet
 
 ## Flaky Test Policy
 

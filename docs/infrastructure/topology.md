@@ -51,5 +51,5 @@ solo.up2ai.top (DNS → 106.52.40.152)
 ## Daemon Hosts (user-side)
 
 - Listen: `127.0.0.1:17612` (localhost only)
-- Data dir: `~/.solo/`
-- Service: user-level systemd (`~/.config/systemd/user/solo.service`) or foreground process
+- Data dir: `~/.solo/` (also holds `versions/` with switchable `solo-*` builds and a `current` pointer)
+- Service: primarily **solo-supervisor** (watchdog that spawns/respawns the daemon; owns `~/.solo/solo.pid` and `~/.solo/logs/daemon.log`); alternatively user-level systemd (`~/.config/systemd/user/solo.service`) or foreground process
