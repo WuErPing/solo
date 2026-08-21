@@ -23,10 +23,10 @@ jobs:
           - supervisor
           - usage
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.25.6'
           cache: true
@@ -51,7 +51,7 @@ jobs:
         run: go test -short -v -race -count=1 -timeout=10m -tags external_api -coverprofile=coverage.out ./...
 
       - name: Upload Go coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ${{ matrix.module }}/coverage.out
@@ -60,14 +60,14 @@ jobs:
           verbose: true
 
       - name: Upload Go coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: go-coverage-${{ matrix.module }}
           path: ${{ matrix.module }}/coverage.out
           retention-days: 14
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v7
+        uses: golangci/golangci-lint-action@v9
         with:
           version: v2.10
           working-directory: ${{ matrix.module }}
@@ -78,10 +78,10 @@ jobs:
     name: Architecture Boundaries
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.25.6'
           cache: true
@@ -93,16 +93,16 @@ jobs:
     name: JavaScript / TypeScript
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'npm'
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.25.6'
           cache: true
@@ -146,7 +146,7 @@ jobs:
         run: npm test -- --coverage
 
       - name: Upload JS coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: app/coverage/lcov.info,app-bridge/coverage/lcov.info
@@ -155,7 +155,7 @@ jobs:
           verbose: true
 
       - name: Upload JS coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: js-coverage
           path: |
