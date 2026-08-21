@@ -239,8 +239,8 @@ vi.mock("@/runtime/host-runtime-bootstrap", () => ({
 // --- Stores ---
 vi.mock("@/stores/navigation-active-workspace-store", () => ({
   addBrowserActiveWorkspaceLocationListener: vi.fn(() => vi.fn()),
-  getLastNavigationWorkspaceRouteSelection: () => null,
-  hydrateLastNavigationWorkspaceRouteSelection: vi.fn(async () => {}),
+  getLastNavigationRoute: () => null,
+  hydrateLastNavigationRoute: vi.fn(async () => {}),
   syncNavigationActiveWorkspace: vi.fn(),
 }));
 vi.mock("@/stores/panel-store", () => {

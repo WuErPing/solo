@@ -40,6 +40,8 @@ interface NavigationObserverRef {
 }
 
 const LAST_WORKSPACE_ROUTE_SELECTION_STORAGE_KEY = "solo:last-workspace-route-selection";
+const LAST_ROUTE_STORAGE_KEY = "solo:last-route";
+const NON_RESTORABLE_ROUTE_PATHS = new Set(["", "/", "/welcome", "/pair-scan"]);
 
 let snapshot: ActiveWorkspaceSelection | null = null;
 let lastWorkspaceRouteSelection: ActiveWorkspaceSelection | null = null;
@@ -47,6 +49,9 @@ let isLastWorkspaceRouteSelectionLoaded = false;
 let lastWorkspaceRouteSelectionRevision = 0;
 let lastWorkspaceRouteSelectionHydrationPromise: Promise<void> | null = null;
 let nextWorkspaceRouteSelectionOverride: ActiveWorkspaceSelection | null = null;
+let lastRoute: string | null = null;
+let lastRouteRevision = 0;
+let lastRouteHydrationPromise: Promise<void> | null = null;
 const listeners = new Set<() => void>();
 
 function subscribe(listener: () => void): () => void {
@@ -141,6 +146,41 @@ async function readLastWorkspaceRouteSelectionFromStorage(hydrationRevision: num
   } finally {
     isLastWorkspaceRouteSelectionLoaded = true;
     notifyListeners();
+  }
+}
+
+function sanitizeStoredLastRoute(stored: string | null): string | null {
+  if (typeof stored !== "string") {
+    return null;
+  }
+  const trimmed = stored.trim();
+  if (!trimmed.startsWith("/") || NON_RESTORABLE_ROUTE_PATHS.has(trimmed)) {
+    return null;
+  }
+  return trimmed;
+}
+
+function persistLastNavigationRoute(next: string) {
+  const normalized = next.trim();
+  if (NON_RESTORABLE_ROUTE_PATHS.has(normalized) || lastRoute === normalized) {
+    return;
+  }
+
+  lastRoute = normalized;
+  lastRouteRevision += 1;
+  void AsyncStorage.setItem(LAST_ROUTE_STORAGE_KEY, normalized).catch(() => {});
+}
+
+async function readLastNavigationRouteFromStorage(hydrationRevision: number) {
+  try {
+    const stored = await AsyncStorage.getItem(LAST_ROUTE_STORAGE_KEY);
+    if (lastRouteRevision === hydrationRevision) {
+      lastRoute = sanitizeStoredLastRoute(stored);
+    }
+  } catch {
+    if (lastRouteRevision === hydrationRevision) {
+      lastRoute = null;
+    }
   }
 }
 
@@ -254,9 +294,18 @@ export function syncNavigationActiveWorkspace(navigationRef: NavigationObserverR
     if (nextWorkspaceRouteSelectionOverride) {
       const overrideSelection = nextWorkspaceRouteSelectionOverride;
       nextWorkspaceRouteSelectionOverride = null;
+      persistLastNavigationRoute(
+        buildHostWorkspaceRoute(overrideSelection.serverId, overrideSelection.workspaceId),
+      );
       emitIfChanged(overrideSelection);
       return;
     }
+    const effectiveSelection = getBrowserLocationWorkspace() ?? routeState.selection;
+    persistLastNavigationRoute(
+      buildHostWorkspaceRoute(effectiveSelection.serverId, effectiveSelection.workspaceId),
+    );
+  } else if (routeState.kind === "nonWorkspace" && typeof route?.path === "string") {
+    persistLastNavigationRoute(route.path);
   }
   emitIfChanged(getActiveWorkspaceForNavigationSync(route));
 }
@@ -266,6 +315,7 @@ export function activateNavigationWorkspaceSelection(
   options: ActivateWorkspaceSelectionOptions = {},
 ) {
   writeBrowserWorkspaceUrl(next, options);
+  persistLastNavigationRoute(buildHostWorkspaceRoute(next.serverId, next.workspaceId));
   emitIfChanged(next);
 }
 
@@ -275,6 +325,21 @@ export function getNavigationActiveWorkspaceSelection(): ActiveWorkspaceSelectio
 
 export function getLastNavigationWorkspaceRouteSelection(): ActiveWorkspaceSelection | null {
   return lastWorkspaceRouteSelection;
+}
+
+export function getLastNavigationRoute(): string | null {
+  return lastRoute;
+}
+
+export function hydrateLastNavigationRoute(): Promise<void> {
+  if (lastRouteHydrationPromise) {
+    return lastRouteHydrationPromise;
+  }
+
+  const hydrationRevision = lastRouteRevision;
+  lastRouteHydrationPromise = readLastNavigationRouteFromStorage(hydrationRevision);
+
+  return lastRouteHydrationPromise;
 }
 
 export function getIsLastNavigationWorkspaceRouteSelectionLoaded(): boolean {
@@ -348,6 +413,7 @@ export function useIsNavigationWorkspaceSelected(input: {
 }
 
 void hydrateLastNavigationWorkspaceRouteSelection();
+void hydrateLastNavigationRoute();
 
 export function useIsNavigationProjectActive(input: {
   serverId: string | null;

@@ -14,6 +14,7 @@ vi.mock("@/constants/platform", () => ({
 }));
 
 const LAST_WORKSPACE_ROUTE_SELECTION_STORAGE_KEY = "solo:last-workspace-route-selection";
+const LAST_ROUTE_STORAGE_KEY = "solo:last-route";
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void;
@@ -249,5 +250,146 @@ describe("navigation active workspace store", () => {
       LAST_WORKSPACE_ROUTE_SELECTION_STORAGE_KEY,
       JSON.stringify({ serverId: "server-1", workspaceId: "workspace-a" }),
     );
+  });
+});
+
+describe("navigation last route persistence", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    asyncStorageMock.getItem.mockReset();
+    asyncStorageMock.setItem.mockReset();
+    asyncStorageMock.getItem.mockResolvedValue(null);
+    asyncStorageMock.setItem.mockResolvedValue();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("persists the workspace route path on navigation sync", async () => {
+    installWindowStub("/h/server-1/workspace/workspace-a");
+    const store = await import("@/stores/navigation-active-workspace-store");
+
+    store.syncNavigationActiveWorkspace(
+      createNavigationPathRef("/h/server-1/workspace/workspace-a"),
+    );
+
+    expect(asyncStorageMock.setItem).toHaveBeenCalledWith(
+      LAST_ROUTE_STORAGE_KEY,
+      "/h/server-1/workspace/workspace-a",
+    );
+    expect(store.getLastNavigationRoute()).toBe("/h/server-1/workspace/workspace-a");
+  });
+
+  it("persists any non-workspace route path on navigation sync", async () => {
+    installWindowStub("/h/server-1/sessions");
+    const store = await import("@/stores/navigation-active-workspace-store");
+
+    store.syncNavigationActiveWorkspace(createNavigationPathRef("/h/server-1/sessions"));
+    store.syncNavigationActiveWorkspace(createNavigationPathRef("/settings"));
+
+    expect(asyncStorageMock.setItem).toHaveBeenCalledWith(
+      LAST_ROUTE_STORAGE_KEY,
+      "/h/server-1/sessions",
+    );
+    expect(asyncStorageMock.setItem).toHaveBeenCalledWith(LAST_ROUTE_STORAGE_KEY, "/settings");
+    expect(store.getLastNavigationRoute()).toBe("/settings");
+  });
+
+  it("does not persist transient routes", async () => {
+    installWindowStub("/");
+    const store = await import("@/stores/navigation-active-workspace-store");
+
+    store.syncNavigationActiveWorkspace(createNavigationPathRef("/"));
+    store.syncNavigationActiveWorkspace(createNavigationPathRef("/welcome"));
+    store.syncNavigationActiveWorkspace(createNavigationPathRef("/pair-scan"));
+
+    expect(asyncStorageMock.setItem).not.toHaveBeenCalledWith(LAST_ROUTE_STORAGE_KEY, expect.anything());
+  });
+
+  it("persists the retained workspace switch triggered without a router state change", async () => {
+    installWindowStub("/h/server-1/workspace/workspace-a");
+    const store = await import("@/stores/navigation-active-workspace-store");
+
+    store.activateNavigationWorkspaceSelection(
+      { serverId: "server-1", workspaceId: "workspace-b" },
+      { updateBrowserHistory: true, historyMode: "push" },
+    );
+
+    expect(asyncStorageMock.setItem).toHaveBeenCalledWith(
+      LAST_ROUTE_STORAGE_KEY,
+      "/h/server-1/workspace/workspace-b",
+    );
+    expect(store.getLastNavigationRoute()).toBe("/h/server-1/workspace/workspace-b");
+  });
+
+  it("persists the one-shot override selection instead of the stale route path", async () => {
+    installWindowStub("/h/server-1/workspace/workspace-a");
+    const store = await import("@/stores/navigation-active-workspace-store");
+
+    store.overrideNextNavigationWorkspaceRouteSelection({
+      serverId: "server-1",
+      workspaceId: "workspace-b",
+    });
+    store.syncNavigationActiveWorkspace(
+      createNavigationPathRef("/h/server-1/workspace/workspace-a"),
+    );
+
+    expect(asyncStorageMock.setItem).toHaveBeenCalledWith(
+      LAST_ROUTE_STORAGE_KEY,
+      "/h/server-1/workspace/workspace-b",
+    );
+  });
+
+  it("prefers the browser workspace url over the route path on web", async () => {
+    installWindowStub("/h/server-1/workspace/workspace-b");
+    const store = await import("@/stores/navigation-active-workspace-store");
+
+    store.syncNavigationActiveWorkspace(
+      createNavigationPathRef("/h/server-1/workspace/workspace-a"),
+    );
+
+    expect(asyncStorageMock.setItem).toHaveBeenCalledWith(
+      LAST_ROUTE_STORAGE_KEY,
+      "/h/server-1/workspace/workspace-b",
+    );
+  });
+
+  it("writes storage once for repeated syncs of the same route", async () => {
+    installWindowStub("/h/server-1/sessions");
+    const store = await import("@/stores/navigation-active-workspace-store");
+
+    store.syncNavigationActiveWorkspace(createNavigationPathRef("/h/server-1/sessions"));
+    store.syncNavigationActiveWorkspace(createNavigationPathRef("/h/server-1/sessions"));
+
+    expect(asyncStorageMock.setItem).toHaveBeenCalledTimes(1);
+  });
+
+  it("hydrates the last route from storage on startup", async () => {
+    asyncStorageMock.getItem.mockReset();
+    // First eager hydration call reads the legacy workspace key; the second reads the last route.
+    asyncStorageMock.getItem.mockResolvedValueOnce(null);
+    asyncStorageMock.getItem.mockResolvedValueOnce("/h/server-1/dashboard");
+    installWindowStub("/open-project");
+    const store = await import("@/stores/navigation-active-workspace-store");
+
+    await store.hydrateLastNavigationRoute();
+
+    expect(asyncStorageMock.getItem).toHaveBeenCalledWith(LAST_ROUTE_STORAGE_KEY);
+    expect(store.getLastNavigationRoute()).toBe("/h/server-1/dashboard");
+  });
+
+  it("hydrates empty, transient, and corrupt last route storage as null", async () => {
+    installWindowStub("/open-project");
+
+    for (const stored of [null, "not-a-route", "/", "/welcome"]) {
+      vi.resetModules();
+      asyncStorageMock.getItem.mockReset();
+      asyncStorageMock.getItem.mockResolvedValueOnce(null);
+      asyncStorageMock.getItem.mockResolvedValueOnce(stored);
+      const store = await import("@/stores/navigation-active-workspace-store");
+      await store.hydrateLastNavigationRoute();
+      expect(store.getLastNavigationRoute()).toBeNull();
+    }
   });
 });

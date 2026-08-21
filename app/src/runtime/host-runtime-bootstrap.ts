@@ -1,14 +1,19 @@
 import type { HostRuntimeBootstrapResult } from "@/runtime/host-runtime";
 import type { Settings } from "@/hooks/use-settings";
-import type { ActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import {
-  getLastNavigationWorkspaceRouteSelection,
-  hydrateLastNavigationWorkspaceRouteSelection,
+  getLastNavigationRoute,
+  hydrateLastNavigationRoute,
 } from "@/stores/navigation-active-workspace-store";
+import { parseServerIdFromPathname } from "@/utils/host-routes";
 
 type HostRuntimeBootstrapPhase = "starting-daemon" | "connecting" | "online" | "error";
 
 export type StartupNavigationTarget = { serverId: string } | null;
+
+export interface StartupNavigationContext {
+  lastRoute: string | null;
+  preferredServerId: string | null;
+}
 
 interface HostRuntimeBootstrapStore {
   loadFromStorage: () => Promise<void>;
@@ -28,7 +33,7 @@ interface HostRuntimeBootstrapStore {
 export async function initializeHostRuntime(args: {
   shouldManageDesktop: boolean;
   loadSettings: () => Promise<Settings>;
-  loadStartupWorkspaceSelection?: () => Promise<ActiveWorkspaceSelection | null>;
+  loadStartupNavigationContext?: () => Promise<StartupNavigationContext>;
   store: HostRuntimeBootstrapStore;
   setPhase: (phase: HostRuntimeBootstrapPhase) => void;
   setError: (error: string | null) => void;
@@ -38,7 +43,7 @@ export async function initializeHostRuntime(args: {
   const {
     shouldManageDesktop,
     loadSettings,
-    loadStartupWorkspaceSelection = readStartupWorkspaceSelection,
+    loadStartupNavigationContext = readStartupNavigationContext,
     store,
     setPhase,
     setError,
@@ -66,11 +71,11 @@ export async function initializeHostRuntime(args: {
     }
   }
 
-  const startupWorkspaceSelection = await loadStartupWorkspaceSelection();
+  const startupNavigationContext = await loadStartupNavigationContext();
 
   const target = await waitForStartupNavigationTarget({
     store,
-    preferredServerId: startupWorkspaceSelection?.serverId ?? null,
+    preferredServerId: startupNavigationContext.preferredServerId,
     signal,
   });
 
@@ -162,7 +167,11 @@ function waitForStartupNavigationTarget(input: {
 
 type BootstrapOutcome = { type: "online" } | { type: "error"; error: string };
 
-async function readStartupWorkspaceSelection(): Promise<ActiveWorkspaceSelection | null> {
-  await hydrateLastNavigationWorkspaceRouteSelection();
-  return getLastNavigationWorkspaceRouteSelection();
+async function readStartupNavigationContext(): Promise<StartupNavigationContext> {
+  await hydrateLastNavigationRoute();
+  const lastRoute = getLastNavigationRoute();
+  return {
+    lastRoute,
+    preferredServerId: lastRoute ? parseServerIdFromPathname(lastRoute) : null,
+  };
 }

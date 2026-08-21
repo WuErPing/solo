@@ -49,7 +49,7 @@ describe("initializeHostRuntime", () => {
     const target = await initializeHostRuntime({
       shouldManageDesktop: true,
       loadSettings: async () => createSettings({ manageBuiltInDaemon: false }),
-      loadStartupWorkspaceSelection: async () => null,
+      loadStartupNavigationContext: async () => ({ lastRoute: null, preferredServerId: null }),
       store,
       setPhase,
       setError,
@@ -83,9 +83,9 @@ describe("initializeHostRuntime", () => {
     const initPromise = initializeHostRuntime({
       shouldManageDesktop: false,
       loadSettings: async () => createSettings({ manageBuiltInDaemon: false }),
-      loadStartupWorkspaceSelection: async () => {
-        events.push("read-workspace-selection");
-        return null;
+      loadStartupNavigationContext: async () => {
+        events.push("read-navigation-context");
+        return { lastRoute: null, preferredServerId: null };
       },
       store,
       setPhase,
@@ -94,7 +94,7 @@ describe("initializeHostRuntime", () => {
     });
 
     await vi.waitFor(() => {
-      expect(events).toEqual(["phase:connecting", "bootstrap", "read-workspace-selection", "wait"]);
+      expect(events).toEqual(["phase:connecting", "bootstrap", "read-navigation-context", "wait"]);
     });
     expect(setPhase).not.toHaveBeenCalledWith("online");
 
@@ -103,15 +103,15 @@ describe("initializeHostRuntime", () => {
     expect(setPhase).toHaveBeenLastCalledWith("online");
   });
 
-  it("passes the startup workspace server id into the shared wait", async () => {
+  it("passes the last route server id into the shared wait as the preferred host", async () => {
     const store = createStore();
 
     await initializeHostRuntime({
       shouldManageDesktop: false,
       loadSettings: async () => createSettings({ manageBuiltInDaemon: false }),
-      loadStartupWorkspaceSelection: async () => ({
-        serverId: "srv_workspace",
-        workspaceId: "workspace-1",
+      loadStartupNavigationContext: async () => ({
+        lastRoute: "/h/srv_workspace/dashboard",
+        preferredServerId: "srv_workspace",
       }),
       store,
       setPhase: vi.fn(),
@@ -124,13 +124,13 @@ describe("initializeHostRuntime", () => {
     });
   });
 
-  it("passes a null preference into the shared wait when no startup workspace is persisted", async () => {
+  it("passes a null preference into the shared wait when no last route is persisted", async () => {
     const store = createStore();
 
     await initializeHostRuntime({
       shouldManageDesktop: false,
       loadSettings: async () => createSettings({ manageBuiltInDaemon: false }),
-      loadStartupWorkspaceSelection: async () => null,
+      loadStartupNavigationContext: async () => ({ lastRoute: null, preferredServerId: null }),
       store,
       setPhase: vi.fn(),
       setError: vi.fn(),
@@ -168,9 +168,9 @@ describe("initializeHostRuntime", () => {
     const target = await initializeHostRuntime({
       shouldManageDesktop: true,
       loadSettings: async () => createSettings({ manageBuiltInDaemon: true }),
-      loadStartupWorkspaceSelection: async () => {
-        events.push("read-workspace-selection");
-        return null;
+      loadStartupNavigationContext: async () => {
+        events.push("read-navigation-context");
+        return { lastRoute: null, preferredServerId: null };
       },
       store,
       setPhase,
@@ -184,7 +184,7 @@ describe("initializeHostRuntime", () => {
       "bootstrap-desktop",
       "phase:connecting",
       "add-connection",
-      "read-workspace-selection",
+      "read-navigation-context",
       "wait",
       "phase:online",
     ]);
@@ -202,7 +202,7 @@ describe("initializeHostRuntime", () => {
     const target = await initializeHostRuntime({
       shouldManageDesktop: false,
       loadSettings: async () => createSettings({ manageBuiltInDaemon: false }),
-      loadStartupWorkspaceSelection: async () => null,
+      loadStartupNavigationContext: async () => ({ lastRoute: null, preferredServerId: null }),
       store,
       setPhase: vi.fn(),
       setError: vi.fn(),
@@ -228,7 +228,7 @@ describe("initializeHostRuntime", () => {
     const initPromise = initializeHostRuntime({
       shouldManageDesktop: false,
       loadSettings: async () => createSettings({ manageBuiltInDaemon: false }),
-      loadStartupWorkspaceSelection: async () => null,
+      loadStartupNavigationContext: async () => ({ lastRoute: null, preferredServerId: null }),
       store,
       setPhase,
       setError: vi.fn(),

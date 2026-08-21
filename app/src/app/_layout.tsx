@@ -48,7 +48,7 @@ import {
 } from "@/contexts/sidebar-animation-context";
 import { SidebarCalloutProvider } from "@/contexts/sidebar-callout-context";
 import { ToastProvider } from "@/contexts/toast-context";
-import { initializeHostRuntime, type StartupNavigationTarget } from "@/runtime/host-runtime-bootstrap";
+import { initializeHostRuntime, type StartupNavigationContext, type StartupNavigationTarget } from "@/runtime/host-runtime-bootstrap";
 import { shouldUseDesktopDaemon } from "@/desktop/daemon/desktop-daemon";
 import { listenToDesktopEvent } from "@/desktop/electron/events";
 import { updateDesktopWindowControls } from "@/desktop/electron/window";
@@ -73,10 +73,9 @@ import {
 } from "@/runtime/host-runtime";
 import {
   addBrowserActiveWorkspaceLocationListener,
-  getLastNavigationWorkspaceRouteSelection,
-  hydrateLastNavigationWorkspaceRouteSelection,
+  getLastNavigationRoute,
+  hydrateLastNavigationRoute,
   syncNavigationActiveWorkspace,
-  type ActiveWorkspaceSelection,
 } from "@/stores/navigation-active-workspace-store";
 import { usePanelStore } from "@/stores/panel-store";
 import { useSessionStore } from "@/stores/session-store";
@@ -120,7 +119,7 @@ const HostRuntimeBootstrapContext = createContext<HostRuntimeBootstrapState>({
 
 export interface HostRuntimeStartupNavigation {
   target: StartupNavigationTarget;
-  workspaceSelection: ActiveWorkspaceSelection | null;
+  lastRoute: string | null;
 }
 
 function PushNotificationRouter() {
@@ -296,23 +295,26 @@ function HostRuntimeBootstrapProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    let startupWorkspaceSelection: ActiveWorkspaceSelection | null = null;
+    let startupLastRoute: string | null = null;
     const abortController = new AbortController();
     const shouldManageDesktop = shouldUseDesktopDaemon();
     const store = getHostRuntimeStore();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initialization: reset navigation state before async startup
     setStartupNavigation(null);
 
-    const loadStartupWorkspaceSelection = async (): Promise<ActiveWorkspaceSelection | null> => {
-      await hydrateLastNavigationWorkspaceRouteSelection();
-      startupWorkspaceSelection = getLastNavigationWorkspaceRouteSelection();
-      return startupWorkspaceSelection;
+    const loadStartupNavigationContext = async (): Promise<StartupNavigationContext> => {
+      await hydrateLastNavigationRoute();
+      startupLastRoute = getLastNavigationRoute();
+      return {
+        lastRoute: startupLastRoute,
+        preferredServerId: startupLastRoute ? parseServerIdFromPathname(startupLastRoute) : null,
+      };
     };
 
     void initializeHostRuntime({
       shouldManageDesktop,
       loadSettings: loadSettingsFromStorage,
-      loadStartupWorkspaceSelection,
+      loadStartupNavigationContext,
       store,
       setPhase,
       setError,
@@ -325,7 +327,7 @@ function HostRuntimeBootstrapProvider({ children }: { children: ReactNode }) {
         }
         setStartupNavigation({
           target,
-          workspaceSelection: startupWorkspaceSelection,
+          lastRoute: startupLastRoute,
         });
         return undefined;
       })
@@ -345,7 +347,7 @@ function HostRuntimeBootstrapProvider({ children }: { children: ReactNode }) {
         setError(null);
         setStartupNavigation({
           target: null,
-          workspaceSelection: startupWorkspaceSelection,
+          lastRoute: startupLastRoute,
         });
       });
 

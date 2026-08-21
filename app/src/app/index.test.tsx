@@ -59,8 +59,8 @@ vi.mock("@/screens/startup-splash-screen", () => ({
 }));
 
 vi.mock("@/stores/navigation-active-workspace-store", () => ({
-  getLastNavigationWorkspaceRouteSelection: workspaceStoreAccessMock,
-  useIsLastNavigationWorkspaceRouteSelectionLoaded: workspaceStoreAccessMock,
+  getLastNavigationRoute: workspaceStoreAccessMock,
+  hydrateLastNavigationRoute: workspaceStoreAccessMock,
 }));
 
 describe("Index route startup navigation", () => {
@@ -109,10 +109,10 @@ describe("Index route startup navigation", () => {
     expect(workspaceStoreAccessMock).not.toHaveBeenCalled();
   });
 
-  it("restores the persisted workspace when the startup target matches its host", async () => {
+  it("restores the exact last route when its host matches the startup target", async () => {
     state.bootstrapState.startupNavigation = {
       target: { serverId: "server-1" },
-      workspaceSelection: { serverId: "server-1", workspaceId: "workspace-a" },
+      lastRoute: "/h/server-1/workspace/workspace-a",
     };
 
     await renderIndex();
@@ -122,10 +122,32 @@ describe("Index route startup navigation", () => {
     expect(workspaceStoreAccessMock).not.toHaveBeenCalled();
   });
 
-  it("navigates to the startup host root when it differs from the persisted workspace host", async () => {
+  it("restores a non-workspace last route exactly", async () => {
+    state.bootstrapState.startupNavigation = {
+      target: { serverId: "server-1" },
+      lastRoute: "/h/server-1/sessions",
+    };
+
+    await renderIndex();
+
+    expect(redirectMock).toHaveBeenCalledWith("/h/server-1/sessions");
+  });
+
+  it("restores a global last route regardless of the startup host", async () => {
     state.bootstrapState.startupNavigation = {
       target: { serverId: "server-2" },
-      workspaceSelection: { serverId: "server-1", workspaceId: "workspace-a" },
+      lastRoute: "/settings",
+    };
+
+    await renderIndex();
+
+    expect(redirectMock).toHaveBeenCalledWith("/settings");
+  });
+
+  it("navigates to the startup host root when the last route is another host's workspace", async () => {
+    state.bootstrapState.startupNavigation = {
+      target: { serverId: "server-2" },
+      lastRoute: "/h/server-1/workspace/workspace-a",
     };
 
     await renderIndex();
@@ -133,10 +155,21 @@ describe("Index route startup navigation", () => {
     expect(redirectMock).toHaveBeenCalledWith("/h/server-2");
   });
 
-  it("navigates to the startup host root when no persisted workspace exists", async () => {
+  it("remaps a non-workspace host route onto the startup host", async () => {
     state.bootstrapState.startupNavigation = {
       target: { serverId: "server-2" },
-      workspaceSelection: null,
+      lastRoute: "/h/server-1/sessions",
+    };
+
+    await renderIndex();
+
+    expect(redirectMock).toHaveBeenCalledWith("/h/server-2/sessions");
+  });
+
+  it("navigates to the startup host root when no last route is persisted", async () => {
+    state.bootstrapState.startupNavigation = {
+      target: { serverId: "server-2" },
+      lastRoute: null,
     };
 
     await renderIndex();
@@ -147,7 +180,7 @@ describe("Index route startup navigation", () => {
   it("falls back to welcome when bootstrap resolves no startup target", async () => {
     state.bootstrapState.startupNavigation = {
       target: null,
-      workspaceSelection: null,
+      lastRoute: null,
     };
 
     await renderIndex();

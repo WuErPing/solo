@@ -6,7 +6,12 @@ import {
   useHostRuntimeBootstrapState,
   useStoreReady,
 } from "@/app/_layout";
-import { buildHostRootRoute, buildHostWorkspaceRoute } from "@/utils/host-routes";
+import {
+  buildHostRootRoute,
+  mapPathnameToServer,
+  parseHostWorkspaceRouteFromPathname,
+  parseServerIdFromPathname,
+} from "@/utils/host-routes";
 import { shouldUseDesktopDaemon } from "@/desktop/daemon/desktop-daemon";
 
 const WELCOME_ROUTE = "/welcome";
@@ -44,15 +49,27 @@ function resolveStartupRedirectRoute(input: {
     return null;
   }
 
-  const { target, workspaceSelection } = bootstrapState.startupNavigation;
+  const { target, lastRoute } = bootstrapState.startupNavigation;
 
   if (!target) {
     return WELCOME_ROUTE;
   }
 
-  if (workspaceSelection && target.serverId === workspaceSelection.serverId) {
-    return buildHostWorkspaceRoute(workspaceSelection.serverId, workspaceSelection.workspaceId);
+  if (lastRoute) {
+    return resolveLastRouteHref(lastRoute, target.serverId);
   }
 
   return buildHostRootRoute(target.serverId);
+}
+
+function resolveLastRouteHref(lastRoute: string, onlineServerId: string): Href {
+  const lastServerId = parseServerIdFromPathname(lastRoute);
+  if (!lastServerId || lastServerId === onlineServerId) {
+    return lastRoute as Href;
+  }
+  // Another host's workspace is not meaningful on the online host.
+  if (parseHostWorkspaceRouteFromPathname(lastRoute)) {
+    return buildHostRootRoute(onlineServerId);
+  }
+  return mapPathnameToServer(lastRoute, onlineServerId);
 }
