@@ -219,14 +219,23 @@ function stripAnsi(input: string): string {
   return input.replace(ANSI_PATTERN, "");
 }
 
+function relayBinPath(repoRoot: string): string {
+  const sub = process.platform === "linux" ? "linux" : "darwin";
+  return path.join(repoRoot, "output", sub, "solo-relay");
+}
+
+function relayMakeTarget(): string {
+  return process.platform === "linux" ? "solo-relay-linux-amd64" : "solo-relay";
+}
+
 function ensureRelayBuildArtifact(repoRoot: string): void {
-  const relayBin = path.join(repoRoot, "output", "solo-relay");
-  if (existsSync(relayBin)) {
+  const bin = relayBinPath(repoRoot);
+  if (existsSync(bin)) {
     return;
   }
 
-  console.log("[e2e] Building solo-relay...");
-  execSync("make solo-relay", {
+  console.log(`[e2e] Building solo-relay (${relayMakeTarget()})...`);
+  execFileSync("make", [relayMakeTarget()], {
     cwd: repoRoot,
     stdio: "inherit",
   });
@@ -401,7 +410,7 @@ async function awaitRelayReady(
 }
 
 async function startRelay(repoRoot: string): Promise<number> {
-  const relayBin = path.join(repoRoot, "output", "solo-relay");
+  const relayBin = relayBinPath(repoRoot);
   const maxRelayStartupAttempts = 5;
   let lastRelayStartupError: unknown = null;
 

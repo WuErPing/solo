@@ -136,8 +136,18 @@ func TestKimiAgentClient_ListModes_ReturnsStaticModes(t *testing.T) {
 }
 
 func TestKimiAgentClient_CreateSession_ReturnsSession(t *testing.T) {
+	// Create a fake kimi binary so IsAvailable succeeds regardless of whether
+	// kimi-cli is actually installed on the host (it is on some dev machines
+	// via `uv tool install`, but not in CI). CreateSession only stats the
+	// path; it does not exec the binary.
+	tmpDir := t.TempDir()
+	fakeBinary := filepath.Join(tmpDir, "kimi-cli")
+	if err := os.WriteFile(fakeBinary, []byte("#!/bin/sh\necho ok"), 0755); err != nil {
+		t.Fatalf("failed to create fake binary: %v", err)
+	}
+
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	client := NewClient("", logger)
+	client := NewClient(fakeBinary, logger)
 
 	config := &protocol.AgentSessionConfig{
 		Provider: "kimi",
@@ -154,8 +164,18 @@ func TestKimiAgentClient_CreateSession_ReturnsSession(t *testing.T) {
 }
 
 func TestKimiAgentClient_ResumeSession_ReturnsSession(t *testing.T) {
+	// Create a fake kimi binary so IsAvailable succeeds regardless of whether
+	// kimi-cli is actually installed on the host (it is on some dev machines
+	// via `uv tool install`, but not in CI). ResumeSession only stats the
+	// path; it does not exec the binary.
+	tmpDir := t.TempDir()
+	fakeBinary := filepath.Join(tmpDir, "kimi-cli")
+	if err := os.WriteFile(fakeBinary, []byte("#!/bin/sh\necho ok"), 0755); err != nil {
+		t.Fatalf("failed to create fake binary: %v", err)
+	}
+
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	client := NewClient("", logger)
+	client := NewClient(fakeBinary, logger)
 
 	handle := &protocol.AgentPersistenceHandle{
 		Provider:  "kimi",
