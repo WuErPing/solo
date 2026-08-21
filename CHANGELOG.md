@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-08-21
+
+### Added
+
+- **Supervisor**: new `solo-supervisor` watchdog process keeps the daemon alive; exit-code restart contract (42 = restart, 0 = clean stop) with crash backoff and breaker (ADR-003)
+- **Daemon**: restart/shutdown the daemon from the app host page (Operations section), over direct WS and relay; refuses with `NOT_SUPERVISED` when not supervised
+- **Daemon version switching**: pick any recent build from `~/.solo/versions/` on the host page and restart onto it; the supervisor re-resolves the `current` pointer on every spawn (ADR-004)
+- **Supervisor**: crash-breaker fallback — a build that won't start is blacklisted and the newest working version is spawned instead (pointer rewritten), so a bad build no longer takes the host offline (ADR-005)
+- **App**: version picker dropdown on the host page Operations section with reconnect wait
+- **tmux**: input history store with frequency-ranked suggestions and continue button on the pane screen
+- **Daemon**: branch suggestions and GitHub issue/PR search RPCs
+- **Usage**: reset-window elapsed percentage on usage cards
+- **App**: Task Groups prototype screens (Beta)
+
+### Fixed
+
+- **Daemon**: `rpc_error` replies for unknown/unhandled message types now carry the caller's `requestId`, so newer clients talking to older daemons fail fast instead of timing out
+- **Daemon**: close-time deadlock between `WSServer.Close` and grace expiry
+- **Codex**: use `exec resume` with `--json` and positional prompt for session resume (codex-cli 0.146)
+- **Usage**: xiaomimimo quota treats quota as the whole billing period, not monthly
+
+### Changed
+
+- **Agent**: `EventPump` emits typed envelope events; `AgentStreamEvent` moved into the base package
+- **Make**: `make restart` runs the supervised daemon and publishes the build into `~/.solo/versions/`
+
 ## [0.11.0] - 2026-07-29
 
 ### Added
