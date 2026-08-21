@@ -132,6 +132,8 @@ func init() {
 	RegisterInbound("register_push_token", func() SessionInboundMessage { return &RegisterPushTokenMessage{} })
 	RegisterInbound("restart_server_request", func() SessionInboundMessage { return &RestartServerRequest{} })
 	RegisterInbound("shutdown_server_request", func() SessionInboundMessage { return &ShutdownServerRequest{} })
+	RegisterInbound("list_daemon_versions_request", func() SessionInboundMessage { return &ListDaemonVersionsRequest{} })
+	RegisterInbound("switch_daemon_version_request", func() SessionInboundMessage { return &SwitchDaemonVersionRequest{} })
 	RegisterInbound("get_daemon_config_request", func() SessionInboundMessage { return &GetDaemonConfigRequest{} })
 	RegisterInbound("set_daemon_config_request", func() SessionInboundMessage { return &SetDaemonConfigRequest{} })
 	RegisterInbound("open_project_request", func() SessionInboundMessage { return &OpenProjectRequest{} })

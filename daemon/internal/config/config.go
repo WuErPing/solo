@@ -220,6 +220,9 @@ func Load() (*Config, error) {
 	if v := os.Getenv("SOLO_SUPERVISED"); v == "1" {
 		cfg.Supervised = true
 	}
+	if v := os.Getenv("SOLO_MCP_ENABLED"); v != "" {
+		cfg.MCPEnabled = v != "false" && v != "0"
+	}
 
 	// Generate or load server ID
 	if err := ensureServerID(cfg); err != nil {

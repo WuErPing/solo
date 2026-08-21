@@ -9,7 +9,8 @@ protocol/     ← shared types, zero dependencies, imported by all
     ↑
     ├── daemon/       ← core service, owns agent/workspace/terminal lifecycle
     ├── cli/          ← thin CLI wrapper, talks to daemon via WebSocket
-    └── relay-go/     ← stateless WebSocket relay, no business logic
+    ├── relay-go/     ← stateless WebSocket relay, no business logic
+    └── supervisor/   ← process watcher; spawns/respawns the daemon
 
 usage/        ← AI platform quota snapshots (provider registry + config)
     ↑
@@ -41,6 +42,11 @@ app-bridge/   ← TypeScript communication library (daemon client + E2EE)
 - Owns: user-facing command parsing, daemon process management
 - Exposes: terminal commands
 - Does NOT: implement business logic (delegates to daemon via WebSocket)
+
+### Supervisor (`supervisor/`)
+- Owns: daemon process lifecycle (spawn, respawn on requested restart/crash, PID file, daemon log file)
+- Exposes: nothing (no network API); restart/shutdown flow through the daemon's WS protocol and the exit-code contract in `protocol/process_contract.go`
+- Does NOT: inspect protocol traffic, manage sessions, run business logic
 
 ### App-Bridge (`app-bridge/`)
 - Owns: typed daemon client, E2EE crypto, connection offer encoding

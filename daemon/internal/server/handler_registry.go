@@ -35,12 +35,14 @@ func (r *messageHandlerRegistry) HasHandler(msgType string) bool {
 }
 
 // Handle dispatches msg to the registered handler for msg.MsgType().
-// If no handler is registered, it logs a debug message and sends an RPC error.
-func (r *messageHandlerRegistry) Handle(s *Session, msg protocol.SessionInboundMessage) {
+// If no handler is registered, it logs a debug message and sends an RPC error
+// correlated with requestID so the caller's pending request fails fast
+// instead of timing out.
+func (r *messageHandlerRegistry) Handle(s *Session, msg protocol.SessionInboundMessage, requestID string) {
 	handler, ok := r.handlers[msg.MsgType()]
 	if !ok {
 		s.logger.Debug("unhandled session message", "type", msg.MsgType())
-		s.sendRPCError("", msg.MsgType(), "not implemented", nil)
+		s.sendRPCError(requestID, msg.MsgType(), "not implemented", nil)
 		return
 	}
 	handler(s, msg)

@@ -70,7 +70,7 @@ import { HostPage, HostRenameButton } from "@/screens/settings/host-page";
 import { ProvidersSection } from "@/screens/settings/providers-section";
 import { LlmProvidersSection } from "@/screens/settings/llm-providers-section";
 import { TmuxAgentsSection } from "@/screens/settings/tmux-agents-section";
-import { OperationsSection } from "@/screens/settings/operations-section";
+
 import ProjectsScreen from "@/screens/projects-screen";
 import ProjectSettingsScreen from "@/screens/project-settings-screen";
 import { useIsCompactFormFactor } from "@/constants/layout";
@@ -196,7 +196,6 @@ const RELEASE_CHANNEL_OPTIONS = [
 interface GeneralSectionProps {
   settings: AppSettings;
   serverId: string | null;
-  hostLabel: string | null;
   handleThemeChange: (theme: AppSettings["theme"]) => void;
   handleSendBehaviorChange: (behavior: SendBehavior) => void;
 }
@@ -233,7 +232,6 @@ function ThemeMenuItem({
 function GeneralSection({
   settings,
   serverId,
-  hostLabel,
   handleThemeChange,
   handleSendBehaviorChange,
 }: GeneralSectionProps) {
@@ -298,7 +296,6 @@ function GeneralSection({
       </SettingsSection>
       {serverId ? <ProvidersSection serverId={serverId} /> : null}
       {serverId ? <LlmProvidersSection serverId={serverId} /> : null}
-      {serverId && hostLabel ? <OperationsSection serverId={serverId} hostLabel={hostLabel} /> : null}
       {serverId ? <TmuxAgentsSection serverId={serverId} /> : null}
     </>
   );
@@ -731,10 +728,6 @@ export default function SettingsScreen({ view }: SettingsScreenProps) {
   const anyOnlineServerId = useAnyOnlineHostServerId(hostServerIds);
   const localServerId = useLocalDaemonServerId();
   const generalServerId = localServerId ?? anyOnlineServerId;
-  const generalHostLabel = useMemo(
-    () => (generalServerId ? hosts.find((h) => h.serverId === generalServerId)?.label ?? null : null),
-    [generalServerId, hosts],
-  );
 
   const handleThemeChange = useCallback(
     (nextTheme: AppSettings["theme"]) => {
@@ -903,7 +896,6 @@ export default function SettingsScreen({ view }: SettingsScreenProps) {
             <GeneralSection
               settings={settings}
               serverId={generalServerId}
-              hostLabel={generalHostLabel}
               handleThemeChange={handleThemeChange}
               handleSendBehaviorChange={handleSendBehaviorChange}
             />

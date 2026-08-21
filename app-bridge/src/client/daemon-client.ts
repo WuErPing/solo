@@ -83,6 +83,7 @@ import { ChatRpc } from "./chat-rpc.js";
 import { WorkspaceRpc } from "./workspace-rpc.js";
 import { GitRpc } from "./git-rpc.js";
 import { TerminalRpc } from "./terminal-rpc.js";
+import { VersionRpc } from "./version-rpc.js";
 import { ConnectionManager } from "./connection-manager.js";
 import { runSpeedTest } from "./speedtest.js";
 import type { SpeedTestOptions, SpeedTestResult } from "./speedtest.js";
@@ -626,6 +627,7 @@ export class DaemonClient {
   private readonly workspaceRpc: WorkspaceRpc;
   private readonly gitRpc: GitRpc;
   private readonly terminalRpc: TerminalRpc;
+  private readonly versionRpc: VersionRpc;
 
   constructor(config: DaemonClientConfig) {
     this.connection = new ConnectionManager(config);
@@ -636,6 +638,7 @@ export class DaemonClient {
     this.workspaceRpc = new WorkspaceRpc(this.connection);
     this.gitRpc = new GitRpc(this.connection);
     this.terminalRpc = new TerminalRpc(this.connection);
+    this.versionRpc = new VersionRpc(this.connection);
     this.connection.setHooks({
       tryHandleBinaryFrame: (rawBytes) => this.terminalRpc.tryHandleBinaryFrame(rawBytes),
       resubscribe: () => {
@@ -664,6 +667,11 @@ export class DaemonClient {
   /** Provider usage quota RPCs. */
   get usage(): UsageRpc {
     return this.usageRpc;
+  }
+
+  /** Daemon version listing and switching RPCs. */
+  get versions(): VersionRpc {
+    return this.versionRpc;
   }
 
   /** Chat room RPCs. */

@@ -38,6 +38,26 @@ type ServerFeatures struct {
 	ProvidersSnapshot *bool `json:"providersSnapshot,omitempty"`
 }
 
+// RestartRequestedStatusPayload is sent as a status message payload in reply
+// to restart_server_request, just before the daemon exits with
+// ExitCodeRestartRequested so its supervisor can respawn it.
+// Mirrors RestartRequestedStatusPayloadSchema in app-bridge.
+type RestartRequestedStatusPayload struct {
+	Status    string  `json:"status"` // always "restart_requested"
+	ClientID  string  `json:"clientId"`
+	Reason    *string `json:"reason,omitempty"`
+	RequestID string  `json:"requestId"`
+}
+
+// ShutdownRequestedStatusPayload is sent as a status message payload in reply
+// to shutdown_server_request, just before the daemon exits with ExitCodeClean.
+// Mirrors ShutdownRequestedStatusPayloadSchema in app-bridge.
+type ShutdownRequestedStatusPayload struct {
+	Status    string `json:"status"` // always "shutdown_requested"
+	ClientID  string `json:"clientId"`
+	RequestID string `json:"requestId"`
+}
+
 // PongMessage
 type PongMessage struct {
 	Type    string      `json:"type"`

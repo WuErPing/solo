@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { AdaptiveModalSheet } from "@/components/adaptive-modal-sheet";
 import { useIsLocalDaemon } from "@/hooks/use-is-local-daemon";
 import { SettingsSection } from "@/screens/settings/settings-section";
+import { OperationsSection } from "@/screens/settings/operations-section";
 import {
   runConnectionSpeedTest,
   SpeedTestPanel,
@@ -161,6 +162,8 @@ export function HostPage({ serverId, onHostRemoved }: HostPageProps) {
         </SettingsSection>
       ) : null}
       {isLocalDaemon ? <LocalDaemonSection /> : null}
+
+      <OperationsSection serverId={serverId} hostLabel={host.label} />
 
       <RemoveHostSection host={host} onRemoved={onHostRemoved} />
     </View>

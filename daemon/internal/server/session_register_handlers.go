@@ -52,14 +52,10 @@ func (s *Session) registerHandlers() {
 	r.Register("get_providers_snapshot_request", typeHandler(s.handleGetProvidersSnapshot))
 
 	// --- Server control ---
-	r.Register("restart_server_request", func(s *Session, msg protocol.SessionInboundMessage) {
-		m := msg.(*protocol.RestartServerRequest)
-		s.logger.Info("restart requested", "requestId", m.RequestID)
-	})
-	r.Register("shutdown_server_request", func(s *Session, msg protocol.SessionInboundMessage) {
-		m := msg.(*protocol.ShutdownServerRequest)
-		s.logger.Info("shutdown requested", "requestId", m.RequestID)
-	})
+	r.Register("restart_server_request", typeHandler(s.handleRestartServer))
+	r.Register("shutdown_server_request", typeHandler(s.handleShutdownServer))
+	r.Register("list_daemon_versions_request", typeHandler(s.handleListDaemonVersions))
+	r.Register("switch_daemon_version_request", typeHandler(s.handleSwitchDaemonVersion))
 
 	// --- Push (session.go) ---
 	r.Register("register_push_token", typeHandler(s.handleRegisterPushToken))

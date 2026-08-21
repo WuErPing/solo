@@ -83,10 +83,13 @@ solo/
 │       └── config/      # JSON config (~/.solo/config.json), incl. MemoryConfig
 ├── relay-go/            # Go WebSocket relay server
 │   └── internal/relay/  # Server, session, control, buffer, metrics
+├── supervisor/          # Go daemon supervisor (solo-supervisor)
+│   └── internal/supervisor/  # Spawn/respawn loop, backoff, PID/log ownership
 ├── cli/                 # Go CLI tool
 │   └── cmd/             # daemon, agent, provider subcommands
 ├── protocol/            # Shared Go protocol definitions
 │   ├── protocol.go      # Constants (WSProtocolVersion, endpoints)
+│   ├── process_contract.go  # Daemon↔supervisor exit-code contract (42=restart)
 │   └── message*.go      # Message type definitions
 └── packages/highlight/  # Syntax highlighting package
 ```

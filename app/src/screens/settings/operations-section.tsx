@@ -1,14 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Text, View } from "react-native";
-import { useUnistyles } from "react-native-unistyles";
-import { RotateCw } from "lucide-react-native";
+import { Alert, Text, View, type PressableStateCallbackType } from "react-native";
+import { StyleSheet, useUnistyles } from "react-native-unistyles";
+import { ChevronDown, RotateCw } from "lucide-react-native";
 import { settingsStyles } from "@/styles/settings";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   getHostRuntimeStore,
   isHostRuntimeConnected,
   useHostRuntimeClient,
   useHostRuntimeIsConnected,
 } from "@/runtime/host-runtime";
+import { useSessionStore } from "@/stores/session-store";
 import { confirmDialog } from "@/utils/confirm-dialog";
 import { useDaemonConfig } from "@/hooks/use-daemon-config";
 import { Button } from "@/components/ui/button";
@@ -32,17 +39,21 @@ export function OperationsSection({ serverId, hostLabel }: OperationsSectionProp
   return (
     <SettingsSection title="Operations">
       <RestartDaemonCard serverId={serverId} hostLabel={hostLabel} />
+      <DaemonVersionCard serverId={serverId} hostLabel={hostLabel} />
       <InjectSoloToolsCard serverId={serverId} />
     </SettingsSection>
   );
 }
 
-function RestartDaemonCard({ serverId, hostLabel }: { serverId: string; hostLabel: string }) {
-  const { theme } = useUnistyles();
-  const daemonClient = useHostRuntimeClient(serverId);
-  const isConnected = useHostRuntimeIsConnected(serverId);
+/**
+ * Shared disconnect → reconnect wait used when the daemon is about to restart
+ * (manual restart or version switch). Returns the current-connection predicate
+ * plus a waiter that resolves once the host is back online (or times out).
+ * Handles the "already reconnected / no disconnect happened" case gracefully:
+ * it simply proceeds straight to the reconnect wait.
+ */
+function useDaemonReconnectWait(serverId: string, hostLabel: string) {
   const runtime = getHostRuntimeStore();
-  const [isRestarting, setIsRestarting] = useState(false);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -76,16 +87,27 @@ function RestartDaemonCard({ serverId, hostLabel }: { serverId: string; hostLabe
       await waitForCondition(() => !isHostConnected(), disconnectTimeoutMs);
     }
     const reconnected = await waitForCondition(() => isHostConnected(), reconnectTimeoutMs);
-    if (isMountedRef.current) {
-      setIsRestarting(false);
-      if (!reconnected) {
-        Alert.alert(
-          "Unable to reconnect",
-          `${hostLabel} did not come back online. Please verify it restarted.`,
-        );
-      }
+    if (isMountedRef.current && !reconnected) {
+      Alert.alert(
+        "Unable to reconnect",
+        `${hostLabel} did not come back online. Please verify it restarted.`,
+      );
     }
+    return reconnected;
   }, [hostLabel, isHostConnected, waitForCondition]);
+
+  return { isHostConnected, waitForDaemonRestart, isMountedRef };
+}
+
+function RestartDaemonCard({ serverId, hostLabel }: { serverId: string; hostLabel: string }) {
+  const { theme } = useUnistyles();
+  const daemonClient = useHostRuntimeClient(serverId);
+  const isConnected = useHostRuntimeIsConnected(serverId);
+  const { isHostConnected, waitForDaemonRestart, isMountedRef } = useDaemonReconnectWait(
+    serverId,
+    hostLabel,
+  );
+  const [isRestarting, setIsRestarting] = useState(false);
 
   const handleRestart = useCallback(() => {
     if (!daemonClient) {
@@ -124,14 +146,18 @@ function RestartDaemonCard({ serverId, hostLabel }: { serverId: string; hostLabe
               "Failed to send the restart request. Solo reconnects automatically—try again once the host shows as online.",
             );
           });
-        void waitForDaemonRestart();
+        void waitForDaemonRestart().then(() => {
+          if (isMountedRef.current) {
+            setIsRestarting(false);
+          }
+        });
         return;
       })
       .catch((error) => {
         console.error(`[OperationsSection] Failed to open restart confirmation for ${hostLabel}`, error);
         Alert.alert("Error", "Unable to open the restart confirmation dialog.");
       });
-  }, [daemonClient, hostLabel, serverId, isHostConnected, waitForDaemonRestart]);
+  }, [daemonClient, hostLabel, serverId, isHostConnected, waitForDaemonRestart, isMountedRef]);
 
   const restartIcon = useMemo(
     () => <RotateCw size={theme.iconSize.sm} color={theme.colors.foreground} />,
@@ -157,6 +183,181 @@ function RestartDaemonCard({ serverId, hostLabel }: { serverId: string; hostLabe
         >
           {isRestarting ? "Restarting..." : "Restart"}
         </Button>
+      </View>
+    </View>
+  );
+}
+
+function stripSoloPrefix(filename: string): string {
+  return filename.startsWith("solo-") ? filename.slice("solo-".length) : filename;
+}
+
+// MAX_MENU_VERSIONS caps how many recent builds the version picker lists.
+const MAX_MENU_VERSIONS = 8;
+
+const styles = StyleSheet.create((theme) => ({
+  versionTrigger: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: theme.spacing[2],
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+    borderWidth: 1,
+    borderRadius: theme.borderRadius.md,
+    borderColor: theme.colors.borderAccent,
+    backgroundColor: "transparent",
+  },
+  versionTriggerText: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
+  },
+}));
+
+function versionTriggerStyle({ pressed }: PressableStateCallbackType) {
+  return [styles.versionTrigger, pressed && { opacity: 0.85 }];
+}
+
+function DaemonVersionCard({ serverId, hostLabel }: { serverId: string; hostLabel: string }) {
+  const { theme } = useUnistyles();
+  const daemonClient = useHostRuntimeClient(serverId);
+  const isConnected = useHostRuntimeIsConnected(serverId);
+  const { waitForDaemonRestart, isMountedRef } = useDaemonReconnectWait(serverId, hostLabel);
+  const runningVersion = useSessionStore(
+    (state) => state.sessions[serverId]?.serverInfo?.version ?? null,
+  );
+  const [versions, setVersions] = useState<{ version: string; mtimeMs: number }[]>([]);
+  const [isSwitching, setIsSwitching] = useState(false);
+  // Older daemons don't know list_daemon_versions and fail the request (or
+  // time out). Treat any list failure as "feature unavailable" and hide the
+  // card instead of surfacing an error.
+  const [isSupported, setIsSupported] = useState(true);
+
+  useEffect(() => {
+    if (!daemonClient || !isConnected) return;
+    let cancelled = false;
+    void daemonClient.versions
+      .listDaemonVersions(`settings_list_daemon_versions_${serverId}`)
+      .then((payload) => {
+        if (!cancelled) {
+          setVersions(payload.versions ?? []);
+        }
+      })
+      .catch((error) => {
+        console.debug(
+          `[OperationsSection] Daemon version switching unavailable on ${hostLabel}`,
+          error,
+        );
+        if (!cancelled) {
+          setVersions([]);
+          setIsSupported(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [daemonClient, isConnected, serverId, hostLabel]);
+
+  const latestFilename = versions[0]?.version ?? null;
+  const latestDisplay = latestFilename ? stripSoloPrefix(latestFilename) : null;
+
+  const handleSelectVersion = useCallback(
+    (filename: string, display: string) => {
+      if (!daemonClient) return;
+
+      void confirmDialog({
+        title: `Switch daemon version on ${hostLabel}`,
+        message: `This will restart the daemon onto ${display}. The app will reconnect automatically.`,
+        confirmLabel: "Switch",
+        cancelLabel: "Cancel",
+      })
+        .then((confirmed) => {
+          if (!confirmed) return;
+          setIsSwitching(true);
+          void daemonClient.versions
+            .switchDaemonVersion(filename)
+            .then(() => {
+              void waitForDaemonRestart().then(() => {
+                if (isMountedRef.current) {
+                  setIsSwitching(false);
+                }
+              });
+            })
+            .catch((error) => {
+              console.error(
+                `[OperationsSection] Failed to switch daemon version on ${hostLabel}`,
+                error,
+              );
+              if (!isMountedRef.current) return;
+              setIsSwitching(false);
+              Alert.alert("Error", error instanceof Error ? error.message : String(error));
+            });
+          return;
+        })
+        .catch((error) => {
+          console.error(
+            `[OperationsSection] Failed to open version switch confirmation for ${hostLabel}`,
+            error,
+          );
+          Alert.alert("Error", "Unable to open the version switch confirmation dialog.");
+        });
+    },
+    [daemonClient, hostLabel, waitForDaemonRestart, isMountedRef],
+  );
+
+  const chevronIcon = useMemo(
+    () => <ChevronDown size={theme.iconSize.sm} color={theme.colors.foreground} />,
+    [theme.iconSize.sm, theme.colors.foreground],
+  );
+
+  const hintParts = [runningVersion ? `Running ${runningVersion}` : "Running version unknown"];
+  if (latestDisplay) {
+    hintParts.push(`Latest local build ${latestDisplay}`);
+  }
+
+  if (!isSupported) return null;
+
+  return (
+    <View style={settingsStyles.card} testID="settings-operations-version-card">
+      <View style={settingsStyles.row}>
+        <View style={settingsStyles.rowContent}>
+          <Text style={settingsStyles.rowTitle}>Daemon version</Text>
+          <Text style={settingsStyles.rowHint}>{hintParts.join(" · ")}</Text>
+        </View>
+        {versions.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              disabled={isSwitching || !daemonClient || !isConnected}
+              style={versionTriggerStyle}
+              testID="settings-operations-version-switch-button"
+            >
+              <Text style={styles.versionTriggerText}>
+                {isSwitching ? "Switching..." : "Switch version"}
+              </Text>
+              {chevronIcon}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="bottom" align="end" width={280}>
+              {versions.slice(0, MAX_MENU_VERSIONS).map((entry) => {
+                const display = stripSoloPrefix(entry.version);
+                const isRunning = runningVersion != null && display === runningVersion;
+                const label =
+                  display + (entry.version === latestFilename ? " (latest)" : "");
+                return (
+                  <DropdownMenuItem
+                    key={entry.version}
+                    testID={`settings-operations-version-item-${display}`}
+                    selected={isRunning}
+                    showSelectedCheck
+                    disabled={isRunning || isSwitching}
+                    onSelect={() => handleSelectVersion(entry.version, display)}
+                  >
+                    {label}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </View>
     </View>
   );

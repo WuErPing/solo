@@ -175,6 +175,15 @@ vi.mock("@/desktop/components/desktop-updates-section", () => ({
   LocalDaemonSection: () => null,
 }));
 
+vi.mock("@/screens/settings/operations-section", () => ({
+  OperationsSection: ({ serverId, hostLabel }: { serverId: string; hostLabel: string }) =>
+    React.createElement(
+      "div",
+      { "data-testid": "host-page-operations" },
+      `${hostLabel}:${serverId}`,
+    ),
+}));
+
 function makeHost(): HostProfile {
   return {
     serverId: "server-1",
@@ -284,6 +293,14 @@ describe("HostPage speed test", () => {
     expect(speedTestButton()).not.toBeNull();
     expect(container?.textContent).toContain("Relay (relay.example.com)");
     expect(container?.textContent).toContain("42ms");
+  });
+
+  it("renders the Operations section for the viewed host", async () => {
+    await renderPage();
+
+    const operations = container?.querySelector('[data-testid="host-page-operations"]');
+    expect(operations).not.toBeNull();
+    expect(operations?.textContent).toBe("Test Host:server-1");
   });
 
   it("shows a testing state and then the segment breakdown on success", async () => {

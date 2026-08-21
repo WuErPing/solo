@@ -80,6 +80,12 @@ import {
   UsageQuotaListResponseSchema,
 } from "../server/usage/rpc-schemas.js";
 import {
+  DaemonVersionSwitchRequestedStatusPayloadSchema,
+  ListDaemonVersionsRequestSchema,
+  ListDaemonVersionsResponseSchema,
+  SwitchDaemonVersionRequestSchema,
+} from "../server/version/rpc-schemas.js";
+import {
   LoopRunRequestSchema,
   LoopListRequestSchema,
   LoopInspectRequestSchema,
@@ -439,6 +445,8 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   LoopTemplateGetRequestSchema,
   LoopTemplateDeleteRequestSchema,
   UsageQuotaListRequestSchema,
+  ListDaemonVersionsRequestSchema,
+  SwitchDaemonVersionRequestSchema,
 ]);
 
 export type SessionInboundMessage = z.infer<typeof SessionInboundMessageSchema>;
@@ -454,6 +462,7 @@ export const KnownStatusPayloadSchema = z.discriminatedUnion("status", [
   AgentRefreshedStatusPayloadSchema,
   ShutdownRequestedStatusPayloadSchema,
   RestartRequestedStatusPayloadSchema,
+  DaemonVersionSwitchRequestedStatusPayloadSchema,
   DaemonConfigChangedStatusPayloadSchema,
 ]);
 
@@ -588,7 +597,8 @@ export type SessionOutboundMessage =
   | z.infer<typeof LoopTemplateListResponseSchema>
   | z.infer<typeof LoopTemplateGetResponseSchema>
   | z.infer<typeof LoopTemplateDeleteResponseSchema>
-  | z.infer<typeof UsageQuotaListResponseSchema>;
+  | z.infer<typeof UsageQuotaListResponseSchema>
+  | z.infer<typeof ListDaemonVersionsResponseSchema>;
 
 export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   ActivityLogMessageSchema,
@@ -720,6 +730,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   LoopTemplateGetResponseSchema,
   LoopTemplateDeleteResponseSchema,
   UsageQuotaListResponseSchema,
+  ListDaemonVersionsResponseSchema,
 ]) as z.ZodType<SessionOutboundMessage, z.ZodTypeDef, unknown>;
 
 // ============================================================================

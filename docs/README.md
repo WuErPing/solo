@@ -87,6 +87,8 @@ Architecture Decision Records capture significant design decisions, including co
 | Document | Status | Summary |
 |----------|--------|---------|
 | [ADR-001: Shared Agent Template](decisions/adr-001-shared-agent-template-for-loop-and-schedule.md) | Accepted | Unify Loop and Schedule on `protocol.AgentSessionConfig` (`AgentTemplate`). |
+| [ADR-003: Supervisor Process with Exit-Code Restart Contract](decisions/adr-003-supervisor-exit-code-restart-contract.md) | Accepted | `solo-supervisor` respawns the daemon by exit code (42=restart, 0=shutdown); WS protocol is the only control channel. |
+| [ADR-004: Daemon Version Switching via Versions Directory and Pointer File](decisions/adr-004-daemon-version-switching.md) | Accepted | `~/.solo/versions/` + `current` pointer; supervisor re-resolves the binary per spawn; switch = write pointer + exit 42. |
 
 Conventions & template: [`decisions/README.md`](decisions/README.md)
 
@@ -116,6 +118,7 @@ System design, component contracts, and runtime behaviour.
 | [Push Notifications](architecture/push-notifications.md) | Design | Expo push token chain |
 | [Tmux Pane Content Loading](architecture/tmux-pane-content-loading.md) | Design | Agent detection, ANSI capture, push refresh, snapshot diffing |
 | [Schedule Assistant](architecture/schedule-assistant.md) | Design | NL schedule parse, proposal-only safety, `schedule/assist` RPC |
+| [Daemon Supervision](architecture/daemon-supervision.md) | Design | `solo-supervisor` process, exit-code contract, restart/shutdown flow, respawn policy |
 
 **Key facts (always-on context)**:
 - Daemon: `127.0.0.1:17612`; Relay: `127.0.0.1:8081` (behind Nginx :443)

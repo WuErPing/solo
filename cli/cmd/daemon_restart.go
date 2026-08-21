@@ -51,9 +51,12 @@ func runDaemonRestart(cmd *cobra.Command, _ []string) error {
 		Reason: &reason,
 	}
 
-	_, err = c.Request(ctx, req)
+	resp, err := c.Request(ctx, req)
 	if err != nil {
 		return &output.CommandError{Code: "RESTART_FAILED", Message: fmt.Sprintf("Failed to send restart: %v", err)}
+	}
+	if isRPCError(resp) {
+		return &output.CommandError{Code: "RESTART_REFUSED", Message: extractRPCError(resp)}
 	}
 
 	opts := getOutputOpts(flagFormat, flagJSON, flagQuiet, flagNoHeaders, flagNoColor)

@@ -47,12 +47,6 @@ func runDaemonStart(_ *cobra.Command, _ []string) error {
 		}
 	}
 
-	// Find daemon binary
-	daemonBin, err := findDaemonBinary()
-	if err != nil {
-		return &output.CommandError{Code: "DAEMON_NOT_FOUND", Message: err.Error()}
-	}
-
 	// Build command
 	execArgs := []string{}
 	if daemonStartPort != "" {
@@ -69,6 +63,12 @@ func runDaemonStart(_ *cobra.Command, _ []string) error {
 	}
 
 	if daemonStartForeground {
+		// Foreground runs the daemon directly (unsupervised) so its logs
+		// stream to this terminal.
+		daemonBin, err := findDaemonBinary()
+		if err != nil {
+			return &output.CommandError{Code: "DAEMON_NOT_FOUND", Message: err.Error()}
+		}
 		fgCmd := exec.Command(daemonBin, execArgs...)
 		fgCmd.Stdout = os.Stdout
 		fgCmd.Stderr = os.Stderr
@@ -76,12 +76,12 @@ func runDaemonStart(_ *cobra.Command, _ []string) error {
 		return fgCmd.Run()
 	}
 
-	pid, err = execDaemon(daemonBin, execArgs)
+	startedPID, err := startManagedDaemon(execArgs)
 	if err != nil {
-		return &output.CommandError{Code: "DAEMON_START_FAILED", Message: fmt.Sprintf("Failed to start daemon: %v", err)}
+		return err
 	}
 
-	_, _ = fmt.Fprintf(cmdStdout, "Daemon starting (PID %d)...\n", pid)
+	_, _ = fmt.Fprintf(cmdStdout, "Daemon starting (PID %d)...\n", startedPID)
 
 	// Wait for daemon to become healthy
 	host := resolveDaemonHost()
@@ -103,6 +103,45 @@ func execDaemon(bin string, args []string) (int, error) {
 		return 0, err
 	}
 	return cmd.Process.Pid, nil
+}
+
+// startManagedDaemon starts the daemon via solo-supervisor when available so
+// that app-triggered restarts work; otherwise it falls back to starting the
+// daemon directly (restart requests will be refused with NOT_SUPERVISED).
+func startManagedDaemon(execArgs []string) (int, error) {
+	if supBin, err := findSupervisorBinary(); err == nil {
+		pid, err := execDaemon(supBin, execArgs)
+		if err != nil {
+			return 0, &output.CommandError{Code: "DAEMON_START_FAILED", Message: fmt.Sprintf("Failed to start supervisor: %v", err)}
+		}
+		_, _ = fmt.Fprintln(cmdStdout, "Starting via solo-supervisor (app-triggered restart enabled)")
+		return pid, nil
+	}
+	daemonBin, err := findDaemonBinary()
+	if err != nil {
+		return 0, &output.CommandError{Code: "DAEMON_NOT_FOUND", Message: err.Error()}
+	}
+	_, _ = fmt.Fprintln(cmdStdout, "Warning: solo-supervisor not found; starting daemon directly (app-triggered restart unavailable)")
+	pid, err := execDaemon(daemonBin, execArgs)
+	if err != nil {
+		return 0, &output.CommandError{Code: "DAEMON_START_FAILED", Message: fmt.Sprintf("Failed to start daemon: %v", err)}
+	}
+	return pid, nil
+}
+
+// findSupervisorBinary locates the solo-supervisor binary next to the CLI or
+// on PATH.
+func findSupervisorBinary() (string, error) {
+	if cliBin, err := os.Executable(); err == nil {
+		candidate := filepath.Join(filepath.Dir(cliBin), "solo-supervisor")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, nil
+		}
+	}
+	if path, err := exec.LookPath("solo-supervisor"); err == nil {
+		return path, nil
+	}
+	return "", fmt.Errorf("cannot find supervisor binary 'solo-supervisor'")
 }
 
 func findDaemonBinary() (string, error) {

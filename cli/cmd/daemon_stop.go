@@ -42,9 +42,12 @@ func runDaemonStop(cmd *cobra.Command, _ []string) error {
 		Type: "shutdown_server_request",
 	}
 
-	_, err = c.Request(ctx, req)
+	resp, err := c.Request(ctx, req)
 	if err != nil {
 		return &output.CommandError{Code: "STOP_FAILED", Message: fmt.Sprintf("Failed to send shutdown: %v", err)}
+	}
+	if isRPCError(resp) {
+		return &output.CommandError{Code: "STOP_REFUSED", Message: extractRPCError(resp)}
 	}
 
 	opts := getOutputOpts(flagFormat, flagJSON, flagQuiet, flagNoHeaders, flagNoColor)

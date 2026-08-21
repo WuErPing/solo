@@ -49,8 +49,18 @@ func main() {
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	sig := <-sigCh
-	logger.Info("received signal, shutting down", "signal", sig)
+
+	exitCode := 0
+	select {
+	case sig := <-sigCh:
+		logger.Info("received signal, shutting down", "signal", sig)
+	case req := <-daemon.ExitRequested():
+		// A client asked for restart/shutdown via the WS protocol. Exit with
+		// the request's code so a supervising process can tell an intentional
+		// restart (respawn) from a clean shutdown (no respawn).
+		logger.Info("exit requested, shutting down", "code", req.Code, "reason", req.Reason)
+		exitCode = req.Code
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -63,4 +73,5 @@ func main() {
 		releasePID()
 	}
 	logger.Info("daemon stopped")
+	os.Exit(exitCode)
 }

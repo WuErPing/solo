@@ -8,6 +8,9 @@ ADRs capture significant design decisions that shape the codebase. Each record d
 |-----|-------|--------|------|
 | [ADR-001](adr-001-shared-agent-template-for-loop-and-schedule.md) | Shared Agent Template for Loop and Schedule | Accepted | 2026-06-29 |
 | [ADR-002](adr-002-product-task-unification.md) | Product + Task Unification | Proposed | 2026-07-31 |
+| [ADR-003](adr-003-supervisor-exit-code-restart-contract.md) | Supervisor Exit-Code Restart Contract | Accepted | 2026-08-20 |
+| [ADR-004](adr-004-daemon-version-switching.md) | Daemon Version Switching via Versions Directory and Pointer File | Accepted | 2026-08-20 |
+| [ADR-005](adr-005-supervisor-crash-fallback.md) | Supervisor Crash Fallback to a Working Daemon Build | Accepted | 2026-08-21 |
 
 ## Conventions
 

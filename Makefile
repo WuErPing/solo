@@ -1,17 +1,21 @@
-BINS    := solo solo-relay solo-cli solo-usage
+BINS    := solo solo-relay solo-cli solo-usage solo-supervisor
 OUTPUT  := output
 APP_DIR := app
 RELAY_NODEJS_DIR := relay-nodejs
 DAEMON_PORT := 17612
 APP_PORT := 19000
 
-GO_MODULES := protocol cli daemon relay-go usage
+GO_MODULES := protocol cli daemon relay-go supervisor usage
 GO_TEST_FLAGS := -short -v -race -count=1 -timeout=10m -tags external_api
 
 # Version injection: release builds use git tag, dev builds use {tag}-dev-{datetime}
 GIT_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
 GIT_DIRTY := $(shell git diff --quiet 2>/dev/null && echo "" || echo "-dirty")
-VERSION ?= $(GIT_TAG)-dev-$(shell date +%Y%m%d%H%M%S)$(GIT_DIRTY)
+# Simply-expanded on purpose: one timestamp per make invocation, so the
+# ldflags-embedded version and the versions-dir filename (make restart) match.
+ifeq ($(origin VERSION), undefined)
+VERSION := $(GIT_TAG)-dev-$(shell date +%Y%m%d%H%M%S)$(GIT_DIRTY)
+endif
 GO_LDFLAGS := -X github.com/WuErPing/solo/daemon/internal/config.Version=$(VERSION)
 CLI_GO_LDFLAGS := -X github.com/WuErPing/solo/cli/internal/config.Version=$(VERSION)
 
@@ -19,9 +23,9 @@ CLI_GO_LDFLAGS := -X github.com/WuErPing/solo/cli/internal/config.Version=$(VERS
 
 all: darwin linux
 
-darwin: solo solo-relay solo-cli solo-usage
+darwin: solo solo-relay solo-cli solo-usage solo-supervisor
 
-linux: solo-linux-amd64 solo-relay-linux-amd64 solo-cli-linux-amd64
+linux: solo-linux-amd64 solo-relay-linux-amd64 solo-cli-linux-amd64 solo-supervisor-linux-amd64
 
 solo:
 	GOOS=darwin GOARCH=arm64 go build -ldflags "$(GO_LDFLAGS)" -o $(OUTPUT)/darwin/$@ ./daemon
@@ -35,11 +39,17 @@ solo-cli:
 solo-usage:
 	GOOS=darwin GOARCH=arm64 go build -o $(OUTPUT)/darwin/$@ ./usage
 
+solo-supervisor:
+	GOOS=darwin GOARCH=arm64 go build -o $(OUTPUT)/darwin/$@ ./supervisor
+
 solo-linux-amd64:
 	GOOS=linux GOARCH=amd64 go build -ldflags "$(GO_LDFLAGS)" -o $(OUTPUT)/linux/solo ./daemon
 
 solo-relay-linux-amd64:
 	GOOS=linux GOARCH=amd64 go build -ldflags "$(GO_LDFLAGS)" -o $(OUTPUT)/linux/solo-relay ./relay-go/cmd/relay
+
+solo-supervisor-linux-amd64:
+	GOOS=linux GOARCH=amd64 go build -o $(OUTPUT)/linux/solo-supervisor ./supervisor
 
 # Node.js relay (self-hosted, from Solo)
 solo-relay-nodejs:
@@ -94,13 +104,21 @@ stop-all:
 	$(OUTPUT)/darwin/solo-cli delete --all
 
 restart: darwin
-	@echo "Restarting solo daemon..."
+	@echo "Restarting solo daemon (supervised)..."
+	@mkdir -p $(HOME)/.solo/versions
+	@cp $(OUTPUT)/darwin/solo $(HOME)/.solo/versions/solo-$(VERSION)
+	@chmod +x $(HOME)/.solo/versions/solo-$(VERSION)
+	@printf '%s\n' "solo-$(VERSION)" > $(HOME)/.solo/versions/current
+	-pkill -f "output/darwin/solo-supervisor" 2>/dev/null || true
 	-pkill -f "output/darwin/solo$$" 2>/dev/null || true
+	-pkill -f "$(HOME)/.solo/versions/solo-" 2>/dev/null || true
 	@sleep 1
+	-pkill -9 -f "output/darwin/solo-supervisor" 2>/dev/null || true
 	-pkill -9 -f "output/darwin/solo$$" 2>/dev/null || true
+	-pkill -9 -f "$(HOME)/.solo/versions/solo-" 2>/dev/null || true
 	@sleep 1
-	@$(OUTPUT)/darwin/solo > /tmp/solo-daemon.log 2>&1 & \
-	echo "Daemon started (PID: $$!), logs at /tmp/solo-daemon.log"
+	@$(OUTPUT)/darwin/solo-supervisor > /tmp/solo-supervisor.log 2>&1 & \
+	echo "Supervisor started (PID: $$!), running solo-$(VERSION); daemon logs at $(HOME)/.solo/logs/daemon.log"
 
 # CI targets (mirror GitHub Actions)
 

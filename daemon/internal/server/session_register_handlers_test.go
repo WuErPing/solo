@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/WuErPing/solo/daemon/internal/config"
@@ -69,6 +70,8 @@ func TestRegisterHandlers_RegistersAllTypes(t *testing.T) {
 		"get_providers_snapshot_request",
 		"restart_server_request",
 		"shutdown_server_request",
+		"list_daemon_versions_request",
+		"switch_daemon_version_request",
 		"register_push_token",
 		"list_terminals_request",
 		"create_terminal_request",
@@ -115,5 +118,51 @@ func TestRegisterHandlers_RegistersAllTypes(t *testing.T) {
 		if !s.handlerRegistry.HasHandler(msgType) {
 			t.Errorf("expected handler for message type %q", msgType)
 		}
+	}
+}
+
+// Regression test: an rpc_error reply must carry the caller's requestId (and
+// the request type), otherwise the client's pending request never resolves
+// and times out — this is what happens when a newer app talks to an older
+// daemon that doesn't know the message type yet.
+func TestHandleSessionMessage_UnknownType_CorrelatesRPCError(t *testing.T) {
+	s, q := newCaptureSession()
+	s.handlerRegistry = newMessageHandlerRegistry()
+
+	s.handleSessionMessage(json.RawMessage(`{"type":"future_feature_request","requestId":"req-42"}`))
+
+	msgs := drainMessages(q)
+	resp := findSessionMessage(msgs, "rpc_error")
+	if resp == nil {
+		t.Fatalf("expected rpc_error, got %v", msgs)
+	}
+	payload := resp["payload"].(map[string]interface{})
+	if payload["requestId"] != "req-42" {
+		t.Errorf("requestId = %v, want req-42", payload["requestId"])
+	}
+	if payload["requestType"] != "future_feature_request" {
+		t.Errorf("requestType = %v, want future_feature_request", payload["requestType"])
+	}
+}
+
+// Same correlation guarantee for a message that decodes fine but has no
+// registered handler on this daemon.
+func TestHandleSessionMessage_UnhandledType_CorrelatesRPCError(t *testing.T) {
+	s, q := newCaptureSession()
+	s.handlerRegistry = newMessageHandlerRegistry()
+
+	s.handleSessionMessage(json.RawMessage(`{"type":"ping","requestId":"req-7"}`))
+
+	msgs := drainMessages(q)
+	resp := findSessionMessage(msgs, "rpc_error")
+	if resp == nil {
+		t.Fatalf("expected rpc_error, got %v", msgs)
+	}
+	payload := resp["payload"].(map[string]interface{})
+	if payload["requestId"] != "req-7" {
+		t.Errorf("requestId = %v, want req-7", payload["requestId"])
+	}
+	if payload["requestType"] != "ping" {
+		t.Errorf("requestType = %v, want ping", payload["requestType"])
 	}
 }

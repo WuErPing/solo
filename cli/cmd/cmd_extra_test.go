@@ -1246,6 +1246,18 @@ func TestFindDaemonBinary_NotFound(t *testing.T) {
 	}
 }
 
+func TestFindSupervisorBinary_NotFound(t *testing.T) {
+	// Save and clear PATH
+	oldPath := os.Getenv("PATH")
+	os.Setenv("PATH", "")
+	defer os.Setenv("PATH", oldPath)
+
+	_, err := findSupervisorBinary()
+	if err == nil {
+		t.Error("expected error when supervisor binary not found")
+	}
+}
+
 func TestRunAgentAttach(t *testing.T) {
 	outBuf, _ := setupEnhancedCLI(t)
 	flagFormat = "table"

@@ -566,24 +566,28 @@ func TestCaptureTmuxPaneJoinsWrappedLines(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tmux send-keys: %v", err)
 	}
-	time.Sleep(300 * time.Millisecond)
 
-	content, _, err := captureTmuxPane(paneID, -10, 0)
-	if err != nil {
-		t.Fatalf("captureTmuxPane error: %v", err)
-	}
-
-	for _, line := range strings.Split(content, "\n") {
-		if strings.Contains(line, marker) {
-			got := strings.TrimSpace(line)
-			want := marker + payload
-			if got != want {
-				t.Errorf("wrapped line not joined: got %q, want %q", got, want)
-			}
-			return
+	// Poll instead of a fixed sleep: the pane's shell may take seconds to
+	// initialize (heavy user shell configs), and only the printf output line
+	// proves the command ran — the echoed command line also contains the
+	// marker and must not count as a match.
+	want := marker + payload
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		content, _, err := captureTmuxPane(paneID, -10, 0)
+		if err != nil {
+			t.Fatalf("captureTmuxPane error: %v", err)
 		}
+		for _, line := range strings.Split(content, "\n") {
+			if strings.TrimSpace(line) == want {
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("output line %q not found in captured content:\n%s", want, content)
+		}
+		time.Sleep(200 * time.Millisecond)
 	}
-	t.Errorf("marker %q not found in captured content:\n%s", marker, content)
 }
 
 func TestSendKeysToTmuxPaneInvalidID(t *testing.T) {

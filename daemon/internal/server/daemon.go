@@ -63,6 +63,7 @@ type Daemon struct {
 	loopEngine       *loop.Engine
 	executorCancel   context.CancelFunc
 	loopCancel       context.CancelFunc
+	exitCh           chan ExitRequest
 }
 
 // MemoryRecorder is the minimal contract the daemon needs to flush/close
@@ -225,6 +226,7 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 		scheduleStore:  scheduleStore,
 		loopStore:      loopStore,
 		loopEngine:     loopEngine,
+		exitCh:         make(chan ExitRequest, 1),
 		http: &http.Server{
 			Handler: mux,
 			// ReadHeaderTimeout bounds the upgrade-request header phase.
@@ -244,6 +246,10 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 		d.relayClient = relayclient.NewClient(cfg.ServerID, cfg.RelayEndpoint, ws, logger, keyPair, cfg.RelayDisableControlKeepalive)
 		ws.SetRelayRTTProvider(d.relayClient.RelayLegRTT)
 	}
+
+	// Let sessions request a process exit (restart/shutdown) on behalf of
+	// clients; main() acts on the request after a graceful Stop.
+	ws.SetExitRequester(d.RequestExit)
 
 	return d, nil
 }
@@ -459,6 +465,15 @@ type WSServer struct {
 	// relayRTTProvider reports the daemon↔relay control-socket RTT; set by
 	// the Daemon once the relay client exists. Nil when relay is disabled.
 	relayRTTProvider func() (rttMs int64, measuredAt time.Time, ok bool)
+
+	// requestExit lets sessions trigger a daemon-initiated process exit
+	// (restart/shutdown requests). Set by the Daemon; nil in tests.
+	requestExit func(code int, reason string)
+}
+
+// SetExitRequester wires the callback sessions use to request a process exit.
+func (s *WSServer) SetExitRequester(fn func(code int, reason string)) {
+	s.requestExit = fn
 }
 
 // NewWSServer creates a new WebSocket server with agent dependencies.
@@ -625,13 +640,21 @@ func (s *WSServer) fireHelloProcessed() {
 func (s *WSServer) Close() {
 	close(s.done)
 	s.tmuxWatcher.Stop()
+	// Collect grace sessions under the lock, but expire them after releasing
+	// it: expireGrace runs the onGraceExpire callback, which re-acquires
+	// s.mu — expiring while holding the lock self-deadlocks (RWMutex is not
+	// reentrant).
 	s.mu.Lock()
+	var graceSessions []*Session
 	for _, sess := range s.sessions {
 		if sess.IsInGrace() {
-			sess.expireGrace()
+			graceSessions = append(graceSessions, sess)
 		}
 	}
 	s.mu.Unlock()
+	for _, sess := range graceSessions {
+		sess.expireGrace()
+	}
 }
 
 // handleNewConnection manages a single WebSocket connection lifecycle.
@@ -699,6 +722,7 @@ func (s *WSServer) handleNewConnection(conn WSConn) { //nolint:gocyclo // grandf
 		Payload: protocol.ServerInfoPayload{
 			Status:   "server_info",
 			ServerID: s.cfg.ServerID,
+			Version:  strPtr(s.cfg.Version),
 			Capabilities: &protocol.ServerCapabilities{
 				Voice: &protocol.VoiceCapabilities{
 					Dictation: protocol.VoiceFeatureStatus{Enabled: false, Reason: "not_implemented"},
@@ -799,6 +823,7 @@ func (s *WSServer) handleNewConnection(conn WSConn) { //nolint:gocyclo // grandf
 	sess.SetPusher(s.pusher)
 	sess.SetActivityTracker(s.activityTracker)
 	sess.SetMemoryBridge(s.memoryBridge)
+	sess.SetExitRequester(s.requestExit)
 	sess.startTmuxWatcher = s.tmuxWatcher.StartOnce
 
 	// Set callback so the session can remove itself from the map when grace expires.

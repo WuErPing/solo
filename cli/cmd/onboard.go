@@ -110,11 +110,6 @@ func runOnboard(_ *cobra.Command, _ []string) error {
 }
 
 func startDaemonForOnboard() error {
-	daemonBin, err := findDaemonBinary()
-	if err != nil {
-		return &output.CommandError{Code: "DAEMON_NOT_FOUND", Message: err.Error()}
-	}
-
 	execArgs := []string{}
 	if onboardPort != "" {
 		execArgs = append(execArgs, "--port", onboardPort)
@@ -129,9 +124,9 @@ func startDaemonForOnboard() error {
 		execArgs = append(execArgs, "--no-mcp")
 	}
 
-	pid, err := execDaemon(daemonBin, execArgs)
+	pid, err := startManagedDaemon(execArgs)
 	if err != nil {
-		return &output.CommandError{Code: "DAEMON_START_FAILED", Message: fmt.Sprintf("Failed to start daemon: %v", err)}
+		return err
 	}
 	_, _ = fmt.Fprintf(cmdStdout, "Daemon started (PID %d)\n", pid)
 	return nil

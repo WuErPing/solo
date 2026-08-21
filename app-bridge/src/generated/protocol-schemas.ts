@@ -70,6 +70,48 @@ export const AgentUsageSchema = z.object({
 });
 export type AgentUsage = z.infer<typeof AgentUsageSchema>;
 
+export const DaemonVersionInfoSchema = z.object({
+  version: z.string(),
+  mtimeMs: z.number(),
+});
+export type DaemonVersionInfo = z.infer<typeof DaemonVersionInfoSchema>;
+
+export const DaemonVersionSwitchRequestedStatusPayloadSchema = z.object({
+  status: z.string(),
+  clientId: z.string(),
+  version: z.string(),
+  requestId: z.string(),
+});
+export type DaemonVersionSwitchRequestedStatusPayload = z.infer<typeof DaemonVersionSwitchRequestedStatusPayloadSchema>;
+
+export const ListDaemonVersionsPayloadSchema = z.object({
+  requestId: z.string(),
+  runningVersion: z.string(),
+  currentVersion: z.string().nullable().optional(),
+  versions: z.array(DaemonVersionInfoSchema),
+  error: z.string().nullable().optional(),
+});
+export type ListDaemonVersionsPayload = z.infer<typeof ListDaemonVersionsPayloadSchema>;
+
+export const ListDaemonVersionsRequestSchema = z.object({
+  type: z.string(),
+  requestId: z.string(),
+});
+export type ListDaemonVersionsRequest = z.infer<typeof ListDaemonVersionsRequestSchema>;
+
+export const ListDaemonVersionsResponseSchema = z.object({
+  type: z.string(),
+  payload: ListDaemonVersionsPayloadSchema,
+});
+export type ListDaemonVersionsResponse = z.infer<typeof ListDaemonVersionsResponseSchema>;
+
+export const SwitchDaemonVersionRequestSchema = z.object({
+  type: z.string(),
+  version: z.string().nullable().optional(),
+  requestId: z.string(),
+});
+export type SwitchDaemonVersionRequest = z.infer<typeof SwitchDaemonVersionRequestSchema>;
+
 export const TerminalCellSchema = z.object({
   char: z.string(),
   fg: z.number().nullable().optional(),

@@ -140,6 +140,15 @@ type Session struct {
 	// relayRTT reports the daemon↔relay control-socket round-trip time.
 	// Set only for relay sessions; nil for direct/local connections.
 	relayRTT func() (rttMs int64, measuredAt time.Time, ok bool)
+
+	// requestExit lets server-control handlers (restart/shutdown) ask the
+	// daemon process to exit. Nil in tests and minimal sessions.
+	requestExit func(code int, reason string)
+}
+
+// SetExitRequester wires the callback used to request a daemon process exit.
+func (s *Session) SetExitRequester(fn func(code int, reason string)) {
+	s.requestExit = fn
 }
 
 // SetIsRelay marks this session as running through a relay.
@@ -515,27 +524,29 @@ func (s *Session) handleBinaryMessage(data []byte) {
 }
 
 func (s *Session) handleSessionMessage(raw json.RawMessage) {
+	// Extract requestId/type up front so error replies (undecodable or
+	// unhandled messages) stay correlated with the caller's pending request.
+	requestID, reqType := extractRequestMeta(raw)
 	msg, err := protocol.DecodeSessionInboundMessage(raw)
 	if err != nil {
 		s.logger.Warn("invalid session message", "error", err)
-		// Try to extract requestId from raw JSON for error correlation
-		requestID := extractRequestID(raw)
-		s.sendRPCError("", requestID, err.Error(), nil)
+		s.sendRPCError(requestID, reqType, err.Error(), nil)
 		return
 	}
 
-	s.handlerRegistry.Handle(s, msg)
+	s.handlerRegistry.Handle(s, msg, requestID)
 }
 
-// extractRequestID attempts to extract requestId from raw JSON message
-func extractRequestID(raw json.RawMessage) string {
+// extractRequestMeta extracts requestId and type from a raw JSON message.
+func extractRequestMeta(raw json.RawMessage) (requestID, msgType string) {
 	var envelope struct {
 		RequestID string `json:"requestId"`
+		Type      string `json:"type"`
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return ""
+		return "", ""
 	}
-	return envelope.RequestID
+	return envelope.RequestID, envelope.Type
 }
 
 // --- Message Handlers ---

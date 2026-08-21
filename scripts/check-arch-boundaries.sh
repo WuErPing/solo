@@ -5,12 +5,13 @@
 #   daemon/     ← may import protocol and usage
 #   cli/        ← may import protocol only (talks to daemon via WebSocket)
 #   relay-go/   ← may import protocol only (stateless relay, no business logic)
+#   supervisor/ ← may import protocol only (process watcher, no business logic)
 #   usage/      ← zero dependencies on other solo modules, imported by daemon only
 #
 # Uses `go list -deps` so it checks the real import graph, not text matches.
 set -euo pipefail
 
-MODULES=(protocol daemon cli relay-go usage)
+MODULES=(protocol daemon cli relay-go supervisor usage)
 ERRORS=0
 VIOLATIONS=""
 
@@ -22,7 +23,7 @@ for module in "${MODULES[@]}"; do
 
   # Every solo package this module depends on (transitively), excluding itself.
   deps=$(cd "$module" && go list -deps ./... 2>/dev/null \
-    | grep -E '^github\.com/WuErPing/solo/(protocol|daemon|cli|relay|usage)(/|$)' \
+    | grep -E '^github\.com/WuErPing/solo/(protocol|daemon|cli|relay|supervisor|usage)(/|$)' \
     | sort -u || true)
 
   # Determine each module's own import path prefix from its go.mod.
@@ -61,7 +62,7 @@ if [ "$ERRORS" -gt 0 ]; then
   echo -e "$VIOLATIONS" >&2
   echo "Module boundaries (see .agents/rules/architecture.md):" >&2
   echo "  protocol/ and usage/ must stay dependency-free; daemon/ may import protocol and usage;" >&2
-  echo "  cli/ and relay-go/ may import protocol only." >&2
+  echo "  cli/, relay-go/ and supervisor/ may import protocol only." >&2
   echo "If two modules genuinely need to share code, extract it into protocol/." >&2
   exit 1
 fi
