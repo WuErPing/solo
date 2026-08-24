@@ -24,15 +24,10 @@ test.describe("Settings sidebar navigation", () => {
     await gotoAppShell(page);
     await openSettings(page);
 
-    await clickSidebarSection(page, "Diagnostics");
-    await expect(page).toHaveURL(/\/settings\/diagnostics$/);
-    await expect(page.getByRole("button", { name: "Play test" })).toBeVisible();
-    await expect(page.getByTestId("settings-detail-header-title")).toHaveText("Diagnostics");
-
-    await clickSidebarSection(page, "About");
+    await clickSidebarSection(page, "About Solo");
     await expect(page).toHaveURL(/\/settings\/about$/);
     await expect(page.getByText("Version", { exact: true }).first()).toBeVisible();
-    await expect(page.getByTestId("settings-detail-header-title")).toHaveText("About");
+    await expect(page.getByTestId("settings-detail-header-title")).toHaveText("About Solo");
 
     await clickSidebarSection(page, "General");
     await expect(page).toHaveURL(/\/settings\/general$/);
@@ -98,7 +93,6 @@ test.describe("Settings — compact master-detail", () => {
     await expect(page.getByTestId("settings-sidebar")).toBeVisible();
 
     await expect(page.getByText("Theme", { exact: true })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Play test" })).toHaveCount(0);
     await expect(page.locator('[data-testid^="settings-host-page-"]')).toHaveCount(0);
   }
 
@@ -110,12 +104,7 @@ test.describe("Settings — compact master-detail", () => {
       page.getByTestId("settings-sidebar").getByRole("button", { name: "General", exact: true }),
     ).toBeVisible();
     await expect(
-      page
-        .getByTestId("settings-sidebar")
-        .getByRole("button", { name: "Diagnostics", exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByTestId("settings-sidebar").getByRole("button", { name: "About", exact: true }),
+      page.getByTestId("settings-sidebar").getByRole("button", { name: "About Solo", exact: true }),
     ).toBeVisible();
 
     // Section detail content is NOT rendered at the root.
@@ -132,10 +121,10 @@ test.describe("Settings — compact master-detail", () => {
 
     await page
       .getByTestId("settings-sidebar")
-      .getByRole("button", { name: "Diagnostics", exact: true })
+      .getByRole("button", { name: "About Solo", exact: true })
       .click();
-    await expect(page).toHaveURL(/\/settings\/diagnostics$/);
-    await expect(page.getByRole("button", { name: "Play test" })).toBeVisible();
+    await expect(page).toHaveURL(/\/settings\/about$/);
+    await expect(page.getByText("Version", { exact: true }).first()).toBeVisible();
     // Sidebar is no longer visible — we are on a detail screen.
     // (Expo Router stack keeps the previous screen in the DOM but hidden; check
     // only visible instances.)
@@ -148,7 +137,7 @@ test.describe("Settings — compact master-detail", () => {
 
     await page
       .getByTestId("settings-sidebar")
-      .getByRole("button", { name: "About", exact: true })
+      .getByRole("button", { name: "About Solo", exact: true })
       .click();
     await expect(page).toHaveURL(/\/settings\/about$/);
 

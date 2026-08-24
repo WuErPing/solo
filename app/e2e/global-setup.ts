@@ -219,23 +219,24 @@ function stripAnsi(input: string): string {
   return input.replace(ANSI_PATTERN, "");
 }
 
-function relayBinPath(repoRoot: string): string {
+function binPath(repoRoot: string, name: string): string {
   const sub = process.platform === "linux" ? "linux" : "darwin";
-  return path.join(repoRoot, "output", sub, "solo-relay");
+  return path.join(repoRoot, "output", sub, name);
 }
 
-function relayMakeTarget(): string {
-  return process.platform === "linux" ? "solo-relay-linux-amd64" : "solo-relay";
+function makeTarget(name: string): string {
+  return process.platform === "linux" ? `${name}-linux-amd64` : name;
 }
 
-function ensureRelayBuildArtifact(repoRoot: string): void {
-  const bin = relayBinPath(repoRoot);
+function ensureGoBuildArtifact(repoRoot: string, name: string): void {
+  const bin = binPath(repoRoot, name);
   if (existsSync(bin)) {
     return;
   }
 
-  console.log(`[e2e] Building solo-relay (${relayMakeTarget()})...`);
-  execFileSync("make", [relayMakeTarget()], {
+  const target = makeTarget(name);
+  console.log(`[e2e] Building ${name} (${target})...`);
+  execFileSync("make", [target], {
     cwd: repoRoot,
     stdio: "inherit",
   });
@@ -274,7 +275,7 @@ function decodeOfferFromFragmentUrl(url: string): OfferPayload {
 }
 
 function loadPairingOfferFromCli(repoRoot: string, soloHomePath: string): OfferPayload {
-  const cliBin = path.join(repoRoot, "output", "solo-cli");
+  const cliBin = binPath(repoRoot, "solo-cli");
   const stdout = execFileSync(
     cliBin,
     ["daemon", "pair", "--json"],
@@ -410,7 +411,7 @@ async function awaitRelayReady(
 }
 
 async function startRelay(repoRoot: string): Promise<number> {
-  const relayBin = relayBinPath(repoRoot);
+  const relayBin = binPath(repoRoot, "solo-relay");
   const maxRelayStartupAttempts = 5;
   let lastRelayStartupError: unknown = null;
 
@@ -498,7 +499,7 @@ interface DaemonSpawnArgs {
 }
 
 function startDaemon(args: DaemonSpawnArgs): ChildProcess {
-  const soloBin = path.join(args.repoRoot, "output", "solo");
+  const soloBin = binPath(args.repoRoot, "solo");
 
   const child = spawn(soloBin, [], {
     cwd: args.repoRoot,
@@ -568,7 +569,9 @@ async function performCleanup(shouldRemoveSoloHome: boolean): Promise<void> {
 
 export default async function globalSetup() {
   const repoRoot = path.resolve(__dirname, "../..");
-  ensureRelayBuildArtifact(repoRoot);
+  ensureGoBuildArtifact(repoRoot, "solo");
+  ensureGoBuildArtifact(repoRoot, "solo-relay");
+  ensureGoBuildArtifact(repoRoot, "solo-cli");
   ensureAppBridgeBuildArtifact(repoRoot);
   await loadEnvTestFile(repoRoot);
 
