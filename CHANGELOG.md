@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-09-09
+
+### Added
+
+- **App**: restore the exact last route on startup instead of the last-visited workspace
+- **Supervisor**: spawn-loop health persisted to `supervisor-state.json` and relayed via `list_daemon_versions`; host page shows supervisor state (host trace card, version snapshots) so unreachable hosts explain themselves
+
+### Fixed
+
+- **Relay**: stale control/data socket close no longer clears the live replacement registration — orphaned control sockets kept answering ping/pong while client connect events were silently dropped, leaving mobile clients in a 10s connect/timeout loop (relay-go-v2, deployed)
+- **App**: tmux pane key bar primary row is horizontally scrollable, keeping right-side keys (history, expand) reachable on narrow screens
+- **App**: restore react-native-unistyles and expo-router patch-package patches so CI clean installs build again
+
 ## [0.12.0] - 2026-08-21
 
 ### Added

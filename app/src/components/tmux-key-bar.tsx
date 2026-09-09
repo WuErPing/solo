@@ -167,7 +167,11 @@ export function TmuxKeyBar({ onSendKey, content, extraButtons, testIDPrefix = "t
         </ScrollView>
       </Animated.View>
 
-      <View style={styles.primaryRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.primaryRow}
+      >
         {PRIMARY_KEYS.map(({ label, key }) => (
           <Pressable
             key={key}
@@ -323,7 +327,7 @@ export function TmuxKeyBar({ onSendKey, content, extraButtons, testIDPrefix = "t
             )}
           </Animated.View>
         </Pressable>
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -385,6 +389,10 @@ const styles = StyleSheet.create((theme) => ({
     fontWeight: "500",
   },
   primaryRow: {
+    // flexGrow lets primaryRowSpacer push the trailing buttons to the right
+    // edge when the row fits, while the horizontal ScrollView keeps every key
+    // reachable on narrow screens (the fixed row used to clip them).
+    flexGrow: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
