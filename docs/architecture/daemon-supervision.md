@@ -23,6 +23,7 @@ app-triggered restarts. Decision records: [ADR-003](../decisions/adr-003-supervi
 │  42 → respawn now          │
 │  0  → exit (no respawn)    │  owns: ~/.solo/solo.pid (child PID)
 │  *  → backoff + breaker    │        ~/.solo/logs/daemon.log
+│                            │        ~/.solo/supervisor-state.json
 └──────────────────┘
 ```
 
@@ -67,7 +68,9 @@ for good.
   (`~/.solo/solo.pid`, child PID — same format `pidlock` uses, so
   `solo daemon status` keeps working), daemon log capture
   (`~/.solo/logs/daemon.log`), signal forwarding (SIGTERM → child, SIGKILL
-  after 10s grace).
+  after 10s grace), state file (`~/.solo/supervisor-state.json` —
+  observability only; the daemon surfaces it via `list_daemon_versions`
+  when `SOLO_SUPERVISED=1`).
 - **Daemon** (`daemon/`): protocol handlers, graceful stop, exit with the
   contract code. When `SOLO_SUPERVISED=1` it skips its own PID lock — the
   supervisor owns the PID file.

@@ -51,15 +51,23 @@ test.describe("Settings host page", () => {
       connectionsCard.getByText(new RegExp(`TCP \\((localhost|127\\.0\\.0\\.1):${port}\\)`)),
     ).toBeVisible();
 
-    const injectMcpCard = page.getByTestId("host-page-inject-mcp-card");
+    const injectMcpCard = page.getByTestId("settings-operations-inject-mcp-card");
     await expect(injectMcpCard).toBeVisible();
     await expect(injectMcpCard.getByRole("switch")).toBeVisible();
 
-    await expect(page.getByTestId("host-page-restart-card")).toBeVisible();
-    await expect(page.getByTestId("host-page-restart-button")).toBeVisible();
+    await expect(page.getByTestId("settings-operations-restart-card")).toBeVisible();
+    await expect(page.getByTestId("settings-operations-restart-button")).toBeVisible();
     await expect(page.getByTestId("host-page-providers-card")).toBeVisible();
     await expect(page.getByTestId("host-page-remove-host-card")).toBeVisible();
     await expect(page.getByTestId("host-page-remove-host-button")).toBeVisible();
+
+    // Host trace card starts collapsed and opens to show the version block.
+    const traceCard = page.getByTestId("host-trace-card");
+    await expect(traceCard).toBeVisible();
+    await expect(page.getByTestId("host-trace-content")).toHaveCount(0);
+    await page.getByTestId("host-trace-toggle").click();
+    await expect(page.getByTestId("host-trace-content")).toBeVisible();
+    await expect(page.getByTestId(`host-trace-version-${serverId}`)).toBeVisible();
   });
 
   test("clicking the label pencil reveals the inline editor", async ({ page }) => {

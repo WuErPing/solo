@@ -84,11 +84,25 @@ export const DaemonVersionSwitchRequestedStatusPayloadSchema = z.object({
 });
 export type DaemonVersionSwitchRequestedStatusPayload = z.infer<typeof DaemonVersionSwitchRequestedStatusPayloadSchema>;
 
+export const SupervisorStateSchema = z.object({
+  state: z.string(),
+  pid: z.number(),
+  spawnedBinary: z.string(),
+  pointerVersion: z.string().nullable().optional(),
+  consecutiveCrashes: z.number(),
+  backoffMs: z.number().nullable().optional(),
+  lastExitCode: z.number().nullable().optional(),
+  updatedAtMs: z.number(),
+  lastEvent: z.string(),
+});
+export type SupervisorState = z.infer<typeof SupervisorStateSchema>;
+
 export const ListDaemonVersionsPayloadSchema = z.object({
   requestId: z.string(),
   runningVersion: z.string(),
   currentVersion: z.string().nullable().optional(),
   versions: z.array(DaemonVersionInfoSchema),
+  supervisor: SupervisorStateSchema.nullable().optional(),
   error: z.string().nullable().optional(),
 });
 export type ListDaemonVersionsPayload = z.infer<typeof ListDaemonVersionsPayloadSchema>;

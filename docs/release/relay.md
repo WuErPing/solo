@@ -15,13 +15,13 @@
 | systemd 硬化 | 无 | `NoNewPrivileges` / `ProtectSystem=strict` 等 |
 | Nginx 上游 | `proxy_pass http://localhost:8081` | `127.0.0.1:8080` |
 
-> **⚠️ 关键警告**：`make deploy-solo-relay` 会把 [`deploy/systemd/solo-relay.service`](../../deploy/systemd/solo-relay.service)（加固模板）推送到生产并重启。该模板依赖 `solo-relay` 用户与 `/opt/solo-relay/solo-relay.env`，而**当前生产主机两者都不存在**，直接执行会导致 relay 起不来、Daemon 断连。
+> **⚠️ 注意**：[`deploy/systemd/solo-relay.service`](../../deploy/systemd/solo-relay.service)（加固模板）依赖 `solo-relay` 用户与 `/opt/solo-relay/solo-relay.env`，而**当前生产主机两者都不存在**，套用会导致 relay 起不来、Daemon 断连（2026-09-09 实际触发过一次）。
 >
-> 因此在完成下面的[加固迁移](#加固迁移)之前，**更新生产二进制请只 scp + restart，不要套用 deploy/ 的 unit**：
+> 因此在完成下面的[加固迁移](#加固迁移)之前，`make deploy-solo-relay` **只 scp 二进制 + restart，不推送 unit**（上传走 `/tmp` 再 `mv` 覆盖，避免覆写运行中二进制的 ETXTBSY 错误，并自动保留 `solo-relay.prev` 备份）。手动等效命令：
 > ```bash
 > make solo-relay-linux-amd64
-> scp output/linux/solo-relay tencent_gz_6:/opt/solo-relay/solo-relay
-> ssh tencent_gz_6 "chmod +x /opt/solo-relay/solo-relay && sudo systemctl restart solo-relay"
+> scp output/linux/solo-relay tencent_gz_6:/tmp/solo-relay.new
+> ssh tencent_gz_6 "cp /opt/solo-relay/solo-relay /opt/solo-relay/solo-relay.prev; mv /tmp/solo-relay.new /opt/solo-relay/solo-relay && chmod +x /opt/solo-relay/solo-relay && sudo systemctl restart solo-relay"
 > ```
 
 ## 构建

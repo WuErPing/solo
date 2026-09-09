@@ -62,7 +62,7 @@ type CorrelatedResponsePayload<TType extends CorrelatedResponseType> = Extract<
   { type: TType }
 >["payload"];
 
-class DaemonRpcError extends Error {
+export class DaemonRpcError extends Error {
   readonly requestId: string;
   readonly requestType?: string;
   readonly code?: string;

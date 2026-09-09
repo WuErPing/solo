@@ -428,6 +428,7 @@ usage/
 **Core Files**:
 - `supervisor/main.go` - Entry point
 - `supervisor/internal/supervisor/supervisor.go` - Supervisor logic (spawn loop, backoff, crash breaker)
+- `supervisor/internal/supervisor/state.go` - State file writer (`~/.solo/supervisor-state.json`, observability only)
 - `protocol/process_contract.go` - Shared exit-code contract (`ExitCodeRestartRequested = 42`)
 
 See [Daemon Supervision](daemon-supervision.md), [ADR-003](../decisions/adr-003-supervisor-exit-code-restart-contract.md) and [ADR-005](../decisions/adr-005-supervisor-crash-fallback.md).

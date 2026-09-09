@@ -2,6 +2,7 @@ package supervisor
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"os"
@@ -410,5 +411,171 @@ func TestRun_CrashFallbackExhausted(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(versionsDir, "current")); !os.IsNotExist(err) {
 		t.Errorf("pointer should be removed for default-binary fallback, stat err = %v", err)
+	}
+}
+
+// --- Supervisor state file ---
+
+func readStateFile(t *testing.T, soloHome string) *SupervisorState {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(soloHome, "supervisor-state.json"))
+	if err != nil {
+		t.Fatalf("read state file: %v", err)
+	}
+	var st SupervisorState
+	if err := json.Unmarshal(data, &st); err != nil {
+		t.Fatalf("parse state file: %v", err)
+	}
+	return &st
+}
+
+func TestRecordState_WritesAtomicJSON(t *testing.T) {
+	sup := newPointerTestSupervisor(t)
+	versionsDir := filepath.Join(sup.cfg.SoloHome, "versions")
+	writeExecutable(t, filepath.Join(versionsDir, "solo-v1"))
+	if err := os.WriteFile(filepath.Join(versionsDir, "current"), []byte("solo-v1\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	sup.lastChildPID = 4321
+	sup.lastChildBinary = "/opt/solo/versions/solo-v1"
+	backoff := 3 * time.Second
+	code := 7
+
+	sup.recordState(stateBackoff, "daemon crashed exit=7", 2, backoff, &code)
+
+	st := readStateFile(t, sup.cfg.SoloHome)
+	if st.SchemaVersion != supervisorStateSchemaVersion {
+		t.Errorf("SchemaVersion = %d, want %d", st.SchemaVersion, supervisorStateSchemaVersion)
+	}
+	if st.State != stateBackoff || st.Pid != 4321 || st.SpawnedBinary != "solo-v1" {
+		t.Errorf("state = %+v", st)
+	}
+	if st.PointerVersion == nil || *st.PointerVersion != "solo-v1" {
+		t.Errorf("PointerVersion = %v, want solo-v1", st.PointerVersion)
+	}
+	if st.ConsecutiveCrashes != 2 {
+		t.Errorf("ConsecutiveCrashes = %d, want 2", st.ConsecutiveCrashes)
+	}
+	if st.BackoffMs == nil || *st.BackoffMs != 3000 {
+		t.Errorf("BackoffMs = %v, want 3000", st.BackoffMs)
+	}
+	if st.LastExitCode == nil || *st.LastExitCode != 7 {
+		t.Errorf("LastExitCode = %v, want 7", st.LastExitCode)
+	}
+	if st.UpdatedAtMs <= 0 || st.LastEvent == "" {
+		t.Errorf("UpdatedAtMs/LastEvent = %d/%q", st.UpdatedAtMs, st.LastEvent)
+	}
+	// Atomic write must leave no temp files behind.
+	entries, err := os.ReadDir(sup.cfg.SoloHome)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".supervisor-state-") {
+			t.Errorf("leftover temp state file %q", e.Name())
+		}
+	}
+}
+
+func TestRun_CleanExitWritesStoppedState(t *testing.T) {
+	sup := newTestSupervisor(t, "SOLO_FAKE_CHILD_EXIT=0")
+	if code := sup.Run(context.Background()); code != protocol.ExitCodeClean {
+		t.Fatalf("Run = %d, want %d", code, protocol.ExitCodeClean)
+	}
+	st := readStateFile(t, sup.cfg.SoloHome)
+	if st.State != stateStopped {
+		t.Errorf("State = %q, want %q", st.State, stateStopped)
+	}
+	if st.LastExitCode == nil || *st.LastExitCode != 0 {
+		t.Errorf("LastExitCode = %v, want 0", st.LastExitCode)
+	}
+	if st.Pid <= 0 {
+		t.Errorf("Pid = %d, want the spawned child pid", st.Pid)
+	}
+}
+
+func TestRun_ExhaustedWritesStateBeforeExit(t *testing.T) {
+	sup := newTestSupervisor(t, "SOLO_FAKE_CHILD_EXIT=1")
+	sup.maxFastCrashes = 1
+	versionsDir := filepath.Join(sup.cfg.SoloHome, "versions")
+	installFakeVersion(t, versionsDir, "solo-bad", time.Now())
+	if err := os.WriteFile(filepath.Join(versionsDir, "current"), []byte("solo-bad\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if code := sup.Run(context.Background()); code != 1 {
+		t.Fatalf("Run = %d, want 1", code)
+	}
+	st := readStateFile(t, sup.cfg.SoloHome)
+	if st.State != stateExhausted {
+		t.Errorf("State = %q, want %q", st.State, stateExhausted)
+	}
+	if st.LastExitCode == nil || *st.LastExitCode != 1 {
+		t.Errorf("LastExitCode = %v, want 1", st.LastExitCode)
+	}
+	if st.ConsecutiveCrashes <= 0 {
+		t.Errorf("ConsecutiveCrashes = %d, want > 0", st.ConsecutiveCrashes)
+	}
+	if st.PointerVersion != nil {
+		t.Errorf("PointerVersion = %v, want nil (pointer removed on fallback)", st.PointerVersion)
+	}
+}
+
+// TestRun_ObserveBackoffAndFallbackStates drives a crash loop slow enough to
+// poll the state file for the transient backoff and fallback states.
+func TestRun_ObserveBackoffAndFallbackStates(t *testing.T) {
+	sup := newTestSupervisor(t, "SOLO_FAKE_CHILD_EXIT=1")
+	sup.maxFastCrashes = 2
+	sup.initialBackoff = 25 * time.Millisecond
+	sup.maxBackoff = 25 * time.Millisecond
+	// The fallback state is written once and overwritten by the next spawn;
+	// hold the respawn briefly so the poller cannot miss the window under load.
+	sup.fallbackHold = 150 * time.Millisecond
+	versionsDir := filepath.Join(sup.cfg.SoloHome, "versions")
+	now := time.Now()
+	installFakeVersion(t, versionsDir, "solo-bad", now)
+	installFakeVersion(t, versionsDir, "solo-good", now.Add(-time.Hour))
+	if err := os.WriteFile(filepath.Join(versionsDir, "current"), []byte("solo-bad\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan int, 1)
+	go func() { done <- sup.Run(ctx) }()
+
+	var sawBackoff, sawFallback bool
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) && !(sawBackoff && sawFallback) {
+		if data, err := os.ReadFile(filepath.Join(sup.cfg.SoloHome, "supervisor-state.json")); err == nil {
+			var st SupervisorState
+			if json.Unmarshal(data, &st) == nil {
+				switch st.State {
+				case stateBackoff:
+					sawBackoff = true
+					if st.ConsecutiveCrashes < 1 {
+						t.Errorf("backoff state ConsecutiveCrashes = %d, want >= 1", st.ConsecutiveCrashes)
+					}
+				case stateFallback:
+					sawFallback = true
+					if st.PointerVersion == nil || *st.PointerVersion != "solo-good" {
+						t.Errorf("fallback PointerVersion = %v, want solo-good", st.PointerVersion)
+					}
+					if st.SpawnedBinary != "solo-bad" {
+						t.Errorf("fallback SpawnedBinary = %q, want solo-bad", st.SpawnedBinary)
+					}
+				}
+			}
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run did not return after cancel")
+	}
+	if !sawBackoff || !sawFallback {
+		t.Errorf("sawBackoff = %v, sawFallback = %v, want both", sawBackoff, sawFallback)
 	}
 }

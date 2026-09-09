@@ -16,6 +16,7 @@ import { AdaptiveModalSheet } from "@/components/adaptive-modal-sheet";
 import { useIsLocalDaemon } from "@/hooks/use-is-local-daemon";
 import { SettingsSection } from "@/screens/settings/settings-section";
 import { OperationsSection } from "@/screens/settings/operations-section";
+import { HostTraceCard } from "@/screens/settings/host-trace-card";
 import {
   runConnectionSpeedTest,
   SpeedTestPanel,
@@ -155,6 +156,8 @@ export function HostPage({ serverId, onHostRemoved }: HostPageProps) {
       {connectionError ? <Text style={styles.errorText}>{connectionError}</Text> : null}
 
       <ConnectionsSection host={host} />
+
+      <HostTraceCard host={host} />
 
       {isLocalDaemon ? (
         <SettingsSection title="Pair devices">

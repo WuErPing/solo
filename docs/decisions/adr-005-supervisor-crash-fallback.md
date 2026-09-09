@@ -67,3 +67,19 @@ that crashed before (e.g. after fixing it).
   log recording the fallback); cleanup is manual.
 - The supervisor gains a small versions-dir scanner (duplicated from the
   daemon by design — module boundaries only allow importing `protocol/`).
+
+## 6. Addendum: State File Observability (2026-08)
+
+The fallback itself is autonomous and needs no client interaction, but
+clients had no way to see that it happened. The supervisor now writes
+`~/.solo/supervisor-state.json` (atomic temp-file rename, single writer =
+the Run goroutine) on every state transition: `running`, `backoff`,
+`fallback`, `exhausted`, `stopped`. The daemon surfaces it in the
+`list_daemon_versions` response (only when `SOLO_SUPERVISED=1`), and the
+app shows it in a trace card on the host settings page — including when
+the host is currently unreachable (the app caches the last successful
+version listing per host).
+
+This is observability only: the state file is never read back by the
+supervisor and does not participate in fallback selection or the
+exit-code contract.

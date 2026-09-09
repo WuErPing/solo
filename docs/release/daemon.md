@@ -45,7 +45,7 @@ Daemon 的首选运行方式是由 **solo-supervisor**（`supervisor/`）拉起�
 - **开发环境**：`make restart` 构建并把 `solo-$(VERSION)` 发布进 `~/.solo/versions/`、更新 `current` 指针，然后启动 solo-supervisor。
 - **App 触发**：host 页面的 Operations（Restart daemon / Daemon version picker）通过退出码契约让 supervisor 完成重启或版本切换；daemon 直接运行（非 supervised）时这些操作返回 `NOT_SUPERVISED`。
 - **崩溃兜底**：若某个构建反复崩溃，crash-breaker 会将其拉黑并把 `current` 指针改写回可用的旧版本。
-- **所有权**：supervised 模式下 `~/.solo/solo.pid` 与 `~/.solo/logs/daemon.log` 由 supervisor 管理。
+- **所有权**：supervised 模式下 `~/.solo/solo.pid`、`~/.solo/logs/daemon.log` 与 `~/.solo/supervisor-state.json`（运行状态，仅供观测，经 `list_daemon_versions` 透出）由 supervisor 管理。
 
 细节见 [`../architecture/daemon-supervision.md`](../architecture/daemon-supervision.md) 与 [ADR-003](../decisions/adr-003-supervisor-exit-code-restart-contract.md) / [ADR-004](../decisions/adr-004-daemon-version-switching.md) / [ADR-005](../decisions/adr-005-supervisor-crash-fallback.md)。
 

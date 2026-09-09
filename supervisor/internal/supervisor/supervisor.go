@@ -57,6 +57,10 @@ type Supervisor struct {
 	stableUptime   time.Duration
 	maxFastCrashes int
 	shutdownGrace  time.Duration
+	// fallbackHold delays the respawn right after a crash fallback so the
+	// transient `fallback` state stays observable in the state file; 0 in
+	// production.
+	fallbackHold time.Duration
 
 	// failed marks versioned builds (by basename) that tripped the crash
 	// breaker during this supervisor's lifetime; failedDefault does the same
@@ -70,6 +74,10 @@ type Supervisor struct {
 	childArgs []string
 	// spawnCount records how many children were started (test hook).
 	spawnCount atomic.Int32
+	// lastChildPID/Binary describe the most recent spawn for the state file.
+	// Written by runChild and read by recordState (same goroutine).
+	lastChildPID    int
+	lastChildBinary string
 }
 
 // New resolves the daemon binary and solo home and returns a Supervisor.
@@ -113,12 +121,15 @@ func (s *Supervisor) Run(ctx context.Context) int {
 
 		if ctx.Err() != nil {
 			log.Info("supervisor shutting down")
+			s.recordState(stateStopped, "supervisor shutting down", fastCrashes, backoff, nil)
 			return protocol.ExitCodeClean
 		}
 
 		switch {
 		case res.code == protocol.ExitCodeClean && res.err == nil:
 			log.Info("daemon exited cleanly, supervisor exiting")
+			code := res.code
+			s.recordState(stateStopped, "daemon exited cleanly", 0, 0, &code)
 			return protocol.ExitCodeClean
 
 		case res.code == protocol.ExitCodeRestartRequested:
@@ -135,21 +146,39 @@ func (s *Supervisor) Run(ctx context.Context) int {
 			fastCrashes++
 			log.Warn("daemon crashed", "exitCode", res.code, "error", res.err,
 				"uptime", uptime.Round(time.Millisecond), "consecutiveCrashes", fastCrashes)
+			code := res.code
 			if fastCrashes > s.maxFastCrashes {
 				// A freshly-switched-to build that won't start must not take
 				// the host down for good: fall back to another build so the
 				// app can reconnect and the user keeps working.
 				if s.tryCrashFallback(res.binary) {
+					target := s.readVersionPointer()
+					if target == "" {
+						target = filepath.Base(s.cfg.DaemonBinary)
+					}
+					s.recordState(stateFallback,
+						fmt.Sprintf("crash fallback to %s after %d crashes", target, fastCrashes),
+						fastCrashes, 0, &code)
+					if s.fallbackHold > 0 && !sleepContext(ctx, s.fallbackHold) {
+						s.recordState(stateStopped, "supervisor shutting down", fastCrashes, backoff, &code)
+						return protocol.ExitCodeClean
+					}
 					backoff = s.initialBackoff
 					fastCrashes = 0
 					continue
 				}
 				log.Error("too many consecutive daemon crashes, giving up",
 					"maxFastCrashes", s.maxFastCrashes)
+				s.recordState(stateExhausted,
+					fmt.Sprintf("giving up after %d consecutive crashes", fastCrashes),
+					fastCrashes, backoff, &code)
 				return 1
 			}
+			s.recordState(stateBackoff,
+				fmt.Sprintf("daemon crashed exit=%d", code), fastCrashes, backoff, &code)
 			log.Info("respawning daemon after backoff", "backoff", backoff)
 			if !sleepContext(ctx, backoff) {
+				s.recordState(stateStopped, "supervisor shutting down", fastCrashes, backoff, &code)
 				return protocol.ExitCodeClean
 			}
 			backoff = min(backoff*2, s.maxBackoff)
@@ -197,6 +226,9 @@ func (s *Supervisor) runChild(ctx context.Context) childResult {
 	}
 	s.spawnCount.Add(1)
 	s.writePIDFile(cmd.Process.Pid)
+	s.lastChildPID = cmd.Process.Pid
+	s.lastChildBinary = binary
+	s.recordState(stateRunning, fmt.Sprintf("spawn pid=%d", cmd.Process.Pid), 0, 0, nil)
 	log.Info("daemon started", "pid", cmd.Process.Pid, "binary", binary)
 
 	waitCh := make(chan childResult, 1)

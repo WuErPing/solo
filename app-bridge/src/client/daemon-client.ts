@@ -101,7 +101,7 @@ export type {
   SpeedTestSegment,
 } from "./speedtest.js";
 
-export { ConnectionManager } from "./connection-manager.js";
+export { ConnectionManager, DaemonRpcError } from "./connection-manager.js";
 export type { ConnectionRpcHooks } from "./connection-manager.js";
 
 export type {

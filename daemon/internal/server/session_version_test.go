@@ -113,6 +113,66 @@ func TestSession_HandleListDaemonVersions_MissingDir(t *testing.T) {
 	}
 }
 
+func TestSession_HandleListDaemonVersions_WithSupervisorState(t *testing.T) {
+	s, q, _ := newVersionTestSession(t, true)
+	stateJSON := `{"schemaVersion":1,"state":"backoff","pid":123,"spawnedBinary":"solo-bad",
+		"pointerVersion":"solo-bad","consecutiveCrashes":2,"backoffMs":4000,
+		"lastExitCode":1,"updatedAtMs":1700000000000,"lastEvent":"daemon crashed exit=1"}`
+	if err := os.WriteFile(filepath.Join(s.cfg.SoloHome, supervisorStateFileName), []byte(stateJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	s.handleListDaemonVersions(&protocol.ListDaemonVersionsRequest{
+		Type:      "list_daemon_versions_request",
+		RequestID: "req-sup",
+	})
+
+	msgs := drainMessages(q)
+	resp := findSessionMessage(msgs, "list_daemon_versions_response")
+	if resp == nil {
+		t.Fatalf("expected list response, got %v", msgs)
+	}
+	payload := resp["payload"].(map[string]interface{})
+	sup, ok := payload["supervisor"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("supervisor = %v, want object", payload["supervisor"])
+	}
+	if sup["state"] != "backoff" || sup["pid"] != float64(123) || sup["consecutiveCrashes"] != float64(2) {
+		t.Errorf("supervisor = %v", sup)
+	}
+}
+
+func TestSession_HandleListDaemonVersions_SupervisorStateDegrades(t *testing.T) {
+	// Corrupt state file: response still succeeds without a supervisor entry.
+	s, q, _ := newVersionTestSession(t, true)
+	if err := os.WriteFile(filepath.Join(s.cfg.SoloHome, supervisorStateFileName), []byte("{not json"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	s.handleListDaemonVersions(&protocol.ListDaemonVersionsRequest{
+		Type:      "list_daemon_versions_request",
+		RequestID: "req-corrupt",
+	})
+	payload := findSessionMessage(drainMessages(q), "list_daemon_versions_response")["payload"].(map[string]interface{})
+	if _, present := payload["supervisor"]; present {
+		t.Errorf("supervisor = %v, want omitted for corrupt state file", payload["supervisor"])
+	}
+
+	// Unsupervised daemon: never relays a supervisor state, even if a stale
+	// file is present.
+	s2, q2, _ := newVersionTestSession(t, false)
+	if err := os.WriteFile(filepath.Join(s2.cfg.SoloHome, supervisorStateFileName), []byte(`{"state":"running"}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	s2.handleListDaemonVersions(&protocol.ListDaemonVersionsRequest{
+		Type:      "list_daemon_versions_request",
+		RequestID: "req-unsup",
+	})
+	payload2 := findSessionMessage(drainMessages(q2), "list_daemon_versions_response")["payload"].(map[string]interface{})
+	if _, present := payload2["supervisor"]; present {
+		t.Errorf("supervisor = %v, want omitted when unsupervised", payload2["supervisor"])
+	}
+}
+
 func TestSession_HandleSwitchDaemonVersion_Latest(t *testing.T) {
 	s, q, rec := newVersionTestSession(t, true)
 	dir := seedVersions(t, s.cfg.SoloHome, "solo-v0.7.4", "solo-v0.8.0")

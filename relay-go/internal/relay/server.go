@@ -17,7 +17,7 @@ import (
 	relaymetrics "github.com/WuErPing/solo/relay/internal/metrics"
 )
 
-const version = "relay-go-v1"
+const version = "relay-go-v2"
 
 const (
 	// wsReadLimit bounds a single incoming WebSocket frame. Frames are E2EE
@@ -300,6 +300,16 @@ func (s *Server) handleClose(sess *Session, serverID string, role ConnectionRole
 
 	switch {
 	case role == RoleServer && connectionID == "":
+		if sess.ControlSocket == nil || sess.ControlSocket.Conn != conn {
+			// A stale control socket closing after a newer one replaced it
+			// must not clear the new registration — otherwise the session is
+			// left with a live but orphaned control connection: keepalive
+			// ping/pong keeps flowing while notifyControl silently drops
+			// every client ConnectedMessage (observed 2026-09-09: phone
+			// stuck in a 10 s connect/timeout retry loop).
+			s.Logger.Debug("stale control socket closed, registration owned by newer connection", "serverId", serverID)
+			return
+		}
 		sess.ControlSocket = nil
 		for _, cd := range sess.Connections {
 			if cd.ServerDataSocket != nil {
@@ -313,6 +323,12 @@ func (s *Server) handleClose(sess *Session, serverID string, role ConnectionRole
 	case role == RoleServer && connectionID != "":
 		cd := sess.Connections[connectionID]
 		if cd == nil {
+			return
+		}
+		if cd.ServerDataSocket == nil || cd.ServerDataSocket.Conn != conn {
+			// Stale data socket closing after a replacement: keep the new
+			// registration, the clients, and the buffer intact.
+			s.Logger.Debug("stale data socket closed, registration owned by newer connection", "serverId", serverID, "connectionId", connectionID)
 			return
 		}
 		cd.ServerDataSocket = nil

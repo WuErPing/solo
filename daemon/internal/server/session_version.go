@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"sort"
@@ -17,15 +18,18 @@ import (
 
 // versionsDirName and versionPointerName define the on-disk convention shared
 // with the supervisor (which reads the pointer; keep the names in sync with
-// supervisor/internal/supervisor).
+// supervisor/internal/supervisor). supervisorStateFileName is the supervisor's
+// persisted spawn-loop state, relayed to clients in list_daemon_versions.
 const (
-	versionsDirName     = "versions"
-	versionPointerName  = "current"
-	versionBinaryPrefix = "solo-"
+	versionsDirName         = "versions"
+	versionPointerName      = "current"
+	versionBinaryPrefix     = "solo-"
+	supervisorStateFileName = "supervisor-state.json"
 )
 
 // handleListDaemonVersions lists the runnable builds in the versions dir.
-// A missing dir yields an empty list, not an error.
+// A missing dir yields an empty list, not an error. Under supervision the
+// supervisor's persisted spawn-loop state is attached when readable.
 func (s *Session) handleListDaemonVersions(m *protocol.ListDaemonVersionsRequest) {
 	versions, current := scanDaemonVersions(s.cfg.SoloHome)
 	s.sendMessage(protocol.NewSessionMessage(&protocol.ListDaemonVersionsResponse{
@@ -35,8 +39,27 @@ func (s *Session) handleListDaemonVersions(m *protocol.ListDaemonVersionsRequest
 			RunningVersion: s.cfg.Version,
 			CurrentVersion: current,
 			Versions:       versions,
+			Supervisor:     readSupervisorState(s.cfg.SoloHome, s.cfg.Supervised),
 		},
 	}))
+}
+
+// readSupervisorState loads $SoloHome/supervisor-state.json. Any read or
+// parse failure degrades to nil — the state file is diagnostics, never a
+// reason to fail the response.
+func readSupervisorState(soloHome string, supervised bool) *protocol.SupervisorState {
+	if !supervised {
+		return nil
+	}
+	data, err := os.ReadFile(filepath.Join(soloHome, supervisorStateFileName))
+	if err != nil {
+		return nil
+	}
+	var state protocol.SupervisorState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return nil
+	}
+	return &state
 }
 
 // handleSwitchDaemonVersion points the supervisor at a specific (or the

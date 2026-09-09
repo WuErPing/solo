@@ -33,6 +33,7 @@ import {
 import { getIsElectron, isDev, isNative } from "@/constants/platform";
 import { replaceFetchedAgentDirectory } from "@/utils/agent-directory-sync";
 import { useSessionStore } from "@/stores/session-store";
+import { clearHostVersionSnapshot } from "@/stores/host-version-snapshots-store";
 
 export type HostRuntimeConnectionStatus = "idle" | "connecting" | "online" | "offline" | "error";
 
@@ -1477,6 +1478,7 @@ export class HostRuntimeStore {
     const remaining = this.hosts.filter((daemon) => daemon.serverId !== serverId);
     this.setHostsAndSync(remaining);
     await this.persistHosts();
+    clearHostVersionSnapshot(serverId);
   }
 
   async removeConnection(serverId: string, connectionId: string): Promise<void> {

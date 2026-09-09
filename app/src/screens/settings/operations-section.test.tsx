@@ -5,6 +5,7 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { Alert } from "react-native";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DaemonRpcError } from "@server/client/daemon-client";
 import { OperationsSection } from "@/screens/settings/operations-section";
 
 const SERVER_ID = "server-1";
@@ -24,7 +25,14 @@ const { state } = vi.hoisted(() => ({
     client: null as MockDaemonClient | null,
     sessions: {} as Record<string, { serverInfo: { version: string | null } | null } | undefined>,
     confirmDialog: vi.fn(),
+    cachedSnapshot: null as Record<string, unknown> | null,
+    saveSnapshot: vi.fn(),
   },
+}));
+
+vi.mock("@/stores/host-version-snapshots-store", () => ({
+  saveHostVersionSnapshot: (...args: unknown[]) => state.saveSnapshot(...args),
+  useHostVersionSnapshot: () => state.cachedSnapshot,
 }));
 
 vi.mock("react-native", () => ({
@@ -159,6 +167,7 @@ function makeClient(overrides?: {
   versions?: { version: string; mtimeMs: number }[];
   listImpl?: () => Promise<unknown>;
   switchImpl?: () => Promise<unknown>;
+  supervisor?: Record<string, unknown> | null;
 }): MockDaemonClient {
   return {
     restartServer: vi.fn().mockResolvedValue({}),
@@ -174,6 +183,7 @@ function makeClient(overrides?: {
                 { version: "solo-v0.8.0-dev-20260820", mtimeMs: 2000 },
                 { version: "solo-v0.7.4", mtimeMs: 1000 },
               ],
+              supervisor: overrides?.supervisor ?? null,
               error: null,
             })),
       ),
@@ -206,6 +216,8 @@ describe("OperationsSection daemon version card", () => {
     state.client = makeClient();
     state.sessions = { [SERVER_ID]: { serverInfo: { version: "v0.7.4" } } };
     state.confirmDialog = vi.fn().mockResolvedValue(true);
+    state.cachedSnapshot = null;
+    state.saveSnapshot = vi.fn();
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -286,10 +298,17 @@ describe("OperationsSection daemon version card", () => {
   });
 
   it("hides the version card quietly when the daemon does not support it", async () => {
-    // Older daemons fail the unknown request (rpc_error or timeout); the card
-    // must disappear without a console.error.
+    // Old daemons answer the unknown request with a code-less rpc_error; the
+    // card must disappear without a console.error.
     state.client = makeClient({
-      listImpl: () => Promise.reject(new Error("Timeout waiting for message (10000ms)")),
+      listImpl: () =>
+        Promise.reject(
+          new DaemonRpcError({
+            requestId: "req-1",
+            error: "unsupported message type",
+            requestType: "list_daemon_versions_request",
+          }),
+        ),
     });
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -302,6 +321,86 @@ describe("OperationsSection daemon version card", () => {
     );
     expect(ownErrorLogs).toEqual([]);
     errorSpy.mockRestore();
+  });
+
+  it("keeps the card visible with a hint when the host is unreachable", async () => {
+    state.client = makeClient({
+      listImpl: () => Promise.reject(new Error("Timeout waiting for message (10000ms)")),
+    });
+
+    await renderSection();
+
+    expect(container?.textContent).toContain("Daemon version");
+    expect(container?.textContent).toContain("Host unreachable");
+    expect(container?.textContent).toContain("No version info seen yet on this device.");
+  });
+
+  it("shows the cached snapshot when the host is unreachable", async () => {
+    state.client = makeClient({
+      listImpl: () => Promise.reject(new Error("Timeout waiting for message (10000ms)")),
+    });
+    state.cachedSnapshot = {
+      versions: [
+        { version: "solo-v0.12.0", mtimeMs: 200 },
+        { version: "solo-v0.11.0", mtimeMs: 100 },
+      ],
+      currentVersion: "solo-v0.12.0",
+      runningVersion: "v0.12.0",
+      supervisor: null,
+      fetchedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+    };
+
+    await renderSection();
+
+    expect(container?.textContent).toContain("Host unreachable");
+    expect(container?.textContent).toContain("running v0.12.0, 2 build(s) on host.");
+  });
+
+  it("shows the refused reason with its code", async () => {
+    state.client = makeClient({
+      listImpl: () =>
+        Promise.reject(
+          new DaemonRpcError({
+            requestId: "req-1",
+            error: "not allowed",
+            requestType: "list_daemon_versions_request",
+            code: "NOT_SUPERVISED",
+          }),
+        ),
+    });
+
+    await renderSection();
+
+    expect(container?.textContent).toContain("Version info unavailable (NOT_SUPERVISED).");
+  });
+
+  it("persists the version snapshot including supervisor state on success", async () => {
+    const supervisor = {
+      state: "backoff",
+      pid: 9,
+      spawnedBinary: "solo-bad",
+      pointerVersion: "solo-bad",
+      consecutiveCrashes: 3,
+      backoffMs: 4000,
+      lastExitCode: 1,
+      updatedAtMs: 1700000000000,
+      lastEvent: "daemon crashed exit=1",
+    };
+    state.client = makeClient({ supervisor });
+
+    await renderSection();
+
+    expect(state.saveSnapshot).toHaveBeenCalledWith(
+      SERVER_ID,
+      expect.objectContaining({
+        versions: expect.arrayContaining([
+          expect.objectContaining({ version: "solo-v0.8.0-dev-20260820" }),
+        ]),
+        runningVersion: "v0.7.4",
+        currentVersion: "solo-v0.7.4",
+        supervisor,
+      }),
+    );
   });
 
   it("switches to the selected build after confirmation and waits for reconnect", async () => {

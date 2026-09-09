@@ -63,7 +63,7 @@ vi.mock("react-native-unistyles", () => {
   const theme = {
     spacing: { 1: 4, 2: 8, 3: 12, 4: 16, 6: 24 },
     fontSize: { xs: 12, sm: 14, base: 15 },
-    fontWeight: { normal: "400" },
+    fontWeight: { normal: "400", medium: "500" },
     colors: {
       surface0: "#111",
       surface1: "#222",
@@ -73,9 +73,9 @@ vi.mock("react-native-unistyles", () => {
       border: "#444",
       destructive: "#ef4444",
       palette: {
-        green: { 400: "#4ade80" },
+        green: { 400: "#4ade80", 500: "#22c55e" },
         amber: { 500: "#f59e0b" },
-        red: { 300: "#fca5a5" },
+        red: { 300: "#fca5a5", 500: "#ef4444" },
         blue: { 500: "#3b82f6" },
         teal: { 200: "#99f6e4" },
       },
@@ -94,16 +94,20 @@ vi.mock("react-native-unistyles", () => {
 
 vi.mock("lucide-react-native", () => ({
   ChevronRight: () => React.createElement("span", { "data-icon": "ChevronRight" }),
+  ChevronDown: () => React.createElement("span", { "data-icon": "ChevronDown" }),
   Gauge: () => React.createElement("span", { "data-icon": "Gauge" }),
   Globe: () => React.createElement("span", { "data-icon": "Globe" }),
   Monitor: () => React.createElement("span", { "data-icon": "Monitor" }),
   Pencil: () => React.createElement("span", { "data-icon": "Pencil" }),
+  RefreshCw: () => React.createElement("span", { "data-icon": "RefreshCw" }),
   Trash2: () => React.createElement("span", { "data-icon": "Trash2" }),
 }));
 
 vi.mock("@/runtime/host-runtime", () => ({
   useHosts: () => state.hosts,
   useHostRuntimeSnapshot: () => state.snapshot,
+  useHostRuntimeClient: () => state.snapshot?.client ?? null,
+  useHostRuntimeIsConnected: () => state.snapshot?.connectionStatus === "online",
   useHostMutations: () => ({
     upsertDirectConnection: vi.fn(),
     upsertRelayConnection: vi.fn(),
@@ -116,6 +120,12 @@ vi.mock("@/runtime/host-runtime", () => ({
   getHostRuntimeStore: () => ({
     getSnapshot: () => state.snapshot,
   }),
+}));
+
+vi.mock("@/stores/host-version-snapshots-store", () => ({
+  useHostVersionSnapshot: () => null,
+  saveHostVersionSnapshot: vi.fn(),
+  clearHostVersionSnapshot: vi.fn(),
 }));
 
 vi.mock("@/stores/session-store", () => ({

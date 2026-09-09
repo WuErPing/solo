@@ -34,6 +34,24 @@ type ListDaemonVersionsResponse struct {
 	Payload ListDaemonVersionsPayload `json:"payload"`
 }
 
+// SupervisorState mirrors the supervisor's on-disk state file
+// ($SoloHome/supervisor-state.json): the spawn-loop health of the supervisor
+// process on the host. State is one of running, backoff, fallback, exhausted
+// or stopped. The daemon reads the file and relays it here; keep the field
+// set in sync with supervisor/internal/supervisor/state.go.
+// genzod
+type SupervisorState struct {
+	State              string  `json:"state"`
+	Pid                int     `json:"pid"`
+	SpawnedBinary      string  `json:"spawnedBinary"`
+	PointerVersion     *string `json:"pointerVersion,omitempty"`
+	ConsecutiveCrashes int     `json:"consecutiveCrashes"`
+	BackoffMs          *int64  `json:"backoffMs,omitempty"`
+	LastExitCode       *int    `json:"lastExitCode,omitempty"`
+	UpdatedAtMs        int64   `json:"updatedAtMs"`
+	LastEvent          string  `json:"lastEvent"`
+}
+
 // ListDaemonVersionsPayload
 // genzod
 type ListDaemonVersionsPayload struct {
@@ -41,6 +59,7 @@ type ListDaemonVersionsPayload struct {
 	RunningVersion string              `json:"runningVersion"`
 	CurrentVersion *string             `json:"currentVersion,omitempty"`
 	Versions       []DaemonVersionInfo `json:"versions"`
+	Supervisor     *SupervisorState    `json:"supervisor,omitempty"`
 	Error          *string             `json:"error,omitempty"`
 }
 

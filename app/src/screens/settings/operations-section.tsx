@@ -16,6 +16,9 @@ import {
   useHostRuntimeIsConnected,
 } from "@/runtime/host-runtime";
 import { useSessionStore } from "@/stores/session-store";
+import { saveHostVersionSnapshot, useHostVersionSnapshot } from "@/stores/host-version-snapshots-store";
+import { classifyDaemonRequestError } from "@/utils/daemon-request-error";
+import { formatTimeAgo } from "@/utils/time";
 import { confirmDialog } from "@/utils/confirm-dialog";
 import { useDaemonConfig } from "@/hooks/use-daemon-config";
 import { Button } from "@/components/ui/button";
@@ -218,6 +221,11 @@ function versionTriggerStyle({ pressed }: PressableStateCallbackType) {
   return [styles.versionTrigger, pressed && { opacity: 0.85 }];
 }
 
+type VersionFetchState =
+  | { status: "ok" }
+  | { status: "unreachable"; message: string }
+  | { status: "refused"; code?: string; message: string };
+
 function DaemonVersionCard({ serverId, hostLabel }: { serverId: string; hostLabel: string }) {
   const { theme } = useUnistyles();
   const daemonClient = useHostRuntimeClient(serverId);
@@ -228,9 +236,11 @@ function DaemonVersionCard({ serverId, hostLabel }: { serverId: string; hostLabe
   );
   const [versions, setVersions] = useState<{ version: string; mtimeMs: number }[]>([]);
   const [isSwitching, setIsSwitching] = useState(false);
+  const [versionFetchState, setVersionFetchState] = useState<VersionFetchState>({ status: "ok" });
+  const cachedSnapshot = useHostVersionSnapshot(serverId);
   // Older daemons don't know list_daemon_versions and fail the request (or
-  // time out). Treat any list failure as "feature unavailable" and hide the
-  // card instead of surfacing an error.
+  // time out). Only that case hides the card; unreachable/refused hosts keep
+  // it visible with the last-known snapshot instead of surfacing nothing.
   const [isSupported, setIsSupported] = useState(true);
 
   useEffect(() => {
@@ -241,16 +251,33 @@ function DaemonVersionCard({ serverId, hostLabel }: { serverId: string; hostLabe
       .then((payload) => {
         if (!cancelled) {
           setVersions(payload.versions ?? []);
+          setVersionFetchState({ status: "ok" });
+          saveHostVersionSnapshot(serverId, {
+            versions: payload.versions ?? [],
+            currentVersion: payload.currentVersion ?? null,
+            runningVersion: payload.runningVersion ?? null,
+            supervisor: payload.supervisor ?? null,
+          });
         }
       })
       .catch((error) => {
+        const classified = classifyDaemonRequestError(error);
         console.debug(
-          `[OperationsSection] Daemon version switching unavailable on ${hostLabel}`,
+          `[OperationsSection] Daemon version info unavailable on ${hostLabel}`,
+          classified,
           error,
         );
         if (!cancelled) {
-          setVersions([]);
-          setIsSupported(false);
+          if (classified.kind === "unsupported") {
+            setVersions([]);
+            setIsSupported(false);
+            return;
+          }
+          setVersionFetchState(
+            classified.kind === "refused"
+              ? { status: "refused", code: classified.code, message: classified.message }
+              : { status: "unreachable", message: classified.message },
+          );
         }
       });
     return () => {
@@ -315,6 +342,27 @@ function DaemonVersionCard({ serverId, hostLabel }: { serverId: string; hostLabe
     hintParts.push(`Latest local build ${latestDisplay}`);
   }
 
+  const detailLines: string[] = [];
+  if (versionFetchState.status === "refused") {
+    detailLines.push(
+      `Version info unavailable${versionFetchState.code ? ` (${versionFetchState.code})` : ""}.`,
+    );
+  } else if (versionFetchState.status === "unreachable" || !isConnected) {
+    detailLines.push("Host unreachable — showing last known version info.");
+    if (cachedSnapshot) {
+      const buildCount = cachedSnapshot.versions.length
+        ? `, ${cachedSnapshot.versions.length} build(s) on host`
+        : "";
+      detailLines.push(
+        `Last seen ${formatTimeAgo(new Date(cachedSnapshot.fetchedAt))}: running ${
+          cachedSnapshot.runningVersion ?? "unknown"
+        }${buildCount}.`,
+      );
+    } else {
+      detailLines.push("No version info seen yet on this device.");
+    }
+  }
+
   if (!isSupported) return null;
 
   return (
@@ -323,6 +371,15 @@ function DaemonVersionCard({ serverId, hostLabel }: { serverId: string; hostLabe
         <View style={settingsStyles.rowContent}>
           <Text style={settingsStyles.rowTitle}>Daemon version</Text>
           <Text style={settingsStyles.rowHint}>{hintParts.join(" · ")}</Text>
+          {detailLines.map((line, index) => (
+            <Text
+              key={index}
+              style={settingsStyles.rowHint}
+              testID={`settings-operations-version-detail-${index}`}
+            >
+              {line}
+            </Text>
+          ))}
         </View>
         {versions.length > 0 && (
           <DropdownMenu>
