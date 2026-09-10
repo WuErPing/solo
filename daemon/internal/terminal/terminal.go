@@ -93,7 +93,6 @@ func (t *TerminalProcess) Start() error {
 			return
 		}
 		t.exited = true
-		close(t.done)
 
 		exitInfo := ExitInfo{}
 		if err != nil {
@@ -110,6 +109,9 @@ func (t *TerminalProcess) Start() error {
 		for _, fn := range t.onExitFuncs {
 			fn(exitInfo)
 		}
+		// Close done last so that observers unblocking on Done() see exit
+		// handling (e.g. manager removal) fully applied.
+		close(t.done)
 	}()
 
 	return nil
