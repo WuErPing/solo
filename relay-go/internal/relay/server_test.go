@@ -403,3 +403,73 @@ func TestV2ClientDisconnectNotifiesControl(t *testing.T) {
 		t.Fatalf("expected disconnected(dc), got %v", msg)
 	}
 }
+
+func TestV2ClientSocketKeepalivePing(t *testing.T) {
+	_, ts := newTestServer(t)
+	defer ts.Close()
+
+	orig := clientPingInterval.Load()
+	clientPingInterval.Store(int64(50 * time.Millisecond))
+	defer clientPingInterval.Store(orig)
+
+	client := dialWS(t, ts, protocol.WSEndpoint+"?serverId=keepalive&role=client&v=2&connectionId=k1")
+	defer client.Close()
+
+	pinged := make(chan struct{}, 1)
+	client.SetPingHandler(func(string) error {
+		select {
+		case pinged <- struct{}{}:
+		default:
+		}
+		return nil
+	})
+	// Control frames are only dispatched while reading.
+	go func() {
+		for {
+			if _, _, err := client.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}()
+
+	select {
+	case <-pinged:
+	case <-time.After(3 * time.Second):
+		t.Fatal("client socket received no keepalive ping")
+	}
+}
+
+func TestV2ControlSocketNotPinged(t *testing.T) {
+	_, ts := newTestServer(t)
+	defer ts.Close()
+
+	orig := clientPingInterval.Load()
+	clientPingInterval.Store(int64(50 * time.Millisecond))
+	defer clientPingInterval.Store(orig)
+
+	control := dialWS(t, ts, protocol.WSEndpoint+"?serverId=keepalive2&role=server&v=2")
+	defer control.Close()
+	readJSON(t, control) // consume sync
+
+	pinged := make(chan struct{}, 1)
+	control.SetPingHandler(func(string) error {
+		select {
+		case pinged <- struct{}{}:
+		default:
+		}
+		return nil
+	})
+	go func() {
+		for {
+			if _, _, err := control.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}()
+
+	select {
+	case <-pinged:
+		t.Fatal("control socket must not receive client keepalive pings")
+	case <-time.After(300 * time.Millisecond):
+	}
+}

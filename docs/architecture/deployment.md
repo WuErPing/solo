@@ -226,6 +226,12 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebSocket 长连接：必须显式抬高超时，否则 nginx 默认 60s
+        # 会回收空闲的下行连接，导致 App 连接间歇性断开。
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_buffering off;
     }
 }
 ```

@@ -199,6 +199,7 @@ vi.mock("@/hooks/use-active-worktree-new-action", () => ({
 }));
 vi.mock("@/hooks/use-color-scheme", () => ({ useColorScheme: () => "dark" }));
 vi.mock("@/hooks/use-favicon-status", () => ({ useFaviconStatus: () => {} }));
+vi.mock("@/hooks/use-foreground-reconnect", () => ({ useForegroundReconnect: () => {} }));
 vi.mock("@/hooks/use-keyboard-shortcuts", () => ({ useKeyboardShortcuts: () => {} }));
 vi.mock("@/hooks/use-open-project", () => ({ useOpenProject: () => vi.fn(async () => {}) }));
 vi.mock("@/hooks/use-settings", () => ({

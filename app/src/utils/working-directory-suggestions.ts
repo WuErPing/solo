@@ -33,7 +33,19 @@ export function buildWorkingDirectorySuggestions(
     seen.add(entry);
   }
 
+  // A typed path may not exist in the index yet; keep it confirmable so the
+  // list is never empty while the user is entering a concrete path.
+  if (isConcretePath(rawQuery) && !seen.has(rawQuery)) {
+    ordered.unshift(rawQuery);
+  }
+
   return ordered;
+}
+
+const CONCRETE_PATH_PATTERN = /(?:^~\/|^\/|^[A-Za-z]:[\\/]|\/)/;
+
+function isConcretePath(query: string): boolean {
+  return CONCRETE_PATH_PATTERN.test(query);
 }
 
 function uniquePaths(paths: string[]): string[] {

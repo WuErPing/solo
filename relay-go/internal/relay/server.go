@@ -36,6 +36,17 @@ const (
 	wsWriteDeadline = 10 * time.Second
 )
 
+// clientPingInterval is how often the relay sends a WebSocket ping frame on
+// client (app-facing) sockets. Those sockets sit behind nginx, whose
+// proxy_read_timeout reaps a proxy connection that produces no downstream
+// traffic; periodic pings keep that timer fresh and expose half-dead clients
+// (OS-suspended sockets) as write errors instead of silent black holes.
+// Pings are control frames, so they never enter the E2EE payload stream.
+// Atomic (nanoseconds) so tests can override it while pingers are live.
+var clientPingInterval atomic.Int64
+
+func init() { clientPingInterval.Store(int64(30 * time.Second)) }
+
 func writeWS(conn *websocket.Conn, msgType int, msg []byte) error {
 	_ = conn.SetWriteDeadline(time.Now().Add(wsWriteDeadline))
 	return conn.WriteMessage(msgType, msg)
@@ -224,6 +235,11 @@ func (s *Server) readPump(sess *Session, serverID string, role ConnectionRole, c
 	}()
 
 	_ = conn.SetReadDeadline(time.Now().Add(wsReadIdleTimeout))
+	if role == RoleClient {
+		pingDone := make(chan struct{})
+		defer close(pingDone)
+		go s.pingClientLoop(conn, pingDone)
+	}
 	for {
 		msgType, msg, err := conn.ReadMessage()
 		if err != nil {
@@ -237,6 +253,26 @@ func (s *Server) readPump(sess *Session, serverID string, role ConnectionRole, c
 		sess.mu.Lock()
 		s.handleMessage(sess, role, connectionID, conn, msgType, msg)
 		sess.mu.Unlock()
+	}
+}
+
+// pingClientLoop keeps a client (app-facing) socket alive downstream and
+// detects half-dead clients. See clientPingInterval for why this exists.
+func (s *Server) pingClientLoop(conn *websocket.Conn, done <-chan struct{}) {
+	ticker := time.NewTicker(time.Duration(clientPingInterval.Load()))
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			deadline := time.Now().Add(wsWriteDeadline)
+			if err := conn.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
+				s.Logger.Debug("client ping failed, closing socket", "error", err)
+				_ = conn.Close()
+				return
+			}
+		case <-done:
+			return
+		}
 	}
 }
 

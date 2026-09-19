@@ -49,4 +49,48 @@ describe("buildWorkingDirectorySuggestions", () => {
       "/Users/me/projects",
     ]);
   });
+
+  it("offers a typed path that matches nothing so it stays confirmable", () => {
+    const results = buildWorkingDirectorySuggestions({
+      recommendedPaths: ["/Users/me/projects/solo"],
+      serverPaths: [],
+      query: "/Users/me/code/brand-new",
+    });
+
+    expect(results).toEqual(["/Users/me/code/brand-new"]);
+  });
+
+  it("puts a typed path ahead of index matches", () => {
+    const results = buildWorkingDirectorySuggestions({
+      recommendedPaths: ["/Users/me/projects/solo"],
+      serverPaths: ["/Users/me/projects/solo-mobile"],
+      query: "~/projects/solo",
+    });
+
+    expect(results).toEqual([
+      "~/projects/solo",
+      "/Users/me/projects/solo",
+      "/Users/me/projects/solo-mobile",
+    ]);
+  });
+
+  it("does not duplicate a typed path already present in the results", () => {
+    const results = buildWorkingDirectorySuggestions({
+      recommendedPaths: ["/Users/me/projects/solo"],
+      serverPaths: [],
+      query: " /Users/me/projects/solo ",
+    });
+
+    expect(results).toEqual(["/Users/me/projects/solo"]);
+  });
+
+  it("does not offer bare substring searches as a path", () => {
+    const results = buildWorkingDirectorySuggestions({
+      recommendedPaths: ["/Users/me/projects/playground"],
+      serverPaths: [],
+      query: "play",
+    });
+
+    expect(results).toEqual(["/Users/me/projects/playground"]);
+  });
 });

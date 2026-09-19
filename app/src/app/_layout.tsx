@@ -57,6 +57,7 @@ import { UpdateCalloutSource } from "@/desktop/updates/update-callout-source";
 import { useActiveWorktreeNewAction } from "@/hooks/use-active-worktree-new-action";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useFaviconStatus } from "@/hooks/use-favicon-status";
+import { useForegroundReconnect } from "@/hooks/use-foreground-reconnect";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { useOpenProject } from "@/hooks/use-open-project";
 import { loadSettingsFromStorage, useAppSettings } from "@/hooks/use-settings";
@@ -936,6 +937,7 @@ function RootProviders({ children }: { children: ReactNode }) {
 
 export default function RootLayout() {
   const { theme } = useUnistyles();
+  useForegroundReconnect();
   const gestureRootStyle = useMemo(
     () => ({ flex: 1, backgroundColor: theme.colors.surface0 }),
     [theme.colors.surface0],

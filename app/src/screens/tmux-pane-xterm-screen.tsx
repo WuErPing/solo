@@ -14,6 +14,7 @@ import { BackHeader } from "@/components/headers/back-header";
 import { ErrorBoundary } from "@/components/error-boundary";
 import TerminalEmulator, { type TerminalEmulatorHandle } from "@/components/terminal-emulator";
 import { TmuxKeyBar } from "@/components/tmux-key-bar";
+import { filterSlashCommands } from "@/constants/agent-commands";
 import { useTmuxCapturePane } from "@/hooks/use-tmux-capture-pane";
 import { useTmuxAgentStore } from "@/stores/tmux-agent-store";
 import { withLiveTmuxClient } from "@/utils/tmux-rpc";
@@ -47,6 +48,12 @@ function TmuxPaneXtermScreenInner() {
   const [inputPanelHidden, setInputPanelHidden] = useState(false);
   const [focusRequestToken, setFocusRequestToken] = useState(0);
   const [viewMode, setViewMode] = useState<"fit" | "original">("fit");
+  const inputRef = useRef<TextInput>(null);
+  const agentName = agent && "agentName" in agent ? agent.agentName : undefined;
+  const slashCommands = useMemo(
+    () => filterSlashCommands(agentName ?? "", inputText),
+    [agentName, inputText],
+  );
 
   // Always fetch the pane's native-width content (omit cols) so the full tmux
   // grid is rendered — never a lossy rewrapped approximation. paneCols drives
@@ -235,6 +242,8 @@ function TmuxPaneXtermScreenInner() {
         <>
           <TmuxKeyBar
             onSendKey={(key) => void sendKeys(key, false)}
+            onSendCommand={(cmd) => void sendKeys(cmd, true)}
+            onRequestSlashMenu={() => { setInputText("/"); inputRef.current?.focus(); }}
             content={content}
             extraButtons={[
               {
@@ -273,8 +282,29 @@ function TmuxPaneXtermScreenInner() {
             </Text>
           ) : null}
 
+          {slashCommands.length > 0 && (
+            <View style={[styles.slashDropdown, { backgroundColor: theme.colors.surface0, borderColor: theme.colors.border }]}>
+              {slashCommands.map((cmd) => (
+                <Pressable
+                  key={cmd.command}
+                  testID={`slash-command-${cmd.label}`}
+                  onPress={() => setInputText(cmd.command + " ")}
+                  style={({ pressed }) => [
+                    styles.slashItem,
+                    pressed ? { backgroundColor: theme.colors.surface1 } : null,
+                  ]}
+                >
+                  <Text style={[styles.slashItemText, { color: theme.colors.foreground }]}>
+                    {cmd.command}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
           <View style={styles.inputRow}>
             <TextInput
+              ref={inputRef}
               testID="tmux-xterm-input"
               style={[
                 styles.inputField,
@@ -403,6 +433,21 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: 6,
     paddingVertical: 4,
     borderRadius: 6,
+  },
+  slashDropdown: {
+    maxHeight: 200,
+    borderTopWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  slashItem: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 4,
+  },
+  slashItemText: {
+    fontFamily: "monospace",
+    fontSize: 13,
   },
   inputRow: {
     flexDirection: "row",

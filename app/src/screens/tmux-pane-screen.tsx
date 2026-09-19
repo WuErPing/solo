@@ -108,6 +108,7 @@ function TmuxPaneScreenInner() {
   const [inputPanelHidden, setInputPanelHidden] = useState(false);
   const preSelectAutoRefreshRef = useRef<boolean | null>(null);
   const flatListRef = useRef<FlatList<AnsiSegment[]>>(null);
+  const inputRef = useRef<TextInput>(null);
 
   const keyExtractor = useCallback((_item: AnsiSegment[], index: number) => String(index), []);
 
@@ -178,6 +179,16 @@ function TmuxPaneScreenInner() {
     (key: string) => {
       if (!agent) return;
       withLiveTmuxClient(agent.serverId, (c) => c.tmuxSendKeys(agent.paneId, key, false))
+        .then(() => refetch())
+        .catch(() => setSendError(true));
+    },
+    [agent, refetch],
+  );
+
+  const sendCommand = useCallback(
+    (command: string) => {
+      if (!agent) return;
+      withLiveTmuxClient(agent.serverId, (c) => c.tmuxSendKeys(agent.paneId, command))
         .then(() => refetch())
         .catch(() => setSendError(true));
     },
@@ -389,6 +400,8 @@ function TmuxPaneScreenInner() {
       <>
       <TmuxKeyBar
         onSendKey={sendKey}
+        onSendCommand={sendCommand}
+        onRequestSlashMenu={() => { setInputText("/"); inputRef.current?.focus(); }}
         content={content}
         extraButtons={[
           {
@@ -497,6 +510,7 @@ function TmuxPaneScreenInner() {
       ) : null}
       <View style={styles.inputRow}>
         <TextInput
+          ref={inputRef}
           style={[
             styles.inputField,
             { color: theme.colors.foreground, borderColor: theme.colors.border },

@@ -23,6 +23,8 @@ export interface TmuxKeyBarExtraButton {
 
 export interface TmuxKeyBarProps {
   onSendKey: (key: string) => void;
+  onSendCommand?: (command: string) => void;
+  onRequestSlashMenu?: () => void;
   content: string;
   extraButtons?: TmuxKeyBarExtraButton[];
   testIDPrefix?: string;
@@ -42,14 +44,13 @@ const ACTION_KEYS: { label: string; key: string }[] = [
   { label: "Enter", key: "Enter" },
   { label: "Esc", key: "Escape" },
   { label: "^C", key: "C-c" },
+  { label: "⇥", key: "Tab" },
 ];
 
 const EXPANDED_KEYS: { label: string; key: string }[] = [
-  { label: "Tab", key: "Tab" },
-  { label: "S-Tab", key: "BTab" },
+  { label: "⇤", key: "BTab" },
   { label: "←", key: "Left" },
   { label: "→", key: "Right" },
-  { label: "/", key: "/" },
   { label: "1", key: "1" },
   { label: "2", key: "2" },
   { label: "3", key: "3" },
@@ -57,7 +58,14 @@ const EXPANDED_KEYS: { label: string; key: string }[] = [
   { label: "Home", key: "Home" },
 ];
 
-export function TmuxKeyBar({ onSendKey, content, extraButtons, testIDPrefix = "tmux" }: TmuxKeyBarProps) {
+const AGENT_COMMAND_KEYS: { label: string; command: string }[] = [
+  { label: "Compact", command: "/compact" },
+  { label: "Clear", command: "/clear" },
+  { label: "Model", command: "/model" },
+  { label: "Cost", command: "/cost" },
+];
+
+export function TmuxKeyBar({ onSendKey, onSendCommand, onRequestSlashMenu, content, extraButtons, testIDPrefix = "tmux" }: TmuxKeyBarProps) {
   const { theme } = useUnistyles();
   const expanded = useTmuxKeyBarStore((s) => s.expanded);
   const toggleExpanded = useTmuxKeyBarStore((s) => s.toggleExpanded);
@@ -146,24 +154,68 @@ export function TmuxKeyBar({ onSendKey, content, extraButtons, testIDPrefix = "t
           contentContainerStyle={[styles.expandedRowContent, { backgroundColor: theme.colors.surface0 }]}
         >
           {expandedKeys.map(({ label, key }) => (
-            <Pressable
-              key={key}
-              testID={`${testIDPrefix}-key-${key}`}
-              onPress={() => onSendKey(key)}
-              android_ripple={{ color: theme.colors.surface2 }}
-              style={({ pressed }) => [
-                styles.expandedKeyButton,
-                {
-                  backgroundColor: pressed ? theme.colors.surface2 : theme.colors.surface1,
-                  borderColor: theme.colors.border,
-                },
-              ]}
-            >
-              <Text style={[styles.expandedKeyLabel, { color: theme.colors.foreground }]}>
-                {label}
-              </Text>
-            </Pressable>
+            <React.Fragment key={key}>
+              <Pressable
+                testID={`${testIDPrefix}-key-${key}`}
+                onPress={() => onSendKey(key)}
+                android_ripple={{ color: theme.colors.surface2 }}
+                style={({ pressed }) => [
+                  styles.expandedKeyButton,
+                  {
+                    backgroundColor: pressed ? theme.colors.surface2 : theme.colors.surface1,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.expandedKeyLabel, { color: theme.colors.foreground }]}>
+                  {label}
+                </Text>
+              </Pressable>
+              {key === "Right" && onRequestSlashMenu && (
+                <Pressable
+                  testID={`${testIDPrefix}-slash-menu`}
+                  onPress={onRequestSlashMenu}
+                  android_ripple={{ color: theme.colors.surface2 }}
+                  style={({ pressed }) => [
+                    styles.expandedKeyButton,
+                    {
+                      backgroundColor: pressed ? theme.colors.surface2 : theme.colors.surface1,
+                      borderColor: theme.colors.primary,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.expandedKeyLabel, { color: theme.colors.primary }]}>
+                    /
+                  </Text>
+                </Pressable>
+              )}
+            </React.Fragment>
           ))}
+
+          {onSendCommand && AGENT_COMMAND_KEYS.length > 0 && (
+            <>
+              <View style={[styles.expandedDivider, { backgroundColor: theme.colors.border }]} />
+              {AGENT_COMMAND_KEYS.map(({ label, command }) => (
+                <Pressable
+                  key={command}
+                  testID={`${testIDPrefix}-cmd-${command.slice(1)}`}
+                  onPress={() => onSendCommand(command)}
+                  android_ripple={{ color: theme.colors.surface2 }}
+                  style={({ pressed }) => [
+                    styles.expandedKeyButton,
+                    {
+                      backgroundColor: pressed ? theme.colors.surface2 : theme.colors.surface1,
+                      borderColor: theme.colors.primary,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.expandedKeyLabel, { color: theme.colors.primary }]}>
+                    {label}
+                  </Text>
+                </Pressable>
+              ))}
+            </>
+          )}
         </ScrollView>
       </Animated.View>
 
@@ -387,6 +439,12 @@ const styles = StyleSheet.create((theme) => ({
   expandedKeyLabel: {
     fontSize: 11,
     fontWeight: "500",
+  },
+  expandedDivider: {
+    width: 1,
+    alignSelf: "stretch",
+    marginVertical: 6,
+    marginHorizontal: 2,
   },
   primaryRow: {
     // flexGrow lets primaryRowSpacer push the trailing buttons to the right
