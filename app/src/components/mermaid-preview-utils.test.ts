@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { escapeHtml, generateMermaidHtml } from "./mermaid-preview-utils";
+import { escapeHtml, generateMermaidShellHtml } from "./mermaid-preview-utils";
 
 describe("escapeHtml", () => {
   it("escapes less-than and greater-than characters", () => {
@@ -20,44 +20,38 @@ describe("escapeHtml", () => {
   });
 });
 
-describe("generateMermaidHtml", () => {
-  it("returns a valid HTML document containing the mermaid source", () => {
-    const html = generateMermaidHtml("graph TD; A -- B;");
+describe("generateMermaidShellHtml", () => {
+  it("returns a static HTML document that loads mermaid once", () => {
+    const html = generateMermaidShellHtml();
     expect(html.startsWith("<!DOCTYPE html>")).toBe(true);
-    expect(html).toContain("graph TD; A -- B;");
     expect(html).toContain("mermaid.min.js");
     expect(html).toContain('id="mermaid-graph"');
+  });
+
+  it("exposes an incremental render entrypoint and message listener", () => {
+    const html = generateMermaidShellHtml();
+    expect(html).toContain("__renderMermaid");
+    expect(html).toContain("addEventListener('message'");
+    expect(html).toContain("mermaid:render");
+    expect(html).toContain("mermaid:ready");
+  });
+
+  it("caches rendered output and only re-initializes on theme change", () => {
+    const html = generateMermaidShellHtml();
+    expect(html).toContain("new Map()");
+    expect(html).toContain("cache.has(key)");
     expect(html).toContain("mermaid.initialize");
   });
 
-  it("escapes HTML in the mermaid source to prevent injection", () => {
-    const malicious = '<img src=x onerror="alert(1)">';
-    const html = generateMermaidHtml(malicious);
-    expect(html).not.toContain('<img src=x onerror="alert(1)">');
-    expect(html).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
+  it("is identical across calls so the document is never rebuilt per diagram", () => {
+    expect(generateMermaidShellHtml()).toBe(generateMermaidShellHtml());
   });
 
-  it("uses dark theme and dark background when isDark is true", () => {
-    const html = generateMermaidHtml("graph TD; A -- B;", true);
-    expect(html).toContain("theme: 'dark'");
-    expect(html).toContain("#0d1117");
-  });
-
-  it("uses default theme and light background when isDark is false", () => {
-    const html = generateMermaidHtml("graph TD; A -- B;", false);
-    expect(html).toContain("theme: 'default'");
-    expect(html).toContain("#ffffff");
-  });
-
-  it("defaults to light theme when isDark is omitted", () => {
-    const html = generateMermaidHtml("graph TD; A -- B;");
-    expect(html).toContain("theme: 'default'");
-    expect(html).toContain("#ffffff");
-  });
-
-  it("includes a render script that trims whitespace and catches errors", () => {
-    const html = generateMermaidHtml("  graph TD; A -- B;  ");
-    expect(html).toContain("el.textContent.trim()");
-    expect(html).toContain("catch");
+  it("does not interpolate any mermaid source into the document", () => {
+    const html = generateMermaidShellHtml();
+    // Source is pushed in at runtime (postMessage / injectJavaScript), so the
+    // static shell must never embed diagram text — guards against injection.
+    expect(html).not.toContain("graph TD");
+    expect(html).not.toContain("<img src=x");
   });
 });

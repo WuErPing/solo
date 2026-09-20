@@ -1,6 +1,7 @@
 import React, { useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Markdown, { MarkdownIt, renderRules, type ASTNode } from "react-native-markdown-display";
+import FitImage from "react-native-fit-image";
 import {
   ActivityIndicator,
   Image as RNImage,
@@ -24,6 +25,8 @@ import {
 import { lineNumberGutterWidth } from "@/components/code-insets";
 import { isRenderedMarkdownFile } from "@/components/file-pane-render-mode";
 import { MermaidPreview } from "@/components/mermaid-preview";
+import { MathText } from "@/components/math-text";
+import { mathPlugin } from "@/components/markdown-math-plugin";
 import { SvgPreview } from "@/components/svg-preview";
 import { isSvgContent } from "@/components/svg-preview-utils";
 import { isWeb } from "@/constants/platform";
@@ -177,7 +180,10 @@ function FilePreviewBody({
   const colorMap = isDark ? darkHighlightColors : lightHighlightColors;
   const baseColor = isDark ? "#c9d1d9" : "#24292f";
   const markdownStyles = useMemo(() => createMarkdownStyles(theme), [theme]);
-  const markdownParser = useMemo(() => MarkdownIt({ typographer: true, linkify: true }), []);
+  const markdownParser = useMemo(
+    () => MarkdownIt({ typographer: true, linkify: true }).use(mathPlugin),
+    [],
+  );
   const markdownRules = useMemo(
     () => ({
       fence: (
@@ -195,6 +201,43 @@ function FilePreviewBody({
         }
         return renderRules.fence!(node, children, parentNodes, styles, inheritedStyles);
       },
+      // Mirror the library's default image rule but pass `key` directly to JSX.
+      // react-native-markdown-display spreads a props object containing `key`
+      // into <FitImage {...props} />, which React 19 rejects with a console error.
+      image: (
+        node: ASTNode,
+        children: React.ReactNode[],
+        parentNodes: ASTNode[],
+        styles: Record<string, unknown>,
+        allowedImageHandlers: string[],
+        defaultImageHandler: string,
+      ) => {
+        const { src, alt } = node.attributes as { src?: string; alt?: string };
+        const uri = src ?? "";
+        const show =
+          allowedImageHandlers.filter((value) =>
+            uri.toLowerCase().startsWith(value.toLowerCase()),
+          ).length > 0;
+        if (!show && !defaultImageHandler) {
+          return null;
+        }
+        return (
+          <FitImage
+            key={node.key}
+            indicator
+            style={styles._VIEW_SAFE_image as React.ComponentProps<typeof FitImage>["style"]}
+            source={{ uri: show ? uri : `${defaultImageHandler}${uri}` }}
+            accessible={alt ? true : undefined}
+            accessibilityLabel={alt ?? undefined}
+          />
+        );
+      },
+      math_inline: (node: ASTNode) => (
+        <MathText key={node.key} tex={node.content} display={false} isDark={isDark} />
+      ),
+      math_block: (node: ASTNode) => (
+        <MathText key={node.key} tex={node.content} display isDark={isDark} />
+      ),
     }),
     [isDark],
   );

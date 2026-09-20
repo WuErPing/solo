@@ -12,17 +12,20 @@ function setupDom() {
   return dom;
 }
 
+function mount(dom: JSDOM, element: React.ReactElement) {
+  const container = dom.window.document.createElement("div");
+  dom.window.document.body.appendChild(container);
+  const root = createRoot(container);
+  act(() => {
+    root.render(element);
+  });
+  return { container, root };
+}
+
 describe("MermaidPreview (web)", () => {
-  it("renders an iframe with mermaid HTML srcdoc", () => {
+  it("renders a single iframe with the static mermaid shell", () => {
     const dom = setupDom();
-
-    const container = dom.window.document.createElement("div");
-    dom.window.document.body.appendChild(container);
-    const root = createRoot(container);
-
-    act(() => {
-      root.render(<MermaidPreview source="graph TD; A -- B;" />);
-    });
+    const { container, root } = mount(dom, <MermaidPreview source="graph TD; A -- B;" />);
 
     const wrapper = container.querySelector('[data-testid="mermaid-preview-web"]');
     expect(wrapper).not.toBeNull();
@@ -30,10 +33,12 @@ describe("MermaidPreview (web)", () => {
     const iframe = wrapper?.querySelector("iframe");
     expect(iframe).not.toBeNull();
 
-    const srcdoc = iframe?.getAttribute("srcdoc");
-    expect(srcdoc).toContain("graph TD; A -- B;");
-    expect(srcdoc).toContain("mermaid.min.js");
+    const srcdoc = iframe?.getAttribute("srcdoc") ?? "";
     expect(srcdoc).toContain("<!DOCTYPE html>");
+    expect(srcdoc).toContain("mermaid.min.js");
+    expect(srcdoc).toContain("__renderMermaid");
+    // Source is pushed via postMessage, never embedded in the document.
+    expect(srcdoc).not.toContain("graph TD; A -- B;");
 
     act(() => {
       root.unmount();
@@ -41,21 +46,55 @@ describe("MermaidPreview (web)", () => {
     vi.unstubAllGlobals();
   });
 
-  it("uses dark theme when isDark is true", () => {
+  it("reuses the same iframe instance when the source changes", () => {
     const dom = setupDom();
+    const { container, root } = mount(dom, <MermaidPreview source="graph TD; A -- B;" />);
 
-    const container = dom.window.document.createElement("div");
-    dom.window.document.body.appendChild(container);
-    const root = createRoot(container);
+    const first = container.querySelector("iframe");
+    expect(first).not.toBeNull();
 
     act(() => {
-      root.render(<MermaidPreview source="graph TD; A -- B;" isDark />);
+      root.render(<MermaidPreview source="graph TD; C -- D;" />);
     });
 
-    const iframe = container.querySelector("iframe");
-    const srcdoc = iframe?.getAttribute("srcdoc") ?? "";
-    expect(srcdoc).toContain("theme: 'dark'");
-    expect(srcdoc).toContain("#0d1117");
+    const second = container.querySelector("iframe");
+    // Core performance guard: editing the diagram must not tear down and
+    // recreate the iframe (which would re-fetch mermaid from the CDN).
+    expect(second).toBe(first);
+
+    act(() => {
+      root.unmount();
+    });
+    vi.unstubAllGlobals();
+  });
+
+  it("pushes source and theme to the iframe via postMessage once ready", () => {
+    const dom = setupDom();
+    const { container, root } = mount(dom, <MermaidPreview source="graph TD; A -- B;" />);
+
+    const iframe = container.querySelector("iframe") as HTMLIFrameElement;
+    const postMessage = vi.spyOn(
+      iframe.contentWindow as unknown as { postMessage: (data: unknown, origin: string) => void },
+      "postMessage",
+    );
+
+    act(() => {
+      dom.window.dispatchEvent(
+        new dom.window.MessageEvent("message", {
+          data: { type: "mermaid:ready" },
+          source: iframe.contentWindow,
+        }),
+      );
+    });
+
+    act(() => {
+      root.render(<MermaidPreview source="graph TD; C -- D;" isDark />);
+    });
+
+    expect(postMessage).toHaveBeenCalledWith(
+      { type: "mermaid:render", source: "graph TD; C -- D;", theme: "dark" },
+      "*",
+    );
 
     act(() => {
       root.unmount();
@@ -65,14 +104,7 @@ describe("MermaidPreview (web)", () => {
 
   it("cleans up iframe on unmount", () => {
     const dom = setupDom();
-
-    const container = dom.window.document.createElement("div");
-    dom.window.document.body.appendChild(container);
-    const root = createRoot(container);
-
-    act(() => {
-      root.render(<MermaidPreview source="graph TD; A -- B;" />);
-    });
+    const { container, root } = mount(dom, <MermaidPreview source="graph TD; A -- B;" />);
 
     expect(container.querySelector("iframe")).not.toBeNull();
 

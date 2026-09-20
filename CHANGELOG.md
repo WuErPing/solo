@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2026-09-21
+
+### Added
+
+- **App**: LaTeX math rendering in markdown file preview — `$$…$$` display formulas typeset by MathJax (tex-svg) and drawn with react-native-svg, no WebView involved
+- **App**: inline `$…$` math (e.g. `$y_{true}$`) renders inside paragraphs, tables, and headings, flowing and wrapping with the surrounding text
+- **App**: bundled KaTeX stylesheet + fonts (`katex-assets.ts`, generated from the npm package) so the web math renderer works fully offline — `npm run generate:katex-assets` regenerates after a katex upgrade
+
+### Fixed
+
+- **App**: Android math formulas no longer flicker in markdown preview — the per-formula WebView (async height measurement, surface blanking while scrolling, remote stylesheet pop-in) is replaced by synchronous native SVG views
+- **App**: display formulas scale down to fit the pane width instead of overflowing
+- **App**: inline math sits on the text baseline (MathJax `vertical-align` applied); un-typesettable TeX degrades to raw source instead of an error box
+- **App**: markdown images render without a React 19 `key`-spreading console error
+
+### Changed
+
+- **App**: mermaid preview loads a static shell document once and re-renders incrementally via `injectJavaScript` — editing a diagram no longer reloads the page or re-fetches the CDN bundle
+
+## [0.14.0] - 2026-09-19
+
+### Added
+
+- **App**: tmux key bar agent command shortcuts, Tab promotion, and slash menu linkage
+
 ## [0.13.0] - 2026-09-09
 
 ### Added
