@@ -1,7 +1,7 @@
 ---
 name: solo-dev-base
 description: Base development context for the Solo AI coding assistant platform. Provides architecture overview, tech stack, build commands, CI/CD reference, directory map, and development conventions. Use at the start of any Solo development task — feature work, bug fixes, provider integration, infrastructure changes, or code review.
-version: "2026-06-13"
+version: "2026-09-23"
 tags:
   - solo
   - architecture
@@ -14,7 +14,7 @@ tags:
 
 ## Overview
 
-Solo is a local-first AI coding assistant platform with a Go daemon, a cross-platform React Native/Expo app, a WebSocket relay, and a CLI. The system supports direct local connections and remote relay connections with end-to-end encryption (E2EE). It currently ships 4 built-in AI providers (Claude, Kimi, OpenCode, Pi) plus a development-only Mock provider, with Kimi integrated via JSON-RPC 2.0 Wire mode. Codex has a frontend definition but no backend implementation yet.
+Solo is a local-first AI coding assistant platform with a Go daemon, a cross-platform React Native/Expo app, a WebSocket relay, a CLI, and a daemon supervisor. The system supports direct local connections and remote relay connections with end-to-end encryption (E2EE). It currently ships 5 built-in AI providers (Claude, Codex, Kimi, OpenCode, Pi) plus a development-only Mock provider, with Kimi integrated via JSON-RPC 2.0 Wire mode.
 
 ## When to Use
 
@@ -52,12 +52,12 @@ solo/
 ├── app/                 # React Native / Expo frontend
 │   ├── src/
 │   │   ├── app/         # Expo Router (file-system routing)
-│   │   ├── components/  # Reusable UI components (~121 files)
+│   │   ├── components/  # Reusable UI components (~160 files)
 │   │   ├── screens/     # Screen components (settings sections, tmux-dashboard, schedules)
-│   │   ├── hooks/       # Custom hooks (~95 files)
-│   │   ├── stores/      # Zustand stores (~33 files)
+│   │   ├── hooks/       # Custom hooks (~140 files)
+│   │   ├── stores/      # Zustand stores (~40 files)
 │   │   ├── contexts/    # React contexts (~20 files)
-│   │   ├── utils/       # Utilities (~156 files)
+│   │   ├── utils/       # Utilities (~186 files)
 │   │   ├── constants/   # App constants (agent slash commands)
 │   │   ├── styles/      # Theme and terminal theme presets
 │   │   ├── desktop/     # Desktop-specific modules
@@ -65,22 +65,25 @@ solo/
 │   └── e2e/             # Playwright E2E tests
 ├── app-bridge/          # TypeScript communication library
 │   └── src/
-│       ├── client/      # DaemonClient, transports (WS, Relay E2EE)
+│       ├── client/      # DaemonClient, transports (WS, Relay E2EE), per-domain RPC modules
 │       ├── relay/       # E2EE crypto (X25519 + XSalsa20-Poly1305)
-│       ├── server/      # Agent, chat, loop, schedule, tmux modules
+│       ├── server/      # Agent, chat, loop, schedule, tmux, usage, version modules
 │       └── shared/      # Connection offer types, protocol constants
 ├── daemon/              # Go core service
 │   └── internal/
-│       ├── server/      # WebSocket server, session management
-│       ├── agent/       # Agent lifecycle, provider registry, TurnGuard, typed errors
+│       ├── server/      # WebSocket server, session management, tmux handlers + pane watcher
+│       ├── agent/       # Agent lifecycle, provider registry, providers/{claude,codex,kimi,opencode,pi}, TurnGuard, typed errors
 │       ├── workspace/   # Workspace & project management
 │       ├── terminal/    # PTY terminal management
 │       ├── relayclient/ # Relay client + E2EE
 │       ├── push/        # Expo push notifications
 │       ├── memory/      # Session memory: TurnRecorder, bridge, filebackend, redact
 │       ├── memorysetup/ # Wires MemoryConfig → recorder+redactor+bridge for the daemon
-│       ├── schedule/    # Cron-based schedule automation (executor, store, runner)
+│       ├── schedule/    # Cron-based schedule automation (executor, store, NL assistant)
+│       ├── loop/        # Loop engine (template/instance model, worker+verifier)
+│       ├── llm/         # Minimal OpenAI-compatible completion client (schedule assistant parse)
 │       └── config/      # JSON config (~/.solo/config.json), incl. MemoryConfig
+├── usage/               # Go usage/quota service (solo-usage binary)
 ├── relay-go/            # Go WebSocket relay server
 │   └── internal/relay/  # Server, session, control, buffer, metrics
 ├── supervisor/          # Go daemon supervisor (solo-supervisor)
@@ -99,7 +102,7 @@ solo/
 | Layer | Technology |
 |-------|-----------|
 | **Backend** | Go 1.25, gorilla/websocket, creack/pty, slog, BurntSushi/toml |
-| **Frontend** | Expo 54, React Native 0.81, React 19, TypeScript |
+| **Frontend** | Expo 57, React Native 0.86, React 19.2, TypeScript |
 | **State** | Zustand, @tanstack/react-query, React Context |
 | **Styling** | Unistyles (dynamic theming) |
 | **Terminal** | @xterm/xterm v6 |
@@ -112,11 +115,14 @@ solo/
 ```bash
 # Build all Darwin binaries
 make darwin
-# → output/darwin/{solo, solo-relay, solo-cli}
+# → output/darwin/{solo, solo-relay, solo-cli, solo-usage, solo-supervisor}
 
 # Build Linux binaries
 make linux
-# → output/linux/{solo, solo-relay, solo-cli}
+# → output/linux/{solo, solo-relay, solo-cli, solo-supervisor}
+
+# Build + publish into ~/.solo/versions/ and restart under solo-supervisor
+make restart
 
 # Local dev (daemon + web app)
 make dev
@@ -141,9 +147,9 @@ make stop
 
 | Job | Steps |
 |-----|-------|
-| `go` | For each module (protocol, cli, daemon, relay-go): `go mod verify` → `go build -v ./...` → `go test -short -race -coverprofile=coverage.out` → upload coverage (Codecov + artifact, 14 days) → `golangci-lint v2.10` (`--timeout=5m`) |
+| `go` | For each module (protocol, cli, daemon, relay-go, supervisor, usage): `go mod verify` → `go build -v ./...` → `go test -short -race -coverprofile=coverage.out` → upload coverage (Codecov + artifact, 14 days) → `golangci-lint v2.10` (`--timeout=5m`) |
 | `arch-boundaries` | `scripts/check-arch-boundaries.sh` — enforces the Go module boundaries from `.agents/rules/architecture.md` (protocol is dependency-free; daemon/cli/relay-go may import protocol only). Also runs locally via `make lint` |
-| `js` | `npm ci` → lint app / app-bridge / highlight → typecheck all three → test highlight → **test app (unit, 1617 tests)** → **test app-bridge (32 tests)** → upload coverage (Codecov + artifacts, 14 days) |
+| `js` | `npm ci` → lint app / app-bridge / highlight → typecheck all three → test highlight → **test app (unit, ~2100 tests)** → **test app-bridge (~200 tests)** → upload coverage (Codecov + artifacts, 14 days) |
 
 **`.github/workflows/semantic-check.yml`** (PR label `semantic-check` + manual):
 
@@ -155,7 +161,7 @@ make stop
 
 | Job | Steps |
 |-----|-------|
-| `e2e` | Install dependencies → Playwright browsers → build workspace deps → run E2E (31 specs); failure artifacts retained 7 days |
+| `e2e` | Install dependencies → Playwright browsers → build workspace deps → run E2E (44 specs); failure artifacts retained 7 days |
 
 **Coverage**: JS via Vitest v8 → lcov → Codecov (app ~36 % stmt, app-bridge ~89 % stmt). Go via `-coverprofile=coverage.out` → Codecov. `codecov.yml` gates **patch coverage ≥ 70 %** on PRs (hard check); whole-project coverage stays informational.
 
@@ -178,18 +184,18 @@ make stop
 | Provider | Mode | Backend | Status |
 |----------|------|---------|--------|
 | Claude | Print (`--print --output-format stream-json`) | Go | ✅ Full |
-| Kimi | Wire (`kimi --wire`, JSON-RPC 2.0 stdio) | Go | ✅ Full (~737 LOC, 31 executed tests) |
+| Kimi | Wire (`kimi --wire`, JSON-RPC 2.0 stdio) | Go | ✅ Full |
 | OpenCode | SSE (`/global/event`) | Go | ✅ Full |
 | Pi | Minimal terminal harness | Go | ✅ Full |
+| Codex | Print (`codex exec --json`, session resume) | Go | ✅ Full |
 | Mock | Test | Go | ✅ Dev-only (`SOLO_ENABLE_MOCK_PROVIDER=1`) |
-| Codex | Print (OpenAI) | — | ⚠️ Definition only, no backend |
 
 **Removed**: Copilot.
 **Planned**: Cursor-Agent (Print mode). See `docs/providers/`.
 
 ## Recent Architecture Changes
 
-1. **Session memory Phase 1** (2026-05-29): Turns (user + assistant) are persisted as Markdown + YAML frontmatter under `~/.solo/memory/sessions/{YYYY-MM-DD}/{sessionID}/turns/{seq:04d}-{role}.md`, indexed by `~/.solo/memory/sessions.jsonl`. New `daemon/internal/memory` module (`TurnRecorder` interface, `FileTurnRecorder` async writer, `Redactor` stack, `Bridge` for seq/parent chain + streaming-chunk accumulation, `SafeBridge` panic/circuit-breaker wrapper); `memorysetup` wires it from `config.MemoryConfig`; server hooks on `handleSendAgentMessage`/`sendAgentStream`. On by default (opt-out via `"memory": {"enabled": false}`). ~465 tests across memory/bridge/filebackend/redact/memorysetup/config/server. See `docs/architecture/session-memory-persistence.md` and `docs/product/session-memory-spec.md`.
+1. **Session memory Phase 1** (2026-05-29): Turns (user + assistant) are persisted as Markdown + YAML frontmatter under `~/.solo/memory/sessions/{YYYY-MM-DD}/{sessionID}/turns/{seq:04d}-{role}.md`, indexed by `~/.solo/memory/sessions.jsonl`. New `daemon/internal/memory` module (`TurnRecorder` interface, `FileTurnRecorder` async writer, `Redactor` stack, `Bridge` for seq/parent chain + streaming-chunk accumulation, `SafeBridge` panic/circuit-breaker wrapper); `memorysetup` wires it from `config.MemoryConfig`; server hooks on `handleSendAgentMessage`/`sendAgentStream`. On by default (opt-out via `"memory": {"enabled": false}`). ~465 tests across memory/bridge/filebackend/redact/memorysetup/config/server. See `docs/architecture/session-memory-persistence.md`.
 2. **MessageID propagation** (2026-05-25): All providers now attach a unique `MessageID` to `user_message` events, enabling backend timeline deduplication across multiple concurrent sessions.
 3. **Timeline deduplication** (2026-05-25): `InMemoryTimelineStore.Append()` compares the last row by type-specific equality (`MessageID` → `Text` → `CallID+Status`) to prevent duplicate entries when N sessions emit the same event.
 4. **Multi-client sync test** (2026-05-25): Added `daemon/internal/server/multi_client_sync_test.go` (180 LOC) verifying concurrent session handling correctness.
@@ -197,12 +203,19 @@ make stop
 6. **App-bridge test suite** (2026-05-24): 3 test files covering base64, crypto, and path-utils (32 tests, ~300 ms).
 7. **CI overhaul** (2026-05-24): App unit tests (1617 tests) and app-bridge tests now run on every PR; nightly E2E workflow; Codecov integration.
 8. **Schedule automation** (2026-06-02): New `daemon/internal/schedule/` module with cron/interval cadences, timezone-aware input, UTC evaluation, and JSON persistence; App schedule dashboard and per-host schedule screens; app-bridge schedule RPC module. See `docs/analysis/create-schedule-flow.md` and `docs/analysis/app-bridge-schedule-module.md`.
-9. **Tmux subsystem** (2026-06-03 ~ 2026-06-12): Tmux Dashboard (`screens/tmux-dashboard/`) and full-screen Tmux Pane Screen with ANSI rendering, lazy history loading (200→5000 lines), agent detection (3-layer), slash-command filtering, terminal theme sync, and status-line aggregation. See `docs/architecture/tmux-pane-content-loading.md` and `docs/analysis/tmux-pane-analysis.md`.
+9. **Tmux subsystem** (2026-06-03 ~ 2026-06-12): Tmux Dashboard (`screens/tmux-dashboard/`) and full-screen Tmux Pane Screen with ANSI rendering, lazy history loading (200→5000 lines), agent detection (3-layer), slash-command filtering, terminal theme sync, and status-line aggregation. See `docs/architecture/tmux-pane-content-loading.md`.
 10. **Agent stall detection** (2026-05-30): `daemon/internal/agent/stall_monitor.go` detects stuck/repeating agents and tightens grace periods. See `docs/architecture/agent-stall-detection.md`.
 11. **TurnGuard & typed provider errors** (2026-06-09): `daemon/internal/agent/base/turn_guard.go` prevents inconsistent provider turn transitions; `daemon/internal/agent/errors.go` introduces typed sentinel errors.
 12. **Type-erasure convergence** (2026-06-07 ~ 2026-06-08): Typed stream events and tool-call structs (`protocol/stream_event.go`, `protocol/tool_call_detail.go`) replace broad `interface{}`/`map[string]interface{}` usage in provider pipelines. See `docs/analysis/go-provider-type-erasure-analysis.md`.
-13. **OpenCode cross-device sync fix** (2026-06-09): SSE heartbeat and corrected event ordering resolve cross-client timeline duplication for OpenCode sessions. See `docs/analysis/opencode-cross-device-sync-fix.md`.
-14. **Terminal theme simplification** (2026-06-12): Terminal theme presets reduced to `system` / `dark` / `light` / `tmux`.
+13. **OpenCode cross-device sync fix** (2026-06-09): SSE heartbeat and corrected event ordering resolve cross-client timeline duplication for OpenCode sessions.
+14. **Terminal themes** (2026-06-12, revised later): Terminal theme presets are now `system` / `dark` / `light` / `bash` / `auto` (`app/src/styles/terminal-themes.ts`).
+15. **Loop templates & instances** (v0.10.0): `daemon/internal/loop/` engine with template/instance model (`templateID` grouping), shared `AgentTemplate` for loop+schedule agents (ADR-001), worker+verifier feedback loop; app template hooks and instance detail screen.
+16. **Schedule assistant & LLM config** (v0.10.0): NL schedule parse via `daemon/internal/schedule/assistant*.go` + `daemon/internal/llm/` client (`schedule/assist` RPC, proposal-only safety); LLM provider configuration backend + settings UI. See `docs/architecture/schedule-assistant.md`.
+17. **Tmux push refresh** (v0.11.0): server-level `TmuxPaneWatcher` (~500ms poll) broadcasts `tmux/pane_changed`; app refetches the active pane immediately and repaints only changed lines (`diffSnapshots`).
+18. **Supervisor & version switching** (v0.12.0): `solo-supervisor` watchdog with exit-code restart contract (42=restart, ADR-003), `~/.solo/versions/` + `current` pointer version switching from the host page (ADR-004), crash-breaker fallback to the last working build (ADR-005); spawn-loop health persisted to `supervisor-state.json` and relayed via `list_daemon_versions` (v0.13.0). See `docs/architecture/daemon-supervision.md`.
+19. **Codex provider** (v0.12.0 era): full Go backend at `daemon/internal/agent/providers/codex/` (`codex exec --json`, native session resume via `exec resume`).
+20. **LaTeX math rendering** (v0.15.0): markdown preview renders `$$…$$` display and `$…$` inline math via MathJax tex-svg drawn with react-native-svg (no WebView); KaTeX assets bundled offline (`npm run generate:katex-assets`).
+21. **Task Groups prototype removed** (2026-09-23): the `/task-groups` mock-data route and screens were deleted; `docs/design/multi-agent-collaboration.md` remains a proposal for the real feature.
 
 ## Documentation Index
 
@@ -212,7 +225,10 @@ Full docs live in `docs/`. Read `docs/README.md` for the structured index.
 |----------|------|----------|
 | Architecture | `docs/architecture/` | Designing features, understanding data flow |
 | Product | `docs/product/` | Checking feature coverage, UI component inventory |
+| Decisions (ADR) | `docs/decisions/` | Making or reviewing significant design decisions |
 | Providers | `docs/providers/` | Adding new AI providers |
+| Release | `docs/release/` | Cutting a release, build/deploy per module |
+| Verification | `docs/verification/` | Test strategy, coverage gates |
 | Analysis | `docs/analysis/` | Deep-dives into specific subsystems |
 | Project Rules | `.agents/rules/` | Go/TS conventions, testing, security, architecture boundaries (indexed from `CLAUDE.md`) |
 
