@@ -1,7 +1,7 @@
 # PRD: Product + Task Unification
 
 > **Date**: 2026-07-31
-> **Status**: Draft
+> **Status**: Draft（Proposal，未实现 — [ADR-002](../../decisions/adr-002-product-task-unification.md) 状态为 Proposed；截至 2026-09-23，`daemon/internal/{task,product,profile,skill,notification}/`、`products.json` / `tasks.json`、`task/*` RPC 均不存在，Loop / Schedule 仍是独立模块）
 > **Priority**: High
 > **Supersedes**: [product-layer-evolution.md](product-layer-evolution.md) 中的 P2-P5（统一 Task、Board、Inbox、Trigger 部分）
 > **Requires**: ADR-002 (Product-Task Unification architecture decision)
@@ -615,4 +615,4 @@ Task.Execution.VerifyPrompt  → LLM 语义验证（仅 iterate mode）
 - [Loop Schedule Spec](loop-schedule-spec.md) — 被本 PRD 的 Task 统一模型取代
 - [ADR-001: Shared Agent Template](../../decisions/adr-001-shared-agent-template-for-loop-and-schedule.md) — 已铺路（AgentTemplate 统一）
 - [Product Layer Evolution](product-layer-evolution.md) — 渐进方案（本 PRD 的 P0/P1 部分仍有效：Skills, Profile）
-- [Roadmap 2026](../roadmap-2026.md) — 需更新以反映 Product+Task 方向
+- [Roadmap 2026](../roadmap-2026.md) — v3.0 已吸收 Product+Task 方向

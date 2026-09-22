@@ -217,7 +217,7 @@ type StallMonitor struct {
 ### Why Not Put Detection in the Provider?
 
 - **Provider-agnostic**: OpenCode, Claude, Kimi all emit different event shapes. A unified monitor at the `AgentStreamEvent` level works for all.
-- **Non-intrusive**: No changes to `provider_opencode.go`, `provider_claude.go`, etc.
+- **Non-intrusive**: No changes to provider implementations (`providers/opencode/client.go`, `providers/claude/client.go`, etc.).
 - **Testable**: Can test with mock events without spinning up real provider processes.
 
 ---
@@ -237,7 +237,7 @@ type StallMonitor struct {
 | `TestStallMonitor_RecordEventCreatesState` | Lazy state creation on first event |
 | `TestStallMonitor_ReasoningEventsCountAsActivity` | `reasoning` timeline items count as progress |
 | `TestStallMonitor_RepetitionIgnoresWhitespace` | Whitespace differences normalized |
-| `TestStallMonitor_RepetitionWithMapItem` | Map-shaped `item` payloads handled |
+| `TestStallMonitor_MapShapedEventsDoNotFeedRepetition` | Map-shaped `item` payloads do not feed the repetition detector |
 
 All tests run with `-race` and pass under 4s.
 

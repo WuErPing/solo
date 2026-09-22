@@ -1,8 +1,8 @@
 # Solo - Product Feature Detailed Analysis
 
-> Analysis Date: 2026-08-21
+> Analysis Date: 2026-09-23（复审）
 > Repository: /Users/wuerping/code/wuerping/solo
-> Version: v0.12.0
+> Version: v0.15.0
 
 ## Product Overview
 
@@ -201,7 +201,7 @@ Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
 - **Projects Screen**：项目管理
 - **Sessions Screen**：会话历史
 - **Settings Screen**：设置管理
-  - 终端主题选择器（`system` / `dark` / `light` / `tmux`）
+  - 终端主题选择器（`system` / `dark` / `light` / `bash` / `auto`）
   - Tmux Agents 设置区（`tmux-agents-section.tsx`）
   - Providers / Keyboard Shortcuts 设置区
 - **Mermaid Preview**：Markdown 文件面板内嵌 Mermaid 图表实时渲染
@@ -274,16 +274,16 @@ Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
 
 ### 10. 测试覆盖
 
-#### 10.1 测试规模
-- **App 单元测试**：**235** 个测试文件，**1,663** 个测试用例（Vitest），已接入 CI（含 tmux dashboard、pane screen、status line、ANSI renderer、SVG preview、loop CRUD 等新增测试）
+#### 10.1 测试规模（2026-09-23 统计）
+- **App 单元测试**：**284** 个测试文件，**2,124** 个测试用例（Vitest），已接入 CI（含 tmux dashboard、pane screen、status line、ANSI renderer、SVG preview、loop CRUD 等新增测试）
 - **App browser 测试**：1 个文件（Chromium via Playwright），未接入 CI
-- **App-bridge 测试**：3 个文件，**32 个测试用例**（Vitest），已接入 CI
-- **Daemon 测试文件**：**129** 个（Go），已接入 CI
+- **App-bridge 测试**：**23** 个文件，**199 个测试用例**（Vitest），已接入 CI
+- **Daemon 测试文件**：**175** 个（Go），已接入 CI
 - **Relay-go 测试文件**：**8** 个（Go），已接入 CI
-- **Protocol 测试文件**：**4** 个（Go），已接入 CI
-- **CLI 测试文件**：**13** 个（Go），已接入 CI
-- **E2E 测试**：**35** 个 `.spec.ts`（Playwright），**nightly 运行**（含 loop-crud、tmux-close-session、SVG preview 等 E2E）
-- **Maestro 移动端**：~20 个 YAML flow，ad-hoc / 未接入 CI
+- **Protocol 测试文件**：**13** 个（Go），已接入 CI
+- **CLI 测试文件**：**14** 个（Go），已接入 CI
+- **E2E 测试**：**44** 个 `.spec.ts`（Playwright，`app/e2e/`），**nightly 运行**（含 loop-crud、tmux-close-session、SVG preview 等 E2E）
+- **Maestro 移动端**：~21 个 YAML flow（`app/maestro/`），ad-hoc / 未接入 CI
 
 #### 10.2 关键测试域
 - Agent：dispatcher、coalescer、reasoning/window、duplicate 检测
@@ -325,20 +325,32 @@ app/
 ├── index.tsx                # Entry point (startup bootstrapping)
 ├── dashboard.tsx            # Dashboard
 ├── tmux-dashboard.tsx       # Tmux Dashboard
-├── tmux-pane.tsx            # Tmux Pane (全屏)
+├── tmux-pane.tsx            # Tmux Pane (全屏, native 渲染)
+├── tmux-pane-xterm.tsx      # Tmux Pane (全屏, xterm 渲染)
 ├── schedules.tsx            # Schedule Dashboard 入口
-├── task-groups/             # Task Groups 页面（mock-data 原型，无后端）
+├── usage.tsx                # 用量/配额仪表板入口
 ├── pair-scan.tsx            # QR 码配对
+├── welcome.tsx              # 欢迎页
 ├── settings/
 │   ├── index.tsx            # 设置首页
 │   ├── [section].tsx        # 设置分类页
 │   ├── hosts/[serverId].tsx # Host 详情
-│   └── projects/            # 项目管理
+│   └── projects/            # 项目管理 (index.tsx / [projectKey].tsx)
 └── h/[serverId]/
-    ├── workspace/[workspaceId]/  # Workspace 主页
+    ├── index.tsx                 # 主机首页
+    ├── new.tsx                   # 新建 Workspace
+    ├── open-project.tsx          # 打开项目
+    ├── workspace/[workspaceId]/  # Workspace 主页 (_layout.tsx / index.tsx)
     ├── agent/[agentId].tsx       # Agent 详情
     ├── sessions.tsx              # 会话列表
     ├── schedules.tsx             # 主机调度任务列表
+    ├── schedules/[scheduleId].tsx # 调度详情
+    ├── loops.tsx                 # Loop 列表
+    ├── loops/create.tsx          # 创建 Loop
+    ├── loops/[loopId].tsx        # Loop 详情
+    ├── loops/[loopId]/instances/[instanceId].tsx # Loop 实例详情
+    ├── settings.tsx              # 主机设置
+    ├── tmux-dashboard.tsx        # 主机 Tmux Dashboard
     └── usage.tsx                 # 主机用量/配额仪表板
 ```
 
@@ -385,7 +397,6 @@ Button, Dropdown Menu, Combobox, Tooltip, Shortcut, Segmented Control, Context M
 |---------|------|
 | SessionContext | 会话状态管理 |
 | ToastContext | Toast 通知 |
-| VoiceContext | 语音输入状态 |
 
 #### Hooks
 | Hook | 功能 |
@@ -394,8 +405,6 @@ Button, Dropdown Menu, Combobox, Tooltip, Shortcut, Segmented Control, Context M
 | useAggregatedTmuxAgents | 聚合 tmux agent 发现 |
 | useTmuxCapturePane | tmux pane 内容轮询 |
 | useTmuxNewSession | 创建新 tmux 会话 |
-| useTmuxTheme | 终端主题颜色 |
-| useTmuxStatusLine | tmux 状态栏解析 |
 | useTmuxStatusLines | 聚合多主机状态栏 |
 | useSchedule* | 调度任务查询/创建/编辑 hooks |
 | useSettings | App 设置 |
@@ -407,7 +416,8 @@ Button, Dropdown Menu, Combobox, Tooltip, Shortcut, Segmented Control, Context M
 | PanelStore | 面板状态 |
 | WorkspaceTabsStore | Workspace 标签状态 |
 | TmuxAgentStore | 选中的 tmux agent |
-| ScheduleStore | 调度任务状态 |
+| TmuxKeybarStore | 按键栏展开状态（AsyncStorage 持久化） |
+| ScheduleAssistantStore | 日程助手面板状态 |
 
 ## 缺失功能（与 Paseo 对比）
 

@@ -1,5 +1,7 @@
 # Solo Loop Schedule 实现规范（v1.0）
 
+> **状态**：Proposal（未实现）。截至 2026-09-23：Loop 仍是独立模块（`daemon/internal/loop/{engine,store,types}.go`，worker/verifier + 模板/实例模式），`schedule` 无 `type:"loop"`；本规范提出的 LoopController、StepExecutor 注册表、HumanConfirmGate、LoopRunner（`runner.go`）及 §4.1 模块布局均未落地。已实现部分：ADR-001 的 `AgentTemplate` 统一（Schedule `new-agent` target 与 Loop worker/verifier 共用 `protocol.AgentSessionConfig`）。后续统一方向见 [Product + Task Unification PRD](product-task-unification.md)（同为提案）。
+>
 > **文档类型**：产品/架构实现规范
 > **日期**：2026-06-20
 > **基线版本**：Solo v0.6.3

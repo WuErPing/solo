@@ -2,6 +2,9 @@
 
 > Date: 2026-07-25
 > Status: Implemented (2026-07-28)
+> 实现位置：`app/src/components/tmux-key-bar.tsx`（native / xterm 两屏共享）· `app/src/stores/tmux-keybar-store.ts`（展开状态，AsyncStorage 持久化）· `app/src/utils/tmux-option-parser.ts`（上下文选项解析）
+>
+> **与本文初稿的实现差异**：Primary 行最终为 `↑ ↓ | Enter Esc ^C Tab | ⋯`（`Tab` 从扩展层上移）；扩展层最终为 `⇤ ← → 1 2 3 4 Home` + `/` 斜杠菜单按钮（触发输入框斜杠命令）+ Agent 命令键区（`Compact` `Clear` `Model` `Cost`）；输入行（TextInput + Send）不在 `TmuxKeyBar` 内部，由各屏幕自行渲染。
 
 ## 现状问题
 
@@ -123,12 +126,16 @@ capture-pane 最后 N 行匹配到编号选项模式：
 
 ## 统一两屏的组件结构
 
+实际实现（`app/src/components/tmux-key-bar.tsx`）：
+
 ```tsx
 <TmuxKeyBar
-  onSendKey={(key: string) => void}
-  onSendText={(text: string) => void}
-  contextOptions={parsedOptions}   // 从 capture-pane 内容解析
-  variant="native" | "xterm"       // 仅影响 xterm 额外键（如 C-c 已有）
+  onSendKey={(key: string) => void}          // 发送 tmux 按键
+  onSendCommand={(command: string) => void}  // 发送 Agent 斜杠命令（如 /compact）
+  onRequestSlashMenu={() => void}            // "/" 按钮：唤起输入框斜杠命令菜单
+  content={string}                           // capture-pane 内容，组件内部用 parseContextOptions 解析上下文选项
+  extraButtons={TmuxKeyBarExtraButton[]}     // 屏幕级附加按钮（Continue / Refresh / History 等）
+  testIDPrefix={string}
 />
 ```
 
@@ -136,13 +143,12 @@ capture-pane 最后 N 行匹配到编号选项模式：
 
 ```
 TmuxKeyBar
-├── ContextualOptionStrip     (条件渲染)
-├── PrimaryKeyRow             (↑ ↓ | Enter Esc ^C | ⋯)
-├── ExpandedKeyRow            (展开态)
-└── InputRow                  (TextInput + Send button，现有逻辑不变)
+├── ContextualOptionStrip     (条件渲染，parseContextOptions(content))
+├── ExpandedKeyRow            (展开态：⇤ ← → 1-4 Home + / + Agent 命令键)
+└── PrimaryKeyRow             (↑ ↓ | Enter Esc ^C Tab | extraButtons | ⋯)
 ```
 
-两屏共享此组件，xterm 屏不再单独维护 `VIRTUAL_KEYS` 数组。
+两屏共享此组件，xterm 屏不再单独维护 `VIRTUAL_KEYS` 数组；输入行（TextInput + Send）保留在各屏幕内，不属于 `TmuxKeyBar`。
 
 ## 交互细节
 

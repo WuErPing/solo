@@ -22,7 +22,7 @@
   - `src/screens/workspace/` - Workspace management screens
 - `src/components/` - Reusable components
 - `src/app/` - Expo Router routes
-  - `src/app/h/[serverId]/` - Per-host routes (agent, loops, schedules, sessions, settings, usage, workspace, new, open-project)
+  - `src/app/h/[serverId]/` - Per-host routes (agent, dashboard, loops, schedules, sessions, settings, tmux-dashboard, usage, workspace, new, open-project)
   - `src/app/schedules.tsx` - Schedule entry point
   - `src/app/usage.tsx` - Usage dashboard entry
   - `src/app/tmux-dashboard.tsx` - Tmux dashboard entry
@@ -93,6 +93,7 @@
 | `schedule/` | Scheduler (incl. `schedule/assist` RPC schemas) |
 | `tmux/` | Tmux RPC schemas and types |
 | `usage/` | Usage quota RPC schemas (`usage/quota/list`) |
+| `version/` | Daemon version RPC schemas (`list_daemon_versions_request`, `switch_daemon_version_request`) |
 
 ### 2.4 Shared & Utils
 
@@ -146,7 +147,7 @@ Core files:
 - `session.go` - Session management
 - `session_agent.go` - Agent sessions
 - `session_terminal.go` - Terminal sessions
-- `session_tmux.go` - Tmux subprocess management, agent scanning, pane capture, key injection
+- `session_tmux.go` - Tmux message handlers, split across `session_tmux_scan.go` (agent scanning), `session_tmux_pane.go` (pane capture), `session_tmux_session.go` (key injection, session creation, status line); `tmux_watcher.go` pushes `tmux/pane_changed` notifications
 - `session_schedule.go` - Schedule message handlers and session-bound schedule state
 - `session_schedule_assist.go` - `schedule/assist` handler; per-session Assistant (NL schedule parse) built lazily via `sync.Once`
 - `session_usage.go` - `usage/quota/list` handler; process-wide quota cache (60s TTL, singleflight) over the shared `usage` module
@@ -204,20 +205,21 @@ Core structure:
 - `filebackend/` - Async channel writer + directory layout + `sessions.jsonl`
 - `redact/` - Pre-write redaction (regex / env / multi, includes OpenAI/GitHub/Anthropic/AWS default patterns)
 - `bridge/` - Session→turn bridge: seq/parent chain, streaming chunk merging; `SafeBridge` provides panic recovery + circuit breaker
-- `internal/server/memorybridge*.go` - Session scheduler layer hook injection
+- `internal/server/memorybridge.go` / `memory_wiring.go` - Session scheduler layer hook injection
 
 See [Session Memory Persistence](session-memory-persistence.md).
 
 ### 3.6 Tmux Subsystem
 
-**File**: `internal/server/session_tmux.go`
+**Files**: `internal/server/session_tmux*.go` + `internal/server/tmux_watcher.go`
 
 Features:
-- **Agent scanning**: Three-layer detection (command name, pane title unicode normalization, child process inspection)
-- **Pane capture**: `tmux capture-pane -p -e -S {startLine}` with configurable scrollback
-- **Key injection**: `tmux send-keys -t {paneId} {keys} [Enter]`
-- **Status line**: `tmux display-message -p` for status-left, status-right, and window list
-- Supported agents: claude, pi, kimi, kimi-cli, opencode, qodercli, cursor, codex
+- **Agent scanning** (`session_tmux_scan.go`): Three-layer detection (command name, pane title unicode normalization, child process inspection)
+- **Pane capture** (`session_tmux_pane.go`): `tmux capture-pane -t {paneId} -p -e -J -S {startLine}` with configurable scrollback (optional `-C {cols}` width cropping)
+- **Key injection** (`session_tmux_session.go`): `tmux send-keys -t {paneId} {keys} [Enter]`
+- **Status line** (`session_tmux_session.go`): `tmux show-options -gv` + `display-message -p` for status-left/status-right, `list-windows` for the window list
+- **Push refresh** (`tmux_watcher.go`): server-level pane-activity poller broadcasting `tmux/pane_changed`
+- Supported agents (built-in, `config.builtInTmuxAgentNames`): claude, opencode, qodercli, pi, cursor, kimi, kimi-cli, codex
 
 ### 3.7 App-Bridge Tmux Modules
 
@@ -225,14 +227,18 @@ Features:
 
 | File | Responsibility |
 |------|---------------|
-| `rpc-schemas.ts` | Zod schemas for all tmux RPC messages (list_agents, capture_pane, send_keys, new_session, get_theme) |
+| `rpc-schemas.ts` | Zod schemas for all tmux RPC messages (list_agents, capture_pane, send_keys, get_theme, status_line, new_session, kill_session, delete_command_history, pane_changed) |
 
-**DaemonClient methods** (in `app-bridge/src/client/daemon-client.ts`):
-- `tmuxListAgents(hostId)` — Discover AI agent panes across tmux sessions
-- `tmuxCapturePane(hostId, paneId, startLine?)` — Capture pane content with ANSI codes
-- `tmuxSendKeys(hostId, paneId, keys, sendEnter?)` — Send keystrokes to a tmux pane
+**Tmux RPC methods** (canonical location: `TerminalRpc` in `app-bridge/src/client/terminal-rpc.ts`, reached via `client.terminal.*`; the flat `DaemonClient.tmux*` wrappers still exist but are deprecated). Each app↔daemon connection is per-host, so methods take no `hostId`:
+- `tmuxListAgents()` — Discover AI agent panes (also returns other panes, command history, input history)
+- `tmuxCapturePane(paneId, startLine?, lastContentHash?, cols?)` — Capture pane content with ANSI codes (hash-based skip when unchanged)
+- `tmuxSendKeys(paneId, keys, sendEnter?)` — Send keystrokes to a tmux pane
+- `tmuxStatusLine(sessionId)` — Get parsed status line segments (`tmux/status_line`)
 - `tmuxNewSession(name, options?)` — Create a new tmux session with optional working directory and command
-- `tmuxGetTheme(hostId, sessionId)` — Get tmux session theme colors (legacy, now uses terminal themes)
+- `tmuxKillSession(sessionName)` — Kill a tmux session
+- `tmuxDeleteCommandHistory(launchCmd)` — Delete recorded command history for a launch command
+
+Note: the `tmux/get_theme` types remain in `protocol/message_tmux.go` and `rpc-schemas.ts` for backward compatibility, but the daemon no longer registers a handler and no client method exists (see [tmux-pane-content-loading.md](tmux-pane-content-loading.md) §8.4).
 
 ### 3.8 App Tmux Components
 
@@ -244,13 +250,11 @@ Features:
 | `useAggregatedTmuxAgents` | `hooks/use-tmux-agents.ts` | Parallel useQueries across all hosts for agent discovery |
 | `useTmuxCapturePane` | `hooks/use-tmux-capture-pane.ts` | Polling useQuery for pane content with foreground awareness |
 | `useTmuxNewSession` | `hooks/use-tmux-new-session.ts` | Create new tmux sessions from the dashboard |
-| `useTmuxTheme` | `hooks/use-tmux-theme.ts` | Query for terminal theme colors |
-| `useTmuxStatusLine` | `hooks/use-tmux-status-line.ts` | Parse and render tmux status line with ANSI colors |
-| `useTmuxStatusLines` | `hooks/use-tmux-status-lines.ts` | Aggregate status lines from multiple hosts |
+| `useTmuxStatusLines` | `hooks/use-tmux-status-lines.ts` | Aggregate status lines from multiple hosts (per-session queries via `client.terminal.tmuxStatusLine`) |
 | `ansi-text-renderer` | `components/ansi-text-renderer.tsx` | ANSI escape sequence rendering component |
 | `error-boundary` | `components/error-boundary.tsx` | React error boundary wrapping tmux screens |
 | `terminal-themes` | `styles/terminal-themes.ts` | 5 terminal theme presets (`system`, `dark`, `light`, `bash`, `auto`) |
-| `resolve-terminal-colors` | `utils/resolve-terminal-colors.ts` | Resolve effective terminal colors from theme + content + tmux theme |
+| `resolve-terminal-colors` | `utils/resolve-terminal-colors.ts` | Resolve effective terminal colors from theme preset + content-detected colors |
 | `detect-ansi-colors` | `utils/detect-ansi-colors.ts` | 256-color palette detection from ANSI content |
 
 ### 3.9 Schedule Assistant
@@ -349,17 +353,22 @@ Features:
 
 **Core Files**:
 - `protocol.go` - Protocol constants
+- `process_contract.go` - Daemon↔supervisor exit-code contract (`ExitCodeRestartRequested = 42`)
 - `message.go` - Message types
 - `message_agent_inbound.go` - Inbound agent messages
 - `message_agent_outbound.go` - Outbound agent messages
 - `message_common.go` - Shared message types
 - `message_editor.go` - Editor-related messages
+- `message_git.go` - Git operation messages
 - `message_loop.go` - Loop automation messages
 - `message_schedule.go` - Schedule messages
+- `message_schedule_assist.go` - Schedule assistant (`schedule/assist`) messages
 - `message_solo_compat.go` - Solo compatibility messages
 - `message_terminal_msg.go` - Terminal messages
 - `message_tmux.go` - Tmux-related messages
+- `message_tmux_notify.go` - Tmux server-push notification (`tmux/pane_changed`)
 - `message_usage.go` - Usage quota messages (`usage/quota/list` request/response, snapshots)
+- `message_version.go` - Daemon version messages (`list_daemon_versions_request`, `switch_daemon_version_request`)
 - `message_worktree.go` - Worktree messages
 - `statemachine.go` - State machine logic
 - `stream_event.go` - Streaming event types

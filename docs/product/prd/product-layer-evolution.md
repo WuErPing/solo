@@ -1,7 +1,7 @@
 # Solo Product Layer Evolution — Absorbing Multica Abstractions
 
 > **Date**: 2026-07-30
-> **Status**: Draft
+> **Status**: Draft（Proposal，未实现 — 截至 2026-09-23，Skills / AgentProfile / 统一 Task / Board / Inbox / Trigger 泛化均未落地；P2–P5 已被 [product-task-unification.md](product-task-unification.md) 取代）
 > **Direction**: B — Solo 吸收 Multica 产品层抽象，保持 terminal-native 体验
 > **Reference**: [Multica](https://github.com/multica-ai/multica) 产品分析
 

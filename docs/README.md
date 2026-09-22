@@ -2,7 +2,7 @@
 
 > **Purpose**: Persistent context base for Solo development, CI/CD, and architecture decisions.
 > **Organizing principle**: PADD (Product & Architecture Driven Development) — all context as code, co-located with the repo.
-> **Last updated**: 2026-08-21
+> **Last updated**: 2026-09-23
 
 ---
 
@@ -21,6 +21,8 @@ docs/
 │   ├── agent-send-presets-design.md       # Agent send button presets design
 │   ├── prd/                               # Per-feature PRD / specs
 │   │   ├── loop-schedule-spec.md          # Loop-as-Schedule unification spec
+│   │   ├── product-layer-evolution.md     # Multica-inspired product layer evolution PRD
+│   │   ├── product-task-unification.md    # Product + Task unification PRD (6 → 2 concepts)
 │   │   └── provider-hub-design.md         # Provider Hub / CC-Switch migration design
 │   └── assets/roadmap-2026/               # Roadmap diagrams
 │
@@ -48,7 +50,8 @@ docs/
 │   └── adr-005-*.md                       # Supervisor crash fallback to a working build
 │
 ├── debt/                                  ← ── Tech Debt Registry (PADD §4) ──
-│   └── README.md                          # Registry rules + entry template
+│   ├── README.md                          # Registry rules + entry template
+│   └── debt-001-memory-config-opt-out.md  # DEBT-001: Session-memory config opt-out (Active)
 │
 ├── infrastructure/                        ← ── Infra facts (PADD §5, independent layer) ──
 │   ├── README.md                          # Layer overview
@@ -252,7 +255,7 @@ How to cut a release — build and deploy per module.
 | `ci.yml` | `go` (matrix) | `go mod verify` → build → test → coverage → golangci-lint v2 |
 | `ci.yml` | `js` | npm ci → lint → typecheck → test → coverage |
 | `ci.yml` | `arch-boundaries` | `scripts/check-arch-boundaries.sh` |
-| `e2e-nightly.yml` | `e2e-nightly` | Playwright (43 specs), daily 02:00 UTC |
+| `e2e-nightly.yml` | `e2e-nightly` | Playwright (44 specs), daily 02:00 UTC |
 | `semantic-check.yml` | `adr-consistency` | Advisory LLM ADR check (never blocks) |
 
 ### Tech stack

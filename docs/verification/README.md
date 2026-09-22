@@ -9,7 +9,7 @@
 |-------|-------------------|--------------|-------------|
 | **Static** | Syntax, types, lint | `go vet`, `golangci-lint v2`, `tsc --noEmit`, ESLint | `make ci` |
 | **Test** | Unit + integration behaviour | Go `go test -short -race -count=1 -tags external_api`, Vitest (app + app-bridge) | `make test-go` / `make test-app` / `make ci` |
-| **Runtime (E2E)** | Real user scenarios | Playwright (43 specs), daemon+relay+Metro globalSetup | `.github/workflows/e2e-nightly.yml` |
+| **Runtime (E2E)** | Real user scenarios | Playwright (44 specs), daemon+relay+Metro globalSetup | `.github/workflows/e2e-nightly.yml` |
 | **Non-functional** | Resilience, security, performance | Manual chaos (kill relay, network partition), security-deep-analysis findings | Ad-hoc / per-release |
 | **Semantic** | Design quality, intent alignment | LLM ADR-consistency check (advisory), code review | `.github/workflows/semantic-check.yml` |
 | **Value** | Solves real user problem | Product metrics, user feedback, roadmap KPIs | `product/roadmap-2026.md` §KPIs |

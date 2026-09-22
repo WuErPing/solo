@@ -211,10 +211,6 @@ Diff view reusing the existing file pane; conflict warnings across member worktr
 - **Cost runaway.** N agents burn N× tokens. Mitigation: group-level token budgets + extending `stall_monitor.go` semantics to the group level.
 - **Diff conflicts on the same files.** Worktrees + `scope` declarations mitigate but do not eliminate conflicts; set expectations in product copy instead of promising isolation.
 
-## Companion Prototype
-
-A mock-data prototype page exists in the app (`app/src/screens/task-groups/` + route `app/src/app/task-groups/`) as a companion to this document. Status: **prototype, no backend** — it validates the Layer 1/2 information architecture against realistic data before P0 protocol work begins.
-
 ## Design Principles
 
 1. **Productize what exists before building what's new** — L1/L2 reuse the agent manager, worktrees, and loop engine; new machinery is limited to grouping, handoff, and acceptance.

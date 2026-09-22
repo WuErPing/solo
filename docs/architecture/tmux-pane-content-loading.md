@@ -46,16 +46,16 @@ All tmux operations are proxied through the existing WebSocket session infrastru
             │
             ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Layer 2: App-Bridge (TypeScript)                                   │
+│  Layer 2: App Hooks + App-Bridge (TypeScript)                       │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────┐  │
-│  │ useAggregated   │  │ useTmuxCapture  │  │  useTmuxTheme       │  │
+│  │ useAggregated   │  │ useTmuxCapture  │  │  useTmuxStatusLines │  │
 │  │   TmuxAgents    │  │     Pane        │  │                     │  │
 │  └────────┬────────┘  └────────┬────────┘  └──────────┬──────────┘  │
 │           │                    │                       │              │
 │  ┌────────▼────────────────────▼───────────────────────▼──────────┐  │
-│  │              DaemonClient (WebSocket RPC)                      │  │
+│  │       DaemonClient → client.terminal (WebSocket RPC)           │  │
 │  │  tmuxListAgents()  tmuxCapturePane()  tmuxSendKeys()          │  │
-│  │  tmuxGetTheme()                                                │  │
+│  │  tmuxStatusLine()                                              │  │
 │  └────────┬────────────────────────────────────────────────────────┘  │
 └───────────┼──────────────────────────────────────────────────────────┘
             │  WebSocket (correlated session request / response)
@@ -73,7 +73,7 @@ All tmux operations are proxied through the existing WebSocket session infrastru
 │  Layer 4: Daemon (Go)                                               │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────┐  │
 │  │  Session WS     │  │  scanTmuxAgents │  │ captureTmuxPane     │  │
-│  │   Handlers      │  │   (3 layers)    │  │  (-p -e -S -200)    │  │
+│  │   Handlers      │  │   (3 layers)    │  │ (-p -e -J -S -200)  │  │
 │  └────────┬────────┘  └────────┬────────┘  └──────────┬──────────┘  │
 │           │                    │                       │              │
 │  ┌────────▼────────────────────▼───────────────────────▼──────────┐  │
@@ -90,13 +90,12 @@ All tmux operations are proxied through the existing WebSocket session infrastru
 | App | `TmuxDashboardScreen` | Displays aggregated agent list, non-agent panes, command history, and new session creation from all connected hosts |
 | App | `TmuxPaneScreen` | Renders captured pane content with ANSI colors, handles input |
 | App | `tmux-agent-store` | Zustand store holding selected `serverId` + `paneId` |
-| App-Bridge | `useAggregatedTmuxAgents` | Parallel `useQueries` across all hosts for agent discovery |
-| App-Bridge | `useTmuxCapturePane` | Polling `useQuery` for pane content with foreground awareness |
-| App-Bridge | `useTmuxNewSession` | Hook for creating new tmux sessions with optional working directory and command |
-| App-Bridge | `useTmuxTheme` | One-shot query for tmux session theme colors |
-| App-Bridge | `DaemonClient` | WebSocket RPC client exposing typed tmux methods |
+| App | `useAggregatedTmuxAgents` | Parallel `useQueries` across all hosts for agent discovery (`app/src/hooks/use-tmux-agents.ts`) |
+| App | `useTmuxCapturePane` | Adaptive-polling `useQuery` for pane content with foreground awareness (`app/src/hooks/use-tmux-capture-pane.ts`) |
+| App | `useTmuxNewSession` | Hook for creating new tmux sessions with optional working directory and command |
+| App-Bridge | `DaemonClient` / `TerminalRpc` | WebSocket RPC client exposing typed tmux methods (`client.terminal.*`; flat `DaemonClient.tmux*` wrappers are deprecated) |
 | Daemon | `session_register_handlers.go` | Routes tmux messages to handler functions |
-| Daemon | `session_tmux.go` | Executes tmux subprocesses and parses output |
+| Daemon | `session_tmux*.go` | Executes tmux subprocesses and parses output (handlers in `session_tmux.go`; scanning in `session_tmux_scan.go`; capture in `session_tmux_pane.go`; keys/session/status-line in `session_tmux_session.go`) |
 
 ## 3. Agent List Scanning Flow
 
@@ -110,9 +109,9 @@ TmuxDashboardScreen
         ▼
 useAggregatedTmuxAgents (useQueries per host)
         │
-        ├──► DaemonClient.tmuxListAgents(hostA)
-        ├──► DaemonClient.tmuxListAgents(hostB)
-        └──► DaemonClient.tmuxListAgents(hostC)
+        ├──► host A client.terminal.tmuxListAgents()
+        ├──► host B client.terminal.tmuxListAgents()
+        └──► host C client.terminal.tmuxListAgents()
                  │
                  ▼
         scanTmuxAgents() on each Daemon
@@ -138,9 +137,9 @@ The daemon parses every tmux pane via `parseTmuxPaneLines()`. Detection proceeds
 | **Layer 3** | Child processes | Recursive check via `pgrep -P {panePid}` + `ps -o comm=` | Agent spawned as child of shell |
 
 ```go
-// daemon/internal/server/session_tmux.go
+// daemon/internal/server/session_tmux_scan.go
 // scanTmuxAgents executes:
-tmux list-panes -a -F "#{pane_id}|#{pane_index}|#{pane_pid}|#{pane_current_command}|#{session_name}|#{window_name}|#{pane_current_path}|#{pane_title}"
+tmux list-panes -a -F "#{pane_id}|#{pane_index}|#{pane_pid}|#{pane_current_command}|#{session_name}|#{window_name}|#{pane_current_path}|#{pane_title}|#{window_activity}"
 ```
 
 The output is line-split and parsed into `TmuxAgentInfo` structs. Only panes that match at least one layer are returned.
@@ -149,20 +148,21 @@ The output is line-split and parsed into `TmuxAgentInfo` structs. Only panes tha
 
 | Parameter | Value | Rationale |
 |---|---|---|
-| `staleTime` | `30_000` ms | Agent panes change infrequently; reduce server load |
+| `refetchInterval` | adaptive via `computeAdaptiveQueryInterval` (150ms active / 1s warm / 5s idle), gated by `useAppVisible` | Refresh quickly while panes are changing; save battery when idle or backgrounded |
+| `placeholderData` | `keepPreviousData` | Prevent flicker on refetch |
 | `retry` | `1` | One retry on transient network errors |
 
 ## 4. Pane Content Capture Flow
 
 ### 4.1 Core Loading Sequence
 
-When the user selects an agent pane, the app stores `(serverId, paneId)` in `tmux-agent-store` and navigates to `TmuxPaneScreen`. The screen mounts `useTmuxCapturePane`, which begins polling.
+When the user selects an agent pane, the app stores the selected agent/pane object in `tmux-agent-store` (`setSelectedAgent`) and navigates to `TmuxPaneScreen`. The screen mounts `useTmuxCapturePane`, which begins polling.
 
 ```
 User taps agent pane
         │
         ▼
-tmux-agent-store.setSelection(serverId, paneId)
+tmux-agent-store.setSelectedAgent(agent)
         │
         ▼
 Router → TmuxPaneScreen
@@ -172,13 +172,13 @@ useTmuxCapturePane(paneId)
         │
         ├── staleTime: 5s ──► cache hit? return cached
         │
-        └── miss ──► DaemonClient.tmuxCapturePane(paneId)
+        └── miss ──► client.terminal.tmuxCapturePane(paneId, -scrollbackLines, lastContentHash?, cols?)
                           │
                           ▼
-                   captureTmuxPane(paneID)
+                   captureTmuxPane(paneID, startLine, cols)
                           │
                           ▼
-                   tmux capture-pane -t {paneId} -p -e -S -200
+                   tmux capture-pane -t {paneId} -p -e -J -S -200
                           │
                           ▼
                    Return content string (with ANSI codes)
@@ -187,23 +187,26 @@ useTmuxCapturePane(paneId)
 ### 4.2 Capture Command Parameters
 
 ```
-tmux capture-pane -t {paneId} -p -e -S {startLine}
+tmux capture-pane -t {paneId} -p -e -J -S {startLine}
 ```
 
 | Flag | Meaning |
 |---|---|
 | `-p` | Print captured content to stdout instead of pasting to a buffer |
 | `-e` | Preserve ANSI escape sequences (colors, styles) |
+| `-J` | Join wrapped lines, producing one output line per logical line |
 | `-S {startLine}` | Start capture from this line (negative = scrollback from bottom; e.g. `-S -200` = last 200 lines) |
 
 **Default**: `-200` (last 200 lines). When the user scrolls up and requests more history, the app sends progressively larger negative values (`-400`, `-600`, … up to `-5000`).
+
+The request also carries an optional `lastContentHash` (daemon skips returning content when the hash matches — response `changed: false`) and an optional `cols` (daemon rewraps the captured content to the client's column width via `wrapContentToCols`).
 
 ### 4.3 React Query Configuration (Pane Capture)
 
 | Parameter | Value | Rationale |
 |---|---|---|
 | `staleTime` | `5_000` ms | Content changes actively; 5s keeps it reasonably fresh |
-| `refetchInterval` | `5_000` ms | Poll every 5s while subscribed and foreground |
+| `refetchInterval` | adaptive via `computeAdaptiveQueryInterval`: `150ms` while content changed within the last 5s, `1000ms` for 5–10s, `5000ms` when stable >10s; gated by `useAppVisible` + Auto toggle | Near-live updates while the pane is active, battery saver when idle |
 | `placeholderData` | `keepPreviousData` | Prevent flicker on refetch; show old content until new arrives |
 | `retry` | `1` | One retry on transient failures |
 
@@ -276,12 +279,12 @@ When the user switches to a different pane (`paneId` changes), `scrollbackLines`
 
 ### 6.1 Foreground Awareness
 
-Polling is gated by `useAppVisible`. When the app moves to the background, the `refetchInterval` is effectively suspended (the query stops refetching). When the app returns to the foreground, polling resumes immediately.
+Polling is gated by `useAppVisible`. When the app moves to the background, the `refetchInterval` is effectively suspended (the query stops refetching). When the app returns to the foreground, polling resumes immediately. The poll rate itself is adaptive (`computeAdaptiveQueryInterval`): 150ms while content changed within the last 5s, 1s for 5–10s, 5s when stable.
 
 ```
 App State
     │
-    ├── Foreground ──► refetchInterval: 5000ms (active)
+    ├── Foreground ──► adaptive refetchInterval: 150ms / 1s / 5s (active)
     │
     └── Background ──► pause refetch (no network, no CPU)
          │
@@ -303,7 +306,7 @@ Users can disable automatic polling via an **"Auto" toggle** in the header. Defa
 
 | State | Behavior |
 |---|---|
-| **Auto ON** (default) | `refetchInterval: 5000ms` active; new content auto-scrolls to bottom |
+| **Auto ON** (default) | Adaptive `refetchInterval` (150ms/1s/5s) active; new content auto-scrolls to bottom |
 | **Auto OFF** | Polling stops; auto-scroll disabled; a **"Refresh"** button appears in the key row for manual refresh |
 
 This prevents the pane from jumping to the latest output while the user is scrolling up to read history.
@@ -377,8 +380,7 @@ The status line includes tmux window information (e.g., `0:claude*`), showing th
 
 | Hook | File | Responsibility |
 |---|---|---|
-| `useTmuxStatusLine` | `use-tmux-status-line.ts` | Parse and render a single tmux session's status line |
-| `useTmuxStatusLines` | `use-tmux-status-lines.ts` | Aggregate status lines from multiple hosts for the dashboard |
+| `useTmuxStatusLines` | `use-tmux-status-lines.ts` | Aggregate status lines from multiple hosts for the dashboard (queries `client.terminal.tmuxStatusLine(sessionId)` per session) |
 
 ## 8. Terminal Themes
 
@@ -475,7 +477,7 @@ Error → display error message inline
 ### 9.2 Daemon Implementation
 
 ```go
-// daemon/internal/server/session_tmux.go
+// daemon/internal/server/session_tmux_session.go
 func createTmuxSession(name string, workingDir *string, command *string) error {
     args := []string{"new-session", "-d", "-s", name}
     if workingDir != nil {
@@ -594,24 +596,39 @@ The `sendEnter` boolean appends a literal `Enter` key to the sequence, useful fo
 
 ## 14. Protocol Message Definitions
 
-### 11.1 Go (protocol/message_tmux.go)
+### 11.1 Go (protocol/message_tmux.go; `tmux/pane_changed` in protocol/message_tmux_notify.go)
 
 ```go
 // Agent metadata
 type TmuxAgentInfo struct {
-    SessionName string `json:"sessionName"`
-    WindowName  string `json:"windowName"`
-    PaneID      string `json:"paneId"`
-    PaneIndex   int    `json:"paneIndex"`
-    PanePID     int    `json:"panePid"`
-    AgentName   string `json:"agentName"`
-    CurrentCmd  string `json:"currentCmd"`
-    WorkingDir  string `json:"workingDir"`
+    SessionName           string `json:"sessionName"`
+    WindowName            string `json:"windowName"`
+    PaneID                string `json:"paneId"`
+    PaneIndex             int    `json:"paneIndex"`
+    PanePID               int    `json:"panePid"`
+    AgentName             string `json:"agentName"`
+    CurrentCmd            string `json:"currentCmd"`
+    WorkingDir            string `json:"workingDir"`
+    Title                 string `json:"title,omitempty"`
+    GitCommit             string `json:"gitCommit,omitempty"`
+    Status                string `json:"status,omitempty"`   // "active" (default/omitted) or "exited"
+    Activity              string `json:"activity,omitempty"` // "busy", "idle", or "" (unknown)
+    LaunchCmd             string `json:"launchCmd,omitempty"`
+    LastContentChange     int64  `json:"lastContentChange"`
+    LastContentChangeHHMM string `json:"lastContentChangeHHMM,omitempty"`
+    LastContentChangeAgo  string `json:"lastContentChangeAgo,omitempty"`
 }
 
 // List agents
 type TmuxListAgentsRequest  struct { Type string; RequestID string }
 type TmuxListAgentsResponse struct { Type string; Payload TmuxListAgentsResponsePayload }
+
+// Deduplicated coding agent launch command
+type AgentCommandEntry struct {
+    AgentName string `json:"agentName"`
+    LaunchCmd string `json:"launchCmd"`
+    LastSeen  string `json:"lastSeen"`
+}
 
 // Deduplicated user text input with a usage counter for frequency ranking
 type TmuxInputEntry struct {
@@ -621,19 +638,32 @@ type TmuxInputEntry struct {
 }
 
 type TmuxListAgentsResponsePayload struct {
-    RequestID    string           `json:"requestId"`
-    Agents       []TmuxAgentInfo  `json:"agents"`
-    InputHistory []TmuxInputEntry `json:"inputHistory,omitempty"`
-    Error        *string          `json:"error"`
+    RequestID      string              `json:"requestId"`
+    Agents         []TmuxAgentInfo     `json:"agents"`
+    OtherPanes     []TmuxPaneInfo      `json:"otherPanes"`
+    CommandHistory []AgentCommandEntry `json:"commandHistory,omitempty"`
+    InputHistory   []TmuxInputEntry    `json:"inputHistory,omitempty"`
+    Error          *string             `json:"error"`
 }
 
-// Capture pane
-type TmuxCapturePaneRequest  struct { Type string; PaneID string; StartLine *int `json:"startLine,omitempty"`; RequestID string }
+// Capture pane (LastContentHash enables hash-based skip; Cols requests
+// server-side rewrap to the client's column width)
+type TmuxCapturePaneRequest struct {
+    Type            string  `json:"type"`
+    PaneID          string  `json:"paneId"`
+    StartLine       *int    `json:"startLine,omitempty"`
+    LastContentHash *string `json:"lastContentHash,omitempty"`
+    Cols            *int    `json:"cols,omitempty"`
+    RequestID       string  `json:"requestId"`
+}
 type TmuxCapturePaneResponse struct { Type string; Payload TmuxCapturePaneResponsePayload }
 type TmuxCapturePaneResponsePayload struct {
-    RequestID string  `json:"requestId"`
-    Content   string  `json:"content"`
-    Error     *string `json:"error"`
+    RequestID   string  `json:"requestId"`
+    Content     string  `json:"content"`
+    Changed     *bool   `json:"changed,omitempty"`
+    ContentHash *string `json:"contentHash,omitempty"`
+    PaneCols    *int    `json:"paneCols,omitempty"`
+    Error       *string `json:"error"`
 }
 
 // Send keys
@@ -703,6 +733,12 @@ export const TmuxAgentInfoSchema = z.object({
   agentName: z.string(),
   currentCmd: z.string(),
   workingDir: z.string(),
+  status: z.string().optional(),
+  activity: z.string().optional(),
+  launchCmd: z.string().optional(),
+  lastContentChange: z.number().int().optional(),
+  lastContentChangeHHMM: z.string().optional(),
+  lastContentChangeAgo: z.string().optional(),
 });
 
 export const TmuxListAgentsRequestSchema = z.object({
@@ -720,7 +756,9 @@ export const TmuxListAgentsResponseSchema = z.object({
   type: z.literal("tmux/list_agents/response"),
   payload: z.object({
     requestId: z.string(),
-    agents: z.array(TmuxAgentInfoSchema),
+    agents: z.array(TmuxAgentInfoSchema).nullish().default([]),
+    otherPanes: z.array(TmuxPaneInfoSchema).nullish().default([]),
+    commandHistory: z.array(AgentCommandEntrySchema).nullish().default([]),
     inputHistory: z.array(TmuxInputEntrySchema).nullish().default([]),
     error: z.string().nullable(),
   }),
@@ -730,6 +768,8 @@ export const TmuxCapturePaneRequestSchema = z.object({
   type: z.literal("tmux/capture_pane"),
   paneId: z.string(),
   startLine: z.number().int().optional(),
+  lastContentHash: z.string().optional(),
+  cols: z.number().int().optional(),
   requestId: z.string(),
 });
 
@@ -738,6 +778,9 @@ export const TmuxCapturePaneResponseSchema = z.object({
   payload: z.object({
     requestId: z.string(),
     content: z.string(),
+    changed: z.boolean().optional(),
+    contentHash: z.string().optional(),
+    paneCols: z.number().int().optional(),
     error: z.string().nullable(),
   }),
 });
@@ -811,6 +854,8 @@ export const TmuxPaneChangedNotificationSchema = z.object({
 });
 ```
 
+The same file also defines schemas for `tmux/kill_session`, `tmux/delete_command_history`, and `tmux/status_line` (request/response pairs).
+
 ## 15. Error Handling and Edge Cases
 
 | Scenario | Behavior |
@@ -836,22 +881,23 @@ export const TmuxPaneChangedNotificationSchema = z.object({
 | `app/src/hooks/use-tmux-agents.ts` | `useAggregatedTmuxAgents` hook |
 | `app/src/hooks/use-tmux-capture-pane.ts` | `useTmuxCapturePane` hook — polling plus push-driven refetch on `tmux/pane_changed` |
 | `app/src/terminal/runtime/snapshot-diff.ts` | `diffSnapshots` — line-level diff producing a minimal ANSI patch or full-rewrite decision |
-| `app/src/hooks/use-tmux-theme.ts` | `useTmuxTheme` hook |
-| `app/src/hooks/use-tmux-status-line.ts` | `useTmuxStatusLine` hook — parse and render tmux status line |
 | `app/src/hooks/use-tmux-status-lines.ts` | `useTmuxStatusLines` hook — aggregate status lines from multiple hosts |
 | `app/src/hooks/use-tmux-new-session.ts` | `useTmuxNewSession` hook — create new tmux sessions from the dashboard |
 | `app/src/styles/terminal-themes.ts` | 5 terminal theme presets (`system`, `dark`, `light`, `bash`, `auto`) |
 | `app/src/components/ansi-text-renderer.tsx` / `ansi-text-line.tsx` | ANSI escape sequence rendering components |
 | `app/src/components/error-boundary.tsx` | React error boundary for crash protection |
-| `app/src/utils/resolve-terminal-colors.ts` | Resolve effective terminal colors from theme + content + tmux theme |
+| `app/src/utils/resolve-terminal-colors.ts` | Resolve effective terminal colors from theme preset + content-detected colors |
 | `app/src/utils/detect-ansi-colors.ts` | 256-color palette detection from ANSI content |
 | `app/src/utils/tmux-rpc.ts` | `withLiveTmuxClient` wrapper |
 | `app/src/constants/agent-commands.ts` | Slash-command definitions and `filterSlashCommands` |
-| `app-bridge/src/client/daemon-client.ts` | `DaemonClient` — `tmuxListAgents`, `tmuxCapturePane`, `tmuxSendKeys`, `tmuxNewSession`, `tmuxGetTheme` |
+| `app-bridge/src/client/terminal-rpc.ts` | `TerminalRpc` — canonical tmux methods: `tmuxListAgents`, `tmuxCapturePane`, `tmuxSendKeys`, `tmuxStatusLine`, `tmuxNewSession`, `tmuxKillSession`, `tmuxDeleteCommandHistory` (flat `DaemonClient.tmux*` wrappers are deprecated; `tmuxGetTheme` was removed) |
 | `app-bridge/src/server/tmux/rpc-schemas.ts` | Zod schemas for all tmux RPC messages (including `TmuxNewSessionRequestSchema`, `TmuxNewSessionResponseSchema`) |
-| `daemon/internal/server/session_register_handlers.go` | WebSocket handler registration (`tmux/list_agents`, `tmux/capture_pane`, `tmux/send_keys`, `tmux/new_session`, `tmux/get_theme`) |
-| `daemon/internal/server/session_tmux.go` | Core tmux logic: `scanTmuxAgents`, `parseTmuxPaneLines`, `captureTmuxPane`, `sendKeysToTmuxPane`, `createTmuxSession`, `extractTmuxTheme`; records user text inputs into the input history store |
-| `daemon/internal/server/input_history_store.go` | Input history store — deduplicated `TmuxInputEntry` records surfaced as `inputHistory` in `tmux/list_agents/response` |
+| `daemon/internal/server/session_register_handlers.go` | WebSocket handler registration (`tmux/list_agents`, `tmux/capture_pane`, `tmux/send_keys`, `tmux/new_session`, `tmux/kill_session`, `tmux/delete_command_history`, `tmux/status_line`; `tmux/get_theme` is no longer registered) |
+| `daemon/internal/server/session_tmux.go` | Tmux message handlers (`handleTmuxListAgents`, `handleTmuxCapturePane`, `handleTmuxSendKeys`, `handleTmuxNewSession`, `handleTmuxKillSession`, `handleTmuxDeleteCommandHistory`, `handleTmuxStatusLine`) |
+| `daemon/internal/server/session_tmux_scan.go` | `scanTmuxAgents`, `parseTmuxPaneLines` — 3-layer agent detection |
+| `daemon/internal/server/session_tmux_pane.go` | `captureTmuxPane` — pane capture with content-hash dedup and column rewrap |
+| `daemon/internal/server/session_tmux_session.go` | `sendKeysToTmuxPane`, `createTmuxSession`, `extractTmuxStatusLine` |
+| `daemon/internal/server/agent_command_store.go` / `input_history_store.go` | Command history and deduplicated `TmuxInputEntry` input history surfaced in `tmux/list_agents/response` |
 | `daemon/internal/server/tmux_watcher.go` | `TmuxPaneWatcher` — server-level poller that broadcasts `tmux/pane_changed` on pane activity |
 | `protocol/message_tmux.go` | Go struct definitions for tmux protocol messages |
 | `protocol/message_tmux_notify.go` | Go struct for the `tmux/pane_changed` server-push notification |

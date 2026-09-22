@@ -398,9 +398,9 @@ App (TmuxDashboardScreen)
   ▼
 useAggregatedTmuxAgents (useQueries per host)
   │
-  ├──► DaemonClient.tmuxListAgents(hostA)
-  ├──► DaemonClient.tmuxListAgents(hostB)
-  └──► DaemonClient.tmuxListAgents(hostC)
+  ├──► host A client.terminal.tmuxListAgents()
+  ├──► host B client.terminal.tmuxListAgents()
+  └──► host C client.terminal.tmuxListAgents()
            │
            ▼  WebSocket (tmux/list_agents)
       Relay → Daemon
@@ -421,13 +421,13 @@ useAggregatedTmuxAgents (useQueries per host)
 App (TmuxPaneScreen)
   │
   ▼
-useTmuxCapturePane(paneId, startLine?)
+useTmuxCapturePane(serverId, paneId, enabled, cols?)
   │
   ▼  WebSocket (tmux/capture_pane)
 Relay → Daemon
   │
   ▼
-captureTmuxPane(paneID) → tmux capture-pane -t {paneId} -p -e -S {startLine}
+captureTmuxPane(paneID, startLine, cols) → tmux capture-pane -t {paneId} -p -e -J -S {startLine}
   │
   ▼  WebSocket (tmux/capture_pane/response)
 Return content string (with ANSI codes)
@@ -457,15 +457,15 @@ Return success / error
 App (TmuxDashboardScreen)
   │
   ▼
-useTmuxStatusLine(sessionId)
+useTmuxStatusLines(agents)
   │
-  ▼  WebSocket (tmux/get_status_line)
+  ▼  WebSocket (tmux/status_line)
 Relay → Daemon
   │
   ▼
-tmux display-message -p "#{status-left}" / "#{status-right}" / window list
+tmux show-options -gv + display-message -p (status-left / status-right) + list-windows
   │
-  ▼  WebSocket (tmux/get_status_line/response)
+  ▼  WebSocket (tmux/status_line/response)
 Return parsed status line segments with ANSI codes
 ```
 
@@ -513,14 +513,16 @@ Daemon          Relay
 
 ### Data Connection Heartbeat
 
+The daemon's `Session.pingLoop` (`daemon/internal/server/session.go`) sends WebSocket-level ping frames to the client every **5s** (`pingInterval`); a missing pong within the timeout expires the read deadline and triggers the disconnect/grace path. An application-level `ping` message handler also exists for on-demand latency probes (used by `agent-rpc.ts` `ping()`).
+
 ```
-Client          Relay          Daemon
+Daemon          Relay          Client
   │              │              │
-  │── ping ────►│── forward ──►│
+  │── WS ping ──►│── forward ──►│
   │              │              │
-  │◄── pong ─────│◄── forward ──│
+  │◄── WS pong ──│◄── forward ──│
   │              │              │
-  │  (every 30s) │              │
+  │  (every 5s)  │              │
 ```
 
 ## Error Handling Flow

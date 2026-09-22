@@ -55,7 +55,9 @@ Daemon 的首选运行方式是由 **solo-supervisor**（`supervisor/`）拉起�
 
 ```bash
 make use-solo-relay
-# 或手动编辑 ~/.solo/config.json：
+# 注意：该目标当前写入的是 Makefile 变量拼出的 IP 端点
+# （SOLO_RELAY_NGINX_PORT，默认 106.52.40.152:8081），与下面的域名 + 443 约定不一致；
+# 如需走 Nginx 反代，请手动编辑 ~/.solo/config.json：
 # {"daemon":{"relay":{"enabled":true,"endpoint":"solo.up2ai.top:443","publicEndpoint":"solo.up2ai.top:443"}}}
 ```
 
@@ -67,6 +69,6 @@ make use-solo-relay
 curl http://localhost:17612/api/health
 # {"status":"ok","timestamp":"..."}
 
-# 确认已连上 Relay
-ssh tencent_gz_6 "curl -s http://localhost:8080/health"   # sessions >= 1
+# 确认已连上 Relay（生产端口 8081，见 relay.md）
+ssh tencent_gz_6 "curl -s http://localhost:8081/health"   # sessions >= 1
 ```

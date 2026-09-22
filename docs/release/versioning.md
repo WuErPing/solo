@@ -7,18 +7,18 @@
 
 - 语义化版本 [SemVer](https://semver.org/lang/zh-CN/)：`MAJOR.MINOR.PATCH`。
 - CHANGELOG 遵循 [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/)。
-- Release tag 锚定 **app** 版本，形如 `v0.12.0`。
+- Release tag 锚定 **app** 版本，形如 `v0.15.0`。
 
 ## 各模块版本位置
 
 | 模块 | 版本存放位置 | 当前值 | 说明 |
 |------|--------------|--------|------|
-| app | `app/package.json` → `version` | `0.12.0` | release tag 锚点 |
+| app | `app/package.json` → `version` | `0.15.0` | release tag 锚点 |
 | app-bridge | `app-bridge/package.json` → `version` | `0.6.0` | |
 | highlight | `packages/highlight/package.json` → `version` | `0.2.0` | |
 | daemon | `daemon/internal/config/config.go` → `var Version` | `0.6.0` | 构建时经 `-ldflags` 覆盖 |
 | cli | `cli/internal/config/version.go` → `var Version` | `dev` | 构建时经 `-ldflags` 覆盖 |
-| relay-go | `relay-go/internal/relay/server.go` → `const version` | `relay-go-v1` | 字符串常量，非 SemVer |
+| relay-go | `relay-go/internal/relay/server.go` → `const version` | `relay-go-v2` | 字符串常量，非 SemVer |
 | protocol | `protocol/protocol.go` → `WSProtocolVersion` / `RelayProtocolVersion` | `2` / `"2"` | 仅 wire 格式变更时递增 |
 | supervisor | 无版本字段 | — | 构建时不注入 `-ldflags` 版本 |
 | usage | 无版本字段 | — | 构建时不注入 `-ldflags` 版本 |
@@ -76,8 +76,8 @@ git log --pretty=format:"- %s" "$PREV_TAG"..HEAD
 ## Release tag
 
 ```bash
-git tag -a v0.12.0 -m "release: v0.12.0"
-git push origin v0.12.0
+git tag -a v0.15.0 -m "release: v0.15.0"
+git push origin v0.15.0
 ```
 
 打完 tag 后再执行各模块的构建/部署，`Makefile` 才能把正确版本注入二进制。

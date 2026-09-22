@@ -1,5 +1,7 @@
 # Solo Provider Hub：cc-switch 功能迁移 + 多 Agent 配置转写方案
 
+> **状态**：Proposal（未实现）。截至 2026-09-23：`daemon/internal/providerhub/`、`~/.solo/provider-hub/`、Local API Proxy（`:17613`）、Config Exporter、`solo providerhub` CLI 均未落地；本方案与 [Roadmap 2026](../roadmap-2026.md) 支柱 2 关联，属规划中能力。
+>
 > **文档类型**：产品/架构设计方案
 > **日期**：2026-06-13
 > **基线版本**：Solo v0.6.0
@@ -33,7 +35,7 @@ Solo 与 cc-switch 有天然互补性：
 
 | cc-switch 强项 | Solo 现状 | 结合价值 |
 |---|---|---|
-| 多 Agent Provider 配置管理 | 已有多 Provider 抽象（Claude/Kimi/OpenCode/Pi） | 把 Provider 管理从 Agent 内部提升到平台层 |
+| 多 Agent Provider 配置管理 | 已有多 Provider 抽象（Claude/Codex/Kimi/OpenCode/Pi） | 把 Provider 管理从 Agent 内部提升到平台层 |
 | 本地代理 / 路由 | 已有 E2EE Relay | 可在本地 daemon 内建 Provider Hub，移动端也能用 |
 | MCP / Skills / Prompts 统一管理 | MCP 已有 daemon 实现，App 有注入开关 | 做成跨 Agent 的通用工具和规则中枢 |
 | 用量监控 | Prometheus 指标较基础 | 补充细粒度 token/成本追踪 |
@@ -220,7 +222,7 @@ func (r *Router) Resolve(agent string, intent string) (*ResolvedProvider, error)
 ```
 
 **与现有架构集成**：
-- `ProviderRegistry` 继续负责 AgentClient 注册（Claude/Kimi/OpenCode/Pi）。
+- `ProviderRegistry` 继续负责 AgentClient 注册（Claude/Codex/Kimi/OpenCode/Pi）。
 - 新增 `providerhub.Registry` 管理上游 API Provider。
 - Agent 启动时，先通过 `Router.Resolve()` 得到 provider，再交给对应 AgentClient 执行。
 

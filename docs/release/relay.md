@@ -37,17 +37,21 @@ make solo-relay
 
 产物：`output/linux/solo-relay`。
 
-> Relay 的版本是 `relay-go/internal/relay/server.go` 里的 `const version`（当前 `relay-go-v1`），与 daemon/cli 的 `-ldflags` 注入不同，它是源码常量，发版前按需手动更新（见 [versioning.md](versioning.md)）。
+> Relay 的版本是 `relay-go/internal/relay/server.go` 里的 `const version`（当前 `relay-go-v2`），与 daemon/cli 的 `-ldflags` 注入不同，它是源码常量，发版前按需手动更新（见 [versioning.md](versioning.md)）。
 
 ## 部署（当前生产方式）
 
-只更新二进制并重启，沿用线上已有的旧版 unit：
+只更新二进制并重启，沿用线上已有的旧版 unit。首选 `make deploy-solo-relay`（scp 到 `/tmp` 再 `mv` 覆盖，自动保留 `solo-relay.prev` 备份，最后 restart；**不推送 unit**）：
 
 ```bash
+make deploy-solo-relay
+# 手动等效命令：
 make solo-relay-linux-amd64
-scp output/linux/solo-relay tencent_gz_6:/opt/solo-relay/solo-relay
-ssh tencent_gz_6 "chmod +x /opt/solo-relay/solo-relay && sudo systemctl restart solo-relay"
+scp output/linux/solo-relay tencent_gz_6:/tmp/solo-relay.new
+ssh tencent_gz_6 "cp /opt/solo-relay/solo-relay /opt/solo-relay/solo-relay.prev 2>/dev/null || true; mv /tmp/solo-relay.new /opt/solo-relay/solo-relay && chmod +x /opt/solo-relay/solo-relay && sudo systemctl restart solo-relay"
 ```
+
+> 不要直接 `scp` 覆盖运行中的 `/opt/solo-relay/solo-relay`（会触发 ETXTBSY），务必走 `/tmp` + `mv`。
 
 ## 验证
 
@@ -57,7 +61,7 @@ make relay-status
 
 # 健康检查（服务器本地，生产端口 8081）
 ssh tencent_gz_6 "curl -s http://localhost:8081/health"
-# {"status":"ok","sessions":1,"connections":3,"version":"relay-go-v1"}
+# {"status":"ok","sessions":1,"connections":3,"version":"relay-go-v2"}
 
 # 公网（经 Nginx 443）
 curl -s -H "Host: solo.up2ai.top" https://solo.up2ai.top/health
@@ -89,7 +93,12 @@ ssh tencent_gz_6 "cp /opt/solo-relay/solo-relay.prev /opt/solo-relay/solo-relay 
    ssh tencent_gz_6 "sudo mv /tmp/solo-relay.env /opt/solo-relay/solo-relay.env && sudo chown solo-relay:solo-relay /opt/solo-relay/solo-relay.env"
    ```
 3. 改 Nginx 上游到 8080（模板 [`deploy/nginx/solo-relay.conf`](../../deploy/nginx/solo-relay.conf)）并 `sudo nginx -t && sudo systemctl reload nginx`。
-4. 用 `make deploy-solo-relay` 推送加固版二进制 + unit 并重启（此时前置条件已满足）。
+4. 手动推送加固 unit（`make deploy-solo-relay` 只发二进制、**不推 unit**）：
+   ```bash
+   scp deploy/systemd/solo-relay.service tencent_gz_6:/tmp/solo-relay.service
+   ssh tencent_gz_6 "sudo mv /tmp/solo-relay.service /etc/systemd/system/solo-relay.service && sudo systemctl daemon-reload"
+   ```
+   再执行 `make deploy-solo-relay` 部署二进制并重启（此时前置条件已满足）。
 5. 验证：`ssh tencent_gz_6 "curl -s http://localhost:8080/health"`，并确认 Daemon 重连（`sessions >= 1`）。
 
 > 迁移完成后，请同步更新 [`../architecture/deployment.md`](../architecture/deployment.md) 的「生产现状」描述，并把 `Makefile` 的 `SOLO_RELAY_PORT/SOLO_RELAY_NGINX_PORT` 默认值与实际端口统一。
@@ -98,4 +107,4 @@ ssh tencent_gz_6 "cp /opt/solo-relay/solo-relay.prev /opt/solo-relay/solo-relay 
 
 - 版本与 CHANGELOG：[versioning.md](versioning.md)
 - 运行时部署 / Nginx / 排障：[`../architecture/deployment.md`](../architecture/deployment.md)
-- Node.js 版 relay（paseo-relay，**已弃用并下线**）：`make solo-relay-nodejs` / `make solo-relay-nodejs-docker`
+- Node.js 版 relay（paseo-relay，**已弃用并下线**，仓库中 `relay-nodejs/` 目录已删除；Makefile 里的 `solo-relay-nodejs` / `solo-relay-nodejs-docker` 目标已不可用）

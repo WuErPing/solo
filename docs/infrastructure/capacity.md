@@ -8,9 +8,14 @@
 | Parameter | Current Value | Source |
 |-----------|---------------|--------|
 | Instances | 1 (single point of failure) | topology.md |
-| Max message buffer per session | 200 (`MAX_BUFFER`) | systemd env |
-| WebSocket idle timeout | 86400s (Nginx `proxy_read_timeout`) | nginx config |
-| Nginx keepalive connections | 32 | nginx upstream |
+| Max message buffer per session | 200 (`MAX_BUFFER` env, default) | relay-go/internal/config/config.go |
+| Max concurrent connections | 10000 (`MAX_CONNS` env, default) | relay-go/internal/config/config.go |
+| WS read frame limit | 8 MiB (`wsReadLimit`) | relay-go/internal/relay/server.go |
+| WS read idle timeout | 5 min (`wsReadIdleTimeout`, refreshed per frame) | relay-go/internal/relay/server.go |
+| WS write deadline | 10 s (`wsWriteDeadline`) | relay-go/internal/relay/server.go |
+| Client ping interval | 30 s (`clientPingInterval`) | relay-go/internal/relay/server.go |
+| Nginx `proxy_read_timeout` | 300s in repo template; production value not in repo (documented as 86400s) | deploy/nginx/solo-relay.conf |
+| Nginx keepalive connections | 32 (production nginx, not in repo) | nginx config |
 | OS file descriptor limit | default (~1024) | not yet hardened |
 | Concurrent sessions (observed) | 1–5 (single user product) | — |
 

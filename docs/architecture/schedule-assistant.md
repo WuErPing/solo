@@ -198,6 +198,8 @@ Bundled fix: daemon config responses emitted `tmuxAgentNames: null`, which the a
 
 ## 11. Observability
 
+> **Note**: the Prometheus metrics below are **planned but not yet implemented** — no `solo_schedule_assist_*` series exist in `daemon/internal/metrics` today. Currently observability is provided by structured logs only.
+
 Metrics (the `llmProvider` label is the resolved provider's config id, e.g. `"openai"`):
 
 | Metric | Labels |
@@ -207,7 +209,7 @@ Metrics (the `llmProvider` label is the resolved provider's config id, e.g. `"op
 | `solo_schedule_assist_duration_seconds` | `llmProvider` |
 | `solo_schedule_assist_confirms_total` | `op` (reported by the app via the existing telemetry path) |
 
-Structured logs carry request id, provider id, model, result kind, retry count, validation errors, and approximate sizes. Raw user prompts and API keys are never logged at any level; prompt logging is debug-gated and off by default.
+Structured logs (`daemon/internal/schedule/assistant.go`) carry request id, provider id, model, result kind, retry count, validation errors, and approximate sizes. Raw user prompts and API keys are never logged at any level; prompt logging is debug-gated and off by default.
 
 ## 12. Testing Surface
 

@@ -55,7 +55,7 @@ Reuse existing event/observer mechanisms (referencing event pipelines in `metric
 ### 4.1 Core Interface
 
 ```go
-// daemon/internal/memory/recorder.go
+// daemon/internal/memory/recorder.go（接口）+ daemon/internal/memory/turn.go（Turn）
 package memory
 
 // Implemented contract: turns live under SoloHome (no projectRoot parameter).
@@ -71,11 +71,12 @@ type TurnRecorder interface {
 type Turn struct {
     ID        string         // ULID，有序且全局唯一
     SessionID string
-    Role      string         // "user" | "assistant" | "system"
+    Seq       uint64         // session 内单调递增序号（bridge 维护）
+    Role      TurnRole       // "user" | "assistant" | "system"
     Ts        time.Time
-    Source    string         // "cli" | "app" | "relay"
-    Content   string         // markdown body
-    Metadata  map[string]any // tokens, tool_calls, model, attachments, etc.
+    Source    TurnSource     // "cli" | "app" | "relay"
+    Content   string         // markdown body（写入 frontmatter 之后的正文）
+    Metadata  *TurnMetadata  // tokens, tool_calls, model, attachments, etc.
     ParentID  string         // 上一 turn ID，用于重建对话链
 }
 ```
@@ -146,8 +147,8 @@ parent: turn_01H...
 | 幂等键 | turn ID 使用 ULID（有序 + 全局唯一），重放不产生重复 |
 | 脱敏 | 写入前过滤 `.env` 内容、API key 模式（`redact` 包：regex / env / multi，内置 OpenAI/GitHub/Anthropic/AWS 模式）|
 | 轮转/清理 | 保留策略（`retention_days`，默认 90）内置于 `FileTurnRecorder` |
-| 配置开关 | `config.MemoryConfig`：`enabled`（`*bool`，nil/缺省即开启，opt-out）、`backend`、`root`、`retention_days`、`queue_size`、`overflow`、`redact.*`、`safe.*`（熔断阈值/冷却）|
-| 故障隔离 | `bridge.SafeBridge` 包裹：panic recovery + 连续失败计数熔断（默认 3 连败 / 30s 冷却），异常永不波及会话主流程 |
+| 配置开关 | `config.MemoryConfig`：`enabled`（`*bool`，nil/缺省即开启，opt-out）、`backend`、`root`、`retention_days`、`queue_size`、`overflow`、`redact.*` |
+| 故障隔离 | `bridge.SafeBridge`（`bridge/safe.go`）可选包装：panic recovery + 连续失败计数熔断（默认 3 连败 / 30s 冷却，经 functional options 覆盖）；当前 `memorysetup` 默认接线使用普通 `Bridge`——其 recorder 错误仅记 log 不上抛，写入本身异步，不阻塞会话主流程 |
 
 ## 7. 配置示例
 
