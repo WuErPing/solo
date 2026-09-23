@@ -227,7 +227,7 @@ Features:
 
 | File | Responsibility |
 |------|---------------|
-| `rpc-schemas.ts` | Zod schemas for all tmux RPC messages (list_agents, capture_pane, send_keys, get_theme, status_line, new_session, kill_session, delete_command_history, pane_changed) |
+| `rpc-schemas.ts` | Zod schemas for all tmux RPC messages (list_agents, capture_pane, send_keys, status_line, new_session, kill_session, delete_command_history, pane_changed) |
 
 **Tmux RPC methods** (canonical location: `TerminalRpc` in `app-bridge/src/client/terminal-rpc.ts`, reached via `client.terminal.*`; the flat `DaemonClient.tmux*` wrappers still exist but are deprecated). Each app↔daemon connection is per-host, so methods take no `hostId`:
 - `tmuxListAgents()` — Discover AI agent panes (also returns other panes, command history, input history)
@@ -238,7 +238,7 @@ Features:
 - `tmuxKillSession(sessionName)` — Kill a tmux session
 - `tmuxDeleteCommandHistory(launchCmd)` — Delete recorded command history for a launch command
 
-Note: the `tmux/get_theme` types remain in `protocol/message_tmux.go` and `rpc-schemas.ts` for backward compatibility, but the daemon no longer registers a handler and no client method exists (see [tmux-pane-content-loading.md](tmux-pane-content-loading.md) §8.4).
+Note: the `tmux/get_theme` types were removed from `protocol/message_tmux.go` and `rpc-schemas.ts` on 2026-09-23 — the daemon never registered a handler and no client method existed (see [tmux-pane-content-loading.md](tmux-pane-content-loading.md) §8.4).
 
 ### 3.8 App Tmux Components
 

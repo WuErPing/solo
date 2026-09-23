@@ -15,13 +15,13 @@
 
 | ID | Title | Introduced | ADR / Source | Repayment Target | Status |
 |----|-------|------------|--------------|------------------|--------|
-| [DEBT-001](debt-001-memory-config-opt-out.md) | Session-memory config opt-out not wired | 2026-06-01 | [session-memory-persistence](../architecture/session-memory-persistence.md) | v0.13.0 | Active |
+| — | _(none)_ | — | — | — | — |
 
 ## Resolved Debt
 
 | ID | Title | Introduced | Resolved | Resolution |
 |----|-------|------------|----------|------------|
-| — | _(none yet)_ | — | — | — |
+| [DEBT-001](debt-001-memory-config-opt-out.md) | Session-memory config opt-out not wired | 2026-06-01 | 2026-09-23 | `PersistedConfig.Memory` wired into `applyPersistedConfig`; opt-out now reaches the `IsEnabled()` gate; Save preserves the block; 4 config tests added |
 
 ## Entry Template
 

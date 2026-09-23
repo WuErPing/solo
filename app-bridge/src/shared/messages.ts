@@ -63,8 +63,6 @@ import {
   TmuxCapturePaneResponseSchema,
   TmuxSendKeysRequestSchema,
   TmuxSendKeysResponseSchema,
-  TmuxGetThemeRequestSchema,
-  TmuxGetThemeResponseSchema,
   TmuxStatusLineRequestSchema,
   TmuxStatusLineResponseSchema,
   TmuxNewSessionRequestSchema,
@@ -432,7 +430,6 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   TmuxNewSessionRequestSchema,
   TmuxKillSessionRequestSchema,
   TmuxDeleteCommandHistoryRequestSchema,
-  TmuxGetThemeRequestSchema,
   TmuxStatusLineRequestSchema,
   LoopRunRequestSchema,
   LoopListRequestSchema,
@@ -584,7 +581,6 @@ export type SessionOutboundMessage =
   | z.infer<typeof TmuxNewSessionResponseSchema>
   | z.infer<typeof TmuxKillSessionResponseSchema>
   | z.infer<typeof TmuxDeleteCommandHistoryResponseSchema>
-  | z.infer<typeof TmuxGetThemeResponseSchema>
   | z.infer<typeof TmuxStatusLineResponseSchema>
   | z.infer<typeof TmuxPaneChangedNotificationSchema>
   | z.infer<typeof LoopRunResponseSchema>
@@ -716,7 +712,6 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   TmuxNewSessionResponseSchema,
   TmuxKillSessionResponseSchema,
   TmuxDeleteCommandHistoryResponseSchema,
-  TmuxGetThemeResponseSchema,
   TmuxStatusLineResponseSchema,
   TmuxPaneChangedNotificationSchema,
   LoopRunResponseSchema,

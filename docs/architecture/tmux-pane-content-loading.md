@@ -443,7 +443,7 @@ Previously, theme colors were fetched from the host tmux session via `tmux show-
 - Theme extraction added latency to the pane loading flow
 - User-selected themes provide consistent, predictable appearance
 
-The `TmuxThemeColors` struct and `tmux/get_theme` RPC message remain defined in the protocol for backward compatibility but are no longer used by the frontend.
+The `TmuxThemeColors` struct and `tmux/get_theme` RPC were removed from the protocol and app-bridge schemas on 2026-09-23; terminal appearance is fully driven by the app's theme presets.
 
 ## 9. New Session Creation
 
@@ -689,28 +689,6 @@ type TmuxNewSessionResponsePayload struct {
     Error       *string `json:"error"`
 }
 
-// Theme colors
-type TmuxThemeColors struct {
-    Background            string `json:"background"`
-    Foreground            string `json:"foreground"`
-    PaneActiveBorder      string `json:"paneActiveBorder,omitempty"`
-    PaneInactiveBorder    string `json:"paneInactiveBorder,omitempty"`
-    StatusBackground      string `json:"statusBackground,omitempty"`
-    StatusForeground      string `json:"statusForeground,omitempty"`
-    MessageBackground     string `json:"messageBackground,omitempty"`
-    MessageForeground     string `json:"messageForeground,omitempty"`
-    WindowStatusCurrentBg string `json:"windowStatusCurrentBg,omitempty"`
-    WindowStatusCurrentFg string `json:"windowStatusCurrentFg,omitempty"`
-}
-
-type TmuxGetThemeRequest  struct { Type string; SessionID string; RequestID string }
-type TmuxGetThemeResponse struct { Type string; Payload TmuxGetThemeResponsePayload }
-type TmuxGetThemeResponsePayload struct {
-    RequestID string          `json:"requestId"`
-    Theme     TmuxThemeColors `json:"theme"`
-    Error     *string         `json:"error"`
-}
-
 // Pane changed (server-push notification, no requestId)
 type TmuxPaneChangedNotification struct {
     Type    string                 `json:"type"`    // "tmux/pane_changed"
@@ -818,34 +796,6 @@ export const TmuxNewSessionResponseSchema = z.object({
   }),
 });
 
-export const TmuxThemeColorsSchema = z.object({
-  background: z.string(),
-  foreground: z.string(),
-  paneActiveBorder: z.string().optional(),
-  paneInactiveBorder: z.string().optional(),
-  statusBackground: z.string().optional(),
-  statusForeground: z.string().optional(),
-  messageBackground: z.string().optional(),
-  messageForeground: z.string().optional(),
-  windowStatusCurrentBg: z.string().optional(),
-  windowStatusCurrentFg: z.string().optional(),
-});
-
-export const TmuxGetThemeRequestSchema = z.object({
-  type: z.literal("tmux/get_theme"),
-  sessionId: z.string(),
-  requestId: z.string(),
-});
-
-export const TmuxGetThemeResponseSchema = z.object({
-  type: z.literal("tmux/get_theme/response"),
-  payload: z.object({
-    requestId: z.string(),
-    theme: TmuxThemeColorsSchema,
-    error: z.string().nullable(),
-  }),
-});
-
 export const TmuxPaneChangedNotificationSchema = z.object({
   type: z.literal("tmux/pane_changed"),
   payload: z.object({
@@ -890,9 +840,9 @@ The same file also defines schemas for `tmux/kill_session`, `tmux/delete_command
 | `app/src/utils/detect-ansi-colors.ts` | 256-color palette detection from ANSI content |
 | `app/src/utils/tmux-rpc.ts` | `withLiveTmuxClient` wrapper |
 | `app/src/constants/agent-commands.ts` | Slash-command definitions and `filterSlashCommands` |
-| `app-bridge/src/client/terminal-rpc.ts` | `TerminalRpc` — canonical tmux methods: `tmuxListAgents`, `tmuxCapturePane`, `tmuxSendKeys`, `tmuxStatusLine`, `tmuxNewSession`, `tmuxKillSession`, `tmuxDeleteCommandHistory` (flat `DaemonClient.tmux*` wrappers are deprecated; `tmuxGetTheme` was removed) |
+| `app-bridge/src/client/terminal-rpc.ts` | `TerminalRpc` — canonical tmux methods: `tmuxListAgents`, `tmuxCapturePane`, `tmuxSendKeys`, `tmuxStatusLine`, `tmuxNewSession`, `tmuxKillSession`, `tmuxDeleteCommandHistory` (flat `DaemonClient.tmux*` wrappers are deprecated) |
 | `app-bridge/src/server/tmux/rpc-schemas.ts` | Zod schemas for all tmux RPC messages (including `TmuxNewSessionRequestSchema`, `TmuxNewSessionResponseSchema`) |
-| `daemon/internal/server/session_register_handlers.go` | WebSocket handler registration (`tmux/list_agents`, `tmux/capture_pane`, `tmux/send_keys`, `tmux/new_session`, `tmux/kill_session`, `tmux/delete_command_history`, `tmux/status_line`; `tmux/get_theme` is no longer registered) |
+| `daemon/internal/server/session_register_handlers.go` | WebSocket handler registration (`tmux/list_agents`, `tmux/capture_pane`, `tmux/send_keys`, `tmux/new_session`, `tmux/kill_session`, `tmux/delete_command_history`, `tmux/status_line`) |
 | `daemon/internal/server/session_tmux.go` | Tmux message handlers (`handleTmuxListAgents`, `handleTmuxCapturePane`, `handleTmuxSendKeys`, `handleTmuxNewSession`, `handleTmuxKillSession`, `handleTmuxDeleteCommandHistory`, `handleTmuxStatusLine`) |
 | `daemon/internal/server/session_tmux_scan.go` | `scanTmuxAgents`, `parseTmuxPaneLines` — 3-layer agent detection |
 | `daemon/internal/server/session_tmux_pane.go` | `captureTmuxPane` — pane capture with content-hash dedup and column rewrap |

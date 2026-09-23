@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -122,6 +123,89 @@ func TestLoad_PersistedConfig(t *testing.T) {
 	models, ok := cfg.CustomModels["claude"]
 	if !ok || len(models) != 1 || models[0].ID != "custom1" {
 		t.Errorf("custom models mismatch: %+v", cfg.CustomModels)
+	}
+}
+
+func TestLoad_PersistedConfig_MemoryOptOut(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLO_HOME", home)
+
+	configData := []byte(`{"memory":{"enabled":false}}`)
+	_ = os.WriteFile(filepath.Join(home, "config.json"), configData, 0644)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Memory.Enabled == nil {
+		t.Fatal("expected Memory.Enabled to be explicitly set")
+	}
+	if cfg.Memory.IsEnabled() {
+		t.Error("expected memory feature to be disabled by persisted opt-out")
+	}
+}
+
+func TestLoad_PersistedConfig_MemoryFields(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLO_HOME", home)
+
+	configData := []byte(`{"memory":{"enabled":true,"backend":"file","retention_days":30,"queue_size":16,"overflow":"error","root":"mem2"}}`)
+	_ = os.WriteFile(filepath.Join(home, "config.json"), configData, 0644)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.Memory.IsEnabled() {
+		t.Error("expected memory feature enabled")
+	}
+	if cfg.Memory.Backend != "file" || cfg.Memory.RetentionDays != 30 || cfg.Memory.QueueSize != 16 || cfg.Memory.Overflow != "error" || cfg.Memory.Root != "mem2" {
+		t.Errorf("persisted memory fields mismatch: %+v", cfg.Memory)
+	}
+}
+
+func TestLoad_PersistedConfig_MemoryDefaultEnabled(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLO_HOME", home)
+
+	_ = os.WriteFile(filepath.Join(home, "config.json"), []byte(`{"daemon":{}}`), 0644)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Memory.Enabled != nil {
+		t.Error("expected Memory.Enabled to remain unset when config has no memory block")
+	}
+	if !cfg.Memory.IsEnabled() {
+		t.Error("expected memory feature enabled by default")
+	}
+}
+
+func TestSave_PreservesMemoryBlock(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLO_HOME", home)
+
+	_ = os.WriteFile(filepath.Join(home, "config.json"), []byte(`{"memory":{"enabled":false}}`), 0644)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(home, "config.json"))
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	var pc PersistedConfig
+	if err := json.Unmarshal(data, &pc); err != nil {
+		t.Fatalf("unmarshal saved config: %v", err)
+	}
+	if pc.Memory == nil || pc.Memory.Enabled == nil || *pc.Memory.Enabled {
+		t.Errorf("expected memory opt-out to survive Save, got %+v", pc.Memory)
 	}
 }
 

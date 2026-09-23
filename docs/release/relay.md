@@ -101,7 +101,7 @@ ssh tencent_gz_6 "cp /opt/solo-relay/solo-relay.prev /opt/solo-relay/solo-relay 
    再执行 `make deploy-solo-relay` 部署二进制并重启（此时前置条件已满足）。
 5. 验证：`ssh tencent_gz_6 "curl -s http://localhost:8080/health"`，并确认 Daemon 重连（`sessions >= 1`）。
 
-> 迁移完成后，请同步更新 [`../architecture/deployment.md`](../architecture/deployment.md) 的「生产现状」描述，并把 `Makefile` 的 `SOLO_RELAY_PORT/SOLO_RELAY_NGINX_PORT` 默认值与实际端口统一。
+> 迁移完成后，请同步更新 [`../architecture/deployment.md`](../architecture/deployment.md) 的「生产现状」描述，并把 `Makefile` 的 `SOLO_RELAY_PORT` 默认值与实际端口统一（客户端接入端点由 `SOLO_RELAY_ENDPOINT` 控制，默认 `solo.up2ai.top:443`）。
 
 ## 相关链接
 

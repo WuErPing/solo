@@ -4,6 +4,9 @@ APP_DIR := app
 RELAY_NODEJS_DIR := relay-nodejs
 DAEMON_PORT := 17612
 APP_PORT := 19000
+# Production relay endpoint (policy: domain + 443, never raw IP:8081).
+# Override for local experiments: make use-solo-relay SOLO_RELAY_ENDPOINT=host:port
+SOLO_RELAY_ENDPOINT ?= solo.up2ai.top:443
 
 GO_MODULES := protocol cli daemon relay-go supervisor usage
 GO_TEST_FLAGS := -short -v -race -count=1 -timeout=10m -tags external_api
@@ -68,9 +71,9 @@ dev-web:
 	cd $(APP_DIR) && npx expo start --web --port $(APP_PORT)
 
 dev-web-relay:
-	@echo "Starting Expo web dev server (relay mode) on port $(APP_PORT)..."
+	@echo "Starting Expo web dev server (relay mode via $(SOLO_RELAY_ENDPOINT)) on port $(APP_PORT)..."
 	cd $(APP_DIR) && \
-	EXPO_PUBLIC_RELAY_ENDPOINT=106.52.40.152:8080 \
+	EXPO_PUBLIC_RELAY_ENDPOINT=$(SOLO_RELAY_ENDPOINT) \
 	EXPO_PUBLIC_RELAY_SERVER_ID=75df32ee \
 	EXPO_PUBLIC_RELAY_PUBLIC_KEY=LbDipkESA0+8Mzs57k0EnIW8wvFLaZ95MxhOHEqWNXs= \
 	npx expo start --web --port $(APP_PORT)
@@ -179,7 +182,6 @@ clean:
 
 SOLO_RELAY_HOST ?= tencent_gz_6
 SOLO_RELAY_PORT ?= 8081
-SOLO_RELAY_NGINX_PORT ?= 8081
 
 deploy-solo-relay: solo-relay-linux-amd64
 	@echo "Deploying solo relay to $(SOLO_RELAY_HOST)..."
@@ -190,7 +192,7 @@ deploy-solo-relay: solo-relay-linux-amd64
 # Relay selection targets for solo daemon
 
 use-solo-relay:
-	@echo "Configuring daemon to use solo relay (106.52.40.152:$(SOLO_RELAY_NGINX_PORT))..."
+	@echo "Configuring daemon to use solo relay ($(SOLO_RELAY_ENDPOINT))..."
 	@mkdir -p ~/.solo
 	@if [ -f ~/.solo/config.json ]; then \
 		cat ~/.solo/config.json | python3 -c "\
@@ -198,11 +200,11 @@ import json, sys; \
 config = json.load(sys.stdin); \
 config.setdefault('daemon', {}).setdefault('relay', {}); \
 config['daemon']['relay']['enabled'] = True; \
-config['daemon']['relay']['endpoint'] = '106.52.40.152:$(SOLO_RELAY_NGINX_PORT)'; \
-config['daemon']['relay']['publicEndpoint'] = '106.52.40.152:$(SOLO_RELAY_NGINX_PORT)'; \
+config['daemon']['relay']['endpoint'] = '$(SOLO_RELAY_ENDPOINT)'; \
+config['daemon']['relay']['publicEndpoint'] = '$(SOLO_RELAY_ENDPOINT)'; \
 json.dump(config, sys.stdout, indent=2)" > ~/.solo/config.json.tmp && mv ~/.solo/config.json.tmp ~/.solo/config.json; \
 	else \
-		echo '{"daemon":{"relay":{"enabled":true,"endpoint":"106.52.40.152:$(SOLO_RELAY_NGINX_PORT)","publicEndpoint":"106.52.40.152:$(SOLO_RELAY_NGINX_PORT)"}}}' > ~/.solo/config.json; \
+		echo '{"daemon":{"relay":{"enabled":true,"endpoint":"$(SOLO_RELAY_ENDPOINT)","publicEndpoint":"$(SOLO_RELAY_ENDPOINT)"}}}' > ~/.solo/config.json; \
 	fi
 	@echo "Done. Restart daemon to apply: make restart"
 

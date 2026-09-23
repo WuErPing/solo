@@ -77,5 +77,19 @@
   },
   "app": {
     "baseUrl": "https://solo.up2ai.top"
+  },
+  "memory": {
+    "enabled": true,
+    "backend": "file",
+    "retention_days": 90,
+    "queue_size": 1024,
+    "overflow": "block",
+    "root": "memory",
+    "redact": {
+      "env_files": false,
+      "api_keys": false,
+      "custom_regexes": [],
+      "sensitive_keys": []
+    }
   }
 }

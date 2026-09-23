@@ -168,35 +168,3 @@ func TestTmuxSendKeysRequestSendEnterFalse(t *testing.T) {
 		t.Errorf("SendEnter: got %v, want false", *decoded.SendEnter)
 	}
 }
-
-func TestTmuxGetThemeRequestRoundTrip(t *testing.T) {
-	req := TmuxGetThemeRequest{
-		Type:      "tmux/get_theme",
-		SessionID: "my-session",
-		RequestID: "r9",
-	}
-	decoded := roundTripJSON(t, req)
-	if !reflect.DeepEqual(decoded, req) {
-		t.Errorf("round trip mismatch:\n got %+v\nwant %+v", decoded, req)
-	}
-}
-
-func TestTmuxGetThemeResponseRoundTrip(t *testing.T) {
-	resp := TmuxGetThemeResponse{
-		Type: "tmux/get_theme/response",
-		Payload: TmuxGetThemeResponsePayload{
-			RequestID: "r10",
-			Theme: TmuxThemeColors{
-				Background:       "#181825",
-				Foreground:       "#cdd6f4",
-				StatusBackground: "#181825",
-				StatusForeground: "#cdd6f4",
-				PaneActiveBorder: "#89b4fa",
-			},
-		},
-	}
-	decoded := roundTripJSON(t, resp)
-	if !reflect.DeepEqual(decoded, resp) {
-		t.Errorf("round trip mismatch:\n got %+v\nwant %+v", decoded, resp)
-	}
-}

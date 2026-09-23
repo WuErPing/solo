@@ -56,6 +56,13 @@ A full-field reference file is available at
 | `daemon.tmuxAgentNames` | string[] | `[]` | Additional tmux agent names, merged with the built-in set (`claude`, `opencode`, `qodercli`, `pi`, `cursor`, `kimi`, `kimi-cli`, `codex`) |
 | `daemon.timelineMaxRowsPerAgent` | int | `10000` | Hard upper bound for in-memory timeline rows per agent |
 | `app.baseUrl` | string | `https://solo.up2ai.top` | Base URL of the web app |
+| `memory.enabled` | bool | `true` | Session-memory persistence (turns written under `~/.solo/memory/`); set `false` to opt out |
+| `memory.backend` | string | `file` | Recorder backend (phase 1: `file`) |
+| `memory.retention_days` | int | `90` | Hint for pruning older turns |
+| `memory.queue_size` | int | `1024` | Capacity of the recorder's internal turn channel |
+| `memory.overflow` | string | `block` | Behavior when the queue is full: `block` or `error` |
+| `memory.root` | string | `memory` | Directory (relative to `~/.solo`) where sessions are written |
+| `memory.redact` | object | all off | Pre-write redaction: `env_files`, `api_keys` (bool), `custom_regexes`, `sensitive_keys` (string[]) |
 
 Most fields can also be set via environment variables (`SOLO_LISTEN`, `PORT`,
 `SOLO_RELAY_ENABLED`, `SOLO_RELAY_ENDPOINT`, `SOLO_RELAY_PUBLIC_ENDPOINT`,

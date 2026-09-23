@@ -55,6 +55,7 @@ func (c *Config) GetTmuxAgentNames() map[string]bool {
 type PersistedConfig struct {
 	Daemon *DaemonConfig `json:"daemon,omitempty"`
 	App    *AppConfig    `json:"app,omitempty"`
+	Memory *MemoryConfig `json:"memory,omitempty"`
 }
 
 type DaemonConfig struct {
@@ -286,6 +287,9 @@ func applyPersistedConfig(cfg *Config, pc *PersistedConfig) { //nolint:gocyclo /
 		if pc.App.BaseURL != nil {
 			cfg.AppBaseURL = *pc.App.BaseURL
 		}
+	}
+	if pc.Memory != nil {
+		cfg.Memory = *pc.Memory
 	}
 }
 

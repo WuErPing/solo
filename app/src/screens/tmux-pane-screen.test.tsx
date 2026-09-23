@@ -600,10 +600,13 @@ describe("TmuxPaneScreen", () => {
       agentRef.current = mockAgent;
     });
 
-    it("/ key button sends / keystroke to tmux pane", () => {
+    it("slash-menu key button seeds input with / to open the dropdown", () => {
       render(<TmuxPaneScreen />);
-      fireEvent.click(screen.getByTestId("tmux-key-/"));
-      expect(mockSendKeys).toHaveBeenCalledWith("%0", "/", false);
+      fireEvent.click(screen.getByTestId("tmux-slash-menu"));
+      const input = screen.getByPlaceholderText(/type a command/i);
+      expect((input as HTMLInputElement).value).toBe("/");
+      expect(screen.getByText("/compact")).toBeDefined();
+      expect(mockSendKeys).not.toHaveBeenCalled();
     });
   });
 

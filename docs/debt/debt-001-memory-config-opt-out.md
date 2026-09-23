@@ -2,10 +2,10 @@
 
 |              |                                                              |
 |--------------|--------------------------------------------------------------|
-| **Status**   | Active                                                       |
+| **Status**   | Resolved (2026-09-23)                                        |
 | **Introduced** | 2026-06-01 (`002d53a`, session-memory Phase 1)             |
 | **ADR**      | — (source: [session-memory-persistence.md](../architecture/session-memory-persistence.md)) |
-| **Repayment Target** | v0.13.0                                          |
+| **Repayment Target** | v0.13.0 (实际偿还于 v0.15.0 之后，2026-09-23)          |
 | **Owner**    | —                                                            |
 
 ## What
@@ -42,3 +42,13 @@ persisted-config loader.
    the behavior matches them.
 
 ## Resolution (fill when done)
+
+Repaid 2026-09-23: `PersistedConfig` gained a top-level `Memory *MemoryConfig`
+field (`json:"memory,omitempty"`) and `applyPersistedConfig` maps it onto
+`cfg.Memory`, so `"memory": {"enabled": false}` in `~/.solo/config.json` now
+reaches the existing `IsEnabled()` gate in `daemon.go` and the recorder is not
+built. `Save()` preserves a user-written memory block instead of silently
+dropping it. Tests: `TestLoad_PersistedConfig_MemoryOptOut`,
+`TestLoad_PersistedConfig_MemoryFields`,
+`TestLoad_PersistedConfig_MemoryDefaultEnabled`,
+`TestSave_PreservesMemoryBlock` (daemon/internal/config).
