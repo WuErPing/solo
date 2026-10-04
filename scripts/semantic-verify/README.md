@@ -28,6 +28,11 @@ node scripts/semantic-verify/check-adr-consistency.mjs --dry-run
 export LLM_API_KEY=...
 node scripts/semantic-verify/check-adr-consistency.mjs \
   --base origin/main --out adr-report.md --json adr-report.json
+
+# Other options
+#   --adr-dir <dir>          ADR directory (default: docs/decisions)
+#   --max-diff-chars <n>     truncate the diff beyond this size (default: 120000)
+#   --fail-on-violation      exit 1 when any ADR is judged "violation"
 ```
 
 ### Configuration

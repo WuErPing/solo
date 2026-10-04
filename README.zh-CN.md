@@ -10,165 +10,55 @@ Solo 是一个 AI 编程助手平台，通过安全、端到端加密的架构�
 
 ### 系统架构
 
-![Solo 系统架构](docs/architecture/solo-system-architecture-detailed.png)
+```mermaid
+flowchart TB
+    subgraph Clients["客户端层"]
+        web["网页应用<br/>(Expo Router)"]
+        mobile["移动应用<br/>(iOS / Android)"]
+        cli["solo-cli"]
+        usagebin["solo-usage"]
+    end
 
-> 概览图: [PNG](docs/architecture/solo-system-architecture.png) | [SVG](docs/architecture/solo-system-architecture.svg).
-> 详细图 (上方): [SVG](docs/architecture/solo-system-architecture-detailed.svg) | [PNG](docs/architecture/solo-system-architecture-detailed.png).
+    subgraph Bridge["App-Bridge (TypeScript)"]
+        dclient["DaemonClient<br/>WebSocket 传输 · 转发 E2EE 传输<br/>运行时指标"]
+        rpc["分域 RPC 模块<br/>代理 · 聊天 · 循环 · 日程 · tmux · 用量 · 版本"]
+        e2ee["转发 / E2EE<br/>X25519 + XSalsa20-Poly1305<br/>EncryptedChannel"]
+    end
 
-<details>
-<summary>ASCII 版本（纯文本环境）</summary>
+    subgraph Network["网络层"]
+        nginx["Nginx :443<br/>TLS 终止 · 反向代理"]
+        relay["solo-relay :8081（仅本机）<br/>控制 · 数据 · 会话 · 缓冲 · 指标"]
+    end
 
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                              客户端层                                    │
-├──────────────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐       │
-│  │     网页应用      │  │    移动应用      │  │       CLI        │       │
-│  │  (Expo Router)   │  │  (iOS / Android) │  │   (solo-cli)     │       │
-│  │                  │  │                  │  │                  │       │
-│  │  页面:           │  │  页面:           │  │  命令:           │       │
-│  │  · 仪表板        │  │  · 仪表板        │  │  · agent ls/run  │       │
-│  │  · 代理详情      │  │  · 代理详情      │  │  · daemon start  │       │
-│  │  · 会话          │  │  · 会话          │  │  · loop ls/run   │       │
-│  │  · 定时任务      │  │  · 定时任务      │  │  · provider ls   │       │
-│  │  · 循环          │  │  · 循环          │  │  · onboard       │       │
-│  │  · Tmux 仪表板   │  │  · Tmux 仪表板   │  │                  │       │
-│  │  · Tmux 窗格     │  │  · Tmux 窗格     │  │                  │       │
-│  │  · 项目          │  │  · 项目          │  │                  │       │
-│  │  · 工作区        │  │  · 工作区        │  │                  │       │
-│  │  · 设置          │  │  · 设置          │  │                  │       │
-│  │  · 用量          │  │  · 用量          │  │ + solo-usage bin │       │
-│  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘       │
-│           └──────────────────────┴──────────────────────┘                │
-│                                  │                                       │
-│                    ┌─────────────▼──────────────┐                        │
-│                    │        App-Bridge          │                        │
-│                    │  ┌──────────────────────┐  │                        │
-│                    │  │    DaemonClient      │  │                        │
-│                    │  │  · WebSocket 传输    │  │                        │
-│                    │  │  · 转发 E2EE 传输    │  │                        │
-│                    │  │  · 运行时指标        │  │                        │
-│                    │  └──────────────────────┘  │                        │
-│                    │  ┌────────────┐ ┌────────┐ │                        │
-│                    │  │ 代理 RPC   │ │ Tmux   │ │                        │
-│                    │  │ 定时任务   │ │ RPC    │ │                        │
-│                    │  │ 循环 RPC   │ │ 聊天   │ │                        │
-│                    │  └────────────┘ └────────┘ │                        │
-│                    │  ┌──────────────────────┐  │                        │
-│                    │  │   转发 / E2EE        │  │                        │
-│                    │  │  · X25519 + XSalsa  │  │                        │
-│                    │  │  · EncryptedChannel  │  │                        │
-│                    │  └──────────────────────┘  │                        │
-│                    └─────────────┬──────────────┘                        │
-│                                  │                                       │
-┌──────────────────────────────────▼───────────────────────────────────────┐
-│                             网络层                                       │
-├──────────────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                      Nginx (可选)                                │   │
-│  │                 TLS 终止 · 反向代理                               │   │
-│  └───────────────────────────────┬──────────────────────────────────┘   │
-│                                  │                                       │
-│  ┌───────────────────────────────▼──────────────────────────────────┐   │
-│  │                    转发服务器 (relay-go)                          │   │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐             │   │
-│  │  │   控制通道    │ │   数据通道    │ │   会话管理    │             │   │
-│  │  └──────────────┘ └──────────────┘ └──────────────┘             │   │
-│  │  ┌──────────────┐ ┌──────────────┐                              │   │
-│  │  │    加密       │ │    指标      │                              │   │
-│  │  │ (X25519+XS)  │ │ (Prometheus) │                              │   │
-│  │  └──────────────┘ └──────────────┘                              │   │
-│  └───────────────────────────────┬──────────────────────────────────┘   │
-└──────────────────────────────────┼───────────────────────────────────────┘
-                                   │
-┌──────────────────────────────────▼───────────────────────────────────────┐
-│                             服务层                                       │
-│                      守护进程 (daemon/internal)                          │
-├──────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  ┌─────────────────── HTTP / WebSocket 服务器 ────────────────────────┐ │
-│  │  ┌────────────────────────────────────────────────────────────┐   │ │
-│  │  │  server/daemon.go — 服务编排、处理器注册                    │   │ │
-│  │  └────────────────────────────────────────────────────────────┘   │ │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌────────────────────────┐   │ │
-│  │  │   session/   │ │  terminal/   │ │      workspace/        │   │ │
-│  │  │  · agent     │ │  · PTY 管理  │ │  · ProjectRegistry     │   │ │
-│  │  │  · terminal  │ │  · 调整大小   │ │  · WorkspaceRegistry   │   │ │
-│  │  │  · tmux      │ │              │ │  · GitService          │   │ │
-│  │  │  · schedule  │ │              │ │  · ScriptManager       │   │ │
-│  │  │  · loop      │ │              │ │  · FileExplorer        │   │ │
-│  │  │  · workspace │ │              │ │  · ScriptProxy         │   │ │
-│  │  │  · send      │ │              │ │                        │   │ │
-│  │  │  · multi-    │ │              │ │                        │   │ │
-│  │  │    socket    │ │              │ │                        │   │ │
-│  │  └──────────────┘ └──────────────┘ └────────────────────────┘   │ │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐             │ │
-│  │  │  attention/  │ │  sendqueue/  │ │  activity/   │             │ │
-│  │  │  策略 + 广播 │ │  异步消息    │ │  活动跟踪    │             │ │
-│  │  └──────────────┘ └──────────────┘ └──────────────┘             │ │
-│  └──────────────────────────────────────────────────────────────────┘ │
-│                                                                       │
-│  ┌──────────────────── agent/ (代理管理器) ─────────────────────────┐ │
-│  │  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌──────┐ ┌──────────┐   │ │
-│  │  │ Claude  │ │  Kimi   │ │ OpenCode │ │  Pi  │ │  Codex   │   │ │
-│  │  │ (print/ │ │ (Wire/  │ │  (SSE)   │ │(JSON │ │(auto/    │   │ │
-│  │  │ stream) │ │ JSONRPC)│ │          │ │stdio)│ │full-acc) │   │ │
-│  │  └─────────┘ └─────────┘ └──────────┘ └──────┘ └──────────┘   │ │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │ │
-│  │  │  ProviderReg │ │  AgentStore  │ │  TurnGuard   │            │ │
-│  │  │  提供商发现   │ │  持久化存储  │ │  去重保护    │            │ │
-│  │  └──────────────┘ └──────────────┘ └──────────────┘            │ │
-│  │  ┌──────────────┐ ┌──────────────┐                             │ │
-│  │  │ StallMonitor │ │ CustomModels │                             │ │
-│  │  │ 停滞检测     │ │ 用户自定义   │                             │ │
-│  │  └──────────────┘ └──────────────┘                             │ │
-│  └─────────────────────────────────────────────────────────────────┘ │
-│                                                                       │
-│  ┌────────────────── loop/ (循环引擎) ─────────────────────────────┐ │
-│  │  ┌──────────────┐ ┌──────────────┐                              │ │
-│  │  │   Engine     │ │    Store     │                              │ │
-│  │  │  迭代执行    │ │  持久化存储  │                              │ │
-│  │  └──────────────┘ └──────────────┘                              │ │
-│  └──────────────────────────────────────────────────────────────────┘ │
-│                                                                       │
-│  ┌────────────────── schedule/ (调度引擎) ─────────────────────────┐ │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │ │
-│  │  │    Store     │ │   Executor   │ │    Runner    │            │ │
-│  │  │  cron 状态   │ │  代理执行    │ │  cron 循环   │            │ │
-│  │  └──────────────┘ └──────────────┘ └──────────────┘            │ │
-│  └──────────────────────────────────────────────────────────────────┘ │
-│                                                                       │
-│  ┌─────────────── 支撑服务 ─────────────────────────────────────────┐ │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │ │
-│  │  │   memory/    │ │    push/     │ │ relayclient/ │            │ │
-│  │  │ TurnRecorder │ │  FCM / APNs  │ │  · 控制连接  │            │ │
-│  │  │ filebackend  │ │  Web 推送    │ │  · 数据连接  │            │ │
-│  │  │ redact/      │ │              │ │  · E2EE      │            │ │
-│  │  │ bridge/      │ │              │ │  · 保活心跳  │            │ │
-│  │  │ SafeBridge   │ │              │ │  · 自动重连  │            │ │
-│  │  └──────────────┘ └──────────────┘ └──────────────┘            │ │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │ │
-│  │  │  metrics/    │ │   config/    │ │   pidlock/   │            │ │
-│  │  │  Prometheus  │ │ MemoryConfig │ │  单实例守护  │            │ │
-│  │  │  /metrics    │ │ CustomModels │ │              │            │ │
-│  │  └──────────────┘ └──────────────┘ └──────────────┘            │ │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │ │
-│  │  │  wsconn/     │ │ memorysetup/ │ │    llm/      │            │ │
-│  │  │  WS 连接     │ │  接线 + 组装 │ │  聊天客户端  │            │ │
-│  │  │  抽象层      │ │              │ │  (日程助手)  │            │ │
-│  │  │              │ │              │ │              │            │ │
-│  │  └──────────────┘ └──────────────┘ └──────────────┘            │ │
-│  │  ┌──────────────┐                                              │ │
-│  │  │    usage/    │                                              │ │
-│  │  │ quota track  │                                              │ │
-│  │  │ usage/list   │                                              │ │
-│  │  │ 60s cache    │                                              │ │
-│  │  └──────────────┘                                              │ │
-│  └──────────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────────┘
+    subgraph Service["服务层 — 用户机器"]
+        supervisor["solo-supervisor<br/>退出码重启 (42) · 版本切换 · 崩溃回退"]
+        daemon["solo daemon :17612<br/>WS/HTTP 服务 · 会话 · 终端 · 工作区<br/>attention · sendqueue · activity"]
+        agents["代理管理器<br/>Claude · Kimi · OpenCode · Pi · Codex<br/>TurnGuard · StallMonitor · 提供商注册表"]
+        loop["循环引擎"]
+        sched["调度引擎 + LLM 助手"]
+        support["支撑服务<br/>memory · push · relayclient · usage · metrics · config"]
+    end
+
+    web --> dclient
+    mobile --> dclient
+    cli --> daemon
+    usagebin --> daemon
+    dclient --> rpc --> e2ee
+    dclient -- "直连 WebSocket" --> daemon
+    e2ee -- "wss (E2EE)" --> nginx --> relay -- "WebSocket" --> daemon
+    supervisor --> daemon
+    daemon --> agents
+    daemon --> loop
+    daemon --> sched
+    daemon --- support
+
+    style Service fill:#f0f7ff,stroke:#3b82f6
+    style Network fill:#fff7ed,stroke:#f97316
+    style Bridge fill:#faf5ff,stroke:#a855f7
+    style Clients fill:#f0fdf4,stroke:#22c55e
 ```
 
-</details>
+> 视觉版本：[概览 PNG](docs/architecture/solo-system-architecture.png) | [概览 SVG](docs/architecture/solo-system-architecture.svg) · [详细 PNG](docs/architecture/solo-system-architecture-detailed.png) | [详细 SVG](docs/architecture/solo-system-architecture-detailed.svg)
 
 ### 核心组件
 
@@ -179,6 +69,7 @@ Solo 是一个 AI 编程助手平台，通过安全、端到端加密的架构�
 | **守护进程** | [`daemon/`](daemon/) | Go | 核心服务 — 管理会话、代理、循环和提供商连接 |
 | **转发** | [`relay-go/`](relay-go/) | Go | 用于远程/移动访问的连接转发 |
 | **CLI** | [`cli/`](cli/) | Go | 用于会话和代理管理的命令行工具 |
+| **守护进程看护** | [`supervisor/`](supervisor/) | Go | 看门狗进程（`solo-supervisor`）— 按退出码契约拉起/重启 daemon，支持版本切换与崩溃回退 |
 | **用量** | [`usage/`](usage/) | Go | 用量/配额追踪 CLI（`solo-usage`）及被 daemon 复用的提供商模块 |
 | **协议** | [`protocol/`](protocol/) | Go | 共享协议定义 |
 | **语法高亮** | [`packages/highlight/`](packages/highlight/) | TypeScript | 语法高亮库 |
@@ -214,10 +105,10 @@ Solo 是一个 AI 编程助手平台，通过安全、端到端加密的架构�
 ### 构建
 
 ```bash
-# 构建所有 Darwin 二进制文件 (守护进程, 转发, CLI, usage)
+# 构建所有 Darwin 二进制文件 (守护进程, 转发, CLI, usage, supervisor)
 make darwin
 
-# 构建 Linux 二进制文件 (守护进程, 转发, CLI; 不含 solo-usage)
+# 构建 Linux 二进制文件 (守护进程, 转发, CLI, supervisor; 不含 solo-usage)
 make linux
 
 # 构建所有内容
@@ -238,7 +129,7 @@ make dev-web
 # 仅启动守护进程 (必须先构建)
 make dev-daemon
 
-# 重启守护进程
+# 构建所有 Darwin 二进制并在 solo-supervisor 看护下重启守护进程
 make restart
 
 # 停止所有开发进程
@@ -293,6 +184,8 @@ cd protocol && go test -short -race ./...
 cd cli && go test -short -race ./...
 cd daemon && go test -short -race ./...
 cd relay-go && go test -short -race ./...
+cd supervisor && go test -short -race ./...
+cd usage && go test -short -race ./...
 ```
 
 ---
@@ -311,6 +204,7 @@ solo/
 ├── protocol/            # Go 协议定义
 ├── relay-go/            # Go 转发服务器
 ├── scripts/             # 构建、CI 与语义校验脚本
+├── supervisor/          # Go 守护进程看护器 (solo-supervisor)
 ├── usage/               # Go 用量追踪服务
 ├── Makefile             # 构建与开发命令
 ├── go.work              # Go 工作区
@@ -327,7 +221,7 @@ solo/
 - **Kimi** — Wire 模式 (JSON-RPC 2.0 over stdio)
 - **OpenCode** — SSE 模式
 - **Pi** — JSON stream 模式 (stdio)
-- **Codex** — auto / full-access 模式
+- **Codex** — print 模式（`codex exec --json`），支持原生会话恢复
 - **Mock** — 仅开发/测试用途 (通过 `SOLO_ENABLE_MOCK_PROVIDER=1` 启用)
 
 **计划中**: Cursor-Agent (Print 模式)。有关提供商集成研究和计划添加的内容，请参见 [`docs/providers/`](docs/providers/)。
@@ -378,7 +272,7 @@ solo/
 - **命令历史** — 跟踪和显示发送给编程代理的最近命令，支持删除过期条目
 - **会话管理** — 关闭（kill）tmux 会话，代理/窗格卡片带确认对话框
 - **窗格内容捕获** — 实时终端视图（最近 500 行），每 5 秒自动刷新
-- **终端主题** — 可配置的颜色主题（系统、深色、浅色、tmux、Bash、自动）用于窗格渲染
+- **终端主题** — 可配置的颜色主题（系统、深色、浅色、Bash、自动）用于窗格渲染
 - **交互式控制** — 发送文本命令（带 Enter），或使用快捷操作按钮：
   - 方向键（↑↓←→）用于 TUI 菜单导航
   - Enter、Esc、Tab、Ctrl+C 用于控制
@@ -442,6 +336,19 @@ Solo 追踪你在各 AI 编码平台上的套餐用量、配额与额度余额�
 
 ---
 
+## 守护进程看护与版本切换
+
+`solo-supervisor` 是守护进程的看门狗，接管 daemon 进程的所有权，使版本升级和重启安全且自动化。
+
+- **退出码重启契约** — daemon 用退出码 42 表示请求重启（立即重新拉起）；干净退出 (0) 会同时停止 supervisor；崩溃则按退避策略重新拉起 (ADR-003)
+- **版本切换** — 构建产物发布到 `~/.solo/versions/`，由 `current` 指针指向生效版本；supervisor 每次 spawn 都重新解析二进制，因此切换版本只需写指针 + 退出码 42 (ADR-004)，可在应用的宿主页直接操作
+- **崩溃回退** — 崩溃熔断器会将失败构建加入黑名单，并把 `current` 回写到最近可用的版本，坏版本不会让 daemon 无法启动 (ADR-005)
+- **状态可见** — spawn 循环健康状态持久化到 `supervisor-state.json`，并通过 `list_daemon_versions` 呈现给 App
+
+详见 [`docs/architecture/daemon-supervision.md`](docs/architecture/daemon-supervision.md)。
+
+---
+
 ## CLI 参考
 
 Solo 包含一个全面的 CLI (`solo-cli`)，具有以下命令组：
@@ -452,7 +359,7 @@ Solo 包含一个全面的 CLI (`solo-cli`)，具有以下命令组：
 | **daemon** | `start`, `stop`, `restart`, `status`, `pair` | 守护进程服务管理 |
 | **loop** | `ls`, `run`, `stop`, `status`, `update`, `delete` | 循环自动化管理 |
 | **provider** | `ls`, `models` | 提供商和模型发现 |
-| | `onboard`, `shortcuts` | 设置和键盘快捷键 |
+| **顶层命令** | `onboard`, `shortcuts` | 初始化和键盘快捷键 |
 
 ---
 
@@ -469,10 +376,10 @@ Solo 包含一个全面的 CLI (`solo-cli`)，具有以下命令组：
 
 | 任务 | 工作流 | 触发条件 | 步骤 |
 |------|--------|---------|------|
-| **Go** (矩阵: protocol, cli, daemon, relay-go, usage) | `ci.yml` | push/PR 到 main | `go mod verify` → `go build` → `go test -short -race -coverprofile` → `golangci-lint v2` → Codecov 上传 |
+| **Go** (矩阵: protocol, cli, daemon, relay-go, supervisor, usage) | `ci.yml` | push/PR 到 main | `go mod verify` → `go build` → `go test -short -race -coverprofile` → `golangci-lint v2` → Codecov 上传 |
 | **JS** | `ci.yml` | push/PR 到 main | `npm ci` → lint (app, app-bridge, highlight) → typecheck → test (app + app-bridge 单元测试) → Codecov 上传 |
 | **arch-boundaries** | `ci.yml` | push/PR 到 main | `scripts/check-arch-boundaries.sh` — 强制 Go 模块边界 |
-| **E2E** | `e2e-nightly.yml` | 每日 02:00 UTC + 手动 | Playwright E2E (43 个测试规格) 含 daemon/relay/Metro globalSetup |
+| **E2E** | `e2e-nightly.yml` | 每日 02:00 UTC + 手动 | Playwright E2E (44 个测试规格) 含 daemon/relay/Metro globalSetup |
 
 另有 `semantic-check.yml` 工作流，对带标签的 PR 运行建议性 LLM ADR 一致性检查。
 
@@ -488,6 +395,7 @@ Solo 包含一个全面的 CLI (`solo-cli`)，具有以下命令组：
 - [代理停滞检测](docs/architecture/agent-stall-detection.md)
 - [推送通知](docs/architecture/push-notifications.md)
 - [日程助手](docs/architecture/schedule-assistant.md)
+- [守护进程看护](docs/architecture/daemon-supervision.md)
 - [部署指南](docs/architecture/deployment.md)
 - [产品功能](docs/product/features.md)
 - [2026 路线图](docs/product/roadmap-2026.md)

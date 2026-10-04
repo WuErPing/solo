@@ -4,7 +4,7 @@ Cross-platform client (iOS, Android, Web) for the Solo AI coding assistant platf
 
 ## Tech Stack
 
-- **Framework**: Expo 57 / React Native 0.86 / React 19
+- **Framework**: Expo 57 / React Native 0.86 / React 19.2
 - **Routing**: Expo Router (file-based)
 - **State**: Zustand + @tanstack/react-query
 - **Styling**: Unistyles (dynamic theming)
@@ -32,26 +32,34 @@ The app connects to the local daemon at `127.0.0.1:17612` by default.
 app/
 ├── src/
 │   ├── app/              # Expo Router routes
-│   │   ├── h/[serverId]/ # Per-host routes (agent, loops, schedules, sessions, settings, workspace)
+│   │   ├── h/[serverId]/ # Per-host routes (agent, loops, schedules, sessions, settings, workspace, usage)
+│   │   ├── settings/     # Global settings routes
 │   │   ├── schedules.tsx
 │   │   ├── tmux-dashboard.tsx
 │   │   ├── tmux-pane.tsx
+│   │   ├── tmux-pane-xterm.tsx
+│   │   ├── usage.tsx
+│   │   ├── pair-scan.tsx
 │   │   └── welcome.tsx
 │   ├── screens/          # Screen components
 │   │   ├── agent/        # Agent detail and interaction
 │   │   ├── dashboard/    # Main dashboard
-│   │   ├── loops/        # Loop automation screens
 │   │   ├── schedules/    # Schedule automation dashboard
 │   │   ├── settings/     # Settings sections
 │   │   ├── tmux-dashboard/ # Tmux agent discovery
-│   │   └── workspace/    # Workspace management
+│   │   ├── usage/        # Usage/quota dashboards
+│   │   ├── workspace/    # Workspace management
+│   │   └── *-screen.tsx  # Loop, session, project screens (top-level files)
 │   ├── components/       # Reusable components
 │   ├── hooks/            # Custom hooks
 │   ├── stores/           # Zustand state stores
-│   ├── styles/           # Theme and style definitions
+│   ├── contexts/         # React contexts
+│   ├── styles/           # App themes + terminal theme presets
+│   ├── terminal/         # Terminal emulation (xterm)
+│   ├── desktop/          # Desktop-specific modules
 │   ├── utils/            # Utility functions
 │   └── constants/        # App constants
-├── e2e/                  # Playwright E2E tests
+├── e2e/                  # Playwright E2E tests (44 specs)
 ├── maestro/              # Maestro mobile UI flows (Android)
 └── assets/               # Images, fonts, icons
 ```
@@ -67,7 +75,8 @@ app/
 | Tmux Dashboard | AI agent discovery across tmux sessions |
 | Tmux Pane | Live terminal view with ANSI rendering and key injection |
 | Workspace | Project management, file explorer, git status |
-| Settings | Providers, tmux agents, keyboard shortcuts, operations |
+| Usage | Per-provider quota, usage %, and reset countdown |
+| Settings | Providers, tmux agents, terminal themes, LLM config, host version switching |
 
 ## Testing
 
@@ -78,10 +87,6 @@ make test-app
 # E2E tests (requires daemon + relay running)
 cd app && npx playwright test
 ```
-
-## Dictation Debugging
-
-Set `EXPO_PUBLIC_ENABLE_AUDIO_DEBUG=1` before running `npx expo start` to render the in-app audio debug card. Pair it with the server-side `STT_DEBUG_AUDIO_DIR` flag so every dictation includes a copyable path to the saved raw audio file.
 
 ## Related Docs
 

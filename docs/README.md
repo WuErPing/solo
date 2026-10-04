@@ -2,7 +2,7 @@
 
 > **Purpose**: Persistent context base for Solo development, CI/CD, and architecture decisions.
 > **Organizing principle**: PADD (Product & Architecture Driven Development) — all context as code, co-located with the repo.
-> **Last updated**: 2026-09-23
+> **Last updated**: 2026-10-05
 
 ---
 
@@ -51,7 +51,7 @@ docs/
 │
 ├── debt/                                  ← ── Tech Debt Registry (PADD §4) ──
 │   ├── README.md                          # Registry rules + entry template
-│   └── debt-001-memory-config-opt-out.md  # DEBT-001: Session-memory config opt-out (Active)
+│   └── debt-001-memory-config-opt-out.md  # DEBT-001: Session-memory config opt-out (Resolved 2026-09-23)
 │
 ├── infrastructure/                        ← ── Infra facts (PADD §5, independent layer) ──
 │   ├── README.md                          # Layer overview

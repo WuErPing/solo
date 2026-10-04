@@ -14,167 +14,55 @@ Solo is an AI coding assistant platform that connects your local development env
 
 ### System Architecture
 
-![Solo System Architecture](docs/architecture/solo-system-architecture-detailed.png)
+```mermaid
+flowchart TB
+    subgraph Clients["Client Layer"]
+        web["Web App<br/>(Expo Router)"]
+        mobile["Mobile App<br/>(iOS / Android)"]
+        cli["solo-cli"]
+        usagebin["solo-usage"]
+    end
 
-> Overview diagram: [PNG](docs/architecture/solo-system-architecture.png) | [SVG](docs/architecture/solo-system-architecture.svg).
-> Detailed diagram (above): [SVG](docs/architecture/solo-system-architecture-detailed.svg) | [PNG](docs/architecture/solo-system-architecture-detailed.png).
+    subgraph Bridge["App-Bridge (TypeScript)"]
+        dclient["DaemonClient<br/>WebSocket transport · Relay E2EE transport<br/>runtime metrics"]
+        rpc["Per-domain RPC modules<br/>agent · chat · loop · schedule · tmux · usage · version"]
+        e2ee["Relay / E2EE<br/>X25519 + XSalsa20-Poly1305<br/>EncryptedChannel"]
+    end
 
-<details>
-<summary>ASCII version (for text-only environments)</summary>
+    subgraph Network["Network Layer"]
+        nginx["Nginx :443<br/>TLS termination · reverse proxy"]
+        relay["solo-relay :8081 (localhost only)<br/>control · data · session · buffer · metrics"]
+    end
 
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                              Client Layer                                │
-├──────────────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐       │
-│  │     Web App      │  │   Mobile App     │  │       CLI        │       │
-│  │  (Expo Router)   │  │  (iOS / Android) │  │   (solo-cli)     │       │
-│  │                  │  │                  │  │                  │       │
-│  │  Screens:        │  │  Screens:        │  │  Commands:       │       │
-│  │  · Dashboard     │  │  · Dashboard     │  │  · agent ls/run  │       │
-│  │  · Agent Detail  │  │  · Agent Detail  │  │  · daemon start  │       │
-│  │  · Sessions      │  │  · Sessions      │  │  · loop ls/run   │       │
-│  │  · Schedules     │  │  · Schedules     │  │  · provider ls   │       │
-│  │  · Loops         │  │  · Loops         │  │  · onboard       │       │
-│  │  · Tmux Dash     │  │  · Tmux Dash     │  │                  │       │
-│  │  · Tmux Pane     │  │  · Tmux Pane     │  │                  │       │
-│  │  · Projects      │  │  · Projects      │  │                  │       │
-│  │  · Workspace     │  │  · Workspace     │  │                  │       │
-│  │  · Settings      │  │  · Settings      │  │                  │       │
-│  │  · Usage         │  │  · Usage         │  │ + solo-usage bin │       │
-│  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘       │
-│           └──────────────────────┴──────────────────────┘                │
-│                                  │                                       │
-│                    ┌─────────────▼──────────────┐                        │
-│                    │        App-Bridge          │                        │
-│                    │  ┌──────────────────────┐  │                        │
-│                    │  │    DaemonClient      │  │                        │
-│                    │  │  · WebSocket trans.  │  │                        │
-│                    │  │  · Relay E2EE trans. │  │                        │
-│                    │  │  · Runtime metrics   │  │                        │
-│                    │  └──────────────────────┘  │                        │
-│                    │  ┌────────────┐ ┌────────┐ │                        │
-│                    │  │ Agent RPCs │ │ Tmux   │ │                        │
-│                    │  │ Schedule   │ │ RPCs   │ │                        │
-│                    │  │ Loop RPCs  │ │ Chat   │ │                        │
-│                    │  └────────────┘ └────────┘ │                        │
-│                    │  ┌──────────────────────┐  │                        │
-│                    │  │   Relay / E2EE       │  │                        │
-│                    │  │  · X25519 + XSalsa  │  │                        │
-│                    │  │  · EncryptedChannel  │  │                        │
-│                    │  └──────────────────────┘  │                        │
-│                    └─────────────┬──────────────┘                        │
-│                                  │                                       │
-┌──────────────────────────────────▼───────────────────────────────────────┐
-│                           Network Layer                                  │
-├──────────────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                      Nginx (optional)                            │   │
-│  │               TLS termination · reverse proxy                    │   │
-│  └───────────────────────────────┬──────────────────────────────────┘   │
-│                                  │                                       │
-│  ┌───────────────────────────────▼──────────────────────────────────┐   │
-│  │                    Relay Server (relay-go)                       │   │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐             │   │
-│  │  │    Control    │ │     Data     │ │    Session   │             │   │
-│  │  │   Channel     │ │   Channel    │ │   Manager    │             │   │
-│  │  └──────────────┘ └──────────────┘ └──────────────┘             │   │
-│  │  ┌──────────────┐ ┌──────────────┐                              │   │
-│  │  │    Crypto     │ │   Metrics    │                              │   │
-│  │  │ (X25519+XS)  │ │ (Prometheus) │                              │   │
-│  │  └──────────────┘ └──────────────┘                              │   │
-│  └───────────────────────────────┬──────────────────────────────────┘   │
-└──────────────────────────────────┼───────────────────────────────────────┘
-                                   │
-┌──────────────────────────────────▼───────────────────────────────────────┐
-│                            Service Layer                                 │
-│                       Daemon (daemon/internal)                           │
-├──────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  ┌─────────────────────── HTTP / WebSocket Server ────────────────────┐ │
-│  │  ┌────────────────────────────────────────────────────────────┐   │ │
-│  │  │  server/daemon.go — service orchestration, handler registry│   │ │
-│  │  └────────────────────────────────────────────────────────────┘   │ │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌────────────────────────┐   │ │
-│  │  │   session/   │ │  terminal/   │ │      workspace/        │   │ │
-│  │  │  · agent     │ │  · PTY mgmt  │ │  · ProjectRegistry     │   │ │
-│  │  │  · terminal  │ │  · resize    │ │  · WorkspaceRegistry   │   │ │
-│  │  │  · tmux      │ │              │ │  · GitService          │   │ │
-│  │  │  · schedule  │ │              │ │  · ScriptManager       │   │ │
-│  │  │  · loop      │ │              │ │  · FileExplorer        │   │ │
-│  │  │  · workspace │ │              │ │  · ScriptProxy         │   │ │
-│  │  │  · send      │ │              │ │                        │   │ │
-│  │  │  · multi-    │ │              │ │                        │   │ │
-│  │  │    socket    │ │              │ │                        │   │ │
-│  │  └──────────────┘ └──────────────┘ └────────────────────────┘   │ │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐             │ │
-│  │  │  attention/  │ │  sendqueue/  │ │  activity/   │             │ │
-│  │  │  policy +   │ │  async msg   │ │  tracker     │             │ │
-│  │  │  broadcast  │ │  buffering   │ │  heartbeat   │             │ │
-│  │  └──────────────┘ └──────────────┘ └──────────────┘             │ │
-│  └──────────────────────────────────────────────────────────────────┘ │
-│                                                                       │
-│  ┌──────────────────── agent/ (Agent Manager) ──────────────────────┐ │
-│  │  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌──────┐ ┌──────────┐   │ │
-│  │  │ Claude  │ │  Kimi   │ │ OpenCode │ │  Pi  │ │  Codex   │   │ │
-│  │  │ (print/ │ │ (Wire/  │ │  (SSE)   │ │(JSON │ │(auto/    │   │ │
-│  │  │ stream) │ │ JSONRPC)│ │          │ │stdio)│ │full-acc) │   │ │
-│  │  └─────────┘ └─────────┘ └──────────┘ └──────┘ └──────────┘   │ │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │ │
-│  │  │  ProviderReg │ │  AgentStore  │ │  TurnGuard   │            │ │
-│  │  │  discovery   │ │  persistence │ │  dedup guard │            │ │
-│  │  └──────────────┘ └──────────────┘ └──────────────┘            │ │
-│  │  ┌──────────────┐ ┌──────────────┐                             │ │
-│  │  │ StallMonitor │ │ CustomModels │                             │ │
-│  │  │ stuck detect │ │ user-defined │                             │ │
-│  │  └──────────────┘ └──────────────┘                             │ │
-│  └─────────────────────────────────────────────────────────────────┘ │
-│                                                                       │
-│  ┌────────────────── loop/ (Loop Engine) ───────────────────────────┐ │
-│  │  ┌──────────────┐ ┌──────────────┐                              │ │
-│  │  │   Engine     │ │    Store     │                              │ │
-│  │  │  iteration   │ │  persistence │                              │ │
-│  │  └──────────────┘ └──────────────┘                              │ │
-│  └──────────────────────────────────────────────────────────────────┘ │
-│                                                                       │
-│  ┌────────────────── schedule/ (Schedule Engine) ───────────────────┐ │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │ │
-│  │  │    Store     │ │   Executor   │ │    Runner    │            │ │
-│  │  │  cron state  │ │  agent exec  │ │  cron loop   │            │ │
-│  │  └──────────────┘ └──────────────┘ └──────────────┘            │ │
-│  └──────────────────────────────────────────────────────────────────┘ │
-│                                                                       │
-│  ┌─────────────── Supporting Services ──────────────────────────────┐ │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │ │
-│  │  │   memory/    │ │    push/     │ │ relayclient/ │            │ │
-│  │  │ TurnRecorder │ │  FCM / APNs  │ │  · Control   │            │ │
-│  │  │ filebackend  │ │  web push    │ │  · Data conn │            │ │
-│  │  │ redact/      │ │              │ │  · E2EE      │            │ │
-│  │  │ bridge/      │ │              │ │  · Keepalive │            │ │
-│  │  │ SafeBridge   │ │              │ │  · Reconnect │            │ │
-│  │  └──────────────┘ └──────────────┘ └──────────────┘            │ │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │ │
-│  │  │  metrics/    │ │   config/    │ │   pidlock/   │            │ │
-│  │  │  Prometheus  │ │ MemoryConfig │ │  single inst │            │ │
-│  │  │  /metrics    │ │ CustomModels │ │  guard       │            │ │
-│  │  └──────────────┘ └──────────────┘ └──────────────┘            │ │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │ │
-│  │  │  wsconn/     │ │ memorysetup/ │ │    llm/      │            │ │
-│  │  │  WS conn     │ │  wiring +    │ │  chat client │            │ │
-│  │  │  abstract.   │ │  assembly    │ │  (schedule   │            │ │
-│  │  │              │ │              │ │  assistant)  │            │ │
-│  │  └──────────────┘ └──────────────┘ └──────────────┘            │ │
-│  │  ┌──────────────┐                                              │ │
-│  │  │    usage/    │                                              │ │
-│  │  │ quota track  │                                              │ │
-│  │  │ usage/list   │                                              │ │
-│  │  │ 60s cache    │                                              │ │
-│  │  └──────────────┘                                              │ │
-│  └──────────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────────┘
+    subgraph Service["Service Layer — user machine"]
+        supervisor["solo-supervisor<br/>exit-code restart (42) · version switching · crash fallback"]
+        daemon["solo daemon :17612<br/>WS/HTTP server · session · terminal · workspace<br/>attention · sendqueue · activity"]
+        agents["Agent Manager<br/>Claude · Kimi · OpenCode · Pi · Codex<br/>TurnGuard · StallMonitor · Provider Registry"]
+        loop["Loop Engine"]
+        sched["Schedule Engine + LLM assistant"]
+        support["Supporting services<br/>memory · push · relayclient · usage · metrics · config"]
+    end
+
+    web --> dclient
+    mobile --> dclient
+    cli --> daemon
+    usagebin --> daemon
+    dclient --> rpc --> e2ee
+    dclient -- "direct WebSocket" --> daemon
+    e2ee -- "wss (E2EE)" --> nginx --> relay -- "WebSocket" --> daemon
+    supervisor --> daemon
+    daemon --> agents
+    daemon --> loop
+    daemon --> sched
+    daemon --- support
+
+    style Service fill:#f0f7ff,stroke:#3b82f6
+    style Network fill:#fff7ed,stroke:#f97316
+    style Bridge fill:#faf5ff,stroke:#a855f7
+    style Clients fill:#f0fdf4,stroke:#22c55e
 ```
 
-</details>
+> Visual versions: [Overview PNG](docs/architecture/solo-system-architecture.png) | [Overview SVG](docs/architecture/solo-system-architecture.svg) · [Detailed PNG](docs/architecture/solo-system-architecture-detailed.png) | [Detailed SVG](docs/architecture/solo-system-architecture-detailed.svg)
 
 ### Core Components
 
@@ -185,6 +73,7 @@ Solo is an AI coding assistant platform that connects your local development env
 | **Daemon** | [`daemon/`](daemon/) | Go | Core service — manages sessions, agents, loops, and provider connections |
 | **Relay** | [`relay-go/`](relay-go/) | Go | Connection relay for remote/mobile access |
 | **CLI** | [`cli/`](cli/) | Go | Command-line tool for session and agent management |
+| **Supervisor** | [`supervisor/`](supervisor/) | Go | Watchdog process (`solo-supervisor`) — spawns/respawns the daemon by exit-code contract, version switching, crash fallback |
 | **Usage** | [`usage/`](usage/) | Go | Usage/quota tracking CLI (`solo-usage`) and provider module reused by the daemon |
 | **Protocol** | [`protocol/`](protocol/) | Go | Shared protocol definitions |
 | **Highlight** | [`packages/highlight/`](packages/highlight/) | TypeScript | Syntax highlighting library |
@@ -220,10 +109,10 @@ Solo is an AI coding assistant platform that connects your local development env
 ### Build
 
 ```bash
-# Build all Darwin binaries (daemon, relay, CLI, usage)
+# Build all Darwin binaries (daemon, relay, CLI, usage, supervisor)
 make darwin
 
-# Build Linux binaries (daemon, relay, CLI; excludes solo-usage)
+# Build Linux binaries (daemon, relay, CLI, supervisor; excludes solo-usage)
 make linux
 
 # Build everything
@@ -244,7 +133,7 @@ make dev-web
 # Start only the daemon (must build first)
 make dev-daemon
 
-# Restart the daemon
+# Build all Darwin binaries and restart the daemon under solo-supervisor
 make restart
 
 # Stop all dev processes
@@ -299,6 +188,8 @@ cd protocol && go test -short -race ./...
 cd cli && go test -short -race ./...
 cd daemon && go test -short -race ./...
 cd relay-go && go test -short -race ./...
+cd supervisor && go test -short -race ./...
+cd usage && go test -short -race ./...
 ```
 
 ---
@@ -317,6 +208,7 @@ solo/
 ├── protocol/            # Go protocol definitions
 ├── relay-go/            # Go relay server
 ├── scripts/             # Build, CI, and semantic-verify scripts
+├── supervisor/          # Go daemon supervisor (solo-supervisor)
 ├── usage/               # Go usage-tracking service
 ├── Makefile             # Build & development commands
 ├── go.work              # Go workspace
@@ -333,7 +225,7 @@ For detailed documentation, see [`docs/README.md`](docs/README.md).
 - **Kimi** — Wire mode (JSON-RPC 2.0 over stdio)
 - **OpenCode** — SSE mode
 - **Pi** — JSON stream mode (stdio)
-- **Codex** — auto / full-access modes
+- **Codex** — print mode (`codex exec --json`) with native session resume
 - **Mock** — development/testing only (opt-in via `SOLO_ENABLE_MOCK_PROVIDER=1`)
 
 **Planned**: Cursor-Agent (Print mode). See [`docs/providers/`](docs/providers/) for provider integration research and planned additions.
@@ -384,7 +276,7 @@ Three-layer detection identifies agents even when `pane_current_command` reports
 - **Command history** — track and display recent commands sent to coding agents, with delete support for stale entries
 - **Session management** — close (kill) tmux sessions with confirmation dialog from agent/pane cards
 - **Pane content capture** — live terminal view (last 500 lines), auto-refreshes every 5 seconds
-- **Terminal themes** — configurable color themes (system, dark, light, tmux, Bash, auto) for pane rendering
+- **Terminal themes** — configurable color themes (system, dark, light, Bash, auto) for pane rendering
 - **Interactive control** — send text commands with Enter, or use quick-action buttons:
   - Arrow keys (↑↓←→) for TUI menu navigation
   - Enter, Esc, Tab, Ctrl+C for control
@@ -448,6 +340,19 @@ Configuration reference: [`docs/configuration.md`](docs/configuration.md#usagejs
 
 ---
 
+## Daemon Supervision & Version Switching
+
+`solo-supervisor` is a watchdog that owns the daemon process, making version upgrades and restarts safe and automatic.
+
+- **Exit-code restart contract** — the daemon signals a requested restart with exit code 42 (respawn immediately); a clean exit (0) stops the supervisor too, and crashes respawn with backoff (ADR-003)
+- **Version switching** — builds are published into `~/.solo/versions/` behind a `current` pointer; the supervisor re-resolves the binary on every spawn, so switching versions is just writing the pointer + exit 42 (ADR-004). Available from the app's host settings page
+- **Crash fallback** — a crash breaker blacklists a failing build and rewrites `current` to the last working version, so a bad release can't brick the daemon (ADR-005)
+- **State visibility** — spawn-loop health is persisted to `supervisor-state.json` and surfaced to the app via `list_daemon_versions`
+
+See [`docs/architecture/daemon-supervision.md`](docs/architecture/daemon-supervision.md).
+
+---
+
 ## CLI Reference
 
 Solo includes a comprehensive CLI (`solo-cli`) with the following command groups:
@@ -458,7 +363,7 @@ Solo includes a comprehensive CLI (`solo-cli`) with the following command groups
 | **daemon** | `start`, `stop`, `restart`, `status`, `pair` | Daemon service management |
 | **loop** | `ls`, `run`, `stop`, `status`, `update`, `delete` | Loop automation management |
 | **provider** | `ls`, `models` | Provider and model discovery |
-| | `onboard`, `shortcuts` | Setup and keyboard shortcuts |
+| **top-level** | `onboard`, `shortcuts` | Setup and keyboard shortcuts |
 
 ---
 
@@ -475,10 +380,10 @@ The project uses GitHub Actions. `ci.yml` runs on push/PR to main; E2E runs on a
 
 | Job | Workflow | Trigger | Steps |
 |-----|----------|---------|-------|
-| **Go** (matrix: protocol, cli, daemon, relay-go, usage) | `ci.yml` | push/PR to main | `go mod verify` → `go build` → `go test -short -race -coverprofile` → `golangci-lint v2` → Codecov upload |
+| **Go** (matrix: protocol, cli, daemon, relay-go, supervisor, usage) | `ci.yml` | push/PR to main | `go mod verify` → `go build` → `go test -short -race -coverprofile` → `golangci-lint v2` → Codecov upload |
 | **JS** | `ci.yml` | push/PR to main | `npm ci` → lint (app, app-bridge, highlight) → typecheck → test (app + app-bridge unit tests) → Codecov upload |
 | **arch-boundaries** | `ci.yml` | push/PR to main | `scripts/check-arch-boundaries.sh` — enforces Go module boundaries |
-| **E2E** | `e2e-nightly.yml` | daily 02:00 UTC + manual | Playwright E2E (43 specs) with daemon/relay/Metro globalSetup |
+| **E2E** | `e2e-nightly.yml` | daily 02:00 UTC + manual | Playwright E2E (44 specs) with daemon/relay/Metro globalSetup |
 
 A separate `semantic-check.yml` workflow runs an advisory LLM ADR-consistency check on labeled PRs.
 
@@ -494,6 +399,7 @@ A separate `semantic-check.yml` workflow runs an advisory LLM ADR-consistency ch
 - [Agent Stall Detection](docs/architecture/agent-stall-detection.md)
 - [Push Notifications](docs/architecture/push-notifications.md)
 - [Schedule Assistant](docs/architecture/schedule-assistant.md)
+- [Daemon Supervision](docs/architecture/daemon-supervision.md)
 - [Deployment Guide](docs/architecture/deployment.md)
 - [Product Features](docs/product/features.md)
 - [2026 Roadmap](docs/product/roadmap-2026.md)

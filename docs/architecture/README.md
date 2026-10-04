@@ -123,8 +123,8 @@
 │  ┌──────────────────── agent/ (Agent Manager) ──────────────────────┐ │
 │  │  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌──────┐ ┌──────────┐   │ │
 │  │  │ Claude  │ │  Kimi   │ │ OpenCode │ │  Pi  │ │  Codex   │   │ │
-│  │  │ (print/ │ │ (Wire/  │ │  (SSE)   │ │(JSON │ │(auto/    │   │ │
-│  │  │ stream) │ │ JSONRPC)│ │          │ │stdio)│ │full-acc) │   │ │
+│  │  │ (print/ │ │ (Wire/  │ │  (SSE)   │ │(JSON │ │(exec/    │   │ │
+│  │  │ stream) │ │ JSONRPC)│ │          │ │stdio)│ │--json)   │   │ │
 │  │  └─────────┘ └─────────┘ └──────────┘ └──────┘ └──────────┘   │ │
 │  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │ │
 │  │  │  ProviderReg │ │  AgentStore  │ │  TurnGuard   │            │ │
