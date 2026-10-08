@@ -1,6 +1,6 @@
 # Go Backend Rules
 
-Rules for all Go modules: `daemon`, `cli`, `relay-go`, `protocol`.
+Rules for all Go modules: `daemon`, `cli`, `relay-go`, `protocol`, `supervisor`, `usage`.
 
 ## Context Propagation
 
@@ -43,7 +43,7 @@ Rules for all Go modules: `daemon`, `cli`, `relay-go`, `protocol`.
 
 ## Module Structure
 
-- Each module (`daemon`, `cli`, `relay-go`, `protocol`) has its own `go.mod`. Cross-module deps go through `go.work` locally.
+- Each module (`daemon`, `cli`, `relay-go`, `protocol`, `supervisor`, `usage`) has its own `go.mod`. Cross-module deps go through `go.work` locally.
 - `protocol` is dependency-free and importable by all other modules. Never add external dependencies to `protocol`.
 - Use `replace` directives in `go.mod` only for local development; CI resolves via `go.work`.
 - Internal packages (`internal/`) enforce Go's compiler-level import boundary. Use this deliberately.

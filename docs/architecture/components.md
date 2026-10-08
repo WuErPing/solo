@@ -13,7 +13,7 @@
 
 **Key Directories**:
 - `src/screens/` - Page components
-  - `src/screens/agent/` - Agent detail and interaction screens
+  - `src/screens/agent/` - Agent-ready route helpers (agent detail/interaction renders as workspace tabs)
   - `src/screens/dashboard/` - Main dashboard
   - `src/screens/schedules/` - Schedule automation dashboard
   - `src/screens/settings/*-section.tsx` - Settings sections (operations, tmux agents, providers, keyboard shortcuts)
@@ -100,6 +100,7 @@
 | Directory | Responsibility |
 |-----------|---------------|
 | `src/shared/` | Shared types and constants |
+| `src/generated/` | genzod-generated Zod schemas from `protocol/` message types |
 | `src/utils/` | Utility functions |
 
 ## 3. Daemon
@@ -198,7 +199,7 @@ Features:
 Features:
 - Persists each user / assistant turn as Markdown + YAML frontmatter
 - Disk path: `~/.solo/memory/sessions/{YYYY-MM-DD}/{sessionID}/turns/{seq:04d}-{role}.md`, index at `~/.solo/memory/sessions.jsonl`
-- Enabled by default; note: the `config.json` opt-out (`"memory": {"enabled": false}`) is **not currently wired** — `PersistedConfig` only has `daemon`/`app` keys, so memory cannot be disabled via the config file today (tracked as [DEBT-001](../debt/debt-001-memory-config-opt-out.md), target v0.13.0)
+- Enabled by default; opt out via `config.json`: `"memory": {"enabled": false}` — `PersistedConfig` maps the top-level `memory` block onto `cfg.Memory` and `IsEnabled()` gates recorder construction ([DEBT-001](../debt/debt-001-memory-config-opt-out.md), resolved 2026-09-23)
 
 Core structure:
 - `recorder.go` - `TurnRecorder` stable interface (Phase 1 implemented as `filebackend`)
@@ -215,7 +216,7 @@ See [Session Memory Persistence](session-memory-persistence.md).
 
 Features:
 - **Agent scanning** (`session_tmux_scan.go`): Three-layer detection (command name, pane title unicode normalization, child process inspection)
-- **Pane capture** (`session_tmux_pane.go`): `tmux capture-pane -t {paneId} -p -e -J -S {startLine}` with configurable scrollback (optional `-C {cols}` width cropping)
+- **Pane capture** (`session_tmux_pane.go`): `tmux capture-pane -t {paneId} -p -e -J -S {startLine}` with configurable scrollback (optional re-wrap to `cols` width, done daemon-side)
 - **Key injection** (`session_tmux_session.go`): `tmux send-keys -t {paneId} {keys} [Enter]`
 - **Status line** (`session_tmux_session.go`): `tmux show-options -gv` + `display-message -p` for status-left/status-right, `list-windows` for the window list
 - **Push refresh** (`tmux_watcher.go`): server-level pane-activity poller broadcasting `tmux/pane_changed`

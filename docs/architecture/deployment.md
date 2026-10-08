@@ -99,7 +99,7 @@ make dev
 
 **⚠️ 重要**: 生产环境 Solo Relay 监听 `8081`。虽然进程绑定在 `0.0.0.0`，但腾讯云**安全组**未放行 8081 公网入站，外部无法直接访问，所有外部连接必须通过 Nginx (443端口) 反向代理。
 
-> **现状 vs 加固目标**：上述为当前生产实况（8081、`User=ubuntu`、内联环境变量）。[`deploy/`](../../deploy/) 中的模板描述的是**尚未应用的加固目标**（`127.0.0.1:8080`、专用用户 `solo-relay`、`EnvironmentFile`、systemd 硬化项）。迁移步骤见 [`../release/relay.md`](../release/relay.md)。
+> **现状 vs 加固目标**：上述为当前生产实况（8081、`User=ubuntu`、内联环境变量）。[`deploy/`](../../deploy/) 中的模板描述的是**尚未应用的加固目标**（绑定 `127.0.0.1`、专用用户 `solo-relay`、`EnvironmentFile`、systemd 硬化项；Nginx upstream 与 Relay 端口仍为 `8081`，`8080` 仅为 Relay 编译期默认值）。迁移步骤见 [`../release/relay.md`](../release/relay.md)。
 
 对应的域名解析路径：
 
@@ -120,10 +120,10 @@ solo.up2ai.top ──► 106.52.40.152 (腾讯云)
 **构建与部署**（摘要）:
 ```bash
 make solo-relay-linux-amd64   # 构建 → output/linux/solo-relay
-make deploy-solo-relay        # scp 二进制 + systemd unit，daemon-reload，restart
+make deploy-solo-relay        # scp 二进制（保留 .prev 备份）+ systemctl restart，不推送 unit
 ```
 
-> **⚠️ 注意**：`make deploy-solo-relay` 会推送 [`deploy/systemd/solo-relay.service`](../../deploy/systemd/solo-relay.service)（加固模板，依赖 `solo-relay` 用户与 `/opt/solo-relay/solo-relay.env`）。当前生产主机**尚未满足这些前置条件**，直接执行会导致服务起不来。迁移前先按 [`../release/relay.md`](../release/relay.md#加固迁移) 准备前置条件。
+> **⚠️ 注意**：`make deploy-solo-relay` **只 scp 二进制并 restart**（上传走 `/tmp` 再 `mv` 覆盖，自动保留 `solo-relay.prev` 备份），不会推送 [`deploy/systemd/solo-relay.service`](../../deploy/systemd/solo-relay.service)。加固模板（依赖 `solo-relay` 用户与 `/opt/solo-relay/solo-relay.env`）需手动应用；当前生产主机**尚未满足这些前置条件**，直接套用会导致服务起不来。迁移前先按 [`../release/relay.md`](../release/relay.md#加固迁移) 准备前置条件。
 
 **当前生产 Systemd 服务**（`/etc/systemd/system/solo-relay.service`，实况）:
 ```ini
@@ -420,6 +420,7 @@ solo pair
 | `PORT` | 8080 | 监听端口 |
 | `HOST` | 0.0.0.0 | 监听地址 |
 | `MAX_BUFFER` | 200 | 最大消息缓冲数 |
+| `MAX_CONNS` | 10000 | 最大并发连接数 |
 | `LOG_LEVEL` | info | 日志级别 |
 | `ALLOWED_ORIGINS` | `https://solo.up2ai.top,http://localhost:19000` | CORS 白名单（空值拒绝所有非空 Origin） |
 
@@ -475,7 +476,7 @@ curl https://solo.up2ai.top/health
   "status": "ok",
   "sessions": 1,
   "connections": 1,
-  "version": "relay-go-v1"
+  "version": "relay-go-v2"
 }
 ```
 

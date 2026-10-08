@@ -115,7 +115,7 @@ Agent completes / needs attention
               │       "permission""Agent needs permission" "Permission requested."
               │       "error"     "Agent needs attention"  "Encountered an error."
               │
-              │       data: { agentId, workspaceId, ... }  (used for deep-link on tap)
+              │       data: { agentId, reason, serverId }  (used for deep-link on tap)
               │
               ├─ [2] Decide whether to push
               │       ComputeNotificationPlan(clientStates, agentID, reason, nowMs)
@@ -135,7 +135,7 @@ Agent completes / needs attention
                            HTTP POST https://exp.host/--/api/v2/push/send
                            body: [{ to, title, body, data, sound: "default" }]
                            batched at 100 tokens/request
-                           retried up to 3× with exponential back-off (1s, 2s, 4s)
+                           up to 3 attempts with exponential back-off (1s, 2s)
 ```
 
 ---
@@ -181,7 +181,7 @@ The notification icon and color on Android come from the Expo plugin config:
 | Stale / uninstalled device token | Expo returns `DeviceNotRegistered`; `handleResponse()` calls `tokenStore.Remove()` |
 | App open — don't interrupt user | `ComputeNotificationPlan` suppresses push when app is visible and focused |
 | Error noise | `reason == "error"` never triggers a push |
-| Network flakiness | Exponential back-off retry (3 attempts: 1s → 2s → 4s) |
+| Network flakiness | Exponential back-off retry (3 attempts: 1s → 2s) |
 
 ---
 

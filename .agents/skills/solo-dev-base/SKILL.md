@@ -1,7 +1,7 @@
 ---
 name: solo-dev-base
 description: Base development context for the Solo AI coding assistant platform. Provides architecture overview, tech stack, build commands, CI/CD reference, directory map, and development conventions. Use at the start of any Solo development task — feature work, bug fixes, provider integration, infrastructure changes, or code review.
-version: "2026-09-23"
+version: "2026-10-06"
 tags:
   - solo
   - architecture
@@ -52,23 +52,33 @@ solo/
 ├── app/                 # React Native / Expo frontend
 │   ├── src/
 │   │   ├── app/         # Expo Router (file-system routing)
-│   │   ├── components/  # Reusable UI components (~160 files)
+│   │   ├── components/  # Reusable UI components (201 files)
 │   │   ├── screens/     # Screen components (settings sections, tmux-dashboard, schedules)
-│   │   ├── hooks/       # Custom hooks (~140 files)
-│   │   ├── stores/      # Zustand stores (~40 files)
-│   │   ├── contexts/    # React contexts (~20 files)
-│   │   ├── utils/       # Utilities (~186 files)
+│   │   ├── hooks/       # Custom hooks (140 files)
+│   │   ├── stores/      # Zustand stores (40 files)
+│   │   ├── contexts/    # React contexts (31 files)
+│   │   ├── utils/       # Utilities (188 files)
 │   │   ├── constants/   # App constants (agent slash commands)
 │   │   ├── styles/      # Theme and terminal theme presets
 │   │   ├── desktop/     # Desktop-specific modules
-│   │   └── terminal/    # Terminal emulation (xterm)
+│   │   ├── terminal/    # Terminal emulation (xterm)
+│   │   ├── attachments/ # File attachment store/service
+│   │   ├── keyboard/    # Keyboard shortcut routing, focus scopes
+│   │   ├── lib/         # Shared helpers (overlay root)
+│   │   ├── panels/      # Agent/file/draft panels, pane context
+│   │   ├── query/       # TanStack Query client setup
+│   │   ├── runtime/     # Host runtime bootstrap/activity
+│   │   ├── types/       # Shared TypeScript types
+│   │   └── test/        # Test helpers
 │   └── e2e/             # Playwright E2E tests
 ├── app-bridge/          # TypeScript communication library
 │   └── src/
 │       ├── client/      # DaemonClient, transports (WS, Relay E2EE), per-domain RPC modules
 │       ├── relay/       # E2EE crypto (X25519 + XSalsa20-Poly1305)
 │       ├── server/      # Agent, chat, loop, schedule, tmux, usage, version modules
-│       └── shared/      # Connection offer types, protocol constants
+│       ├── shared/      # Connection offer types, protocol constants
+│       ├── generated/   # TS schemas generated from the Go protocol (`npm run generate:schemas`)
+│       └── utils/       # Executable lookup, solo config schema
 ├── daemon/              # Go core service
 │   └── internal/
 │       ├── server/      # WebSocket server, session management, tmux handlers + pane watcher
@@ -82,14 +92,22 @@ solo/
 │       ├── schedule/    # Cron-based schedule automation (executor, store, NL assistant)
 │       ├── loop/        # Loop engine (template/instance model, worker+verifier)
 │       ├── llm/         # Minimal OpenAI-compatible completion client (schedule assistant parse)
+│       ├── httpx/       # Shared HTTP clients with sane timeouts
+│       ├── metrics/     # Prometheus daemon metrics
+│       ├── pidlock/     # PID-file lock
+│       ├── wsconn/      # WebSocket connection interface used by the server
 │       └── config/      # JSON config (~/.solo/config.json), incl. MemoryConfig
 ├── usage/               # Go usage/quota service (solo-usage binary)
 ├── relay-go/            # Go WebSocket relay server
-│   └── internal/relay/  # Server, session, control, buffer, metrics
+│   └── internal/
+│       ├── relay/       # Server, session, control, buffer
+│       ├── e2ee/        # E2EE encrypted channels
+│       ├── metrics/     # Prometheus relay metrics
+│       └── config/      # Relay env config (PORT/HOST, limits)
 ├── supervisor/          # Go daemon supervisor (solo-supervisor)
 │   └── internal/supervisor/  # Spawn/respawn loop, backoff, PID/log ownership
 ├── cli/                 # Go CLI tool
-│   └── cmd/             # daemon, agent, provider subcommands
+│   └── cmd/             # daemon, agent, provider, loop, onboard subcommands
 ├── protocol/            # Shared Go protocol definitions
 │   ├── protocol.go      # Constants (WSProtocolVersion, endpoints)
 │   ├── process_contract.go  # Daemon↔supervisor exit-code contract (42=restart)
@@ -234,9 +252,9 @@ Full docs live in `docs/`. Read `docs/README.md` for the structured index.
 
 ## Development Conventions
 
-1. **Go modules**: Each Go component (daemon, cli, relay-go, protocol) has its own `go.mod`. Use `go.work` at repo root for local development.
+1. **Go modules**: Each Go component (protocol, cli, daemon, relay-go, supervisor, usage) has its own `go.mod`. Use `go.work` at repo root for local development.
 2. **npm workspaces**: `app/`, `app-bridge/`, `packages/highlight/` are npm workspaces.
-3. **Testing**: Go tests use `-short -race` flags. JS tests use Vitest (app, app-bridge) and Jest (packages).
+3. **Testing**: Go tests use `-short -race` flags. JS tests use Vitest (app, app-bridge, packages/highlight).
 4. **Linting**: Go uses `golangci-lint v2` with `.golangci.yml`. JS uses ESLint with per-workspace configs.
 5. **Commit style**: Conventional commits preferred.
 6. **E2E tests**: Playwright tests in `app/e2e/`, Maestro flows in `app/maestro/`.

@@ -18,7 +18,7 @@ Client Layer (Web / Mobile / CLI)
                     ▼
 ┌─────────────────────────────────────────┐
 │  Solo Relay Server (Go)                 │
-│  127.0.0.1:8081                         │
+│  0.0.0.0:8081                           │
 │  - Control socket / Data socket         │
 │  - Session management & message routing │
 └───────────────────┬─────────────────────┘
@@ -35,7 +35,7 @@ Client Layer (Web / Mobile / CLI)
 Key points:
 
 - **App → Nginx**: WSS (WebSocket over TLS) on port 443.
-- **Nginx → Relay**: plain WS on `localhost:8081`; the Relay binds to `127.0.0.1` only and is not reachable from the public internet.
+- **Nginx → Relay**: plain WS on `localhost:8081`; the Relay binds to `0.0.0.0:8081`, but the cloud security group blocks public inbound on 8081, so it is only reachable through Nginx.
 - **Daemon → Relay**: the Daemon dials out over WSS (port 443) via its Relay Client, so it works behind NAT.
 
 For server details, Nginx/systemd configuration, and port access control, see [Deployment Architecture](deployment.md).
@@ -96,11 +96,11 @@ Client                              Relay                              Daemon
 
 | Message | Description |
 |---------|-------------|
-| `hello` | Handshake, exchange protocol version and authentication info |
-| `ping` | Heartbeat keepalive |
-| `pong` | Heartbeat response |
-| `attach` | Request to establish data connection |
-| `detach` | Disconnect data connection |
+| `ping` | Heartbeat keepalive (daemon-initiated, every 10s) |
+| `pong` | Heartbeat response (carries `ts` for RTT measurement) |
+| `sync` | Relay → Daemon: full list of connected `connectionIds` (sent on control connect and for reconciliation) |
+| `connected` | Relay → Daemon: a client is waiting on this `connectionId`; the daemon dials a data socket for it |
+| `disconnected` | Relay → Daemon: the client went away; the daemon closes the matching data connection |
 
 ### Data Messages
 
@@ -108,11 +108,10 @@ Client                              Relay                              Daemon
 
 | Message | Description |
 |---------|-------------|
-| `auth` | Authentication |
-| `request` | Request |
-| `response` | Response |
-| `event` | Event notification |
-| `error` | Error |
+| `session` | Envelope wrapping one granular RPC message (`{"type":"session","message":{...}}`, e.g. `create_agent`, `schedule/assist`, `tmux/list_agents`); each request is correlated by `requestId` and answered with a `<type>/response` message |
+| `hello` | Client → Daemon handshake right after connect (`clientId`, `clientType`, `protocolVersion`) |
+| `ping` / `pong` | Application-level heartbeat / latency probe |
+| `e2ee_hello` / `e2ee_ready` | E2EE key-exchange handshake (see [End-to-End Encryption (E2EE) Flow](#end-to-end-encryption-e2ee-flow)); all subsequent `session` traffic is ciphertext |
 
 ### Protocol Constants
 
@@ -137,10 +136,10 @@ const (
 Client          Relay           Daemon
   │              │               │
   │── connect ──►│               │
-  │              │── attach ────►│
-  │              │               │
-  │              │◄── accept ────│
   │◄─ connected ─│               │
+  │              │── connected ─►│
+  │              │               │
+  │              │◄── data conn ─│  (same connectionId)
 ```
 
 ### 2. Data Transmission
@@ -158,9 +157,9 @@ Client          Relay           Daemon
 ```
 Client          Relay           Daemon
   │              │               │
-  │── close ────►│── detach ────►│
-  │              │               │
-  │◄─ closed ────│◄── ack ───────│
+  │── close ────►│               │
+  │              │─ disconnected ►│
+  │              │               │── close data conn
 ```
 
 ## End-to-End Encryption (E2EE) Flow
@@ -172,7 +171,7 @@ Client                                          Daemon
   │                                              │
   │  1. Generate ephemeral key pair (X25519)     │
   │                                              │
-  │  2. Send public key (via Relay control conn) │
+  │  2. Send public key (via Relay data channel) │
   │─────────────────────────────────────────────►│
   │                                              │
   │                                              │  3. Generate ephemeral key pair

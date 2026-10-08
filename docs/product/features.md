@@ -1,6 +1,6 @@
 # Solo - Product Feature Detailed Analysis
 
-> Analysis Date: 2026-09-23（复审）
+> Analysis Date: 2026-10-06（复审）
 > Repository: /Users/wuerping/code/wuerping/solo
 > Version: v0.15.0
 
@@ -30,7 +30,7 @@
 #### 1.2 Multi-Provider Support
 Currently built-in 5 providers:
 - **Claude**: Integrated via CLI `--print --output-format stream-json`
-- **Kimi**: Wire mode (`kimi --wire`), JSON-RPC 2.0 stdio communication, EventPump, dynamically reads `~/.kimi/config.toml` model list (~737 LOC, 31 executed test cases)
+- **Kimi**: Wire mode (`kimi --wire`), JSON-RPC 2.0 stdio communication, EventPump, dynamically reads `~/.kimi/config.toml` model list (~703 LOC, 28 executed test cases)
 - **OpenCode**: SSE `/global/event` event stream, full reasoning/thinking support
 - **Pi**: Minimal terminal coding harness
 - **Codex**: auto / full-access modes
@@ -142,7 +142,7 @@ Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
 - **提供商指示器**：面板头部显示当前解析的 provider + model（来自 `schedule/assist` 响应回显）
 - **无提供商引导**：未配置 LLM 提供商时显示设置卡片，深度链接至 `/settings/general`
 - **安全不变式**：daemon 解析路径不触碰日程存储；执行路径（Target Agent）完全不变
-- **E2E 覆盖**：Playwright + stub LLM endpoint 4 个用例（无提供商引导卡、创建+确认含 UTC 转换、更新 diff、歧义澄清）
+- **E2E 覆盖**：Playwright + stub LLM endpoint 5 个用例（无提供商引导卡、创建+确认含 UTC 转换、更新 diff、歧义澄清、编辑模态框内 Ask AI 更新）
 
 ### 6. Relay 中继系统
 
@@ -170,7 +170,7 @@ Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
   - 非代理窗格显示 — 浏览和交互非代理 tmux 窗格（shell、编辑器等），按命令分组
   - 命令历史 — 跟踪和显示发送给编程代理的最近命令，支持删除过期条目
   - 会话管理 — 关闭（kill）tmux 会话，代理/窗格卡片带确认对话框
-  - 窗格内容捕获（默认 200 行，5 秒自动刷新，可关闭自动刷新）
+  - 窗格内容捕获（默认 200 行，自适应轮询刷新 150ms/1s/5s 三档，可关闭自动刷新）
   - 懒加载历史（滚动驱动，每次 200 行，最大 5000 行）
   - 自定义终端主题（`system` / `dark` / `light` / `bash` / `auto`）
   - ANSI 文本渲染（状态栏支持 ANSI 颜色）
@@ -201,7 +201,6 @@ Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
 - **Projects Screen**：项目管理
 - **Sessions Screen**：会话历史
 - **Settings Screen**：设置管理
-  - 终端主题选择器（`system` / `dark` / `light` / `bash` / `auto`）
   - Tmux Agents 设置区（`tmux-agents-section.tsx`）
   - Providers / Keyboard Shortcuts 设置区
 - **Mermaid Preview**：Markdown 文件面板内嵌 Mermaid 图表实时渲染
@@ -338,6 +337,7 @@ app/
 │   └── projects/            # 项目管理 (index.tsx / [projectKey].tsx)
 └── h/[serverId]/
     ├── index.tsx                 # 主机首页
+    ├── dashboard.tsx             # 主机 Dashboard
     ├── new.tsx                   # 新建 Workspace
     ├── open-project.tsx          # 打开项目
     ├── workspace/[workspaceId]/  # Workspace 主页 (_layout.tsx / index.tsx)

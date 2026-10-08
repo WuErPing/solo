@@ -107,7 +107,7 @@
 │  │  │  · terminal  │ │  · resize    │ │  · WorkspaceRegistry   │   │ │
 │  │  │  · tmux      │ │              │ │  · GitService          │   │ │
 │  │  │  · schedule  │ │              │ │  · ScriptManager       │   │ │
-│  │  │  · loop      │ │              │ │  · FileExplorer        │   │ │
+│  │  │  · loop      │ │              │ │                        │   │ │
 │  │  │  · workspace │ │              │ │  · ScriptProxy         │   │ │
 │  │  │  · send      │ │              │ │                        │   │ │
 │  │  │  · multi-    │ │              │ │                        │   │ │
@@ -153,8 +153,8 @@
 │  ┌─────────────── Supporting Services ──────────────────────────────┐ │
 │  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │ │
 │  │  │   memory/    │ │    push/     │ │ relayclient/ │            │ │
-│  │  │ TurnRecorder │ │  FCM / APNs  │ │  · Control   │            │ │
-│  │  │ filebackend  │ │  web push    │ │  · Data conn │            │ │
+│  │  │ TurnRecorder │ │  Expo Push   │ │  · Control   │            │ │
+│  │  │ filebackend  │ │  API + retry │ │  · Data conn │            │ │
 │  │  │ redact/      │ │              │ │  · E2EE      │            │ │
 │  │  │ bridge/      │ │              │ │  · Keepalive │            │ │
 │  │  │ SafeBridge   │ │              │ │  · Reconnect │            │ │

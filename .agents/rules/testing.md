@@ -48,7 +48,7 @@ Rules for writing and maintaining tests across Go and TypeScript.
 
 - Define interfaces at the consumer, not the provider. Mock interfaces, not concrete types.
 - Use hand-written mocks for simple interfaces (1-3 methods). Avoid code-generation for trivial cases.
-- The `Mock` provider (`agent/mock_provider.go`) exists for testing agent flows. Extend it, don't replace it.
+- The `Mock` provider (`agent/provider_mock.go`) exists for testing agent flows. Extend it, don't replace it.
 
 ### Coverage
 
@@ -66,7 +66,7 @@ Rules for writing and maintaining tests across Go and TypeScript.
 
 ### React Component Testing
 
-- Render with `@testing-library/react-native` (or `react` for web).
+- Render with `@testing-library/react`.
 - Test user behavior, not implementation details. Query by role, label, or testID — not by CSS class or internal state.
 - Mock external services (daemon client, stores) at the boundary. Use `vi.mock()` for module mocks.
 - Always clean up after component tests (Testing Library handles this via `afterEach`).
@@ -92,7 +92,7 @@ Rules for writing and maintaining tests across Go and TypeScript.
 ## CI Requirements
 
 - Go: `go test -short -race -count=1 -timeout=10m` must pass with zero failures.
-- TypeScript: `npm run test` in `app/` (1617+ tests) and `app-bridge/` (32+ tests) must pass.
+- TypeScript: `npm run test` in `app/` (2103+ tests) and `app-bridge/` (199+ tests) must pass.
 - Coverage reports are uploaded to Codecov. Coverage drops on changed lines should be justified.
 - E2E tests (Playwright) run nightly. New user-facing features should add E2E specs in `app/e2e/`.
 

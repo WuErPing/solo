@@ -76,9 +76,9 @@ app-bridge/   ← TypeScript communication library (daemon client + E2EE)
 ## Session Architecture
 
 - A session is the unit of interaction between a client and the daemon.
-- Each session has a unique ID (ULID). Sessions are isolated: no shared state between concurrent sessions.
+- Each session has a unique ID (UUID). Sessions are isolated: no shared state between concurrent sessions.
 - Timeline events are deduplicated by `MessageID` for user messages, `CallID+Status` for tool calls.
-- Session memory persists turns to `~/.solo/memory/YYYY-MM-DD/sessionID/` as markdown with YAML frontmatter.
+- Session memory persists turns to `~/.solo/memory/sessions/YYYY-MM-DD/sessionID/turns/` as markdown with YAML frontmatter.
 
 ## Data Flow
 

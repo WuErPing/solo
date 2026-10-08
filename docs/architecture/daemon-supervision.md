@@ -36,7 +36,7 @@ processes:
 |------------|---------|-------------------|
 | `0` | Clean shutdown (`shutdown_server_request`, OS signal) | Exit 0, do not respawn |
 | `42` (`ExitCodeRestartRequested`) | Accepted `restart_server_request` | Respawn immediately, reset backoff |
-| other / killed by signal | Crash | Respawn with backoff 1s→2s→…→30s cap; reset after 60s stable uptime; exit 1 after 5 consecutive fast crashes |
+| other / killed by signal | Crash | Respawn with backoff 1s→2s→…→30s cap; reset after 60s stable uptime; exit 1 when consecutive fast crashes exceed 5 |
 
 ## Restart flow (end-to-end)
 

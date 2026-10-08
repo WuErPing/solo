@@ -45,7 +45,7 @@ What already exists in the codebase (with paths), and what is missing.
 | Worktree creation | `daemon/internal/workspace/worktree.go`, `protocol/message_worktree.go` | Used by workspace setup; not yet tied to agents automatically |
 | Loop engine (2-agent pipeline) | `daemon/internal/loop/engine.go` (`runWorker` / `runVerifier`) | Hardcoded worker → verifier with text handoff; failure feedback folded into the next prompt; templates unified via ADR-001 (`AgentTemplate`) |
 | Schedules that run agents | `daemon/internal/server/schedule_runner.go` | Targets an existing agent or spawns a new one (`new-agent` / `provider` target) in a cwd, waits for terminal state, deletes. No fan-out, no chaining |
-| Tmux external-agent detection + I/O | `daemon/internal/server/session_tmux_scan.go`, `protocol/message_tmux.go` (`TmuxAgentInfo`, `Activity` = busy/idle), `app/src/screens/tmux-dashboard/` | 3-layer detection; `capture_pane` + `send_keys` give unstructured observe/intervene |
+| Tmux external-agent detection + I/O | `daemon/internal/server/session_tmux_scan.go`, `protocol/message_tmux.go` (`TmuxAgentInfo`, `Activity` = busy/idle), `app/src/screens/tmux-dashboard/` | 4-layer detection; `capture_pane` + `send_keys` give unstructured observe/intervene |
 | Per-session turn memory | `daemon/internal/memory/` under `~/.solo/memory/` | Strictly per-session, append-only; **no cross-session retrieval path** |
 | Agent stall detection | `daemon/internal/agent/stall_monitor.go` | Per-agent inactivity/repetition detection |
 | App surfaces | `app/src/screens/sessions-screen.tsx` (flat sessions list), `app/src/stores/workspace-tabs-store.ts` (tab kinds `{draft, agent, terminal, file, setup}`), tmux dashboard cards | All flat — no grouping concept anywhere |

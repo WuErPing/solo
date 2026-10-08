@@ -33,7 +33,7 @@ Audit and coverage reports live in [`reports/`](reports/):
 
 | Report | Date | Summary |
 |--------|------|---------|
-| [Test Coverage](reports/test-coverage.md) | 2026-06-16 | Unified coverage: Go + App + E2E + CI/Codecov |
+| [Test Coverage](reports/test-coverage.md) | 2026-10-06 | Unified coverage: Go + App + E2E + CI/Codecov |
 | [Test Quality Audit](reports/test-quality-audit-2026-07.md) | 2026-07-27 | Unit-test quality issues + prioritized fix tracking |
 
 ## Principles

@@ -24,6 +24,7 @@ you edit by hand: `config.json` (daemon) and `usage.json` (usage providers).
 | `memory/` | Session memory store | daemon | lazy on first write |
 | `worktrees/` | Git worktrees managed by Solo | daemon | lazy on first write |
 | `versions/` | Daemon version builds (`solo-*` binaries) + `current` pointer file | `make restart` / daemon version-switch handler / supervisor crash fallback | on first publish or switch |
+| `supervisor-state.json` | Supervisor spawn-loop state (backoff/fallback/exhausted), relayed in `list_daemon_versions` | supervisor | auto on each spawn-loop state transition |
 | `timeline/` | Timeline data (legacy, no longer written) | daemon | legacy |
 | `usage.json` | Usage/quota provider credentials (see below) | you | manual (`solo-usage init`) |
 | `*.cookie` | Session cookie files referenced from `usage.json` | you | manual |

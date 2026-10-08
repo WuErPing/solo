@@ -1,6 +1,6 @@
 # Solo 测试覆盖率报告
 
-> 最后更新: 2026-06-16
+> 最后更新: 2026-10-06
 > 本文档合并了此前分散的覆盖率文档，为项目测试覆盖率的唯一权威来源。
 
 ---
@@ -12,13 +12,13 @@
 | Go 后端 | `go test -short -race -coverprofile` | **~75%** (加权) | 大部分模块 >80%，2 个核心包 <70% |
 | App 前端 | Vitest + v8 | **35.5%** (statements) | 工具层良好，UI 层薄弱 |
 | App-Bridge | Vitest + v8 | **89.4%** | 优秀 |
-| E2E | Playwright | 35 specs, ~6900 行 | 核心流程覆盖，nightly 运行 |
+| E2E | Playwright | 44 specs, ~7900 行 | 核心流程覆盖，nightly 运行 |
 | CI | GitHub Actions | Go + JS + E2E nightly | Codecov 已集成 |
 
 **关键指标**:
-- Go 测试文件: 174 个 (158 源文件, 比例 1.10:1)
-- App 测试文件: 235 个 (unit) + 35 个 (E2E)
-- App 单元测试用例: 1,663 个
+- Go 测试文件: 218 个 (227 源文件, 比例 0.96:1)
+- App 测试文件: 283 个 (unit) + 44 个 (E2E)
+- App 单元测试用例: 2,103 个
 - CI 每次 push 运行: Go 测试 + App unit 测试 + App-Bridge 测试 + Lint + Typecheck
 - E2E: 每日 02:00 UTC 自动运行 + 手动触发
 
@@ -160,7 +160,7 @@
 
 ## 4. E2E 测试覆盖
 
-> 35 个 Playwright spec 文件, ~6900 行代码
+> 44 个 Playwright spec 文件, ~7900 行代码
 > 运行方式: 每日 02:00 UTC nightly + workflow_dispatch 手动触发
 
 ### 4.1 E2E Spec 清单
@@ -237,15 +237,15 @@
 
 ### 5.1 CI 流水线
 
-**Go 流水线** (matrix: protocol, cli, daemon, relay-go):
-- `go mod verify` → `go build ./...` → `go test -short -race -count=1 -timeout=10m -coverprofile=coverage.out`
+**Go 流水线** (matrix: protocol, cli, daemon, relay-go, supervisor, usage):
+- `go mod verify` → `go build ./...` → `go test -short -v -race -count=1 -timeout=10m -tags external_api -coverprofile=coverage.out ./...`
 - `golangci-lint` v2.10
 
 **JS 流水线**:
 - Lint: `expo lint --max-warnings 0` (app), `eslint src/` (app-bridge, highlight)
 - Typecheck: `tsc --noEmit` (app, app-bridge, highlight) — 强制执行
-- Test: `npm test` (packages/highlight); `npm test -- --coverage` (app, app-bridge)
-- Coverage 上传: `codecov/codecov-action@v5`
+- Test: `npm test` (packages/highlight); `npm run test -- --coverage --project=unit` (app); `npm test -- --coverage` (app-bridge)
+- Coverage 上传: `codecov/codecov-action@v6`
 
 **E2E 流水线** (nightly):
 - `.github/workflows/e2e-nightly.yml`
@@ -420,13 +420,13 @@ WebSocket 调用直接通过 `gorilla/websocket`，无接口层，需要真实�
 ### Flaky 测试
 
 - `TestBuildOpenCodeModelDefinition`: map 迭代顺序不确定, 已通过 `sort.Strings` 修复 (2026-06-12)
-- `TestPiIntegration_FullPath`: 等待外部进程, 不被 `-short` 跳过, 导致完整套件超时
+- `TestPiIntegration_RealProcess`: 等待外部进程, 已在 `-short` 模式下跳过
 - `optimistic-dedup.spec.ts`: Metro 首次打包延迟偶尔导致超时, CI 配置 `retries: 1`
 
 ### 外部依赖测试
 
 以下测试需要真实 AI 服务, CI 中跳过:
-- `TestOpenCodeReasoningE2E` — 需要 `xiaomi-token-plan-cn/mimo-v2`
+- `TestOpenCodeReasoningEventsE2E` — 需要真实 OpenCode 环境及已连接模型（测试运行时动态选择模型）
 - `TestOpenCodeReasoningDedupE2E` — 同上
 - `pi-provider-tool-use.spec.ts` — 需要本地 Pi 二进制
 

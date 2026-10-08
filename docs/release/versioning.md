@@ -47,7 +47,7 @@
 2. bump `daemon/internal/config/config.go`（daemon 是协议服务端）
 3. bump `cli/internal/config/version.go`（CLI 与 daemon 配对）
 4. bump `app/package.json`（app 是协议客户端）
-5. 跑测试验证兼容：`make darwin && go test -short -race ./... && cd app && npm test`
+5. 跑测试验证兼容：`make darwin && make test-go && cd app && npm test`
 
 ## CHANGELOG
 

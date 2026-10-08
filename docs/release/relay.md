@@ -13,7 +13,7 @@
 | 运行用户 | `ubuntu` | 专用用户 `solo-relay` |
 | 环境配置 | unit 内联 `Environment=` | `EnvironmentFile=/opt/solo-relay/solo-relay.env` |
 | systemd 硬化 | 无 | `NoNewPrivileges` / `ProtectSystem=strict` 等 |
-| Nginx 上游 | `proxy_pass http://localhost:8081` | `127.0.0.1:8080` |
+| Nginx 上游 | `proxy_pass http://localhost:8081` | `127.0.0.1:8081`（模板注释要求生产 `PORT=8081`，8080 仅为编译默认值） |
 
 > **⚠️ 注意**：[`deploy/systemd/solo-relay.service`](../../deploy/systemd/solo-relay.service)（加固模板）依赖 `solo-relay` 用户与 `/opt/solo-relay/solo-relay.env`，而**当前生产主机两者都不存在**，套用会导致 relay 起不来、Daemon 断连（2026-09-09 实际触发过一次）。
 >
@@ -92,7 +92,7 @@ ssh tencent_gz_6 "cp /opt/solo-relay/solo-relay.prev /opt/solo-relay/solo-relay 
    scp deploy/solo-relay.env.example tencent_gz_6:/tmp/solo-relay.env
    ssh tencent_gz_6 "sudo mv /tmp/solo-relay.env /opt/solo-relay/solo-relay.env && sudo chown solo-relay:solo-relay /opt/solo-relay/solo-relay.env"
    ```
-3. 改 Nginx 上游到 8080（模板 [`deploy/nginx/solo-relay.conf`](../../deploy/nginx/solo-relay.conf)）并 `sudo nginx -t && sudo systemctl reload nginx`。
+3. 安装 Nginx 模板 [`deploy/nginx/solo-relay.conf`](../../deploy/nginx/solo-relay.conf)（上游保持 `127.0.0.1:8081`，与生产端口一致）并 `sudo nginx -t && sudo systemctl reload nginx`。
 4. 手动推送加固 unit（`make deploy-solo-relay` 只发二进制、**不推 unit**）：
    ```bash
    scp deploy/systemd/solo-relay.service tencent_gz_6:/tmp/solo-relay.service

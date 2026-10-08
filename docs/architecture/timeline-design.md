@@ -51,11 +51,12 @@ All events entering the Timeline must pass a sequence number check to ensure cor
 
 ```
 classifySessionTimelineSeq(cursor, epoch, seq):
-  cursor is empty → "init"      (initialization)
-  epoch mismatch  → "drop_epoch"(discard, wrong epoch)
-  seq ≤ endSeq    → "drop_stale"(discard, stale/duplicate)
-  seq = endSeq+1  → "accept"    (accept, contiguous)
-  seq > endSeq+1  → "gap"       (gap, catch-up needed)
+  cursor is empty        → "init"      (initialization)
+  epoch mismatch (newer) → "init"      (fresh timeline; reset cursor)
+  epoch mismatch (older) → "drop_epoch"(discard, wrong epoch)
+  seq ≤ endSeq           → "drop_stale"(discard, stale/duplicate)
+  seq = endSeq+1         → "accept"    (accept, contiguous)
+  seq > endSeq+1         → "gap"       (gap, catch-up needed)
 ```
 
 ### Gap Handling
@@ -319,6 +320,7 @@ All providers MUST emit a `TimelineStreamEvent` with `Type: "user_message"` at t
 |---|---|---|---|
 | mock | ✅ | — | Used in tests |
 | claude | ✅ | — | Emits before streaming |
+| codex | ✅ | — | Codex exec does not echo the prompt; synthesized on thread/turn start |
 | kimi | ✅ | — | Emits before streaming |
 | pi | ✅ | — | Emits before streaming |
 | opencode | ✅ | ✅ | Added 2026-06-08; OpenCode SSE does not echo the prompt |

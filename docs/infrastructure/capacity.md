@@ -16,7 +16,7 @@
 | Client ping interval | 30 s (`clientPingInterval`) | relay-go/internal/relay/server.go |
 | Nginx `proxy_read_timeout` | 300s in repo template; production value not in repo (documented as 86400s) | deploy/nginx/solo-relay.conf |
 | Nginx keepalive connections | 32 (production nginx, not in repo) | nginx config |
-| OS file descriptor limit | default (~1024) | not yet hardened |
+| OS file descriptor limit | 65536 (`LimitNOFILE` in relay service unit) | deploy/systemd/solo-relay.service |
 | Concurrent sessions (observed) | 1–5 (single user product) | — |
 
 ## Daemon
@@ -29,7 +29,7 @@
 
 ## Scaling Ceiling (current single-instance)
 
-- **WebSocket connections**: bounded by OS fd limit (~1024 default). Hardened target: 65536 (`LimitNOFILE`).
+- **WebSocket connections**: bounded by OS fd limit; relay service unit sets `LimitNOFILE=65536` (deploy/systemd/solo-relay.service).
 - **Throughput**: no load-test data yet. Relay is stateless message-forward; CPU-bound on TLS at Nginx layer.
 - **Horizontal scaling**: not yet supported. Relay holds in-memory session map; multi-instance requires sticky sessions or shared state.
 

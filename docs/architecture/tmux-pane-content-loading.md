@@ -5,7 +5,7 @@
 - Status: **Implemented**
 - Author: Andy
 - Created: 2026-06-05
-- Updated: 2026-08-21 (input history in list-agents response)
+- Updated: 2026-10-06
 
 ## 1. Overview
 
@@ -132,7 +132,7 @@ The daemon parses every tmux pane via `parseTmuxPaneLines()`. Detection proceeds
 
 | Layer | Source | Logic | Example |
 |---|---|---|---|
-| **Layer 1** | `pane_current_command` | Exact match against known agent binaries | `claude`, `opencode`, `qodercli`, `pi`, `cursor`, `kimi`, `kimi-cli` |
+| **Layer 1** | `pane_current_command` | Exact match against known agent binaries | `claude`, `opencode`, `qodercli`, `pi`, `cursor`, `kimi`, `kimi-cli`, `codex` |
 | **Layer 2** | `pane_title` | Extract agent name from title, Unicode → ASCII normalization | `π` → `pi` |
 | **Layer 3** | Child processes | Recursive check via `pgrep -P {panePid}` + `ps -o comm=` | Agent spawned as child of shell |
 
@@ -227,7 +227,7 @@ AnsiTextContent component
 detectColorsFromAnsi() ──► extract content colors
         │
         ▼
-resolveTerminalColors(theme, contentColors, tmuxTheme)
+resolveTerminalColors(theme, contentColors)
         │
         ▼
 Final rendered terminal view
@@ -486,7 +486,7 @@ func createTmuxSession(name string, workingDir *string, command *string) error {
     if command != nil {
         args = append(args, *command)
     }
-    // exec with 10s timeout
+    // exec with 5s timeout
 }
 ```
 
@@ -519,7 +519,7 @@ The dashboard tracks commands sent to coding agents and displays them in a "Hist
 
 ### 11.1 Data Source
 
-Command history is derived from the pane content capture — the daemon parses recent terminal output to extract command entries.
+Command history is derived from agent scanning — the daemon extracts each detected agent's launch command from the pane's process tree (`extractAgentLaunchCmd`) during `tmux/list_agents` and deduplicates entries in `AgentCommandStore`.
 
 ### 11.2 Display
 

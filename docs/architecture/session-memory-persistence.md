@@ -5,7 +5,7 @@
 - Status: **Implemented — Phase 1** (this document is the authoritative design and implementation reference)
 - Author: Andy
 - Created: 2026-05-28
-- Last revised: 2026-05-29
+- Last revised: 2026-10-06
 
 > This document is the authoritative design and implementation reference. **Implementation has converged on some decisions**, most notably the storage location moved from a per-project directory to fixed **`~/.solo/memory/`** (under SoloHome, shared across projects). Sections §4, §5, §7 below reflect the converged design.
 
@@ -69,7 +69,7 @@ type TurnRecorder interface {
 }
 
 type Turn struct {
-    ID        string         // ULID，有序且全局唯一
+    ID        string         // NewTurnID：16 位十六进制微秒时间戳 + 8 位单调计数器，词法有序且全局唯一
     SessionID string
     Seq       uint64         // session 内单调递增序号（bridge 维护）
     Role      TurnRole       // "user" | "assistant" | "system"
@@ -117,22 +117,25 @@ type Turn struct {
   - 利于增量备份
   - 为后续 RAG chunking 天然切分
 - **frontmatter 用 YAML**：迁移到 DB 时直接映射为列
-- **`sessions.jsonl`** 做索引：字段包含 `id`、`title`、`startedAt`、`turnsCount`；DB 化后这一层可移除
+- **`sessions.jsonl`** 做索引：字段包含 `id`、`startedAt`、`turnsCount`、`source`；DB 化后这一层可移除
 
 ### 5.3 turn 文件格式
 
 ```markdown
 ---
-id: turn_01J...
+id: 019a4b2f8c3d0001-00000007
+sessionId: <session-id>
+seq: 2
 role: assistant
 ts: 2026-05-28T10:23:45Z
 source: cli
-model: solo-v1
-tokens:
-  prompt: 1234
-  completion: 567
-tool_calls: [Read, Bash]
-parent: turn_01H...
+metadata:
+  model: solo-v1
+  tokens:
+    prompt: 1234
+    completion: 567
+  toolCalls: [Read, Bash]
+parent: 019a4b2f8c3d0000-00000006
 ---
 
 <agent 输出正文，保留原始 markdown>
@@ -144,9 +147,9 @@ parent: turn_01H...
 |---|---|
 | 异步写入 | turn 通过 channel 投递给后台 writer goroutine，绝不阻塞 agent 循环 |
 | 失败隔离 | 写盘失败仅打 log + metric，不影响会话主流程 |
-| 幂等键 | turn ID 使用 ULID（有序 + 全局唯一），重放不产生重复 |
+| 幂等键 | turn ID 由 `NewTurnID` 生成（微秒时间戳 + 单调计数器，词法有序 + 全局唯一），重放不产生重复 |
 | 脱敏 | 写入前过滤 `.env` 内容、API key 模式（`redact` 包：regex / env / multi，内置 OpenAI/GitHub/Anthropic/AWS 模式）|
-| 轮转/清理 | 保留策略（`retention_days`，默认 90）内置于 `FileTurnRecorder` |
+| 轮转/清理 | `retention_days`（默认 90）目前仅是传给 backend 的配置 hint，`FileTurnRecorder` 尚未实现清理 |
 | 配置开关 | `config.MemoryConfig`：`enabled`（`*bool`，nil/缺省即开启，opt-out）、`backend`、`root`、`retention_days`、`queue_size`、`overflow`、`redact.*` |
 | 故障隔离 | `bridge.SafeBridge`（`bridge/safe.go`）可选包装：panic recovery + 连续失败计数熔断（默认 3 连败 / 30s 冷却，经 functional options 覆盖）；当前 `memorysetup` 默认接线使用普通 `Bridge`——其 recorder 错误仅记 log 不上抛，写入本身异步，不阻塞会话主流程 |
 
@@ -154,7 +157,7 @@ parent: turn_01H...
 
 存储在 `~/.solo/config.json`（**默认开启，无需配置**）。
 
-> ⚠️ **注意**：`config.MemoryConfig` 的 `enabled` 旋钮目前**未接入 config.json**——`PersistedConfig` 只有 `daemon`/`app` 两个顶层键，下面的 `"memory"` 配置块写在 config.json 里会被忽略，暂无法通过配置文件 opt-out（已登记为 [DEBT-001](../debt/debt-001-memory-config-opt-out.md)，目标 v0.13.0 修复）：
+> ✅ **已接入**：`PersistedConfig` 现包含 `daemon`/`app`/`memory` 三个顶层键，下面的 `"memory"` 配置块会被 config.json 正常加载——`"enabled": false` 即可通过配置文件 opt-out（[DEBT-001](../debt/debt-001-memory-config-opt-out.md) 已于 2026-09-23 解决）：
 
 ```json
 {

@@ -57,7 +57,7 @@ The Schedule Assistant lets users manage cron schedules in plain language ("ever
 │   ├─ proposal-card.tsx              op badge, fields/diff, actions│
 │   └─ assistant-composer.tsx         input + suggestion chips      │
 │  hooks/use-schedule-assist.ts       scheduleAssist() mutation     │
-│  hooks/use-assistant-thread.ts      thread state, transcript ≤10  │
+│  hooks/use-assistant-thread.ts      per-host thread read view     │
 │  hooks/use-proposal-confirm.ts      confirm → schedule/* RPCs     │
 │  stores/schedule-assistant-store.ts session-only, keyed by host   │
 └───────────────────────────────┬──────────────────────────────────┘
@@ -215,8 +215,8 @@ Structured logs (`daemon/internal/schedule/assistant.go`) carry request id, prov
 
 - **Go (daemon, `-short -race`)**: `internal/llm` client against `httptest.Server` (auth header, 401/429/5xx mapping, malformed body, timeout); table-driven resolver / prompt / extractor / orchestration tests; WebSocket round-trip integration against a stub chat-completions endpoint (proposal happy path, garbage → retry → error, empty config → `no_llm_provider`).
 - **App-bridge (Vitest)**: schema round-trip for the assist request/response and union registration; client RPC.
-- **App (Vitest, 75 tests)**: store, hooks, and components — op→RPC mapping incl. `cronToUTC` and update-merge-via-inspect, proposal card variants, clarify/answer/error rendering, `no_llm_provider` deep link.
-- **E2E (Playwright, nightly)**: `app/e2e/schedule-assistant.spec.ts` with `app/e2e/helpers/stub-llm-server.ts` — the daemon under test is configured with a local stub LLM endpoint in `llmProviders`. Four specs: no-provider setup card, create-with-confirm (incl. UTC conversion), update-with-diff, ambiguity → clarify.
+- **App (Vitest, 57 tests)**: store, hooks, and components — op→RPC mapping incl. `cronToUTC` and update-merge-via-inspect, proposal card variants, clarify/answer/error rendering, `no_llm_provider` deep link.
+- **E2E (Playwright, nightly)**: `app/e2e/schedule-assistant.spec.ts` with `app/e2e/helpers/stub-llm-server.ts` — the daemon under test is configured with a local stub LLM endpoint in `llmProviders`. Five specs: no-provider setup card, create-with-confirm (incl. UTC conversion), update-with-diff, ambiguity → clarify, update via Ask AI from the edit modal.
 
 ## 13. Related Docs
 

@@ -2,7 +2,7 @@
 
 > **Purpose**: Persistent context base for Solo development, CI/CD, and architecture decisions.
 > **Organizing principle**: PADD (Product & Architecture Driven Development) — all context as code, co-located with the repo.
-> **Last updated**: 2026-10-05
+> **Last updated**: 2026-10-06
 
 ---
 
@@ -255,7 +255,7 @@ How to cut a release — build and deploy per module.
 | `ci.yml` | `go` (matrix) | `go mod verify` → build → test → coverage → golangci-lint v2 |
 | `ci.yml` | `js` | npm ci → lint → typecheck → test → coverage |
 | `ci.yml` | `arch-boundaries` | `scripts/check-arch-boundaries.sh` |
-| `e2e-nightly.yml` | `e2e-nightly` | Playwright (44 specs), daily 02:00 UTC |
+| `e2e-nightly.yml` | `e2e` | Playwright (44 specs), daily 02:00 UTC |
 | `semantic-check.yml` | `adr-consistency` | Advisory LLM ADR check (never blocks) |
 
 ### Tech stack
