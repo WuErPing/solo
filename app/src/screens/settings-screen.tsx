@@ -52,6 +52,7 @@ import { PairLinkModal } from "@/components/pair-link-modal";
 import { KeyboardShortcutsSection } from "@/screens/settings/keyboard-shortcuts-section";
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { Switch } from "@/components/ui/switch";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -198,6 +199,7 @@ interface GeneralSectionProps {
   serverId: string | null;
   handleThemeChange: (theme: AppSettings["theme"]) => void;
   handleSendBehaviorChange: (behavior: SendBehavior) => void;
+  handleFilePreviewPageButtonsChange: (enabled: boolean) => void;
 }
 
 interface ThemeMenuItemProps {
@@ -234,6 +236,7 @@ function GeneralSection({
   serverId,
   handleThemeChange,
   handleSendBehaviorChange,
+  handleFilePreviewPageButtonsChange,
 }: GeneralSectionProps) {
   const { theme } = useUnistyles();
   const iconSize = theme.iconSize.md;
@@ -290,6 +293,20 @@ function GeneralSection({
               value={settings.sendBehavior}
               onValueChange={handleSendBehaviorChange}
               options={SEND_BEHAVIOR_OPTIONS}
+            />
+          </View>
+          <View style={ROW_WITH_BORDER_STYLE}>
+            <View style={settingsStyles.rowContent}>
+              <Text style={settingsStyles.rowTitle}>Preview page buttons</Text>
+              <Text style={settingsStyles.rowHint}>
+                Show floating page up/down buttons on file previews
+              </Text>
+            </View>
+            <Switch
+              value={settings.filePreviewPageButtons}
+              onValueChange={handleFilePreviewPageButtonsChange}
+              accessibilityLabel="Toggle preview page buttons"
+              testID="settings-file-preview-page-buttons"
             />
           </View>
         </View>
@@ -743,6 +760,13 @@ export default function SettingsScreen({ view }: SettingsScreenProps) {
     [updateSettings],
   );
 
+  const handleFilePreviewPageButtonsChange = useCallback(
+    (enabled: boolean) => {
+      void updateSettings({ filePreviewPageButtons: enabled });
+    },
+    [updateSettings],
+  );
+
   const closeAddConnectionFlow = useCallback(() => {
     setIsAddHostMethodVisible(false);
     setIsDirectHostVisible(false);
@@ -898,6 +922,7 @@ export default function SettingsScreen({ view }: SettingsScreenProps) {
               serverId={generalServerId}
               handleThemeChange={handleThemeChange}
               handleSendBehaviorChange={handleSendBehaviorChange}
+              handleFilePreviewPageButtonsChange={handleFilePreviewPageButtonsChange}
             />
           );
         case "shortcuts":

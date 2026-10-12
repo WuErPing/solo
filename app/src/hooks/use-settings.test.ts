@@ -92,6 +92,7 @@ describe("use-settings", () => {
       manageBuiltInDaemon: true,
       sendBehavior: "interrupt",
       terminalTheme: "light",
+      filePreviewPageButtons: true,
       releaseChannel: "stable",
     });
   });
@@ -135,6 +136,7 @@ describe("use-settings", () => {
       theme: "dark",
       sendBehavior: "interrupt",
       terminalTheme: "light",
+      filePreviewPageButtons: true,
     });
     expect(asyncStorageMock.setItem).toHaveBeenCalledWith(
       mod.APP_SETTINGS_KEY,
@@ -174,6 +176,7 @@ describe("use-settings", () => {
       theme: "light",
       sendBehavior: "interrupt",
       terminalTheme: "light",
+      filePreviewPageButtons: true,
       manageBuiltInDaemon: false,
       releaseChannel: "beta",
     });
@@ -193,8 +196,26 @@ describe("use-settings", () => {
       theme: "light",
       sendBehavior: "interrupt",
       terminalTheme: "light",
+      filePreviewPageButtons: true,
       manageBuiltInDaemon: true,
       releaseChannel: "stable",
     });
+  });
+
+  it("defaults file preview page buttons to enabled", () => {
+    expect(DEFAULT_CLIENT_SETTINGS.filePreviewPageButtons).toBe(true);
+  });
+
+  it("respects a persisted file preview page button preference", async () => {
+    asyncStorageMock.getItem.mockResolvedValue(
+      JSON.stringify({
+        filePreviewPageButtons: false,
+      }),
+    );
+
+    const mod = await import("./use-settings");
+    const result = await mod.loadAppSettingsFromStorage();
+
+    expect(result.filePreviewPageButtons).toBe(false);
   });
 });

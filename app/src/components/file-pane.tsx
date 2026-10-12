@@ -12,6 +12,7 @@ import {
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { Fonts } from "@/constants/theme";
+import { useAppSettings } from "@/hooks/use-settings";
 import { useSessionStore, type ExplorerFile } from "@/stores/session-store";
 import { useWebScrollViewScrollbar } from "@/components/use-web-scrollbar";
 import { useWebScrollbarStyle } from "@/hooks/use-web-scrollbar-style";
@@ -24,6 +25,7 @@ import {
 } from "@getsolo/highlight";
 import { lineNumberGutterWidth } from "@/components/code-insets";
 import { isRenderedMarkdownFile } from "@/components/file-pane-render-mode";
+import { FilePreviewScrollView } from "@/components/file-preview-scroll-view";
 import { MermaidPreview } from "@/components/mermaid-preview";
 import { MathText } from "@/components/math-text";
 import { mathPlugin } from "@/components/markdown-math-plugin";
@@ -176,6 +178,8 @@ function FilePreviewBody({
   imagePreviewUri,
 }: FilePreviewBodyProps) {
   const { theme } = useUnistyles();
+  const { settings: appSettings } = useAppSettings();
+  const showPagerButtons = isMobile && appSettings.filePreviewPageButtons;
   const isDark = theme.colorScheme === "dark";
   const colorMap = isDark ? darkHighlightColors : lightHighlightColors;
   const baseColor = isDark ? "#c9d1d9" : "#24292f";
@@ -287,23 +291,17 @@ function FilePreviewBody({
   if (preview.kind === "text") {
     if (isMarkdownFile) {
       return (
-        <View style={styles.previewScrollContainer}>
-          <RNScrollView
-            ref={previewScrollRef}
-            style={styles.previewContent}
-            contentContainerStyle={styles.previewMarkdownScrollContent}
-            onLayout={scrollbar.onLayout}
-            onScroll={scrollbar.onScroll}
-            onContentSizeChange={scrollbar.onContentSizeChange}
-            scrollEventThrottle={16}
-            showsVerticalScrollIndicator={!showDesktopWebScrollbar}
-          >
-            <Markdown style={markdownStyles} markdownit={markdownParser} rules={markdownRules}>
-              {preview.content ?? ""}
-            </Markdown>
-          </RNScrollView>
-          {scrollbar.overlay}
-        </View>
+        <FilePreviewScrollView
+          scrollRef={previewScrollRef}
+          scrollbar={scrollbar}
+          pagerEnabled={showPagerButtons}
+          showsVerticalScrollIndicator={!showDesktopWebScrollbar}
+          contentContainerStyle={styles.previewMarkdownScrollContent}
+        >
+          <Markdown style={markdownStyles} markdownit={markdownParser} rules={markdownRules}>
+            {preview.content ?? ""}
+          </Markdown>
+        </FilePreviewScrollView>
       );
     }
 
@@ -337,32 +335,26 @@ function FilePreviewBody({
     );
 
     return (
-      <View style={styles.previewScrollContainer}>
-        <RNScrollView
-          ref={previewScrollRef}
-          style={styles.previewContent}
-          onLayout={scrollbar.onLayout}
-          onScroll={scrollbar.onScroll}
-          onContentSizeChange={scrollbar.onContentSizeChange}
-          scrollEventThrottle={16}
-          showsVerticalScrollIndicator={!showDesktopWebScrollbar}
-        >
-          {isMobile ? (
-            <View style={styles.previewCodeScrollContent}>{codeLines}</View>
-          ) : (
-            <RNScrollView
-              horizontal
-              nestedScrollEnabled
-              showsHorizontalScrollIndicator
-              style={webScrollbarStyle}
-              contentContainerStyle={styles.previewCodeScrollContent}
-            >
-              {codeLines}
-            </RNScrollView>
-          )}
-        </RNScrollView>
-        {scrollbar.overlay}
-      </View>
+      <FilePreviewScrollView
+        scrollRef={previewScrollRef}
+        scrollbar={scrollbar}
+        pagerEnabled={showPagerButtons}
+        showsVerticalScrollIndicator={!showDesktopWebScrollbar}
+      >
+        {isMobile ? (
+          <View style={styles.previewCodeScrollContent}>{codeLines}</View>
+        ) : (
+          <RNScrollView
+            horizontal
+            nestedScrollEnabled
+            showsHorizontalScrollIndicator
+            style={webScrollbarStyle}
+            contentContainerStyle={styles.previewCodeScrollContent}
+          >
+            {codeLines}
+          </RNScrollView>
+        )}
+      </FilePreviewScrollView>
     );
   }
 

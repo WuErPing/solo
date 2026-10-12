@@ -25,6 +25,7 @@ export interface AppSettings {
   theme: ThemeName | "auto";
   sendBehavior: SendBehavior;
   terminalTheme: TerminalThemeId;
+  filePreviewPageButtons: boolean;
 }
 
 export interface Settings extends AppSettings {
@@ -36,6 +37,7 @@ export const DEFAULT_CLIENT_SETTINGS: AppSettings = {
   theme: "auto",
   sendBehavior: "interrupt",
   terminalTheme: "light",
+  filePreviewPageButtons: true,
 };
 
 export const DEFAULT_APP_SETTINGS: Settings = {
@@ -232,6 +234,9 @@ function pickAppSettings(stored: Partial<AppSettings>): Partial<AppSettings> {
   }
   if (typeof stored.terminalTheme === "string" && VALID_TERMINAL_THEMES.has(stored.terminalTheme)) {
     result.terminalTheme = stored.terminalTheme;
+  }
+  if (typeof stored.filePreviewPageButtons === "boolean") {
+    result.filePreviewPageButtons = stored.filePreviewPageButtons;
   }
   return result;
 }

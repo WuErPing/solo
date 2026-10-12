@@ -8,6 +8,7 @@ function createSettings(input: { manageBuiltInDaemon: boolean }) {
     theme: "auto" as const,
     sendBehavior: "interrupt" as const,
     terminalTheme: "light" as const,
+    filePreviewPageButtons: true,
     manageBuiltInDaemon: input.manageBuiltInDaemon,
     releaseChannel: "stable" as const,
   };

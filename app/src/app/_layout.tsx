@@ -518,6 +518,7 @@ function MobileGestureWrapper({
     openGestureRef,
   } = useSidebarAnimation();
   const touchStartX = useSharedValue(0);
+  const touchStartY = useSharedValue(0);
   const openGestureEnabled = chromeEnabled && mobileView === "agent";
 
   const handleGestureOpen = useCallback(() => {
@@ -531,25 +532,38 @@ function MobileGestureWrapper({
         .withRef(openGestureRef)
         .enabled(openGestureEnabled)
         .manualActivation(true)
-        .failOffsetY([-10, 10])
         .onTouchesDown((event) => {
           const touch = event.changedTouches[0];
           if (touch) {
             touchStartX.value = touch.absoluteX;
+            touchStartY.value = touch.absoluteY;
           }
         })
         .onTouchesMove((event, stateManager) => {
           const touch = event.changedTouches[0];
-          if (!touch || event.numberOfTouches !== 1) return;
+          if (!touch || event.numberOfTouches !== 1) {
+            stateManager.fail();
+            return;
+          }
 
           const deltaX = touch.absoluteX - touchStartX.value;
+          const deltaY = touch.absoluteY - touchStartY.value;
+          const absDeltaX = Math.abs(deltaX);
+          const absDeltaY = Math.abs(deltaY);
+
+          // Fail quickly on clearly vertical intent so content scrolling is never hijacked.
+          if (absDeltaY > 10 && absDeltaY > absDeltaX) {
+            stateManager.fail();
+            return;
+          }
 
           if (horizontalScroll?.isAnyScrolledRight.value) {
             stateManager.fail();
             return;
           }
 
-          if (deltaX > 15) {
+          // Activate only on intentional rightward movement.
+          if (deltaX > 15 && absDeltaX > absDeltaY) {
             stateManager.activate();
           }
         })
@@ -592,6 +606,7 @@ function MobileGestureWrapper({
       openGestureRef,
       horizontalScroll?.isAnyScrolledRight,
       touchStartX,
+      touchStartY,
     ],
   );
 
