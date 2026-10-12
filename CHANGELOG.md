@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2026-10-12
+
+### Added
+
+- **App**: web sign-in via QR code — the web welcome screen shows a one-time pairing QR; an already-paired mobile app scans it, reviews the fingerprint and warning, and approves, delivering the daemon connection offer to the browser tab through an end-to-end-encrypted one-shot relay channel (`pair-web`). No daemon or relay changes required
+- **Relay**: optional JSON-lines access log (`ACCESS_LOG_PATH`) emitting `http_req` / `ws_open` / `ws_close` events with status, cost, session duration and relayed-frame counts; disabled by default
+- **Ops**: `deploy/logstats/` — GoAccess + DuckDB log analytics toolkit (setup/report scripts, logrotate config, sample queries) and a fail2ban jail template; nginx config gains a basic-auth `/stats/` location for the report
+
 ## [0.15.0] - 2026-09-21
 
 ### Added

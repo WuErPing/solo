@@ -8,6 +8,7 @@ import type { HostProfile } from "@/types/host-connection";
 import { getHostRuntimeStore, isHostRuntimeConnected, useHosts } from "@/runtime/host-runtime";
 import { AddHostModal } from "./add-host-modal";
 import { PairLinkModal } from "./pair-link-modal";
+import { PairWebLoginModal } from "./pair-web-login-modal";
 import { Button } from "@/components/ui/button";
 import { resolveAppVersion } from "@/utils/app-version";
 import { formatVersionWithPrefix } from "@/desktop/updates/desktop-updates";
@@ -17,7 +18,7 @@ import { openExternalUrl } from "@/utils/open-external-url";
 import { isWeb, isNative } from "@/constants/platform";
 
 interface WelcomeAction {
-  key: "scan-qr" | "direct-connection" | "paste-pairing-link";
+  key: "scan-qr" | "qr-login" | "direct-connection" | "paste-pairing-link";
   label: string;
   testID: string;
   primary: boolean;
@@ -163,6 +164,7 @@ export function WelcomeScreen({ onHostAdded }: WelcomeScreenProps) {
   const appVersionText = formatVersionWithPrefix(appVersion);
   const [isDirectOpen, setIsDirectOpen] = useState(false);
   const [isPasteLinkOpen, setIsPasteLinkOpen] = useState(false);
+  const [isQrLoginOpen, setIsQrLoginOpen] = useState(false);
   const hosts = useHosts();
   const anyOnlineServerId = useAnyHostOnline(hosts.map((h) => h.serverId));
 
@@ -190,6 +192,15 @@ export function WelcomeScreen({ onHostAdded }: WelcomeScreenProps) {
   const handleCloseDirect = useCallback(() => setIsDirectOpen(false), []);
   const handleOpenPasteLink = useCallback(() => setIsPasteLinkOpen(true), []);
   const handleClosePasteLink = useCallback(() => setIsPasteLinkOpen(false), []);
+  const handleOpenQrLogin = useCallback(() => setIsQrLoginOpen(true), []);
+  const handleCloseQrLogin = useCallback(() => setIsQrLoginOpen(false), []);
+  const handleQrLoginPaired = useCallback(
+    (serverId: string) => {
+      setIsQrLoginOpen(false);
+      finishOnboarding(serverId);
+    },
+    [finishOnboarding],
+  );
   const handleScanQr = useCallback(() => {
     router.push("/pair-scan?source=onboarding");
   }, [router]);
@@ -205,10 +216,18 @@ export function WelcomeScreen({ onHostAdded }: WelcomeScreenProps) {
   const actions: WelcomeAction[] = isWeb
     ? [
         {
+          key: "qr-login",
+          label: "Sign in with QR code",
+          testID: "welcome-qr-login",
+          primary: true,
+          icon: QrCode,
+          onPress: handleOpenQrLogin,
+        },
+        {
           key: "direct-connection",
           label: "Direct connection",
           testID: "welcome-direct-connection",
-          primary: true,
+          primary: false,
           icon: Link2,
           onPress: handleOpenDirect,
         },
@@ -312,6 +331,14 @@ export function WelcomeScreen({ onHostAdded }: WelcomeScreenProps) {
           onClose={handleClosePasteLink}
           onSaved={handleHostSaved}
         />
+
+        {isWeb ? (
+          <PairWebLoginModal
+            visible={isQrLoginOpen}
+            onClose={handleCloseQrLogin}
+            onPaired={handleQrLoginPaired}
+          />
+        ) : null}
       </ScrollView>
     </View>
   );

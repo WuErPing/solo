@@ -9,6 +9,12 @@ import { useHostMutations } from "@/runtime/host-runtime";
 import { decodeOfferFragmentPayload, normalizeHostPort } from "@/utils/daemon-endpoints";
 import { connectToDaemon } from "@/utils/test-daemon-connection";
 import { ConnectionOfferSchema } from "@server/shared/connection-offer";
+import {
+  extractPairWebRequestFromQrContent,
+  isPairWebRequestExpired,
+  type PairWebRequest,
+} from "@server/shared/pair-web-offer";
+import { PairWebConfirmPanel } from "@/components/pair-web-confirm-panel";
 import { buildHostRootRoute, buildSettingsHostRoute } from "@/utils/host-routes";
 import { isWeb } from "@/constants/platform";
 import { BackHeader } from "@/components/headers/back-header";
@@ -109,11 +115,18 @@ const styles = StyleSheet.create((theme) => ({
   },
 }));
 
-function extractOfferUrlFromScan(result: BarcodeScanningResult): string | null {
+type ScannedPairingTarget =
+  | { kind: "daemon-offer"; url: string }
+  | { kind: "pair-web"; request: PairWebRequest };
+
+function extractPairingTargetFromScan(result: BarcodeScanningResult): ScannedPairingTarget | null {
   const raw = typeof result.data === "string" ? result.data.trim() : "";
   if (!raw) return null;
 
-  if (raw.includes("#offer=")) return raw;
+  const pairWebRequest = extractPairWebRequestFromQrContent(raw);
+  if (pairWebRequest) return { kind: "pair-web", request: pairWebRequest };
+
+  if (raw.includes("#offer=")) return { kind: "daemon-offer", url: raw };
 
   return null;
 }
@@ -130,6 +143,7 @@ export default function PairScanScreen() {
 
   const [permission, requestPermission] = useCameraPermissions();
   const [isPairing, setIsPairing] = useState(false);
+  const [pairWebRequest, setPairWebRequest] = useState<PairWebRequest | null>(null);
   const lastScannedRef = useRef<string | null>(null);
 
   const navigateToPairedHost = useCallback(
@@ -159,13 +173,40 @@ export default function PairScanScreen() {
 
   const handleScan = useCallback(
     async (result: BarcodeScanningResult) => {
-      if (isPairing) return;
-      const offerUrl = extractOfferUrlFromScan(result);
-      if (!offerUrl) return;
+      if (isPairing || pairWebRequest) return;
 
-      if (lastScannedRef.current === offerUrl) return;
-      lastScannedRef.current = offerUrl;
+      let target: ScannedPairingTarget | null = null;
+      try {
+        target = extractPairingTargetFromScan(result);
+      } catch (error) {
+        const raw = typeof result.data === "string" ? result.data.trim() : "";
+        if (lastScannedRef.current === raw) return;
+        lastScannedRef.current = raw;
+        const message = error instanceof Error ? error.message : "Unrecognized pairing QR code";
+        Alert.alert("Invalid QR code", message);
+        return;
+      }
+      if (!target) return;
 
+      const dedupeKey =
+        target.kind === "daemon-offer" ? target.url : `pair-web:${target.request.pairingId}`;
+      if (lastScannedRef.current === dedupeKey) return;
+      lastScannedRef.current = dedupeKey;
+
+      if (target.kind === "pair-web") {
+        if (isPairWebRequestExpired(target.request)) {
+          lastScannedRef.current = null;
+          Alert.alert(
+            "QR code expired",
+            "Ask the browser to generate a new QR code, then scan again.",
+          );
+          return;
+        }
+        setPairWebRequest(target.request);
+        return;
+      }
+
+      const offerUrl = target.url;
       try {
         setIsPairing(true);
         const idx = offerUrl.indexOf("#offer=");
@@ -195,8 +236,13 @@ export default function PairScanScreen() {
         setIsPairing(false);
       }
     },
-    [isPairing, navigateToPairedHost, upsertDaemonFromOfferUrl],
+    [isPairing, pairWebRequest, navigateToPairedHost, upsertDaemonFromOfferUrl],
   );
+
+  const handleCancelPairWeb = useCallback(() => {
+    setPairWebRequest(null);
+    lastScannedRef.current = null;
+  }, []);
 
   const handleRouterBack = useCallback(() => router.back(), [router]);
   const handleRequestPermission = useCallback(() => {
@@ -235,10 +281,19 @@ export default function PairScanScreen() {
 
   return (
     <View style={styles.container}>
-      <BackHeader title="Scan QR" onBack={closeToSource} />
+      <BackHeader
+        title={pairWebRequest ? "Approve web sign-in" : "Scan QR"}
+        onBack={pairWebRequest ? handleCancelPairWeb : closeToSource}
+      />
 
       <View style={bodyStyle}>
-        {!granted ? (
+        {pairWebRequest ? (
+          <PairWebConfirmPanel
+            request={pairWebRequest}
+            onCancel={handleCancelPairWeb}
+            onDone={closeToSource}
+          />
+        ) : !granted ? (
           <View style={styles.permissionCard}>
             <Text style={styles.permissionTitle}>Camera permission</Text>
             <Text style={styles.permissionBody}>

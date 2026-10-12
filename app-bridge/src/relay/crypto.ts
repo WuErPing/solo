@@ -75,6 +75,11 @@ export function generateKeyPair(): KeyPair {
   return { publicKey, secretKey };
 }
 
+export function randomBytes(length: number): Uint8Array {
+  ensurePrng();
+  return nacl.randomBytes(length);
+}
+
 export function exportPublicKey(publicKey: Uint8Array): string {
   if (!(publicKey instanceof Uint8Array) || publicKey.byteLength !== nacl.box.publicKeyLength) {
     throw new Error(`Invalid public key length (expected ${nacl.box.publicKeyLength})`);

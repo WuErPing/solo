@@ -2,7 +2,7 @@
 
 > **Purpose**: Persistent context base for Solo development, CI/CD, and architecture decisions.
 > **Organizing principle**: PADD (Product & Architecture Driven Development) — all context as code, co-located with the repo.
-> **Last updated**: 2026-10-06
+> **Last updated**: 2026-10-12
 
 ---
 
@@ -70,7 +70,8 @@ docs/
 │
 ├── design/                                ← Feature design proposals
 │   ├── tmux-keybar-ui-redesign.md         # Three-layer keybar (Implemented 2026-07-28)
-│   └── multi-agent-collaboration.md       # Task Groups: L1/L2 multi-agent collab (Proposal)
+│   ├── multi-agent-collaboration.md       # Task Groups: L1/L2 multi-agent collab (Proposal)
+│   └── web-qr-login.md                    # Web QR login via one-time relay pairing channel (Implemented 2026-10-12)
 │
 ├── providers/                             ← AI provider integration research
 │   ├── kimi-wire-vs-acp.md
@@ -196,6 +197,7 @@ Feature design proposals (pre-implementation or recently implemented).
 |----------|--------|---------|
 | [Tmux Keybar UI Redesign](design/tmux-keybar-ui-redesign.md) | Implemented (2026-07-28) | Three-layer keybar layout |
 | [Multi-Agent Collaboration](design/multi-agent-collaboration.md) | Proposal | Task Groups: L1 parallel + L2 pipeline first, L3 converged, L4/A2A deferred |
+| [Web QR Login](design/web-qr-login.md) | Implemented (2026-10-12) | One-time relay pairing channel; phone approves, sealed offer to browser; zero daemon/relay changes |
 
 ---
 
