@@ -1,0 +1,26 @@
+[DEFAULT]
+# 白名单：本机 + 用户当前家庭出口 IP（动态 IP 变化后如被误封，SSH 上去 unban 即可）
+ignoreip = 127.0.0.1/8 ::1 113.106.106.3
+bantime  = 1h
+findtime = 10m
+maxretry = 5
+backend  = auto
+
+[sshd]
+enabled = true
+port    = ssh
+logpath = %(sshd_log)s
+
+# nginx basic auth 失败（覆盖 /stats/）
+[nginx-http-auth]
+enabled = true
+port    = http,https
+logpath = /var/log/nginx/error.log
+
+# 累犯加重：24h 内被任何 jail 封过 3 次的 IP，封一周
+[recidive]
+enabled  = true
+logpath  = /var/log/fail2ban.log
+bantime  = 1w
+findtime = 1d
+maxretry = 3

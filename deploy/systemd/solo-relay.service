@@ -16,6 +16,9 @@ LimitNOFILE=65536
 # Hardening
 NoNewPrivileges=true
 ProtectSystem=strict
+# LogsDirectory grants a writable /var/log/solo-relay (owned by User=) despite
+# ProtectSystem=strict — this is where the JSON access log lives.
+LogsDirectory=solo-relay
 ProtectHome=true
 PrivateTmp=true
 ProtectKernelTunables=true

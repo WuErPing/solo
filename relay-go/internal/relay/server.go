@@ -14,6 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/WuErPing/solo/protocol"
+	"github.com/WuErPing/solo/relay/internal/accesslog"
 	relaymetrics "github.com/WuErPing/solo/relay/internal/metrics"
 )
 
@@ -61,6 +62,7 @@ type Server struct {
 	NudgeSyncDelay  time.Duration
 	NudgeResetDelay time.Duration
 	AllowedOrigins  []string
+	accessLog       *accesslog.Logger
 }
 
 func NewServer(store *SessionStore, maxBuffer int, maxConns int64, logger *slog.Logger, allowedOrigins []string) *Server {
@@ -73,6 +75,12 @@ func NewServer(store *SessionStore, maxBuffer int, maxConns int64, logger *slog.
 		NudgeResetDelay: 5 * time.Second,
 		AllowedOrigins:  allowedOrigins,
 	}
+}
+
+// SetAccessLogger attaches a JSON-lines access logger. Call before Handler();
+// nil (the default) disables access logging entirely.
+func (s *Server) SetAccessLogger(l *accesslog.Logger) {
+	s.accessLog = l
 }
 
 func (s *Server) checkOrigin(r *http.Request) bool {
@@ -97,6 +105,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/health", s.handleHealth)
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc(protocol.WSEndpoint, s.handleWebSocket)
+	if s.accessLog != nil {
+		return s.accessLogMiddleware(mux)
+	}
 	return mux
 }
 
@@ -154,6 +165,10 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	sess.mu.Lock()
 	resolvedConnectionID := s.handleV2Connect(sess, role, connectionID, conn)
 	sess.mu.Unlock()
+
+	if s.accessLog != nil {
+		s.accessLog.WSOpen(serverID, string(role), resolvedConnectionID, version, clientIP(r), r.UserAgent(), r.Header.Get("Origin"))
+	}
 
 	s.readPump(sess, serverID, role, resolvedConnectionID, conn)
 }
@@ -226,12 +241,19 @@ func (s *Server) handleV2Connect(sess *Session, role ConnectionRole, connectionI
 }
 
 func (s *Server) readPump(sess *Session, serverID string, role ConnectionRole, connectionID string, conn *websocket.Conn) {
+	started := time.Now()
+	var msgs int64
 	defer func() {
 		s.handleClose(sess, serverID, role, connectionID, conn)
 		_ = conn.Close()
 		s.connCount.Add(-1)
 		relaymetrics.Connections.Dec()
 		s.Store.CleanupIfEmpty(serverID)
+		// One ws_close per ws_open: readPump's defer is the single exit path
+		// for every live connection, including sockets closed by replacement.
+		if s.accessLog != nil {
+			s.accessLog.WSClose(serverID, string(role), connectionID, time.Since(started), msgs)
+		}
 	}()
 
 	_ = conn.SetReadDeadline(time.Now().Add(wsReadIdleTimeout))
@@ -253,6 +275,7 @@ func (s *Server) readPump(sess *Session, serverID string, role ConnectionRole, c
 		sess.mu.Lock()
 		s.handleMessage(sess, role, connectionID, conn, msgType, msg)
 		sess.mu.Unlock()
+		msgs++
 	}
 }
 

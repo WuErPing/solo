@@ -1,0 +1,12 @@
+# Rotation for the solo-relay JSON access log (ACCESS_LOG_PATH).
+# copytruncate: the relay keeps the file open with O_APPEND and has no
+# reopen/SIGHUP hook, so truncate in place instead of signaling a reopen.
+/var/log/solo-relay/access.log {
+    daily
+    rotate 30
+    compress
+    missingok
+    notifempty
+    copytruncate
+    create 0644 solo-relay solo-relay
+}

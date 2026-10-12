@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/WuErPing/solo/relay/internal/accesslog"
 	"github.com/WuErPing/solo/relay/internal/config"
 	relaymetrics "github.com/WuErPing/solo/relay/internal/metrics"
 	"github.com/WuErPing/solo/relay/internal/relay"
@@ -25,6 +26,18 @@ func main() {
 
 	store := relay.NewSessionStore(cfg.MaxBuffer, logger)
 	srv := relay.NewServer(store, cfg.MaxBuffer, int64(cfg.MaxConns), logger, cfg.AllowedOrigins)
+
+	// JSON-lines access log for offline analysis; empty path keeps it off.
+	var accessLogger *accesslog.Logger
+	if cfg.AccessLogPath != "" {
+		al, err := accesslog.Open(cfg.AccessLogPath)
+		if err != nil {
+			logger.Error("failed to open access log", "path", cfg.AccessLogPath, "error", err)
+			os.Exit(1)
+		}
+		accessLogger = al
+		srv.SetAccessLogger(al)
+	}
 
 	httpServer := &http.Server{
 		Addr:    srv.Addr(cfg.Host, cfg.Port),
@@ -58,6 +71,14 @@ func main() {
 	if err := httpServer.Shutdown(ctx); err != nil {
 		logger.Error("server shutdown error", "error", err)
 		os.Exit(1)
+	}
+
+	if accessLogger != nil {
+		// Note: ws_close events for connections still alive at shutdown are
+		// dropped — Shutdown does not wait for hijacked WebSocket handlers.
+		if err := accessLogger.Close(); err != nil {
+			logger.Warn("access log close failed", "error", err)
+		}
 	}
 
 	logger.Info("server stopped gracefully")

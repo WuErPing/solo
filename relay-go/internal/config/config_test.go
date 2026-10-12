@@ -8,7 +8,7 @@ import (
 
 func TestLoad_Defaults(t *testing.T) {
 	// Ensure no env vars interfere
-	for _, key := range []string{"PORT", "HOST", "MAX_BUFFER", "LOG_LEVEL", "ALLOWED_ORIGINS"} {
+	for _, key := range []string{"PORT", "HOST", "MAX_BUFFER", "LOG_LEVEL", "ALLOWED_ORIGINS", "ACCESS_LOG_PATH"} {
 		os.Unsetenv(key)
 	}
 
@@ -28,6 +28,19 @@ func TestLoad_Defaults(t *testing.T) {
 	}
 	if len(cfg.AllowedOrigins) != 2 {
 		t.Errorf("expected 2 default origins, got %d", len(cfg.AllowedOrigins))
+	}
+	if cfg.AccessLogPath != "" {
+		t.Errorf("expected default AccessLogPath empty (access log disabled), got %q", cfg.AccessLogPath)
+	}
+}
+
+func TestLoad_AccessLogPath(t *testing.T) {
+	os.Setenv("ACCESS_LOG_PATH", "/var/log/solo-relay/access.log")
+	defer os.Unsetenv("ACCESS_LOG_PATH")
+
+	cfg := Load()
+	if cfg.AccessLogPath != "/var/log/solo-relay/access.log" {
+		t.Errorf("expected AccessLogPath from env, got %q", cfg.AccessLogPath)
 	}
 }
 

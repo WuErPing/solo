@@ -15,6 +15,7 @@ type Config struct {
 	MaxConns       int
 	LogLevel       slog.Level
 	AllowedOrigins []string // CORS whitelist; empty = reject all non-empty Origin headers
+	AccessLogPath  string   // ACCESS_LOG_PATH; empty disables the JSON access log
 }
 
 func Load() Config {
@@ -25,6 +26,7 @@ func Load() Config {
 		MaxConns:       envOrDefaultInt("MAX_CONNS", 10000),
 		LogLevel:       parseLogLevel(envOrDefault("LOG_LEVEL", "info")),
 		AllowedOrigins: parseOrigins(envOrDefault("ALLOWED_ORIGINS", "https://solo.up2ai.top,http://localhost:19000")),
+		AccessLogPath:  os.Getenv("ACCESS_LOG_PATH"),
 	}
 }
 
