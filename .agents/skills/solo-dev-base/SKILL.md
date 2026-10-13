@@ -234,6 +234,7 @@ make stop
 19. **Codex provider** (v0.12.0 era): full Go backend at `daemon/internal/agent/providers/codex/` (`codex exec --json`, native session resume via `exec resume`).
 20. **LaTeX math rendering** (v0.15.0): markdown preview renders `$$…$$` display and `$…$` inline math via MathJax tex-svg drawn with react-native-svg (no WebView); KaTeX assets bundled offline (`npm run generate:katex-assets`).
 21. **Task Groups prototype removed** (2026-09-23): the `/task-groups` mock-data route and screens were deleted; `docs/design/multi-agent-collaboration.md` remains a proposal for the real feature.
+22. **Markdown preview perf overhaul** (2026-10-13): file-pane markdown now renders in memoized chunks (`splitMarkdownBlocks` → `chunkMarkdownBlocks`, progressive mount) instead of one monolithic `<Markdown>`; native mermaid moved from one WebView per diagram (CDN-loaded) to a single shared hidden WebView service (`MermaidSvgServiceHost`, inlined mermaid bundle via `npm run generate:mermaid-assets`) that rasterizes diagrams to PNG (SvgXml fallback) with a process-wide LRU cache (`mermaid-svg-cache.ts`); math SVG cache is now true LRU (no more clear-on-overflow). Dev-only perf probes: `src/utils/perf-log.ts` (`[perf]` lines in Metro/logcat).
 
 ## Documentation Index
 

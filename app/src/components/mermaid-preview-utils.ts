@@ -72,7 +72,11 @@ body {
   function notify() {
     var el = document.getElementById('mermaid-graph');
     var height = Math.ceil(el.getBoundingClientRect().height);
-    parent.postMessage({ type: 'mermaid:rendered', height: height }, '*');
+    var message = { type: 'mermaid:rendered', height: height };
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify(message));
+    }
+    parent.postMessage(message, '*');
   }
 
   function render(source, theme) {

@@ -6,6 +6,7 @@
 //
 // mathjax-full is required lazily on first use so app startup never parses it.
 /* eslint-disable @typescript-eslint/no-require-imports -- lazy requires keep mathjax-full out of startup */
+import { perfLog, perfNow } from "@/utils/perf-log";
 
 export interface MathSvgData {
   /** Complete `<svg …>…</svg>` document ready for `SvgXml`. */
@@ -55,6 +56,8 @@ function getMathJaxDoc(): MathJaxLite | null {
 
 const SVG_NS = 'xmlns="http://www.w3.org/2000/svg"';
 const CACHE_LIMIT = 300;
+// LRU: hits re-insert at the tail; overflow evicts the oldest entry instead of
+// wiping the whole map (a 301-formula document used to clear everything).
 const cache = new Map<string, MathSvgData | null>();
 
 /** Shrink factor so a display formula never overflows its container. */
@@ -125,21 +128,28 @@ export function texToMathSvg(
 ): MathSvgData | null {
   const key = `${display ? "b" : "i"}|${pxPerEx}|${color}|${tex}`;
   if (cache.has(key)) {
-    return cache.get(key) ?? null;
+    const hit = cache.get(key) ?? null;
+    cache.delete(key);
+    cache.set(key, hit);
+    return hit;
   }
 
   let result: MathSvgData | null = null;
   const doc = getMathJaxDoc();
   if (doc) {
     try {
+      const convertStart = perfNow();
       result = parseSvgDocument(doc.outerHTML(doc.convert(tex, { display })), color, pxPerEx);
+      perfLog("math.miss", { ms: +(perfNow() - convertStart).toFixed(2), cached: cache.size });
     } catch {
       result = null;
     }
   }
-  if (cache.size >= CACHE_LIMIT) {
-    cache.clear();
-  }
   cache.set(key, result);
+  while (cache.size > CACHE_LIMIT) {
+    const oldest = cache.keys().next();
+    if (oldest.done) break;
+    cache.delete(oldest.value);
+  }
   return result;
 }

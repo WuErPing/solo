@@ -1,6 +1,11 @@
 import React, { useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import Markdown, { MarkdownIt, renderRules, type ASTNode } from "react-native-markdown-display";
+import Markdown, {
+  MarkdownIt,
+  renderRules,
+  type ASTNode,
+  type RenderRules,
+} from "react-native-markdown-display";
 import FitImage from "react-native-fit-image";
 import {
   ActivityIndicator,
@@ -33,6 +38,10 @@ import { SvgPreview } from "@/components/svg-preview";
 import { isSvgContent } from "@/components/svg-preview-utils";
 import { isWeb } from "@/constants/platform";
 import { createMarkdownStyles } from "@/styles/markdown-styles";
+import { MermaidSvgServiceHost } from "@/components/mermaid-svg-service";
+import { splitMarkdownBlocks } from "@/utils/split-markdown-blocks";
+import { chunkMarkdownBlocks } from "@/utils/chunk-markdown-blocks";
+import { perfLog, perfNow } from "@/utils/perf-log";
 import type { AttachmentMetadata } from "@/attachments/types";
 import { useAttachmentPreviewUrl } from "@/attachments/use-attachment-preview-url";
 import { persistAttachmentFromBase64 } from "@/attachments/service";
@@ -169,20 +178,54 @@ const codeLineStyles = StyleSheet.create((theme) => ({
   },
 }));
 
-function FilePreviewBody({
-  preview,
-  isLoading,
-  showDesktopWebScrollbar,
-  isMobile,
-  filePath,
-  imagePreviewUri,
-}: FilePreviewBodyProps) {
+const INITIAL_MARKDOWN_BLOCKS = 24;
+const MARKDOWN_BLOCKS_PER_TICK = 24;
+
+interface MemoizedMarkdownBlockProps {
+  text: string;
+  rules: RenderRules;
+  parser: MarkdownIt;
+  style: ReturnType<typeof createMarkdownStyles>;
+}
+
+const MemoizedMarkdownBlock = React.memo(function MemoizedMarkdownBlock({
+  text,
+  rules,
+  parser,
+  style,
+}: MemoizedMarkdownBlockProps) {
+  return (
+    <Markdown style={style} markdownit={parser} rules={rules}>
+      {text}
+    </Markdown>
+  );
+});
+
+interface MarkdownFilePreviewProps
+  extends Pick<
+    React.ComponentProps<typeof FilePreviewScrollView>,
+    "scrollRef" | "scrollbar" | "pagerEnabled" | "showsVerticalScrollIndicator"
+  > {
+  content: string;
+}
+
+/**
+ * Rendered-markdown file preview. The document is split into
+ * blank-line-separated blocks (fences stay intact) and each block gets its own
+ * memoized <Markdown>: a content change re-parses only the blocks that
+ * actually changed, and per-block AST keys (unstable across parses by design)
+ * never remount untouched siblings — mermaid SVGs and math formulas included.
+ * A single shared service renders every mermaid diagram to SVG.
+ */
+function MarkdownFilePreview({
+  content,
+  scrollRef,
+  scrollbar,
+  pagerEnabled,
+  showsVerticalScrollIndicator,
+}: MarkdownFilePreviewProps) {
   const { theme } = useUnistyles();
-  const { settings: appSettings } = useAppSettings();
-  const showPagerButtons = isMobile && appSettings.filePreviewPageButtons;
   const isDark = theme.colorScheme === "dark";
-  const colorMap = isDark ? darkHighlightColors : lightHighlightColors;
-  const baseColor = isDark ? "#c9d1d9" : "#24292f";
   const markdownStyles = useMemo(() => createMarkdownStyles(theme), [theme]);
   const markdownParser = useMemo(
     () => MarkdownIt({ typographer: true, linkify: true }).use(mathPlugin),
@@ -245,6 +288,105 @@ function FilePreviewBody({
     }),
     [isDark],
   );
+
+  const markdownBlocks = useMemo(() => {
+    const splitStart = perfNow();
+    const blocks = chunkMarkdownBlocks(splitMarkdownBlocks(content));
+    perfLog("filepane.markdown.split", {
+      ms: Math.round(perfNow() - splitStart),
+      blocks: blocks.length,
+    });
+    return blocks;
+  }, [content]);
+
+  // Progressive mount: the first batch paints immediately; the rest append in
+  // event-loop slices so a large document never monopolizes the JS thread for
+  // one multi-second commit. Mermaid previews mount (and enqueue their SVG
+  // renders) only when their block mounts.
+  const [mountedCount, setMountedCount] = React.useState(INITIAL_MARKDOWN_BLOCKS);
+  const [prevContent, setPrevContent] = React.useState(content);
+  if (prevContent !== content) {
+    setPrevContent(content);
+    setMountedCount(INITIAL_MARKDOWN_BLOCKS);
+  }
+  React.useEffect(() => {
+    if (mountedCount >= markdownBlocks.length) {
+      return;
+    }
+    const timer = setTimeout(
+      () =>
+        setMountedCount((count) =>
+          Math.min(count + MARKDOWN_BLOCKS_PER_TICK, markdownBlocks.length),
+        ),
+      0,
+    );
+    return () => clearTimeout(timer);
+  }, [mountedCount, markdownBlocks.length]);
+
+  // The service WebView carries a multi-MB inline mermaid bundle — create it
+  // after the first batch commits, off the critical first-paint path.
+  const hasMermaid = useMemo(() => content.includes("```mermaid"), [content]);
+  const [serviceMounted, setServiceMounted] = React.useState(false);
+  React.useEffect(() => {
+    if (!hasMermaid) {
+      return;
+    }
+    const timer = setTimeout(() => setServiceMounted(true), 0);
+    return () => clearTimeout(timer);
+  }, [hasMermaid]);
+
+  // Dev-only commit marker: re-created when content changes so the effect
+  // below can report render→commit latency per document version.
+  const commitMark = useMemo(() => ({ content, at: perfNow() }), [content]);
+  React.useEffect(() => {
+    if (!commitMark.content) {
+      return;
+    }
+    perfLog("filepane.markdown.commit", {
+      bytes: commitMark.content.length,
+      blocks: markdownBlocks.length,
+      mounted: mountedCount,
+      mermaid: commitMark.content.split("```mermaid").length - 1,
+      ms: Math.round(perfNow() - commitMark.at),
+    });
+  }, [commitMark, markdownBlocks, mountedCount]);
+
+  return (
+    <FilePreviewScrollView
+      scrollRef={scrollRef}
+      scrollbar={scrollbar}
+      pagerEnabled={pagerEnabled}
+      showsVerticalScrollIndicator={showsVerticalScrollIndicator}
+      contentContainerStyle={styles.previewMarkdownScrollContent}
+    >
+      {serviceMounted ? <MermaidSvgServiceHost /> : null}
+      {markdownBlocks.slice(0, mountedCount).map((block, index) => (
+        <MemoizedMarkdownBlock
+          key={`${index}:${block.slice(0, 32)}`}
+          text={block}
+          rules={markdownRules}
+          parser={markdownParser}
+          style={markdownStyles}
+        />
+      ))}
+    </FilePreviewScrollView>
+  );
+}
+
+function FilePreviewBody({
+  preview,
+  isLoading,
+  showDesktopWebScrollbar,
+  isMobile,
+  filePath,
+  imagePreviewUri,
+}: FilePreviewBodyProps) {
+  const { theme } = useUnistyles();
+  const { settings: appSettings } = useAppSettings();
+  const showPagerButtons = isMobile && appSettings.filePreviewPageButtons;
+  const isDark = theme.colorScheme === "dark";
+  const colorMap = isDark ? darkHighlightColors : lightHighlightColors;
+  const baseColor = isDark ? "#c9d1d9" : "#24292f";
   const isMarkdownFile = preview?.kind === "text" && isRenderedMarkdownFile(filePath);
 
   const previewScrollRef = useRef<RNScrollView>(null);
@@ -291,17 +433,13 @@ function FilePreviewBody({
   if (preview.kind === "text") {
     if (isMarkdownFile) {
       return (
-        <FilePreviewScrollView
+        <MarkdownFilePreview
+          content={preview.content ?? ""}
           scrollRef={previewScrollRef}
           scrollbar={scrollbar}
           pagerEnabled={showPagerButtons}
           showsVerticalScrollIndicator={!showDesktopWebScrollbar}
-          contentContainerStyle={styles.previewMarkdownScrollContent}
-        >
-          <Markdown style={markdownStyles} markdownit={markdownParser} rules={markdownRules}>
-            {preview.content ?? ""}
-          </Markdown>
-        </FilePreviewScrollView>
+        />
       );
     }
 

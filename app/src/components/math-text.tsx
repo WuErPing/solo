@@ -35,7 +35,7 @@ function MathSvgView({
   );
 }
 
-export function MathText({ tex, display = false }: MathTextProps) {
+export const MathText = React.memo(function MathText({ tex, display = false }: MathTextProps) {
   const { theme } = useUnistyles();
   const color = theme.colors.foreground;
   // SVG size is derived synchronously from the TeX source, so formulas paint
@@ -61,7 +61,7 @@ export function MathText({ tex, display = false }: MathTextProps) {
     );
   }
   return <MathBlock data={data} />;
-}
+});
 
 function MathBlock({ data }: { data: MathSvgData }) {
   const { width: windowWidth } = useWindowDimensions();
