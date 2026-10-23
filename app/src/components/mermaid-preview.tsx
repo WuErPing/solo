@@ -2,6 +2,7 @@ import React, { memo, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,10 +11,12 @@ import {
 } from "react-native";
 import { useUnistyles } from "react-native-unistyles";
 import { SvgXml } from "react-native-svg";
+import { Maximize2 } from "lucide-react-native";
 import { Fonts } from "@/constants/theme";
 import { fitScale } from "./math-svg";
 import { getCachedMermaidSvg, type MermaidSvgEntry } from "./mermaid-svg-cache";
 import { renderMermaidSvg } from "./mermaid-svg-service";
+import { MermaidLightbox } from "./mermaid-lightbox";
 import { perfLog, perfNow } from "@/utils/perf-log";
 
 interface MermaidPreviewProps {
@@ -41,6 +44,7 @@ export const MermaidPreview = memo(function MermaidPreview({
   const [entry, setEntry] = useState<MermaidSvgEntry | null | undefined>(() =>
     getCachedMermaidSvg(themeName, source),
   );
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     const cached = getCachedMermaidSvg(themeName, source);
@@ -88,7 +92,12 @@ export const MermaidPreview = memo(function MermaidPreview({
   const displayHeight = entry.heightPx * scale;
   return (
     <View style={styles.container}>
-      <View style={styles.diagram}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Expand diagram"
+        onPress={() => setExpanded(true)}
+        style={styles.diagram}
+      >
         {entry.pngDataUrl ? (
           <Image
             source={{ uri: entry.pngDataUrl }}
@@ -98,7 +107,18 @@ export const MermaidPreview = memo(function MermaidPreview({
         ) : entry.xml ? (
           <SvgXml xml={entry.xml} width={displayWidth} height={displayHeight} />
         ) : null}
-      </View>
+        <View style={[styles.expandBadge, { backgroundColor: theme.colors.surface2 }]} pointerEvents="none">
+          <Maximize2 size={12} color={theme.colors.foregroundMuted} />
+        </View>
+      </Pressable>
+      {expanded ? (
+        <MermaidLightbox
+          entry={entry}
+          source={source}
+          themeName={themeName}
+          onClose={() => setExpanded(false)}
+        />
+      ) : null}
     </View>
   );
 });
@@ -119,6 +139,17 @@ const styles = StyleSheet.create({
   diagram: {
     alignItems: "center",
     paddingVertical: 16,
+  },
+  expandBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: 0.85,
   },
   errorScroll: {
     maxHeight: 200,

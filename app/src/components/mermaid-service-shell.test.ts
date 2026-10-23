@@ -30,4 +30,14 @@ describe("generateMermaidServiceShellHtml", () => {
     const html = generateMermaidServiceShellHtml(SENTINEL_JS);
     expect(html).not.toContain("graph TD");
   });
+
+  it("supports a vectorOnly mode that skips canvas rasterization", () => {
+    const html = generateMermaidServiceShellHtml(SENTINEL_JS);
+    expect(html).toContain("function (id, source, theme, vectorOnly)");
+    // The early return must sit before the canvas/Image raster path.
+    expect(html.indexOf("vectorOnly === true")).toBeGreaterThan(-1);
+    expect(html.indexOf("vectorOnly === true")).toBeLessThan(
+      html.indexOf("canvas.toDataURL"),
+    );
+  });
 });

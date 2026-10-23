@@ -136,7 +136,9 @@ html, body { margin: 0; padding: 0; background: transparent; min-width: 1000px; 
     return { width: width, height: height };
   }
 
-  window.__renderToSvg = function (id, source, theme) {
+  // vectorOnly skips canvas rasterization and posts the SVG markup directly —
+  // used by the fullscreen viewer, which needs vector data for crisp zooming.
+  window.__renderToSvg = function (id, source, theme, vectorOnly) {
     post({ type: 'mermaid:debug', id: id, phase: 'enter' });
     enqueue({
       run: function () {
@@ -180,6 +182,17 @@ html, body { margin: 0; padding: 0; background: transparent; min-width: 1000px; 
                   svgEl.setAttribute('height', String(size.height));
                   var markup = svgEl.outerHTML;
                   stage.innerHTML = '';
+                  var postSvg = function () {
+                    post({
+                      type: 'mermaid:svg', id: id, ok: true,
+                      svg: markup, width: size.width, height: size.height
+                    });
+                    done();
+                  };
+                  if (vectorOnly === true) {
+                    postSvg();
+                    return;
+                  }
 
                   // Paint to a bitmap: an RN Image costs one native view and a
                   // few MB of decoded pixels, where the SVG view tree costs
@@ -189,13 +202,6 @@ html, body { margin: 0; padding: 0; background: transparent; min-width: 1000px; 
                   var canvas = document.createElement('canvas');
                   canvas.width = Math.min(Math.ceil(size.width * scale), 8192);
                   canvas.height = Math.min(Math.ceil(size.height * scale), 8192);
-                  var postSvg = function () {
-                    post({
-                      type: 'mermaid:svg', id: id, ok: true,
-                      svg: markup, width: size.width, height: size.height
-                    });
-                    done();
-                  };
                   var img = new Image();
                   img.onload = function () {
                     try {

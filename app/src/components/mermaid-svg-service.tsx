@@ -23,6 +23,7 @@ type RenderResolve = (entry: MermaidSvgEntry | null) => void;
 interface PendingRequest {
   source: string;
   theme: string;
+  vectorOnly: boolean;
   resolve: RenderResolve;
   enqueuedAt: number;
   timer: ReturnType<typeof setTimeout>;
@@ -30,7 +31,7 @@ interface PendingRequest {
 
 const pendingById = new Map<number, PendingRequest>();
 const inFlightByKey = new Map<string, Promise<MermaidSvgEntry | null>>();
-const queuedBeforeReady: { id: number; source: string; theme: string }[] = [];
+const queuedBeforeReady: { id: number; source: string; theme: string; vectorOnly: boolean }[] = [];
 let nextRequestId = 1;
 let serviceWebView: WebView | null = null;
 /** True once the shell's JS confirmed itself alive (ready message or pong). */
@@ -38,8 +39,8 @@ let shellAlive = false;
 /** Bumped by the host to force a WebView remount; also invoked on failures. */
 let requestHostRemount: () => void = () => undefined;
 
-function buildRenderScript(id: number, source: string, theme: string): string {
-  return `window.__renderToSvg(${id}, ${JSON.stringify(source)}, ${JSON.stringify(theme)}); true;`;
+function buildRenderScript(id: number, source: string, theme: string, vectorOnly: boolean): string {
+  return `window.__renderToSvg(${id}, ${JSON.stringify(source)}, ${JSON.stringify(theme)}, ${vectorOnly ? "true" : "false"}); true;`;
 }
 
 function settleRequest(id: number, entry: MermaidSvgEntry | null): void {
@@ -52,11 +53,11 @@ function settleRequest(id: number, entry: MermaidSvgEntry | null): void {
   pending.resolve(entry);
 }
 
-function dispatchRequest(id: number, source: string, theme: string): void {
+function dispatchRequest(id: number, source: string, theme: string, vectorOnly: boolean): void {
   if (!serviceWebView) {
     perfLog("mermaid.dispatch.noWebview", { id });
   }
-  serviceWebView?.injectJavaScript(buildRenderScript(id, source, theme));
+  serviceWebView?.injectJavaScript(buildRenderScript(id, source, theme, vectorOnly));
 }
 
 interface ServiceMessage {
@@ -76,13 +77,13 @@ function flushQueuedRequests(): void {
   // mid-flight are simply rendered again (duplicate responses are ignored).
   const all = [...queuedBeforeReady.splice(0)];
   for (const [id, pending] of pendingById) {
-    all.push({ id, source: pending.source, theme: pending.theme });
+    all.push({ id, source: pending.source, theme: pending.theme, vectorOnly: pending.vectorOnly });
   }
   const seen = new Set<number>();
   for (const request of all) {
     if (seen.has(request.id)) continue;
     seen.add(request.id);
-    dispatchRequest(request.id, request.source, request.theme);
+    dispatchRequest(request.id, request.source, request.theme, request.vectorOnly);
   }
 }
 
@@ -95,7 +96,12 @@ function handleRenderResult(data: ServiceMessage): void {
     return;
   }
   if (data.ok && (typeof data.png === "string" || typeof data.svg === "string") && data.width && data.height) {
+    // Merge into any existing entry: the raster and vector channels each
+    // supply only their own payload, and both must survive in the cache
+    // (PNG for the inline preview, SVG for the fullscreen zoom viewer).
+    const prev = getCachedMermaidSvg(pending.theme, pending.source);
     const entry: MermaidSvgEntry = {
+      ...(prev ?? {}),
       ...(typeof data.png === "string" ? { pngDataUrl: data.png } : {}),
       ...(typeof data.svg === "string" ? { xml: data.svg } : {}),
       widthPx: data.width,
@@ -104,8 +110,8 @@ function handleRenderResult(data: ServiceMessage): void {
     setCachedMermaidSvg(pending.theme, pending.source, entry);
     perfLog("mermaid.svg.render", {
       ms: Math.round(perfNow() - pending.enqueuedAt),
-      bytes: entry.pngDataUrl?.length ?? entry.xml?.length ?? 0,
-      kind: entry.pngDataUrl ? "png" : "svg",
+      bytes: (typeof data.png === "string" ? data.png.length : data.svg?.length) ?? 0,
+      kind: typeof data.png === "string" ? "png" : "svg",
       w: entry.widthPx,
       h: entry.heightPx,
     });
@@ -113,7 +119,10 @@ function handleRenderResult(data: ServiceMessage): void {
     return;
   }
   // Cache failures too — a broken diagram should not retry on every mount.
-  setCachedMermaidSvg(pending.theme, pending.source, null);
+  // A failed vector request must not clobber a previously successful entry.
+  if (!pending.vectorOnly || getCachedMermaidSvg(pending.theme, pending.source) == null) {
+    setCachedMermaidSvg(pending.theme, pending.source, null);
+  }
   perfLog("mermaid.svg.error", { error: data.error ?? "unknown" });
   settleRequest(data.id, null);
 }
@@ -150,8 +159,44 @@ function handleServiceLost(): void {
   // here; the per-request timeout remains the failure backstop if no host
   // ever comes back.
   for (const [id, pending] of pendingById) {
-    queuedBeforeReady.push({ id, source: pending.source, theme: pending.theme });
+    queuedBeforeReady.push({
+      id,
+      source: pending.source,
+      theme: pending.theme,
+      vectorOnly: pending.vectorOnly,
+    });
   }
+}
+
+function enqueueRender(
+  source: string,
+  theme: string,
+  vectorOnly: boolean,
+  dedupKey: string,
+): Promise<MermaidSvgEntry | null> {
+  const inFlight = inFlightByKey.get(dedupKey);
+  if (inFlight) {
+    return inFlight;
+  }
+  const request = new Promise<MermaidSvgEntry | null>((resolve) => {
+    const id = nextRequestId++;
+    const timer = setTimeout(() => {
+      perfLog("mermaid.svg.timeout", { id });
+      settleRequest(id, null);
+    }, REQUEST_TIMEOUT_MS);
+    pendingById.set(id, { source, theme, vectorOnly, resolve, enqueuedAt: perfNow(), timer });
+    perfLog("mermaid.request", { id, ready: shellAlive, queued: !shellAlive });
+    if (shellAlive && serviceWebView) {
+      dispatchRequest(id, source, theme, vectorOnly);
+    } else {
+      queuedBeforeReady.push({ id, source, theme, vectorOnly });
+    }
+  });
+  inFlightByKey.set(dedupKey, request);
+  void request.finally(() => {
+    inFlightByKey.delete(dedupKey);
+  });
+  return request;
 }
 
 /**
@@ -167,30 +212,26 @@ export function renderMermaidSvg(
   if (cached !== undefined) {
     return Promise.resolve(cached);
   }
-  const cacheKey = mermaidCacheKey(theme, source);
-  const inFlight = inFlightByKey.get(cacheKey);
-  if (inFlight) {
-    return inFlight;
+  return enqueueRender(source, theme, false, mermaidCacheKey(theme, source));
+}
+
+/**
+ * Fetch the vector SVG markup for a diagram already rendered (and possibly
+ * cached as PNG-only) by `renderMermaidSvg`. Used by the fullscreen viewer,
+ * which needs resolution-independent data for pinch zooming. The result is
+ * merged into the existing cache entry, so the inline PNG keeps working.
+ */
+export function renderMermaidVector(
+  source: string,
+  theme: string,
+): Promise<MermaidSvgEntry | null> {
+  const cached = getCachedMermaidSvg(theme, source);
+  if (cached?.xml) {
+    return Promise.resolve(cached);
   }
-  const request = new Promise<MermaidSvgEntry | null>((resolve) => {
-    const id = nextRequestId++;
-    const timer = setTimeout(() => {
-      perfLog("mermaid.svg.timeout", { id });
-      settleRequest(id, null);
-    }, REQUEST_TIMEOUT_MS);
-    pendingById.set(id, { source, theme, resolve, enqueuedAt: perfNow(), timer });
-    perfLog("mermaid.request", { id, ready: shellAlive, queued: !shellAlive });
-    if (shellAlive && serviceWebView) {
-      dispatchRequest(id, source, theme);
-    } else {
-      queuedBeforeReady.push({ id, source, theme });
-    }
-  });
-  inFlightByKey.set(cacheKey, request);
-  void request.finally(() => {
-    inFlightByKey.delete(cacheKey);
-  });
-  return request;
+  // Distinct dedup key: a concurrent raster render of the same diagram must
+  // not swallow this request (its PNG response carries no vector markup).
+  return enqueueRender(source, theme, true, `${mermaidCacheKey(theme, source)}\0vector`);
 }
 
 /**
