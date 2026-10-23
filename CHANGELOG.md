@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2026-10-23
+
+### Added
+
+- **App**: tap-to-expand fullscreen viewer for mermaid diagrams in markdown preview — pinch, pan and double-tap zoom on a vector SVG lightbox (fetched on demand when the cache holds only the rasterized PNG), contain-fit with focal anchoring and clamped panning
+- **App**: select-mode toggle in the markdown file preview (native only) for platform text selection at paragraph/heading/cell/code-block granularity
+
+### Changed
+
+- **App**: markdown file preview renders as memoized chunks with progressive mount instead of one monolithic `<Markdown>`; per-diagram mermaid WebViews replaced by a shared hidden render service (inlined offline bundle, serialized render queue, PNG rasterization with SvgXml fallback, process-wide LRU cache)
+
+### Fixed
+
+- **App**: true LRU eviction for the math SVG cache (no more clear-on-overflow storms)
+
 ## [0.16.0] - 2026-10-12
 
 ### Added
