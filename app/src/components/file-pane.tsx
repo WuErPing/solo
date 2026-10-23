@@ -7,9 +7,11 @@ import Markdown, {
   type RenderRules,
 } from "react-native-markdown-display";
 import FitImage from "react-native-fit-image";
+import { TextSelect } from "lucide-react-native";
 import {
   ActivityIndicator,
   Image as RNImage,
+  Pressable,
   ScrollView as RNScrollView,
   Text,
   View,
@@ -34,6 +36,10 @@ import { FilePreviewScrollView } from "@/components/file-preview-scroll-view";
 import { MermaidPreview } from "@/components/mermaid-preview";
 import { MathText } from "@/components/math-text";
 import { mathPlugin } from "@/components/markdown-math-plugin";
+import {
+  createSelectableMarkdownTextRules,
+  renderSelectableFence,
+} from "@/components/markdown-selectable-rules";
 import { SvgPreview } from "@/components/svg-preview";
 import { isSvgContent } from "@/components/svg-preview-utils";
 import { isWeb } from "@/constants/platform";
@@ -226,6 +232,10 @@ function MarkdownFilePreview({
 }: MarkdownFilePreviewProps) {
   const { theme } = useUnistyles();
   const isDark = theme.colorScheme === "dark";
+  // Select mode (native only): swaps the text-carrying rules for selectable
+  // variants so long-press starts the platform selection UI. Kept behind a
+  // toggle because selectable text swallows link taps on Android/iOS.
+  const [selectMode, setSelectMode] = React.useState(false);
   const markdownStyles = useMemo(() => createMarkdownStyles(theme), [theme]);
   const markdownParser = useMemo(
     () => MarkdownIt({ typographer: true, linkify: true }).use(mathPlugin),
@@ -233,6 +243,7 @@ function MarkdownFilePreview({
   );
   const markdownRules = useMemo(
     () => ({
+      ...(selectMode ? createSelectableMarkdownTextRules() : null),
       fence: (
         node: ASTNode,
         children: React.ReactNode[],
@@ -246,7 +257,9 @@ function MarkdownFilePreview({
             <MermaidPreview key={node.key} source={node.content} isDark={isDark} />
           );
         }
-        return renderRules.fence!(node, children, parentNodes, styles, inheritedStyles);
+        return selectMode
+          ? renderSelectableFence(node, styles, inheritedStyles)
+          : renderRules.fence!(node, children, parentNodes, styles, inheritedStyles);
       },
       // Mirror the library's default image rule but pass `key` directly to JSX.
       // react-native-markdown-display spreads a props object containing `key`
@@ -286,7 +299,7 @@ function MarkdownFilePreview({
         <MathText key={node.key} tex={node.content} display isDark={isDark} />
       ),
     }),
-    [isDark],
+    [isDark, selectMode],
   );
 
   const markdownBlocks = useMemo(() => {
@@ -308,6 +321,7 @@ function MarkdownFilePreview({
   if (prevContent !== content) {
     setPrevContent(content);
     setMountedCount(INITIAL_MARKDOWN_BLOCKS);
+    setSelectMode(false);
   }
   React.useEffect(() => {
     if (mountedCount >= markdownBlocks.length) {
@@ -352,24 +366,45 @@ function MarkdownFilePreview({
   }, [commitMark, markdownBlocks, mountedCount]);
 
   return (
-    <FilePreviewScrollView
-      scrollRef={scrollRef}
-      scrollbar={scrollbar}
-      pagerEnabled={pagerEnabled}
-      showsVerticalScrollIndicator={showsVerticalScrollIndicator}
-      contentContainerStyle={styles.previewMarkdownScrollContent}
-    >
-      {serviceMounted ? <MermaidSvgServiceHost /> : null}
-      {markdownBlocks.slice(0, mountedCount).map((block, index) => (
-        <MemoizedMarkdownBlock
-          key={`${index}:${block.slice(0, 32)}`}
-          text={block}
-          rules={markdownRules}
-          parser={markdownParser}
-          style={markdownStyles}
-        />
-      ))}
-    </FilePreviewScrollView>
+    <View style={styles.markdownPreviewContainer}>
+      <FilePreviewScrollView
+        scrollRef={scrollRef}
+        scrollbar={scrollbar}
+        pagerEnabled={pagerEnabled}
+        showsVerticalScrollIndicator={showsVerticalScrollIndicator}
+        contentContainerStyle={styles.previewMarkdownScrollContent}
+      >
+        {serviceMounted ? <MermaidSvgServiceHost /> : null}
+        {markdownBlocks.slice(0, mountedCount).map((block, index) => (
+          <MemoizedMarkdownBlock
+            key={`${index}:${block.slice(0, 32)}`}
+            text={block}
+            rules={markdownRules}
+            parser={markdownParser}
+            style={markdownStyles}
+          />
+        ))}
+      </FilePreviewScrollView>
+      {isWeb ? null : (
+        <Pressable
+          testID="markdown-select-toggle"
+          accessibilityRole="button"
+          accessibilityLabel="Toggle text selection"
+          accessibilityState={{ selected: selectMode }}
+          onPress={() => setSelectMode((value) => !value)}
+          style={({ pressed }) => [
+            styles.selectToggleButton,
+            selectMode ? styles.selectToggleButtonActive : null,
+            pressed ? { opacity: 0.7 } : null,
+          ]}
+        >
+          <TextSelect
+            size={16}
+            color={selectMode ? theme.colors.background : theme.colors.foregroundMuted}
+          />
+        </Pressable>
+      )}
+    </View>
   );
 }
 
@@ -642,6 +677,28 @@ const styles = StyleSheet.create((theme) => ({
   },
   previewMarkdownScrollContent: {
     padding: theme.spacing[4],
+  },
+  markdownPreviewContainer: {
+    flex: 1,
+    minHeight: 0,
+  },
+  selectToggleButton: {
+    position: "absolute",
+    top: theme.spacing[2],
+    right: theme.spacing[2],
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface1,
+  },
+  selectToggleButtonActive: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
   },
   previewImageScrollContent: {
     flexGrow: 1,
