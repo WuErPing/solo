@@ -234,6 +234,7 @@ import {
   ArchiveWorkspaceRequestSchema,
   RemoveProjectRequestSchema,
   FileExplorerRequestSchema,
+  PlantUMLRenderRequestSchema,
   ProjectIconRequestSchema,
   FileDownloadTokenRequestSchema,
   StartWorkspaceScriptRequestSchema,
@@ -253,6 +254,7 @@ import {
   SoloWorktreeArchiveResponseSchema,
   CreateSoloWorktreeResponseSchema,
   FileExplorerResponseSchema,
+  PlantUMLRenderResponseSchema,
   ProjectIconResponseSchema,
   FileDownloadTokenResponseSchema,
 } from "./messages-workspace.js";
@@ -391,6 +393,7 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   ArchiveWorkspaceRequestSchema,
   RemoveProjectRequestSchema,
   FileExplorerRequestSchema,
+  PlantUMLRenderRequestSchema,
   ProjectIconRequestSchema,
   FileDownloadTokenRequestSchema,
   ClearAgentAttentionMessageSchema,
@@ -541,6 +544,7 @@ export type SessionOutboundMessage =
   | z.infer<typeof SoloWorktreeArchiveResponseSchema>
   | z.infer<typeof CreateSoloWorktreeResponseSchema>
   | z.infer<typeof FileExplorerResponseSchema>
+  | z.infer<typeof PlantUMLRenderResponseSchema>
   | z.infer<typeof ProjectIconResponseSchema>
   | z.infer<typeof FileDownloadTokenResponseSchema>
   | z.infer<typeof ListProviderModelsResponseMessageSchema>
@@ -672,6 +676,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   SoloWorktreeArchiveResponseSchema,
   CreateSoloWorktreeResponseSchema,
   FileExplorerResponseSchema,
+  PlantUMLRenderResponseSchema,
   ProjectIconResponseSchema,
   FileDownloadTokenResponseSchema,
   ListProviderModelsResponseMessageSchema,

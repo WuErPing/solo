@@ -42,6 +42,8 @@
 - `schedule-assistant/` — Schedule Assistant chat panel (message list, proposal card, composer) with `use-schedule-assist` / `use-assistant-thread` / `use-proposal-confirm` hooks
 - `svg-preview.tsx` / `svg-preview.web.tsx` — SVG file preview (WebView for mobile, native for web)
 - `mermaid-preview.tsx` / `mermaid-preview.web.tsx` — Mermaid diagram rendering
+- `plantuml-preview.tsx` / `plantuml-render.ts` / `plantuml-svg.ts` — PlantUML fence rendering via the daemon, SVG normalization, RPC dedupe + per-host LRU cache
+- `diagram-lightbox.tsx` — Fullscreen pinch/pan/double-tap viewer shared by diagram previews
 - `ansi-text-renderer.tsx` / `ansi-text-line.tsx` — ANSI escape sequence rendering
 - `error-boundary.tsx` — React error boundary
 
@@ -280,6 +282,17 @@ Features:
 - Serves `usage/quota/list` RPC; responds with `usage/quota/list/response` (snapshots + per-provider errors + `cachedAt`)
 - Process-wide cache with 60s TTL, `singleflight` coalescing of concurrent refreshes, 15s per-fetch timeout
 - Missing `~/.solo/usage.json` or zero enabled providers is not an error (returns an empty snapshot set)
+
+### 3.11 PlantUML Rendering
+
+**Directory**: `internal/plantuml/` (RPC handler in `internal/server/session_plantuml.go`)
+
+Features:
+- Renders markdown `plantuml` / `puml` fences on the daemon host, so diagram source never reaches a third party
+- Backends: a local `plantuml -tsvg -pipe` executable (explicit `plantuml.command`, `SOLO_PLANTUML_BIN`, or `PATH`) or a PlantUML-compatible server (`plantuml.serverUrl`, POST `<url>/svg`)
+- Dark theme: injects GitHub-dark skinparams after the first `@startuml`; later user skinparams win
+- Process-wide LRU (64 entries / 8 MiB) plus `singleflight` coalescing (JVM cold starts are the slow path); 256 KiB source and 8 MiB SVG caps, 20s default timeout
+- Missing renderer never blocks daemon startup; the RPC returns an actionable "install PlantUML or set `plantuml.serverUrl`" error and the app falls back to the raw source
 
 ## 4. Relay (Relay Server)
 

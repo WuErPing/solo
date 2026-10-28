@@ -32,6 +32,7 @@ type Config struct {
 	TmuxAgentNames               []string                          // additional tmux agent names (merged with built-in defaults)
 	TimelineMaxRowsPerAgent      int                               // hard upper bound for in-memory timeline rows per agent
 	Memory                       MemoryConfig
+	PlantUML                     PlantUMLConfig
 }
 
 // builtInTmuxAgentNames are always included in agent scanning.
@@ -53,9 +54,10 @@ func (c *Config) GetTmuxAgentNames() map[string]bool {
 
 // PersistedConfig mirrors the on-disk config.json structure.
 type PersistedConfig struct {
-	Daemon *DaemonConfig `json:"daemon,omitempty"`
-	App    *AppConfig    `json:"app,omitempty"`
-	Memory *MemoryConfig `json:"memory,omitempty"`
+	Daemon   *DaemonConfig   `json:"daemon,omitempty"`
+	App      *AppConfig      `json:"app,omitempty"`
+	Memory   *MemoryConfig   `json:"memory,omitempty"`
+	PlantUML *PlantUMLConfig `json:"plantuml,omitempty"`
 }
 
 type DaemonConfig struct {
@@ -136,7 +138,7 @@ type CustomSelectOption struct {
 
 // Version is the daemon version, injected at build time via -ldflags.
 // Default "dev" is overridden by Makefile builds and CI.
-var Version = "0.6.0"
+var Version = "0.7.0"
 
 // DefaultConfig returns a Config with sensible defaults.
 // DefaultTimelineMaxRowsPerAgent is the default hard upper bound for
@@ -291,6 +293,9 @@ func applyPersistedConfig(cfg *Config, pc *PersistedConfig) { //nolint:gocyclo /
 	if pc.Memory != nil {
 		cfg.Memory = *pc.Memory
 	}
+	if pc.PlantUML != nil {
+		cfg.PlantUML = *pc.PlantUML
+	}
 }
 
 func ensureServerID(cfg *Config) error {
@@ -338,6 +343,9 @@ func (c *Config) Save() error {
 	}
 	if len(c.LLMProviders) > 0 {
 		pc.Daemon.LLMProviders = c.LLMProviders
+	}
+	if c.PlantUML != (PlantUMLConfig{}) {
+		pc.PlantUML = &c.PlantUML
 	}
 
 	data, err := json.MarshalIndent(pc, "", "  ")

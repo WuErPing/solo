@@ -76,6 +76,7 @@ func (s *Session) registerHandlers() {
 	r.Register("open_project_request", typeHandler(s.handleOpenProject))
 	r.Register("fetch_workspaces_request", typeHandler(s.handleFetchWorkspaces))
 	r.Register("file_explorer_request", typeHandler(s.handleFileExplorer))
+	r.Register("plantuml_render_request", typeHandler(s.handlePlantUMLRender))
 	r.Register("project_icon_request", typeHandler(s.handleProjectIcon))
 	r.Register("directory_suggestions_request", typeHandler(s.handleDirectorySuggestions))
 	r.Register("create_solo_worktree_request", typeHandler(s.handleCreateSoloWorktree))

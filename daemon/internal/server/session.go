@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -20,6 +21,12 @@ import (
 	"github.com/WuErPing/solo/daemon/internal/workspace"
 	"github.com/WuErPing/solo/protocol"
 )
+
+// PlantUMLRenderer renders one diagram to SVG. Rendering stays on the daemon
+// host; the app only ships source and receives markup.
+type PlantUMLRenderer interface {
+	Render(ctx context.Context, source string, dark bool) (string, error)
+}
 
 // Session represents a single client WebSocket connection.
 type Session struct {
@@ -48,6 +55,7 @@ type Session struct {
 	scheduleStore    *schedule.Store
 	loopStore        *loop.Store
 	loopEngine       *loop.Engine
+	plantUML         PlantUMLRenderer
 
 	// scheduleAssist is created lazily on the first schedule/assist request;
 	// per-session instance gives per-connection rate limiting.
@@ -244,6 +252,7 @@ type SessionConfig struct {
 	ScheduleStore  *schedule.Store
 	LoopStore      *loop.Store
 	LoopEngine     *loop.Engine
+	PlantUML       PlantUMLRenderer
 }
 
 // NewSessionWithConfig creates a new session using a SessionConfig.
@@ -269,6 +278,7 @@ func NewSessionWithConfig(clientID, clientType string, conn WSConn, cfg SessionC
 		cfg.LoopStore,
 	)
 	sess.loopEngine = cfg.LoopEngine
+	sess.plantUML = cfg.PlantUML
 	return sess
 }
 

@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] - 2026-10-28
+
+### Added
+
+- **App**: PlantUML diagrams in the markdown file preview (`plantuml` / `puml` fences) — rendered on the daemon host through a locally installed `plantuml` CLI or a locally configured PlantUML-compatible server, so diagram source never leaves the machine; theme-aware dark rendering and the same tap-to-expand pinch/pan/double-tap fullscreen viewer as mermaid
+- **App**: failed diagram renders retry automatically when the host reconnects, instead of staying on the error state until the file is reopened
+- **Daemon**: PlantUML renderer with an optional `plantuml` config block (`command`, `serverUrl`, `timeoutSeconds`), `PATH` auto-detection, a daemon-wide LRU cache with request coalescing, and dark skinparam injection
+- **App-bridge**: `plantuml.render` session RPC
+
+### Fixed
+
+- **App**: the fullscreen diagram viewer paints diagrams on the app canvas color, fixing dark-on-black labels that were unreadable in light theme (affects mermaid and PlantUML)
+
 ## [0.17.0] - 2026-10-23
 
 ### Added

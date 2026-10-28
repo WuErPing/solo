@@ -58,6 +58,7 @@ func TestAllOutboundMessageTypes(t *testing.T) {
 		{&CreateTerminalResponse{}, "create_terminal_response"},
 		{&StartWorkspaceScriptResponse{}, "start_workspace_script_response"},
 		{&FileExplorerResponse{}, "file_explorer_response"},
+		{&PlantUMLRenderResponse{}, "plantuml_render_response"},
 		{&ProjectIconResponse{}, "project_icon_response"},
 		{&DirectorySuggestionsResponse{}, "directory_suggestions_response"},
 		{&ListProviderFeaturesResponse{}, "list_provider_features_response"},

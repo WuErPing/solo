@@ -34,6 +34,7 @@ import { lineNumberGutterWidth } from "@/components/code-insets";
 import { isRenderedMarkdownFile } from "@/components/file-pane-render-mode";
 import { FilePreviewScrollView } from "@/components/file-preview-scroll-view";
 import { MermaidPreview } from "@/components/mermaid-preview";
+import { PlantUmlPreview } from "@/components/plantuml-preview";
 import { MathText } from "@/components/math-text";
 import { mathPlugin } from "@/components/markdown-math-plugin";
 import {
@@ -68,6 +69,7 @@ interface FilePreviewBodyProps {
   isMobile: boolean;
   filePath: string;
   imagePreviewUri: string | null;
+  serverId: string;
 }
 
 function trimNonEmpty(value: string | null | undefined): string | null {
@@ -213,6 +215,7 @@ interface MarkdownFilePreviewProps
     "scrollRef" | "scrollbar" | "pagerEnabled" | "showsVerticalScrollIndicator"
   > {
   content: string;
+  serverId: string;
 }
 
 /**
@@ -225,6 +228,7 @@ interface MarkdownFilePreviewProps
  */
 function MarkdownFilePreview({
   content,
+  serverId,
   scrollRef,
   scrollbar,
   pagerEnabled,
@@ -252,9 +256,20 @@ function MarkdownFilePreview({
         inheritedStyles = {},
       ) => {
         const sourceInfo = (node as ASTNode & { sourceInfo?: string }).sourceInfo;
-        if (sourceInfo === "mermaid") {
+        const language = sourceInfo?.trim().split(/\s+/)[0].toLowerCase();
+        if (language === "mermaid") {
           return (
             <MermaidPreview key={node.key} source={node.content} isDark={isDark} />
+          );
+        }
+        if (language === "plantuml" || language === "puml") {
+          return (
+            <PlantUmlPreview
+              key={node.key}
+              source={node.content}
+              isDark={isDark}
+              serverId={serverId}
+            />
           );
         }
         return selectMode
@@ -299,7 +314,7 @@ function MarkdownFilePreview({
         <MathText key={node.key} tex={node.content} display isDark={isDark} />
       ),
     }),
-    [isDark, selectMode],
+    [isDark, selectMode, serverId],
   );
 
   const markdownBlocks = useMemo(() => {
@@ -415,6 +430,7 @@ function FilePreviewBody({
   isMobile,
   filePath,
   imagePreviewUri,
+  serverId,
 }: FilePreviewBodyProps) {
   const { theme } = useUnistyles();
   const { settings: appSettings } = useAppSettings();
@@ -470,6 +486,7 @@ function FilePreviewBody({
       return (
         <MarkdownFilePreview
           content={preview.content ?? ""}
+          serverId={serverId}
           scrollRef={previewScrollRef}
           scrollbar={scrollbar}
           pagerEnabled={showPagerButtons}
@@ -627,6 +644,7 @@ export function FilePane({
         isMobile={isMobile}
         filePath={filePath}
         imagePreviewUri={imagePreviewUri}
+        serverId={serverId}
       />
     </View>
   );

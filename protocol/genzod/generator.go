@@ -480,7 +480,12 @@ func topoSort(structs map[string]*structDef) ([]string, error) {
 			return nil
 		}
 		visiting[name] = true
+		deps := make([]string, 0, len(structs[name].Deps))
 		for dep := range structs[name].Deps {
+			deps = append(deps, dep)
+		}
+		sort.Strings(deps)
+		for _, dep := range deps {
 			if _, ok := structs[dep]; !ok {
 				return fmt.Errorf("struct %s depends on unknown type %s", name, dep)
 			}

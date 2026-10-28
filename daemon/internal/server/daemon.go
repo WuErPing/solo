@@ -24,6 +24,7 @@ import (
 	"github.com/WuErPing/solo/daemon/internal/config"
 	"github.com/WuErPing/solo/daemon/internal/loop"
 	daemonmetrics "github.com/WuErPing/solo/daemon/internal/metrics"
+	"github.com/WuErPing/solo/daemon/internal/plantuml"
 	"github.com/WuErPing/solo/daemon/internal/push"
 	"github.com/WuErPing/solo/daemon/internal/relayclient"
 	"github.com/WuErPing/solo/daemon/internal/schedule"
@@ -176,6 +177,10 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 	// Create shared loop engine (single instance for all sessions)
 	loopEngine := loop.NewEngine(loopStore, agentMgr, logger)
 
+	// PlantUML renders on the daemon host; construction never fails and an
+	// unavailable renderer surfaces as an inline error in the preview.
+	plantUMLRenderer := plantuml.NewRenderer(cfg.PlantUML, logger)
+
 	// Create WS server with dependencies
 	ws := NewWSServerWithConfig(DaemonConfig{
 		Config:          cfg,
@@ -197,6 +202,7 @@ func NewDaemon(cfg *config.Config, logger *slog.Logger) (*Daemon, error) {
 		ScheduleStore:   scheduleStore,
 		LoopStore:       loopStore,
 		LoopEngine:      loopEngine,
+		PlantUML:        plantUMLRenderer,
 	})
 
 	mux := http.NewServeMux()
@@ -453,6 +459,7 @@ type WSServer struct {
 	memoryBridge    MemoryBridge
 	scheduleStore   *schedule.Store
 	loopStore       *loop.Store
+	plantUML        PlantUMLRenderer
 	loopEngine      *loop.Engine
 	tmuxWatcher     *TmuxPaneWatcher
 	done            chan struct{}
@@ -527,6 +534,7 @@ type DaemonConfig struct {
 	ScheduleStore   *schedule.Store
 	LoopStore       *loop.Store
 	LoopEngine      *loop.Engine
+	PlantUML        PlantUMLRenderer
 }
 
 // NewWSServerWithConfig creates a new WebSocket server using a DaemonConfig.
@@ -552,7 +560,15 @@ func NewWSServerWithConfig(cfg DaemonConfig) *WSServer {
 		cfg.LoopStore,
 	)
 	ws.loopEngine = cfg.LoopEngine
+	ws.plantUML = cfg.PlantUML
 	return ws
+}
+
+// SetPlantUMLRenderer wires the diagram renderer used by markdown previews.
+// Sessions created after this call pick it up; nil renders return an
+// actionable "unavailable" error.
+func (s *WSServer) SetPlantUMLRenderer(r PlantUMLRenderer) {
+	s.plantUML = r
 }
 
 func (s *WSServer) broadcast(msg protocol.WSOutboundMessage) {
@@ -811,6 +827,7 @@ func (s *WSServer) handleNewConnection(conn WSConn) { //nolint:gocyclo // grandf
 		ScheduleStore:  s.scheduleStore,
 		LoopStore:      s.loopStore,
 		LoopEngine:     s.loopEngine,
+		PlantUML:       s.plantUML,
 	})
 	if _, isRelay := conn.(*relayclient.E2EEConn); isRelay {
 		sess.SetIsRelay(true)

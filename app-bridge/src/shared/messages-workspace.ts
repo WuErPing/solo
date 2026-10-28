@@ -215,6 +215,13 @@ export const FileExplorerRequestSchema = z.object({
   requestId: z.string(),
 });
 
+export const PlantUMLRenderRequestSchema = z.object({
+  type: z.literal("plantuml_render_request"),
+  source: z.string(),
+  dark: z.boolean(),
+  requestId: z.string(),
+});
+
 export const ProjectIconRequestSchema = z.object({
   type: z.literal("project_icon_request"),
   cwd: z.string(),
@@ -440,6 +447,15 @@ export const FileExplorerResponseSchema = z.object({
   }),
 });
 
+export const PlantUMLRenderResponseSchema = z.object({
+  type: z.literal("plantuml_render_response"),
+  payload: z.object({
+    svg: z.string(),
+    error: z.string().nullable(),
+    requestId: z.string(),
+  }),
+});
+
 const ProjectIconSchema = z.object({
   data: z.string(),
   mimeType: z.string(),
@@ -515,6 +531,8 @@ export type ArchiveWorkspaceRequest = z.infer<typeof ArchiveWorkspaceRequestSche
 export type RemoveProjectRequest = z.infer<typeof RemoveProjectRequestSchema>;
 export type FileExplorerRequest = z.infer<typeof FileExplorerRequestSchema>;
 export type FileExplorerResponse = z.infer<typeof FileExplorerResponseSchema>;
+export type PlantUMLRenderRequest = z.infer<typeof PlantUMLRenderRequestSchema>;
+export type PlantUMLRenderResponse = z.infer<typeof PlantUMLRenderResponseSchema>;
 export type ProjectIconRequest = z.infer<typeof ProjectIconRequestSchema>;
 export type ProjectIconResponse = z.infer<typeof ProjectIconResponseSchema>;
 export type ProjectIcon = z.infer<typeof ProjectIconSchema>;

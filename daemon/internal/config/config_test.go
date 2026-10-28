@@ -209,6 +209,55 @@ func TestSave_PreservesMemoryBlock(t *testing.T) {
 	}
 }
 
+func TestLoad_PersistedConfig_PlantUML(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLO_HOME", home)
+
+	configData := []byte(`{"plantuml":{"command":"/opt/homebrew/bin/plantuml","serverUrl":"http://127.0.0.1:8080/plantuml","timeoutSeconds":30}}`)
+	_ = os.WriteFile(filepath.Join(home, "config.json"), configData, 0644)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.PlantUML.Command != "/opt/homebrew/bin/plantuml" {
+		t.Errorf("PlantUML.Command: got %q", cfg.PlantUML.Command)
+	}
+	if cfg.PlantUML.ServerURL != "http://127.0.0.1:8080/plantuml" {
+		t.Errorf("PlantUML.ServerURL: got %q", cfg.PlantUML.ServerURL)
+	}
+	if cfg.PlantUML.TimeoutSeconds != 30 {
+		t.Errorf("PlantUML.TimeoutSeconds: got %d", cfg.PlantUML.TimeoutSeconds)
+	}
+}
+
+func TestSave_PreservesPlantUMLBlock(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SOLO_HOME", home)
+
+	_ = os.WriteFile(filepath.Join(home, "config.json"), []byte(`{"plantuml":{"serverUrl":"http://127.0.0.1:8080/plantuml"}}`), 0644)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(home, "config.json"))
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	var pc PersistedConfig
+	if err := json.Unmarshal(data, &pc); err != nil {
+		t.Fatalf("unmarshal saved config: %v", err)
+	}
+	if pc.PlantUML == nil || pc.PlantUML.ServerURL != "http://127.0.0.1:8080/plantuml" {
+		t.Errorf("expected plantuml block to survive Save, got %+v", pc.PlantUML)
+	}
+}
+
 func TestLoad_PersistedConfig_LLMProviders(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("SOLO_HOME", home)

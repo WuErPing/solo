@@ -86,6 +86,7 @@ func TestRegisterHandlers_RegistersAllTypes(t *testing.T) {
 		"open_project_request",
 		"fetch_workspaces_request",
 		"file_explorer_request",
+		"plantuml_render_request",
 		"project_icon_request",
 		"directory_suggestions_request",
 		"create_solo_worktree_request",

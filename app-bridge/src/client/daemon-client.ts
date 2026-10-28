@@ -81,6 +81,7 @@ import { UsageRpc } from "./usage-rpc.js";
 import type { UsageQuotaListPayload } from "./usage-rpc.js";
 import { ChatRpc } from "./chat-rpc.js";
 import { WorkspaceRpc } from "./workspace-rpc.js";
+import { PlantUmlRpc } from "./plantuml-rpc.js";
 import { GitRpc } from "./git-rpc.js";
 import { TerminalRpc } from "./terminal-rpc.js";
 import { VersionRpc } from "./version-rpc.js";
@@ -625,6 +626,7 @@ export class DaemonClient {
   private readonly usageRpc: UsageRpc;
   private readonly chatRpc: ChatRpc;
   private readonly workspaceRpc: WorkspaceRpc;
+  private readonly plantUmlRpc: PlantUmlRpc;
   private readonly gitRpc: GitRpc;
   private readonly terminalRpc: TerminalRpc;
   private readonly versionRpc: VersionRpc;
@@ -636,6 +638,7 @@ export class DaemonClient {
     this.usageRpc = new UsageRpc(this.connection);
     this.chatRpc = new ChatRpc(this.connection);
     this.workspaceRpc = new WorkspaceRpc(this.connection);
+    this.plantUmlRpc = new PlantUmlRpc(this.connection);
     this.gitRpc = new GitRpc(this.connection);
     this.terminalRpc = new TerminalRpc(this.connection);
     this.versionRpc = new VersionRpc(this.connection);
@@ -682,6 +685,11 @@ export class DaemonClient {
   /** Workspace, project, provider and config RPCs. */
   get workspaces(): WorkspaceRpc {
     return this.workspaceRpc;
+  }
+
+  /** PlantUML diagram rendering RPCs. */
+  get plantuml(): PlantUmlRpc {
+    return this.plantUmlRpc;
   }
 
   /** Git checkout, stash, worktree and suggestion RPCs. */

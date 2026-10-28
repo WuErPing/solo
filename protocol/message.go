@@ -149,6 +149,7 @@ func init() {
 	RegisterInbound("capture_terminal_request", func() SessionInboundMessage { return &CaptureTerminalRequest{} })
 	RegisterInbound("start_workspace_script_request", func() SessionInboundMessage { return &StartWorkspaceScriptRequest{} })
 	RegisterInbound("file_explorer_request", func() SessionInboundMessage { return &FileExplorerRequest{} })
+	RegisterInbound("plantuml_render_request", func() SessionInboundMessage { return &PlantUMLRenderRequest{} })
 	RegisterInbound("project_icon_request", func() SessionInboundMessage { return &ProjectIconRequest{} })
 	RegisterInbound("directory_suggestions_request", func() SessionInboundMessage { return &DirectorySuggestionsRequest{} })
 	RegisterInbound("list_commands_request", func() SessionInboundMessage { return &ListCommandsRequest{} })

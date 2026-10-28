@@ -209,6 +209,11 @@ export const UsageQuotaListResponseSchema = z.object({
 });
 export type UsageQuotaListResponse = z.infer<typeof UsageQuotaListResponseSchema>;
 
+export const WorkspaceGitHubRuntimeSchema = z.object({
+  featuresEnabled: z.boolean().nullable().optional(),
+});
+export type WorkspaceGitHubRuntime = z.infer<typeof WorkspaceGitHubRuntimeSchema>;
+
 export const WorkspaceGitRuntimeSchema = z.object({
   currentBranch: z.string().nullable().optional(),
   remoteUrl: z.string().nullable().optional(),
@@ -216,11 +221,6 @@ export const WorkspaceGitRuntimeSchema = z.object({
   isDirty: z.boolean().nullable().optional(),
 });
 export type WorkspaceGitRuntime = z.infer<typeof WorkspaceGitRuntimeSchema>;
-
-export const WorkspaceGitHubRuntimeSchema = z.object({
-  featuresEnabled: z.boolean().nullable().optional(),
-});
-export type WorkspaceGitHubRuntime = z.infer<typeof WorkspaceGitHubRuntimeSchema>;
 
 export const WorkspaceScriptSchema = z.object({
   scriptName: z.string(),

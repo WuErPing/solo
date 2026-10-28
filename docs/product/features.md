@@ -204,6 +204,7 @@ Planned providers: Cursor-Agent (Print mode), Generic ACP, ACP Agent
   - Tmux Agents 设置区（`tmux-agents-section.tsx`）
   - Providers / Keyboard Shortcuts 设置区
 - **Mermaid Preview**：Markdown 文件面板内嵌 Mermaid 图表实时渲染
+- **PlantUML Preview**：Markdown 文件面板内嵌 `plantuml` / `puml` 图表渲染，由本机 daemon 调用本地 PlantUML（CLI 或自建兼容服务）生成 SVG，源码不出本机；支持浅色/深色主题与全屏缩放查看
 - **SVG Preview**：SVG 文件预览，支持 Web 和移动端（WebView 渲染）
 - **ANSI Text Renderer**：ANSI 转义序列渲染组件，用于终端内容和状态栏
 - **Error Boundary**：React 错误边界，包裹 TmuxDashboard 和 TmuxPaneScreen
@@ -381,6 +382,8 @@ app/
 | 组件 | 文件 | 功能 |
 |------|------|------|
 | Mermaid Preview | `mermaid-preview.tsx` | Mermaid 图表渲染 |
+| PlantUML Preview | `plantuml-preview.tsx` / `plantuml-render.ts` | PlantUML 图表渲染（daemon 本机渲染 + SVG 缓存） |
+| Diagram Lightbox | `diagram-lightbox.tsx` | 图表全屏缩放查看（手势缩放/平移/双击） |
 | SVG Preview | `svg-preview.tsx` | SVG 文件预览 |
 | ANSI Text Renderer | `ansi-text-renderer.tsx` / `ansi-text-line.tsx` | ANSI 转义序列渲染 |
 | Terminal Themes | `styles/terminal-themes.ts` | 5 个终端主题预设（`system` / `dark` / `light` / `bash` / `auto`） |
