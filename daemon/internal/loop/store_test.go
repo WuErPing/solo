@@ -119,10 +119,12 @@ func TestStore_Create_UsesDefaultProvider(t *testing.T) {
 func TestStore_Create_Validation(t *testing.T) {
 	t.Parallel()
 
-	s := NewStore()
-	_, err := s.Create(protocol.LoopRunRequest{}, func() (string, error) { return "mock", nil })
-	if err == nil {
-		t.Error("expected error for empty prompt")
+	for _, prompt := range []string{"", " \n\t "} {
+		s := NewStore()
+		_, err := s.Create(protocol.LoopRunRequest{Prompt: prompt}, func() (string, error) { return "mock", nil })
+		if err == nil {
+			t.Errorf("expected error for blank prompt %q", prompt)
+		}
 	}
 }
 

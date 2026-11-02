@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -177,7 +178,7 @@ func validateScheduleTarget(t protocol.ScheduleTarget) error {
 }
 
 func (st *Store) Create(input protocol.ScheduleCreateRequest) (*protocol.StoredSchedule, error) {
-	if input.Prompt == "" {
+	if strings.TrimSpace(input.Prompt) == "" {
 		return nil, fmt.Errorf("prompt is required")
 	}
 	if input.Cadence.Type != "cron" && input.Cadence.Type != "every" {

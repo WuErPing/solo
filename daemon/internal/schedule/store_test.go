@@ -171,6 +171,11 @@ func TestStore_CreateValidation(t *testing.T) {
 			want:  "prompt is required",
 		},
 		{
+			name:  "whitespace prompt",
+			input: protocol.ScheduleCreateRequest{Prompt: " \n\t "},
+			want:  "prompt is required",
+		},
+		{
 			name: "invalid cadence type",
 			input: protocol.ScheduleCreateRequest{
 				Prompt:  "test",

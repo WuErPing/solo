@@ -224,8 +224,9 @@ export function LoopCreateScreen({ serverId }: { serverId: string }) {
           {isAgentOpen ? (
             <View style={styles.sectionContent}>
               <Text style={styles.helperText}>
-                Configure the agent that runs this loop. Leave collapsed to use
-                the default agent.
+                Configure the agent that runs this loop. Without a selected
+                provider, the default agent is used. Selections are preserved
+                when this section is collapsed.
               </Text>
 
               <View style={styles.field}>

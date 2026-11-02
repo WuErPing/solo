@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -76,7 +77,7 @@ func nowISO() string {
 
 // Create creates a new loop record and persists it.
 func (s *Store) Create(req protocol.LoopRunRequest, defaultProvider func() (string, error)) (*protocol.LoopRecord, error) { //nolint:gocyclo // grandfathered CC=22
-	if req.Prompt == "" {
+	if strings.TrimSpace(req.Prompt) == "" {
 		return nil, fmt.Errorf("prompt is required")
 	}
 

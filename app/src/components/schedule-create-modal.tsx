@@ -418,8 +418,13 @@ export function ScheduleCreateModal({ visible, onClose, serverId, initialValues 
                     key={provider.id}
                     testID="schedule-create-provider-card"
                     data-selected={isSelected}
-                    style={[styles.agentCard, isSelected && styles.agentCardActive]}
-                    onPress={() => setSelectedProviderId(provider.id)}
+                    style={[
+                      styles.agentCard,
+                      isSelected && styles.agentCardActive,
+                      !provider.enabled && styles.agentCardDisabled,
+                    ]}
+                    onPress={() => provider.enabled && setSelectedProviderId(provider.id)}
+                    disabled={!provider.enabled}
                   >
                     <Text
                       style={[styles.agentName, isSelected && styles.agentNameActive]}
@@ -578,6 +583,9 @@ const styles = StyleSheet.create((theme) => ({
   agentCardActive: {
     borderColor: theme.colors.accent,
     backgroundColor: theme.colors.surface3,
+  },
+  agentCardDisabled: {
+    opacity: 0.5,
   },
   agentName: {
     color: theme.colors.foreground,

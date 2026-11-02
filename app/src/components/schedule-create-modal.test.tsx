@@ -311,6 +311,36 @@ describe("ScheduleCreateModal", () => {
     expect(createScheduleResult.current?.createSchedule).not.toHaveBeenCalled();
   });
 
+  it("rejects a whitespace-only prompt", async () => {
+    renderModal();
+
+    selectProviderCard(0);
+    setPrompt(" \n\t ");
+    await submit();
+
+    const error = container?.querySelector('[data-testid="schedule-create-error"]');
+    expect(error?.textContent).toContain("Prompt is required");
+    expect(createScheduleResult.current?.createSchedule).not.toHaveBeenCalled();
+  });
+
+  it("does not select a disabled provider", async () => {
+    providersResult.current = {
+      entries: [{ provider: "claude", label: "Claude", description: "Anthropic", status: "offline", enabled: false }],
+      isLoading: false,
+    };
+    renderModal();
+
+    selectProviderCard(0);
+    setPrompt("Generate report");
+    await submit();
+
+    const selectedCard = container?.querySelector(
+      '[data-testid="schedule-create-provider-card"][data-selected="true"]',
+    );
+    expect(selectedCard).toBeNull();
+    expect(createScheduleResult.current?.createSchedule).not.toHaveBeenCalled();
+  });
+
   it("seeds fields from initialValues", () => {
     act(() => {
       root?.render(
@@ -354,6 +384,32 @@ describe("ScheduleCreateModal", () => {
       '[data-testid="schedule-create-provider-card"][data-selected="true"]',
     );
     expect(selectedCard).not.toBeNull();
+  });
+
+  it("submits edits to prefilled values", async () => {
+    act(() => {
+      root?.render(
+        <ScheduleCreateModal
+          visible
+          serverId="server-1"
+          onClose={vi.fn()}
+          initialValues={{
+            prompt: "Summarize the nightly test runs",
+            cadence: { type: "every", everyMs: 3600000 },
+            target: { type: "provider", providerId: "claude" },
+          }}
+        />,
+      );
+    });
+
+    setPrompt("Summarize the weekly test runs");
+    await submit();
+
+    await vi.waitFor(() => {
+      expect(createScheduleResult.current?.createSchedule).toHaveBeenCalledWith(
+        expect.objectContaining({ prompt: "Summarize the weekly test runs" }),
+      );
+    });
   });
 
   it("leaves target unselected for non-provider initialValues targets", () => {
