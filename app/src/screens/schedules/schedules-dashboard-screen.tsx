@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { ScheduleAssistantPanel } from "@/components/schedule-assistant/schedule-assistant-panel";
 import { useAggregatedSchedules } from "@/hooks/use-aggregated-schedules";
 import { useIsCompactFormFactor } from "@/constants/layout";
-import { buildHostSchedulesRoute } from "@/utils/host-routes";
+import { buildHostScheduleCreateRoute, buildHostSchedulesRoute } from "@/utils/host-routes";
 import type { AggregatedSchedule } from "@/hooks/use-aggregated-schedules";
 import type { ScheduleStatus } from "@server/server/schedule/types";
 
@@ -220,8 +220,7 @@ export function SchedulesDashboardScreen() {
     if (!firstHost) {
       return;
     }
-    const route = `${buildHostSchedulesRoute(firstHost.serverId)}?create=true`;
-    router.navigate(route as never);
+    router.push(buildHostScheduleCreateRoute(firstHost.serverId));
   }, [connectedHosts]);
 
   const handleOpenAssistant = useCallback(() => {

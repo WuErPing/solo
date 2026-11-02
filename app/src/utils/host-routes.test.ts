@@ -3,6 +3,7 @@ import {
   buildHostAgentDetailRoute,
   buildHostDashboardRoute,
   buildHostRootRoute,
+  buildHostScheduleCreateRoute,
   buildHostScheduleDetailRoute,
   buildHostSchedulesRoute,
   buildHostTmuxDashboardRoute,
@@ -58,6 +59,16 @@ describe("buildHostSchedulesRoute", () => {
 
   it("returns root for empty serverId", () => {
     expect(buildHostSchedulesRoute("")).toBe("/");
+  });
+});
+
+describe("buildHostScheduleCreateRoute", () => {
+  it("builds a schedule create route for a server", () => {
+    expect(buildHostScheduleCreateRoute("local")).toBe("/h/local/schedules/create");
+  });
+
+  it("returns root for empty serverId", () => {
+    expect(buildHostScheduleCreateRoute("")).toBe("/");
   });
 });
 

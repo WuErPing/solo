@@ -18,7 +18,12 @@ import { useScheduleMutations } from "@/hooks/use-schedule-mutations";
 import { ScheduleCreateModal } from "@/components/schedule-create-modal";
 import { ScheduleEditModal } from "@/components/schedule-edit-modal";
 import { ScheduleAssistantPanel } from "@/components/schedule-assistant/schedule-assistant-panel";
-import { buildHostOpenProjectRoute, buildHostScheduleDetailRoute } from "@/utils/host-routes";
+import {
+  buildHostOpenProjectRoute,
+  buildHostScheduleCreateRoute,
+  buildHostScheduleDetailRoute,
+  buildHostSchedulesRoute,
+} from "@/utils/host-routes";
 import { cronFromUTC, describeCron, detectTimezone } from "@/utils/cron-timezone";
 import type { ScheduleSummary, ScheduleCadence, ScheduleStatus } from "@server/server/schedule/types";
 
@@ -250,12 +255,15 @@ function SchedulesScreenContent({
   );
 
   const handleOpenCreateModal = useCallback(() => {
-    setIsCreateModalVisible(true);
-  }, []);
+    router.push(buildHostScheduleCreateRoute(serverId));
+  }, [serverId]);
 
   const handleCloseCreateModal = useCallback(() => {
     setIsCreateModalVisible(false);
-  }, []);
+    if (initialCreateOpen) {
+      router.replace(buildHostSchedulesRoute(serverId));
+    }
+  }, [initialCreateOpen, serverId]);
 
   const handleOpenAssistant = useCallback(() => {
     setIsAssistantOpen(true);

@@ -78,7 +78,7 @@ vi.mock("@/utils/cron-timezone", () => ({
 }));
 
 vi.mock("expo-router", () => ({
-  router: { navigate: vi.fn() },
+  router: { navigate: vi.fn(), push: vi.fn(), replace: vi.fn() },
 }));
 
 vi.mock("@/hooks/use-is-focused", () => ({
@@ -192,6 +192,10 @@ vi.mock("@/hooks/use-schedule-mutations", () => ({
 
 vi.mock("@/utils/host-routes", () => ({
   buildHostOpenProjectRoute: (serverId: string) => `/h/${serverId}/open-project`,
+  buildHostScheduleCreateRoute: (serverId: string) => `/h/${serverId}/schedules/create`,
+  buildHostScheduleDetailRoute: (serverId: string, scheduleId: string) =>
+    `/h/${serverId}/schedules/${scheduleId}`,
+  buildHostSchedulesRoute: (serverId: string) => `/h/${serverId}/schedules`,
 }));
 
 function makeScheduleSummary(overrides: Record<string, unknown> = {}): ScheduleSummary {
@@ -412,7 +416,8 @@ describe("SchedulesScreen", () => {
     expect(deleteSchedule).toHaveBeenCalledWith("schedule-1");
   });
 
-  it("shows the new schedule button and opens the create modal", () => {
+  it("navigates to the create route from the new schedule button", async () => {
+    const { router } = await import("expo-router");
     schedulesResult.current = makeSchedulesResult({
       schedules: [makeScheduleSummary()],
     });
@@ -424,16 +429,14 @@ describe("SchedulesScreen", () => {
     const newButton = container?.querySelector('[data-testid="new-schedule-button"]');
     expect(newButton).not.toBeNull();
     expect(newButton?.textContent).toContain("New");
-
-    // Modal should not be visible initially
     expect(container?.querySelector('[data-testid="schedule-create-modal"]')).toBeNull();
 
     act(() => {
       newButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    // Modal should be visible after clicking
-    expect(container?.querySelector('[data-testid="schedule-create-modal"]')).not.toBeNull();
+    expect(router.push).toHaveBeenCalledWith("/h/server-1/schedules/create");
+    expect(container?.querySelector('[data-testid="schedule-create-modal"]')).toBeNull();
   });
 
   it("shows the Ask AI button and opens the assistant panel", () => {

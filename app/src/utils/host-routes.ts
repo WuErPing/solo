@@ -371,6 +371,14 @@ export function buildHostSchedulesRoute(serverId: string) {
   return `${base}/schedules` as const;
 }
 
+export function buildHostScheduleCreateRoute(serverId: string) {
+  const base = buildHostSchedulesRoute(serverId);
+  if (base === "/") {
+    return "/" as const;
+  }
+  return `${base}/create` as const;
+}
+
 export function buildHostScheduleDetailRoute(serverId: string, scheduleId: string) {
   const base = buildHostSchedulesRoute(serverId);
   const normalizedScheduleId = trimNonEmpty(scheduleId);
