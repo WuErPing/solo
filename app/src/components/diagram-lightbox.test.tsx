@@ -125,6 +125,21 @@ describe("DiagramLightbox", () => {
     expect(queryByTestId("svg-xml")?.getAttribute("data-xml")).toBe("<svg></svg>");
   });
 
+  it("keeps the inline raster image when vector markup is also available", () => {
+    render(
+      <DiagramLightbox
+        xml="<svg></svg>"
+        pngDataUrl="data:image/png;base64,AAAA"
+        widthPx={400}
+        heightPx={300}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(queryByTestId("diagram-lightbox-image")).not.toBeNull();
+    expect(queryByTestId("svg-xml")).toBeNull();
+  });
+
   it("falls back to the rasterized image when no vector markup is available", () => {
     render(
       <DiagramLightbox

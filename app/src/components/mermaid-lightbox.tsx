@@ -1,7 +1,6 @@
 // Fullscreen viewer for a single mermaid diagram, opened from MermaidPreview.
-// Fetches vector SVG on demand (renderMermaidVector) when the cache only holds
-// the rasterized PNG so pinch zoom stays sharp at any scale; falls back to the
-// PNG when vector data is unavailable.
+// Keeps the inline preview's raster image when available so the fullscreen
+// diagram retains exactly the same colors; vector markup is the fallback.
 import { useEffect, useState } from "react";
 import type { MermaidSvgEntry } from "./mermaid-svg-cache";
 import { renderMermaidVector } from "./mermaid-svg-service";
@@ -18,7 +17,7 @@ export function MermaidLightbox({ entry, source, themeName, onClose }: MermaidLi
   const [xml, setXml] = useState(entry.xml);
 
   useEffect(() => {
-    if (xml) {
+    if (xml || entry.pngDataUrl) {
       return;
     }
     let alive = true;
@@ -30,7 +29,7 @@ export function MermaidLightbox({ entry, source, themeName, onClose }: MermaidLi
     return () => {
       alive = false;
     };
-  }, [xml, source, themeName]);
+  }, [entry.pngDataUrl, xml, source, themeName]);
 
   return (
     <DiagramLightbox

@@ -10,8 +10,8 @@ import { X } from "lucide-react-native";
 import { MermaidZoomView } from "./mermaid-zoom-view";
 
 interface DiagramLightboxProps {
-  /** Vector markup to paint; preferred over `pngDataUrl`. */
   xml?: string;
+  /** Raster data from the inline preview; preferred to keep colors identical. */
   pngDataUrl?: string;
   /** Natural (unscaled) diagram size in CSS px. */
   widthPx: number;
@@ -53,15 +53,15 @@ export function DiagramLightbox({
               testID="diagram-lightbox-surface"
               style={[styles.content, { width: widthPx, height: heightPx, backgroundColor: theme.colors.background }]}
             >
-              {xml ? (
-                <SvgXml xml={xml} width={widthPx} height={heightPx} />
-              ) : (
+              {pngDataUrl ? (
                 <Image
                   testID="diagram-lightbox-image"
                   source={{ uri: pngDataUrl }}
                   style={{ width: widthPx, height: heightPx }}
                   resizeMode="contain"
                 />
+              ) : (
+                <SvgXml xml={xml!} width={widthPx} height={heightPx} />
               )}
             </View>
           </MermaidZoomView>
