@@ -98,8 +98,69 @@ func (c *Client) ResumeSession(ctx context.Context, handle *protocol.AgentPersis
 	return sess, nil
 }
 
-func (c *Client) ListModels(_ context.Context, _ string) ([]protocol.AgentModelDefinition, error) {
-	return piModels(), nil
+func (c *Client) ListModels(ctx context.Context, cwd string) ([]protocol.AgentModelDefinition, error) {
+	models, err := c.fetchModelsFromCLI(ctx, cwd)
+	if err != nil {
+		c.logger.Warn("failed to list Pi models, falling back to Auto", "error", err)
+		return piModels(), nil
+	}
+	return models, nil
+}
+
+func (c *Client) fetchModelsFromCLI(ctx context.Context, cwd string) ([]protocol.AgentModelDefinition, error) {
+	if err := c.IsAvailable(ctx); err != nil {
+		return nil, err
+	}
+
+	listCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(listCtx, c.binaryPath, "--list-models")
+	if cwd != "" {
+		cmd.Dir = cwd
+	}
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("run pi --list-models: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+
+	models, err := parsePiModelList(string(output))
+	if err != nil {
+		return nil, err
+	}
+	return append(piModels(), models...), nil
+}
+
+func parsePiModelList(output string) ([]protocol.AgentModelDefinition, error) {
+	var models []protocol.AgentModelDefinition
+	headerFound := false
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		if !headerFound {
+			headerFound = len(fields) >= 2 && fields[0] == "provider" && fields[1] == "model"
+			continue
+		}
+		if len(fields) < 6 {
+			continue
+		}
+
+		providerID, modelID := fields[0], fields[1]
+		models = append(models, protocol.AgentModelDefinition{
+			Provider: piProviderName,
+			ID:       providerID + "/" + modelID,
+			Label:    modelID,
+			Description: fmt.Sprintf(
+				"Provider: %s · Context: %s · Max output: %s · Thinking: %s · Images: %s",
+				providerID, fields[2], fields[3], fields[4], fields[5],
+			),
+		})
+	}
+	if len(models) == 0 {
+		return nil, fmt.Errorf("pi --list-models returned no models")
+	}
+	return models, nil
 }
 
 func (c *Client) ListModes(_ context.Context, _ string) ([]protocol.AgentMode, error) {

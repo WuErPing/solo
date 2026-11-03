@@ -17,6 +17,10 @@ export function buildSelectedTriggerLabel(modelLabel: string): string {
   return modelLabel;
 }
 
+export function resolveSelectionPrompt(selectedProvider: string): string {
+  return selectedProvider.trim() ? "Select model" : "Select agent";
+}
+
 export function buildModelRows(
   providerDefinitions: AgentProviderDefinition[],
   allProviderModels: Map<string, AgentModelDefinition[]>,

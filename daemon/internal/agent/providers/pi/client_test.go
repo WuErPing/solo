@@ -75,6 +75,59 @@ func TestPiAgentClient_IsAvailable_BinaryFound(t *testing.T) {
 	}
 }
 
+func TestPiAgentClient_ListModels_ReadsPiCLI(t *testing.T) {
+	fakeBinary := t.TempDir() + "/pi"
+	script := `#!/bin/sh
+if [ "$#" -ne 1 ] || [ "$1" != "--list-models" ]; then
+  echo "unexpected arguments: $*" >&2
+  exit 2
+fi
+cat <<'EOF'
+provider  model                   context  max-out  thinking  images
+deepseek  deepseek-flash          1M       384K     yes       yes
+deepseek  deepseek-v4-pro         1M       384K     yes       no
+lmstudio  google/gemma-4-26b-a4b  128K     16.4K    no        no
+lmstudio  qwen3.6-35b-a3b-splash  128K     16.4K    no        no
+lmstudio  qwen3.8-27b-splash      128K     16.4K    no        no
+EOF
+`
+	if err := os.WriteFile(fakeBinary, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake pi: %v", err)
+	}
+
+	client := NewClient(fakeBinary, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	models, err := client.ListModels(context.Background(), "")
+	if err != nil {
+		t.Fatalf("ListModels() error = %v", err)
+	}
+
+	want := []struct {
+		id    string
+		label string
+	}{
+		{id: "auto", label: "Auto"},
+		{id: "deepseek/deepseek-flash", label: "deepseek-flash"},
+		{id: "deepseek/deepseek-v4-pro", label: "deepseek-v4-pro"},
+		{id: "lmstudio/google/gemma-4-26b-a4b", label: "google/gemma-4-26b-a4b"},
+		{id: "lmstudio/qwen3.6-35b-a3b-splash", label: "qwen3.6-35b-a3b-splash"},
+		{id: "lmstudio/qwen3.8-27b-splash", label: "qwen3.8-27b-splash"},
+	}
+	if len(models) != len(want) {
+		t.Fatalf("ListModels() returned %d models, want %d: %+v", len(models), len(want), models)
+	}
+	for i, expected := range want {
+		if models[i].ID != expected.id || models[i].Label != expected.label {
+			t.Errorf("models[%d] = {ID: %q, Label: %q}, want {ID: %q, Label: %q}", i, models[i].ID, models[i].Label, expected.id, expected.label)
+		}
+		if models[i].Provider != piProviderName {
+			t.Errorf("models[%d].Provider = %q, want %q", i, models[i].Provider, piProviderName)
+		}
+		if models[i].IsDefault != (i == 0) {
+			t.Errorf("models[%d].IsDefault = %v, want %v", i, models[i].IsDefault, i == 0)
+		}
+	}
+}
+
 // TestPiSession_Run_RejectsConcurrentRun verifies that a second Run fails
 // while a foreground turn is already active.
 func TestPiSession_Run_RejectsConcurrentRun(t *testing.T) {

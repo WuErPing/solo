@@ -5,6 +5,7 @@ import {
   buildSelectedTriggerLabel,
   matchesSearch,
   resolveProviderLabel,
+  resolveSelectionPrompt,
 } from "./combined-model-selector.utils";
 
 describe("combined model selector helpers", () => {
@@ -70,5 +71,10 @@ describe("combined model selector helpers", () => {
   it("keeps the selected trigger label model-only", () => {
     expect(resolveProviderLabel(providerDefinitions, "codex")).toBe("Codex");
     expect(buildSelectedTriggerLabel("GPT-5.4")).toBe("GPT-5.4");
+  });
+
+  it("prompts for an agent until a provider is selected", () => {
+    expect(resolveSelectionPrompt("")).toBe("Select agent");
+    expect(resolveSelectionPrompt("pi")).toBe("Select model");
   });
 });

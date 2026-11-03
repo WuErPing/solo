@@ -5,6 +5,7 @@ import {
   getStatusSelectorHint,
   normalizeModelId,
   resolveAgentModelSelection,
+  resolveDisplayModel,
 } from "./agent-status-bar.utils";
 
 describe("getStatusSelectorHint", () => {
@@ -37,6 +38,28 @@ describe("feature metadata helpers", () => {
     expect(getFeatureHighlightColor("fast_mode")).toBe("yellow");
     expect(getFeatureHighlightColor("plan_mode")).toBe("blue");
     expect(getFeatureHighlightColor("other")).toBe("default");
+  });
+});
+
+describe("resolveDisplayModel", () => {
+  it("prompts for an agent before a provider is selected", () => {
+    expect(
+      resolveDisplayModel({
+        provider: "",
+        isModelLoading: false,
+        modelOptions: [],
+      }),
+    ).toBe("Select agent");
+  });
+
+  it("prompts for a model after a provider is selected", () => {
+    expect(
+      resolveDisplayModel({
+        provider: "pi",
+        isModelLoading: false,
+        modelOptions: [],
+      }),
+    ).toBe("Select model");
   });
 });
 

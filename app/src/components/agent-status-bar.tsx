@@ -62,6 +62,7 @@ import {
   getFeatureTooltip,
   getStatusSelectorHint,
   resolveAgentModelSelection,
+  resolveDisplayModel,
 } from "@/components/agent-status-bar.utils";
 import { isWeb as platformIsWeb } from "@/constants/platform";
 import { useToast } from "@/contexts/toast-context";
@@ -184,17 +185,6 @@ const MODE_ICONS = {
 
 function alwaysTrue() {
   return true;
-}
-
-function resolveDisplayModel(
-  isModelLoading: boolean,
-  modelOptions: StatusOption[] | undefined,
-  selectedModelId: string | undefined,
-) {
-  if (isModelLoading && (!modelOptions || modelOptions.length === 0)) {
-    return "Loading models...";
-  }
-  return findOptionLabel(modelOptions, selectedModelId, "Select model");
 }
 
 function resolveHasAnyControl({
@@ -509,7 +499,12 @@ function ControlledStatusBar({
 
   const displayProvider = findOptionLabel(providerOptions, selectedProviderId, "Provider");
   const displayMode = findOptionLabel(modeOptions, selectedModeId, "Default");
-  const displayModel = resolveDisplayModel(isModelLoading, modelOptions, selectedModelId);
+  const displayModel = resolveDisplayModel({
+    provider,
+    isModelLoading,
+    modelOptions,
+    selectedModelId,
+  });
   const displayThinking = findOptionLabel(
     thinkingOptions,
     selectedThinkingOptionId,
@@ -1163,6 +1158,25 @@ function SheetStatusBarContent(props: SheetStatusBarContentProps) {
     handleOpenChange,
     renderSheetModelTrigger,
   } = props;
+
+  if (!provider && canSelectModel) {
+    return (
+      <CombinedModelSelector
+        providerDefinitions={effectiveProviderDefinitions}
+        allProviderModels={effectiveAllProviderModels}
+        selectedProvider={provider}
+        selectedModel={selectedModelId ?? ""}
+        canSelectProvider={canSelectProviderInModelMenu}
+        onSelect={handleSheetModelSelect}
+        favoriteKeys={favoriteKeys}
+        onToggleFavorite={onToggleFavoriteModel}
+        isLoading={isModelLoading}
+        disabled={modelDisabled}
+        onOpen={onModelSelectorOpen}
+        onClose={onDropdownClose}
+      />
+    );
+  }
 
   return (
     <>

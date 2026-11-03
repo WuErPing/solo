@@ -24,6 +24,7 @@ import {
   buildSelectedTriggerLabel,
   matchesSearch,
   resolveProviderLabel,
+  resolveSelectionPrompt,
   type SelectorModelRow,
 } from "./combined-model-selector.utils";
 const IS_WEB = platformIsWeb;
@@ -663,22 +664,23 @@ export function CombinedModelSelector({
   );
 
   const hasSelectedProvider = selectedProvider.trim().length > 0;
+  const selectionPrompt = resolveSelectionPrompt(selectedProvider);
   const ProviderIcon = hasSelectedProvider ? getProviderIcon(selectedProvider) : null;
 
   const selectedModelLabel = useMemo(() => {
     if (!selectedModel) {
       if (!hasSelectedProvider) {
-        return "Select model";
+        return selectionPrompt;
       }
-      return isLoading ? "Loading..." : "Select model";
+      return isLoading ? "Loading..." : selectionPrompt;
     }
     const models = allProviderModels.get(selectedProvider);
     if (!models) {
-      return isLoading ? "Loading..." : "Select model";
+      return isLoading ? "Loading..." : selectionPrompt;
     }
     const model = models.find((entry) => entry.id === selectedModel);
     return model?.label ?? resolveDefaultModelLabel(models);
-  }, [allProviderModels, hasSelectedProvider, isLoading, selectedModel, selectedProvider]);
+  }, [allProviderModels, hasSelectedProvider, isLoading, selectedModel, selectedProvider, selectionPrompt]);
 
   const desktopFixedHeight = useMemo(() => {
     if (view.kind !== "provider") {
@@ -769,7 +771,7 @@ export function CombinedModelSelector({
         onPress={handleTriggerPress}
         style={triggerStyle}
         accessibilityRole="button"
-        accessibilityLabel={`Select model (${selectedModelLabel})`}
+        accessibilityLabel={`${selectionPrompt} (${selectedModelLabel})`}
         testID="combined-model-selector"
       >
         {renderTrigger ? (
@@ -801,7 +803,7 @@ export function CombinedModelSelector({
         desktopPlacement="top-start"
         desktopMinWidth={360}
         desktopFixedHeight={desktopFixedHeight}
-        title="Select model"
+        title={selectionPrompt}
         stickyHeader={stickyHeader}
       >
         {isContentReady ? (

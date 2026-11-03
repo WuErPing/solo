@@ -11,6 +11,30 @@ import (
 	"github.com/WuErPing/solo/protocol"
 )
 
+func TestPiIntegration_ListModels(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping real pi process integration test in -short mode")
+	}
+	client := NewClient("", slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	if err := client.IsAvailable(context.Background()); err != nil {
+		t.Skipf("pi not available: %v", err)
+	}
+
+	models, err := client.ListModels(context.Background(), "")
+	if err != nil {
+		t.Fatalf("ListModels() error = %v", err)
+	}
+	if len(models) < 2 {
+		t.Fatalf("ListModels() returned %d models, want Auto and at least one Pi model: %+v", len(models), models)
+	}
+	if models[0].ID != "auto" {
+		t.Errorf("models[0].ID = %q, want auto", models[0].ID)
+	}
+	for _, model := range models[1:] {
+		t.Logf("Pi model: id=%s label=%s description=%s", model.ID, model.Label, model.Description)
+	}
+}
+
 func TestPiIntegration_RealProcess(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping real pi process integration test in -short mode")

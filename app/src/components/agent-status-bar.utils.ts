@@ -14,6 +14,22 @@ export function getStatusSelectorHint(selector: ExplainedStatusSelector): string
   }
 }
 
+export function resolveDisplayModel(input: {
+  provider: string;
+  isModelLoading: boolean;
+  modelOptions?: { id: string; label: string }[];
+  selectedModelId?: string;
+}): string {
+  const { provider, isModelLoading, modelOptions, selectedModelId } = input;
+  if (!provider.trim()) {
+    return "Select agent";
+  }
+  if (isModelLoading && (!modelOptions || modelOptions.length === 0)) {
+    return "Loading models...";
+  }
+  return modelOptions?.find((option) => option.id === selectedModelId)?.label ?? "Select model";
+}
+
 export function normalizeModelId(modelId: string | null | undefined): string | null {
   const normalized = typeof modelId === "string" ? modelId.trim() : "";
   if (!normalized) {
