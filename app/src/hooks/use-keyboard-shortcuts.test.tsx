@@ -6,8 +6,9 @@ import { act } from "@testing-library/react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { navigateToWorkspaceMock, routerMock, pathState } = vi.hoisted(() => ({
+const { navigateToWorkspaceMock, newAgentActionMock, routerMock, pathState } = vi.hoisted(() => ({
   navigateToWorkspaceMock: vi.fn(),
+  newAgentActionMock: vi.fn(),
   routerMock: {
     back: vi.fn(),
     push: vi.fn(),
@@ -46,6 +47,10 @@ vi.mock("@/hooks/use-active-server-id", () => ({
 
 vi.mock("@/hooks/use-open-project-picker", () => ({
   useOpenProjectPicker: () => vi.fn(),
+}));
+
+vi.mock("@/hooks/use-new-agent-action", () => ({
+  useNewAgentAction: () => newAgentActionMock,
 }));
 
 vi.mock("@/hooks/use-keyboard-shortcut-overrides", () => ({
@@ -186,6 +191,27 @@ describe("useKeyboardShortcuts", () => {
 
     expect(routerMock.replace).toHaveBeenCalledWith("/h/srv/workspace/ws-2");
     expect(routerMock.back).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("starts a new agent with Cmd+Shift+O", async () => {
+    newAgentActionMock.mockReset();
+    newAgentActionMock.mockResolvedValue(undefined);
+    await act(async () => {
+      root?.render(<Probe />);
+    });
+
+    const event = new KeyboardEvent("keydown", {
+      key: "O",
+      code: "KeyO",
+      metaKey: true,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    window.dispatchEvent(event);
+
+    expect(newAgentActionMock).toHaveBeenCalledTimes(1);
     expect(event.defaultPrevented).toBe(true);
   });
 });

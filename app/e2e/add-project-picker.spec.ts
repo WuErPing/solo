@@ -13,12 +13,16 @@ test("add project picker confirms a freshly typed path and opens it", async ({ p
   try {
     await gotoAppShell(page);
 
-    // The picker first tries window.prompt(); dismiss it to reach the modal.
-    page.on("dialog", (dialog) => dialog.dismiss());
+    const browserDialogs: string[] = [];
+    page.on("dialog", (dialog) => {
+      browserDialogs.push(dialog.message());
+      void dialog.dismiss();
+    });
     await page.locator('[data-testid="sidebar-add-project"]').first().click();
 
     const input = page.locator('[data-testid="project-picker-input"]');
     await expect(input).toBeVisible();
+    expect(browserDialogs).toEqual([]);
 
     const submit = page.locator('[data-testid="project-picker-submit"]');
     await expect(submit).toBeVisible();
@@ -33,6 +37,13 @@ test("add project picker confirms a freshly typed path and opens it", async ({ p
 
     await expect(input).toBeHidden();
     await expect(page.getByText(path.basename(projectPath)).first()).toBeVisible();
+
+    await page.locator('[data-testid="sidebar-add-project"]').first().click();
+    await expect(input).toBeVisible();
+    const recentDirectory = page.getByText(projectPath, { exact: true }).last();
+    await expect(recentDirectory).toBeVisible();
+    await recentDirectory.click();
+    await expect(input).toBeHidden();
   } finally {
     rmSync(projectPath, { recursive: true, force: true });
   }

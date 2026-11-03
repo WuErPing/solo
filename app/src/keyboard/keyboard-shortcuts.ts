@@ -117,7 +117,7 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
     help: {
       id: "new-agent",
       section: "projects",
-      label: "Open project",
+      label: "New agent",
       keys: ["mod", "shift", "O"],
     },
   },
@@ -129,7 +129,7 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
     help: {
       id: "new-agent",
       section: "projects",
-      label: "Open project",
+      label: "New agent",
       keys: ["mod", "shift", "O"],
     },
   },

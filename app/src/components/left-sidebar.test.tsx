@@ -6,7 +6,7 @@ import { act } from "@testing-library/react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { panelState, useSidebarWorkspacesListMock, theme } = vi.hoisted(() => {
+const { panelState, useSidebarWorkspacesListMock, newAgentActionMock, theme } = vi.hoisted(() => {
   const hoistedPanelState = {
     isOpen: false,
     showMobileAgent: vi.fn(),
@@ -15,6 +15,7 @@ const { panelState, useSidebarWorkspacesListMock, theme } = vi.hoisted(() => {
   return {
     panelState: hoistedPanelState,
     useSidebarWorkspacesListMock: vi.fn(),
+    newAgentActionMock: vi.fn(),
     theme: {
       spacing: { 0: 0, 0.5: 2, 1: 4, 1.5: 6, 2: 8, 3: 12, 4: 16, 5: 20 },
       iconSize: { sm: 14, md: 18, lg: 22 },
@@ -192,6 +193,10 @@ vi.mock("@/hooks/use-open-project-picker", () => ({
   useOpenProjectPicker: () => vi.fn(),
 }));
 
+vi.mock("@/hooks/use-new-agent-action", () => ({
+  useNewAgentAction: () => newAgentActionMock,
+}));
+
 vi.mock("@/components/sidebar/sidebar-header-row", () => ({
   SidebarHeaderRow: ({
     label,
@@ -300,5 +305,24 @@ describe("LeftSidebar", () => {
     });
 
     expect(router.push).toHaveBeenCalledWith("/hosts/srv/usage");
+  });
+
+  it("starts a new agent from the sidebar and closes the mobile drawer", async () => {
+    newAgentActionMock.mockReset();
+    newAgentActionMock.mockResolvedValue(undefined);
+    await act(async () => {
+      root?.render(<LeftSidebar />);
+    });
+
+    const newAgentEntry = container?.querySelector('[data-testid="sidebar-new-agent"]');
+    expect(newAgentEntry).not.toBeNull();
+    expect(newAgentEntry?.textContent).toContain("New agent");
+
+    await act(async () => {
+      (newAgentEntry as HTMLElement).click();
+    });
+
+    expect(panelState.showMobileAgent).toHaveBeenCalledTimes(1);
+    expect(newAgentActionMock).toHaveBeenCalledTimes(1);
   });
 });

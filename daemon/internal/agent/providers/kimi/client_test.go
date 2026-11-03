@@ -82,6 +82,79 @@ func TestKimiAgentClient_ListModels_ReturnsStaticModels(t *testing.T) {
 	}
 }
 
+func TestKimiAgentClient_ListModels_ReadsKimiCodeConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	configDir := filepath.Join(home, ".kimi-code")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("failed to create config directory: %v", err)
+	}
+	config := `default_model = "kimi-code/k3.1-pro"
+
+[models."kimi-code/kimi-for-coding"]
+model = "kimi-for-coding"
+display_name = "K2.8 Preview"
+max_context_size = 1048576
+
+[models."kimi-code/kimi-for-coding-highspeed"]
+model = "kimi-for-coding-highspeed"
+display_name = "K2.7 Code Highspeed"
+max_context_size = 262144
+
+[models."kimi-code/k3"]
+model = "k3"
+display_name = "K3"
+max_context_size = 1048576
+
+[models."kimi-code/k3-256k"]
+model = "k3-256k"
+display_name = "K3-256k"
+max_context_size = 262144
+
+[models."kimi-code/k3.1-pro-highspeed"]
+model = "k3.1-pro-highspeed"
+display_name = "K3.1 Pro Highspeed 2x Usage Cost"
+max_context_size = 1048576
+
+[models."kimi-code/k3.1-pro"]
+model = "k3.1-pro"
+display_name = "K3.1 Pro"
+max_context_size = 1048576
+`
+	if err := os.WriteFile(filepath.Join(configDir, "config.toml"), []byte(config), 0600); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	client := NewClient("", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	models, err := client.ListModels(context.Background(), "")
+	if err != nil {
+		t.Fatalf("ListModels() = %v", err)
+	}
+
+	wantLabels := map[string]string{
+		"auto":                                "Auto",
+		"kimi-code/kimi-for-coding":           "K2.8 Preview",
+		"kimi-code/kimi-for-coding-highspeed": "K2.7 Code Highspeed",
+		"kimi-code/k3":                        "K3",
+		"kimi-code/k3-256k":                   "K3-256k",
+		"kimi-code/k3.1-pro-highspeed":        "K3.1 Pro Highspeed 2x Usage Cost",
+		"kimi-code/k3.1-pro":                  "K3.1 Pro",
+	}
+	if len(models) != len(wantLabels) {
+		t.Fatalf("ListModels() returned %d models, want %d: %+v", len(models), len(wantLabels), models)
+	}
+	for _, model := range models {
+		wantLabel, ok := wantLabels[model.ID]
+		if !ok {
+			t.Errorf("unexpected model ID %q", model.ID)
+			continue
+		}
+		if model.Label != wantLabel {
+			t.Errorf("model %q label = %q, want %q", model.ID, model.Label, wantLabel)
+		}
+	}
+}
+
 func TestKimiAgentClient_ListClientCommands_ReturnsStaticCommands(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	client := NewClient("", logger)

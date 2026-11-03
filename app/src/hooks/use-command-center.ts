@@ -6,7 +6,7 @@ import { useSessionStore } from "@/stores/session-store";
 import { keyboardActionDispatcher } from "@/keyboard/keyboard-action-dispatcher";
 import { useAllAgentsList } from "@/hooks/use-all-agents-list";
 import type { AggregatedAgent } from "@/hooks/use-aggregated-agents";
-import { useOpenProjectPicker } from "@/hooks/use-open-project-picker";
+import { useNewAgentAction } from "@/hooks/use-new-agent-action";
 import {
   clearCommandCenterFocusRestoreElement,
   takeCommandCenterFocusRestoreElement,
@@ -63,10 +63,10 @@ interface CommandCenterActionDefinition {
 const COMMAND_CENTER_ACTIONS: readonly CommandCenterActionDefinition[] = [
   {
     id: "new-agent",
-    title: "Open project",
+    title: "New agent",
     icon: "plus",
     actionId: "new-agent",
-    keywords: ["open", "project", "folder", "workspace", "repo"],
+    keywords: ["new", "agent", "start", "task", "project", "workspace"],
     routeKind: "none",
   },
   {
@@ -222,14 +222,14 @@ export function useCommandCenter() {
     [setOpen],
   );
 
-  const openProjectPicker = useOpenProjectPicker(activeServerId);
+  const newAgentAction = useNewAgentAction(activeServerId);
 
   const handleSelectAction = useCallback(
     (action: CommandCenterActionItem) => {
       clearCommandCenterFocusRestoreElement();
       setOpen(false);
       if (action.id === "new-agent") {
-        void openProjectPicker();
+        void newAgentAction();
         return;
       }
       if (!action.route) {
@@ -238,7 +238,7 @@ export function useCommandCenter() {
       didNavigateRef.current = true;
       router.push(action.route);
     },
-    [openProjectPicker, setOpen],
+    [newAgentAction, setOpen],
   );
 
   const handleSelectItem = useCallback(

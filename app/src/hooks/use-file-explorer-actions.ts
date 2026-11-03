@@ -153,7 +153,7 @@ export function useFileExplorerActions(params: { serverId: string } & FileExplor
 
           return nextState;
         });
-        return true;
+        return !payload.error;
       } catch (error) {
         updateExplorerState((state) => ({
           ...state,

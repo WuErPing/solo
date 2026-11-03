@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { isWeb } from "@/constants/platform";
 import { pickDirectory } from "@/desktop/pick-directory";
 import { useKeyboardShortcutsStore } from "@/stores/keyboard-shortcuts-store";
 import { useIsLocalDaemon } from "./use-is-local-daemon";
@@ -15,8 +16,13 @@ export function useOpenProjectPicker(serverId: string | null): () => Promise<voi
       return;
     }
 
+    if (isWeb) {
+      setProjectPickerOpen(true);
+      return;
+    }
+
     if (!isLocalDaemon) {
-      // Try web fallback (prompt for path) before falling back to modal
+      // Try the direct picker before falling back to the modal
       try {
         const path = await pickDirectory();
         if (path !== null) {

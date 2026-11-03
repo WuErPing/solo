@@ -1,5 +1,5 @@
 import { router, usePathname } from "expo-router";
-import { Calendar, FolderPlus, Gauge, LayoutDashboard, MessagesSquare, Repeat, Settings, Terminal } from "lucide-react-native";
+import { Calendar, FolderPlus, Gauge, LayoutDashboard, MessagesSquare, Plus, Repeat, Settings, Terminal } from "lucide-react-native";
 import {
   type Dispatch,
   memo,
@@ -41,6 +41,7 @@ import { useIsCompactFormFactor } from "@/constants/layout";
 import { isWeb } from "@/constants/platform";
 import { useSidebarAnimation } from "@/contexts/sidebar-animation-context";
 import { useOpenProjectPicker } from "@/hooks/use-open-project-picker";
+import { useNewAgentAction } from "@/hooks/use-new-agent-action";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
 import { useSidebarShortcutModel } from "@/hooks/use-sidebar-shortcut-model";
 import {
@@ -106,6 +107,7 @@ interface SidebarSharedProps {
   onLoopBadgePress: () => void;
   onScheduleBadgePress: () => void;
   handleRefresh: () => void;
+  handleNewAgent: () => void;
   handleHostSelect: (nextServerId: string) => void;
   handleOpenProject: () => void;
   handleSettings: () => void;
@@ -263,6 +265,17 @@ export const LeftSidebar = memo(function LeftSidebar({
     void openProjectPicker();
   }, [openProjectPicker]);
 
+  const newAgentAction = useNewAgentAction(activeServerId);
+
+  const handleNewAgentMobile = useCallback(() => {
+    showMobileAgent();
+    void newAgentAction();
+  }, [newAgentAction, showMobileAgent]);
+
+  const handleNewAgentDesktop = useCallback(() => {
+    void newAgentAction();
+  }, [newAgentAction]);
+
   const handleSettingsMobile = useCallback(() => {
     showMobileAgent();
     router.push(buildSettingsRoute());
@@ -375,6 +388,7 @@ export const LeftSidebar = memo(function LeftSidebar({
     onLoopBadgePress: handleLoopBadgePress,
     onScheduleBadgePress: handleScheduleBadgePress,
     handleRefresh,
+    handleNewAgent: handleNewAgentDesktop,
     handleHostSelect,
     renderHostOption,
   };
@@ -387,6 +401,7 @@ export const LeftSidebar = memo(function LeftSidebar({
         insetsBottom={insets.bottom}
         isOpen={isOpen}
         closeToAgent={showMobileAgent}
+        handleNewAgent={handleNewAgentMobile}
         handleOpenProject={handleOpenProjectMobile}
         handleSettings={handleSettingsMobile}
         handleViewMoreNavigate={handleViewMoreNavigate}
@@ -627,6 +642,7 @@ function MobileSidebar({
   onLoopBadgePress,
   onScheduleBadgePress,
   handleRefresh,
+  handleNewAgent,
   handleHostSelect,
   renderHostOption,
   handleOpenProject,
@@ -880,6 +896,13 @@ function MobileSidebar({
         <Animated.View style={mobileSidebarStyle} pointerEvents="auto">
           <View style={styles.sidebarContent} pointerEvents="auto">
             <SidebarHeaderRow
+              icon={Plus}
+              iconColor={theme.colors.accent}
+              label="New agent"
+              onPress={handleNewAgent}
+              testID="sidebar-new-agent"
+            />
+            <SidebarHeaderRow
               icon={MessagesSquare}
               iconColor={theme.colors.palette.green[500]}
               label="Sessions"
@@ -991,6 +1014,7 @@ function DesktopSidebar({
   onLoopBadgePress,
   onScheduleBadgePress,
   handleRefresh,
+  handleNewAgent,
   handleHostSelect,
   renderHostOption,
   handleOpenProject,
@@ -1079,6 +1103,13 @@ function DesktopSidebar({
         <View style={styles.sidebarDragArea}>
           <TitlebarDragRegion />
           {padding.top > 0 ? <View style={paddingTopSpacerStyle} /> : null}
+          <SidebarHeaderRow
+            icon={Plus}
+            label="New agent"
+            onPress={handleNewAgent}
+            testID="sidebar-new-agent"
+            iconColor={theme.colors.accent}
+          />
           <SidebarHeaderRow
             icon={MessagesSquare}
             label="Sessions"

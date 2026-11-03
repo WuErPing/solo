@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { buildAbsoluteExplorerPath } from "./explorer-paths";
+import { describe, expect, it, vi } from "vitest";
+import { buildAbsoluteExplorerPath, restorePersistedDirectoryPaths } from "./explorer-paths";
 
 describe("buildAbsoluteExplorerPath", () => {
   it("builds a POSIX absolute path from a relative explorer path", () => {
@@ -45,5 +45,38 @@ describe("buildAbsoluteExplorerPath", () => {
         entryPath: "/tmp/another/location.txt",
       }),
     ).toBe("/tmp/another/location.txt");
+  });
+});
+
+describe("restorePersistedDirectoryPaths", () => {
+  it("prunes a deleted restored directory and reloads the project root", async () => {
+    const requestDirectoryListing = vi.fn(async (path: string) => path !== ".VSCodeCounter/old");
+
+    const restored = await restorePersistedDirectoryPaths({
+      persistedPaths: [".", ".VSCodeCounter/old", "src"],
+      requestDirectoryListing,
+    });
+
+    expect(restored).toEqual([".", "src"]);
+    expect(requestDirectoryListing).toHaveBeenCalledWith(".", {
+      recordHistory: false,
+      setCurrentPath: false,
+    });
+  });
+
+  it("keeps valid restored directories without an extra root request", async () => {
+    const requestDirectoryListing = vi.fn(async () => true);
+
+    const restored = await restorePersistedDirectoryPaths({
+      persistedPaths: [".", "src"],
+      requestDirectoryListing,
+    });
+
+    expect(restored).toEqual([".", "src"]);
+    expect(requestDirectoryListing).toHaveBeenCalledTimes(1);
+    expect(requestDirectoryListing).toHaveBeenCalledWith("src", {
+      recordHistory: false,
+      setCurrentPath: false,
+    });
   });
 });

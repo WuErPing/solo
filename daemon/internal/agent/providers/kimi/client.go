@@ -150,17 +150,33 @@ func (c *Client) fetchModelsFromConfig() ([]protocol.AgentModelDefinition, error
 	if err != nil {
 		return nil, err
 	}
-	configPath := filepath.Join(home, ".kimi", "config.toml")
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, err
+	configPaths := []string{
+		filepath.Join(home, ".kimi-code", "config.toml"),
+		filepath.Join(home, ".kimi", "config.toml"),
 	}
 	var cfg kimiConfig
-	if err := toml.Unmarshal(data, &cfg); err != nil {
-		return nil, err
+	var lastErr error
+	for _, configPath := range configPaths {
+		data, err := os.ReadFile(configPath)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		var candidate kimiConfig
+		if err := toml.Unmarshal(data, &candidate); err != nil {
+			lastErr = err
+			continue
+		}
+		if len(candidate.Models) == 0 {
+			lastErr = fmt.Errorf("no models found in %s", configPath)
+			continue
+		}
+		cfg = candidate
+		lastErr = nil
+		break
 	}
-	if len(cfg.Models) == 0 {
-		return nil, fmt.Errorf("no models found in config")
+	if lastErr != nil {
+		return nil, lastErr
 	}
 
 	var models []protocol.AgentModelDefinition

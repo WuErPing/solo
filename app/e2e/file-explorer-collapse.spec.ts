@@ -1,4 +1,4 @@
-import { test } from "./fixtures";
+import { expect, test } from "./fixtures";
 import {
   collapseFolder,
   expandFolder,
@@ -57,5 +57,36 @@ test.describe("File explorer collapse", () => {
 
     await expandFolder(page, "docs");
     await expectExplorerEntryVisible(page, "guide.md");
+  });
+
+  test("prunes a deleted restored directory and recovers to the project root", async ({ page }) => {
+    const missingPath = ".VSCodeCounter/2026-05-19_04-56-10";
+    await page.addInitScript(
+      ({ stateKey, stalePath }) => {
+        const stored = JSON.parse(localStorage.getItem("panel-state") ?? "{}") as {
+          state?: Record<string, unknown>;
+          version?: number;
+        };
+        const state = stored.state ?? {};
+        const expandedPathsByWorkspace =
+          (state.expandedPathsByWorkspace as Record<string, string[]> | undefined) ?? {};
+        expandedPathsByWorkspace[stateKey] = [".", stalePath, "assets"];
+        state.expandedPathsByWorkspace = expandedPathsByWorkspace;
+        localStorage.setItem("panel-state", JSON.stringify({ state, version: 10 }));
+      },
+      { stateKey: `workspace:${workspaceId}`, stalePath: missingPath },
+    );
+
+    await gotoWorkspace(page, workspaceId);
+    await openFileExplorer(page);
+    await expectExplorerEntryVisible(page, "logo.png");
+
+    const expandedPaths = await page.evaluate((stateKey) => {
+      const stored = JSON.parse(localStorage.getItem("panel-state") ?? "{}") as {
+        state?: { expandedPathsByWorkspace?: Record<string, string[]> };
+      };
+      return stored.state?.expandedPathsByWorkspace?.[stateKey] ?? [];
+    }, `workspace:${workspaceId}`);
+    expect(expandedPaths).toEqual([".", "assets"]);
   });
 });

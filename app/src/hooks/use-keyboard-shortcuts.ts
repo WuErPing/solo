@@ -21,7 +21,7 @@ import {
 } from "@/keyboard/keyboard-shortcuts";
 import { resolveKeyboardFocusScope } from "@/keyboard/focus-scope";
 import { getShortcutOs } from "@/utils/shortcut-platform";
-import { useOpenProjectPicker } from "@/hooks/use-open-project-picker";
+import { useNewAgentAction } from "@/hooks/use-new-agent-action";
 import { useKeyboardShortcutOverrides } from "@/hooks/use-keyboard-shortcut-overrides";
 import { isNative } from "@/constants/platform";
 import { isImeComposingKeyboardEvent } from "@/utils/keyboard-ime";
@@ -65,7 +65,7 @@ export function useKeyboardShortcuts({
     timeoutId: null,
   });
   const activeServerId = useActiveServerId();
-  const openProjectPickerAction = useOpenProjectPicker(activeServerId);
+  const newAgentAction = useNewAgentAction(activeServerId);
 
   useEffect(() => {
     if (!enabled) return;
@@ -117,8 +117,8 @@ export function useKeyboardShortcuts({
       return true;
     };
 
-    const openProjectPicker = (): boolean => {
-      void openProjectPickerAction();
+    const startNewAgent = (): boolean => {
+      void newAgentAction();
       return true;
     };
 
@@ -261,7 +261,7 @@ export function useKeyboardShortcuts({
       }
       switch (input.action) {
         case "agent.new":
-          return openProjectPicker();
+          return startNewAgent();
         case "sidebar.toggle.left":
           toggleAgentList();
           return true;
@@ -412,7 +412,7 @@ export function useKeyboardShortcuts({
     cycleTheme,
     enabled,
     isMobile,
-    openProjectPickerAction,
+    newAgentAction,
     pathname,
     resetModifiers,
     router,

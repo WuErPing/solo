@@ -40,7 +40,7 @@ import {
 import { useFileExplorerActions , buildWorkspaceExplorerStateKey } from "@/hooks/use-file-explorer-actions";
 import { usePanelStore, type SortOption } from "@/stores/panel-store";
 import { formatTimeAgo } from "@/utils/time";
-import { buildAbsoluteExplorerPath } from "@/utils/explorer-paths";
+import { buildAbsoluteExplorerPath, restorePersistedDirectoryPaths } from "@/utils/explorer-paths";
 import { useWebScrollViewScrollbar } from "@/components/use-web-scrollbar";
 import { isWeb } from "@/constants/platform";
 
@@ -857,10 +857,10 @@ async function initializeExplorer({
     hasInitializedRef.current = false;
     return;
   }
-  requestPersistedExpandedPaths({ workspaceStateKey, requestDirectoryListing });
+  void requestPersistedExpandedPaths({ workspaceStateKey, requestDirectoryListing });
 }
 
-function requestPersistedExpandedPaths({
+async function requestPersistedExpandedPaths({
   workspaceStateKey,
   requestDirectoryListing,
 }: {
@@ -869,18 +869,17 @@ function requestPersistedExpandedPaths({
     path: string,
     opts?: { recordHistory?: boolean; setCurrentPath?: boolean },
   ) => Promise<boolean>;
-}): void {
-  const persistedPaths = usePanelStore.getState().expandedPathsByWorkspace[workspaceStateKey ?? ""];
-  if (!persistedPaths) {
+}): Promise<void> {
+  if (!workspaceStateKey) {
     return;
   }
-  for (const path of persistedPaths) {
-    if (path !== ".") {
-      void requestDirectoryListing(path, {
-        recordHistory: false,
-        setCurrentPath: false,
-      });
-    }
+  const persistedPaths = usePanelStore.getState().expandedPathsByWorkspace[workspaceStateKey];
+  const restoredPaths = await restorePersistedDirectoryPaths({
+    persistedPaths,
+    requestDirectoryListing,
+  });
+  if (restoredPaths) {
+    usePanelStore.getState().setExpandedPathsForWorkspace(workspaceStateKey, restoredPaths);
   }
 }
 
