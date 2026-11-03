@@ -70,3 +70,4 @@ daemon/output/
 complexity-report/
 .codegraph/
 .mimocode/
+review/
