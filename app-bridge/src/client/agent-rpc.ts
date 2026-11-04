@@ -716,16 +716,22 @@ export class AgentRpc {
       timeout,
       options: { skipQueue: true },
       select: (msg) => {
-        if (msg.type !== "agent_permission_resolved") {
-          return null;
+        if (msg.type === "agent_permission_resolved") {
+          if (msg.payload.requestId !== requestId) {
+            return null;
+          }
+          if (msg.payload.agentId !== agentId) {
+            return null;
+          }
+          return msg.payload;
         }
-        if (msg.payload.requestId !== requestId) {
-          return null;
+        if (msg.type === "agent_stream" && msg.payload.agentId === agentId) {
+          const event = msg.payload.event;
+          if (event.type === "permission_resolved" && event.requestId === requestId) {
+            return { agentId, requestId, resolution: event.resolution };
+          }
         }
-        if (msg.payload.agentId !== agentId) {
-          return null;
-        }
-        return msg.payload;
+        return null;
       },
     });
   }

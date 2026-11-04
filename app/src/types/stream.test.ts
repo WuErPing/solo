@@ -103,6 +103,50 @@ function findToolByCallId(state: StreamItem[], callId: string): AgentToolCallIte
 }
 
 describe("stream reducer tool call idempotency", () => {
+  it("handles running and updated tool calls when the wire event omits detail", () => {
+    const runningEvent = canonicalToolTimeline({
+      provider: "kimi",
+      callId: "missing-detail-tool-call",
+      name: "run_command",
+      status: "running",
+    });
+    delete runningEvent.item.detail;
+
+    const initialState = reduceStreamUpdate([], runningEvent, new Date("2025-01-01T12:00:00Z"));
+
+    assert.deepStrictEqual(findToolByCallId(initialState, "missing-detail-tool-call")?.payload.data.detail, {
+      type: "unknown",
+      input: null,
+      output: null,
+    });
+
+    const completedEvent = canonicalToolTimeline({
+      provider: "kimi",
+      callId: "missing-detail-tool-call",
+      name: "run_command",
+      status: "completed",
+    });
+    delete completedEvent.item.detail;
+
+    assert.doesNotThrow(() =>
+      reduceStreamUpdate(initialState, completedEvent, new Date("2025-01-01T12:00:01Z")),
+    );
+  });
+
+  it("uses a stable fallback when the wire event omits the tool name", () => {
+    const event = canonicalToolTimeline({
+      provider: "kimi",
+      callId: "missing-name-tool-call",
+      name: "run_command",
+      status: "running",
+    });
+    delete event.item.name;
+
+    const state = reduceStreamUpdate([], event, new Date("2025-01-01T12:00:00Z"));
+
+    assert.equal(findToolByCallId(state, "missing-name-tool-call")?.payload.data.name, "unknown_tool");
+  });
+
   it("returns the same detail reference when tool call detail is identical", () => {
     const existing: ToolCallDetail = {
       type: "shell",

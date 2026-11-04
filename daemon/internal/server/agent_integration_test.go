@@ -968,7 +968,7 @@ func TestFetchAgentHistoryResponseIncludesProjectPlacement(t *testing.T) {
 	}
 }
 
-func TestRefreshAgentReturnsAgentRefreshedStatus(t *testing.T) {
+func TestRefreshArchivedAgentReturnsAgentRefreshedStatus(t *testing.T) {
 	_, ts := newTestWSServer(t)
 	conn := dialAndHello(t, ts.URL, "test-refresh-agent")
 	defer conn.Close()
@@ -978,8 +978,9 @@ func TestRefreshAgentReturnsAgentRefreshedStatus(t *testing.T) {
 	createReq := protocol.WSInboundMessage{
 		Type: "session",
 		Message: mustMarshal(map[string]interface{}{
-			"type":      "create_agent_request",
-			"requestId": "req-create-refresh",
+			"type":          "create_agent_request",
+			"requestId":     "req-create-refresh",
+			"initialPrompt": "history before archive",
 			"config": map[string]interface{}{
 				"provider": "mock",
 				"cwd":      filepath.Join(t.TempDir(), "refresh-project"),
@@ -992,7 +993,54 @@ func TestRefreshAgentReturnsAgentRefreshedStatus(t *testing.T) {
 	}
 	created := readUntilType(t, conn, "agent_created")
 	createdPayload := decodeStatusPayload[protocol.AgentCreatedPayload](t, created)
-	readUntilType(t, conn, "agent_update")
+	readUntilAgentUpdateStatus(t, conn, createdPayload.AgentID, protocol.AgentIdle)
+
+	archiveReq := protocol.WSInboundMessage{
+		Type: "session",
+		Message: mustMarshal(map[string]interface{}{
+			"type":      "archive_agent_request",
+			"requestId": "req-archive-refresh",
+			"agentId":   createdPayload.AgentID,
+		}),
+	}
+	if err := conn.WriteJSON(archiveReq); err != nil {
+		t.Fatalf("write archive_agent: %v", err)
+	}
+	readUntilType(t, conn, "agent_archived")
+
+	fetchReq := protocol.WSInboundMessage{
+		Type: "session",
+		Message: mustMarshal(map[string]interface{}{
+			"type":      "fetch_agent_request",
+			"requestId": "req-fetch-archived",
+			"agentId":   createdPayload.AgentID,
+		}),
+	}
+	if err := conn.WriteJSON(fetchReq); err != nil {
+		t.Fatalf("write fetch archived agent: %v", err)
+	}
+	fetched := readUntilType(t, conn, "fetch_agent_response")
+	fetchedPayload := decodeSessionPayload[protocol.FetchAgentResponsePayload](t, fetched)
+	if fetchedPayload.Agent == nil || fetchedPayload.Agent.ArchivedAt == nil {
+		t.Fatalf("expected readable archived agent, got %+v", fetchedPayload)
+	}
+
+	timelineReq := protocol.WSInboundMessage{
+		Type: "session",
+		Message: mustMarshal(map[string]interface{}{
+			"type":      "fetch_agent_timeline_request",
+			"requestId": "req-timeline-archived",
+			"agentId":   createdPayload.AgentID,
+		}),
+	}
+	if err := conn.WriteJSON(timelineReq); err != nil {
+		t.Fatalf("write fetch archived timeline: %v", err)
+	}
+	timeline := readUntilType(t, conn, "fetch_agent_timeline_response")
+	timelinePayload := decodeSessionPayload[protocol.FetchAgentTimelineResponsePayload](t, timeline)
+	if len(timelinePayload.Entries) == 0 {
+		t.Fatal("expected archived timeline entries to remain readable")
+	}
 
 	refreshReq := protocol.WSInboundMessage{
 		Type: "session",
@@ -1016,6 +1064,9 @@ func TestRefreshAgentReturnsAgentRefreshedStatus(t *testing.T) {
 	}
 	if payload.RequestID != "req-refresh" {
 		t.Fatalf("requestId: got %q, want req-refresh", payload.RequestID)
+	}
+	if payload.TimelineSize == 0 {
+		t.Fatal("expected timeline entries from before archiving to be preserved")
 	}
 }
 
@@ -1134,6 +1185,95 @@ func TestClearAgentAttentionResponseAndUpdate(t *testing.T) {
 	}
 	if payload.Agents[0].AttentionReason != nil {
 		t.Fatalf("attentionReason: got %v, want nil", *payload.Agents[0].AttentionReason)
+	}
+
+	deleteAgentForTest(t, conn, createdPayload.AgentID)
+}
+
+func TestAgentPermissionResponseBroadcastsPermissionResolved(t *testing.T) {
+	_, ts := newTestWSServer(t)
+	conn := dialAndHello(t, ts.URL, "test-permission-resolved")
+	defer conn.Close()
+
+	readInitialMessages(t, conn)
+
+	createReq := protocol.WSInboundMessage{
+		Type: "session",
+		Message: mustMarshal(map[string]interface{}{
+			"type":          "create_agent_request",
+			"requestId":     "req-create-perm-resolved",
+			"initialPrompt": "Hello",
+			"config": map[string]interface{}{
+				"provider": "mock",
+				"cwd":      filepath.Join(t.TempDir(), "perm-project"),
+			},
+			"labels": map[string]string{},
+		}),
+	}
+	if err := conn.WriteJSON(createReq); err != nil {
+		t.Fatalf("write create_agent: %v", err)
+	}
+	created := readUntilType(t, conn, "agent_created")
+	createdPayload := decodeStatusPayload[protocol.AgentCreatedPayload](t, created)
+
+	permReq := protocol.WSInboundMessage{
+		Type: "session",
+		Message: mustMarshal(map[string]interface{}{
+			"type":      "agent_permission_response",
+			"agentId":   createdPayload.AgentID,
+			"requestId": "perm-1",
+			"response": map[string]interface{}{
+				"behavior":         "allow",
+				"selectedActionId": "allow-once",
+			},
+		}),
+	}
+	if err := conn.WriteJSON(permReq); err != nil {
+		t.Fatalf("write agent_permission_response: %v", err)
+	}
+
+	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	defer conn.SetReadDeadline(time.Time{})
+	for {
+		_, msg, err := conn.ReadMessage()
+		if err != nil {
+			t.Fatalf("read error waiting for permission_resolved: %v", err)
+		}
+		var resp protocol.WSOutboundMessage
+		if err := json.Unmarshal(msg, &resp); err != nil || resp.Type != "session" {
+			continue
+		}
+		msgBytes, _ := json.Marshal(resp.Message)
+		var inner struct {
+			Type    string `json:"type"`
+			Payload struct {
+				AgentID string          `json:"agentId"`
+				Event   json.RawMessage `json:"event"`
+			} `json:"payload"`
+		}
+		if json.Unmarshal(msgBytes, &inner) != nil || inner.Type != "agent_stream" {
+			continue
+		}
+		if inner.Payload.AgentID != createdPayload.AgentID {
+			continue
+		}
+		var head struct {
+			Type string `json:"type"`
+		}
+		if json.Unmarshal(inner.Payload.Event, &head) != nil || head.Type != "permission_resolved" {
+			continue
+		}
+		var evt protocol.PermissionResolvedStreamEvent
+		if err := json.Unmarshal(inner.Payload.Event, &evt); err != nil {
+			t.Fatalf("unmarshal permission_resolved event: %v", err)
+		}
+		if evt.RequestID != "perm-1" {
+			t.Fatalf("requestId: got %q, want perm-1", evt.RequestID)
+		}
+		if evt.Resolution.Behavior != "allow" || evt.Resolution.SelectedActionID != "allow-once" {
+			t.Fatalf("resolution: got %+v, want allow/allow-once", evt.Resolution)
+		}
+		break
 	}
 
 	deleteAgentForTest(t, conn, createdPayload.AgentID)

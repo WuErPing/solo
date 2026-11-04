@@ -328,6 +328,66 @@ describe("AgentRpc — permissions", () => {
     expect(result.resolution).toEqual({ behavior: "allow" });
     await cleanup();
   });
+
+  it("respondToPermissionAndWait resolves from agent_stream permission_resolved", async () => {
+    const { client, transport, cleanup } = createConnectedClient();
+
+    const waitPromise = client.respondToPermissionAndWait(
+      "agent-1",
+      "perm-1",
+      { behavior: "allow", selectedActionId: "allow-once" },
+    );
+
+    simulateServerResponse(transport, {
+      type: "agent_stream",
+      payload: {
+        agentId: "agent-1",
+        event: {
+          type: "permission_resolved",
+          provider: "mock",
+          requestId: "perm-1",
+          resolution: { behavior: "allow", selectedActionId: "allow-once" },
+        },
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    const result = await waitPromise;
+    expect(result).toEqual({
+      agentId: "agent-1",
+      requestId: "perm-1",
+      resolution: { behavior: "allow", selectedActionId: "allow-once" },
+    });
+    await cleanup();
+  });
+
+  it("respondToPermissionAndWait ignores permission_resolved for other requests", async () => {
+    const { client, transport, cleanup } = createConnectedClient();
+
+    const waitPromise = client.respondToPermissionAndWait(
+      "agent-1",
+      "perm-1",
+      { behavior: "allow" },
+      50,
+    );
+
+    simulateServerResponse(transport, {
+      type: "agent_stream",
+      payload: {
+        agentId: "agent-1",
+        event: {
+          type: "permission_resolved",
+          provider: "mock",
+          requestId: "perm-other",
+          resolution: { behavior: "allow" },
+        },
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    await expect(waitPromise).rejects.toThrow(/Timeout/);
+    await cleanup();
+  });
 });
 
 describe("AgentRpc — ping", () => {

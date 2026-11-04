@@ -315,8 +315,9 @@ func writeFileAtomic(targetPath string, data []byte) error {
 // --- Snapshot projection ---
 
 type snapshotOptions struct {
-	title    *string
-	internal *bool
+	title         *string
+	internal      *bool
+	clearArchived bool
 }
 
 type SnapshotOption func(*snapshotOptions)
@@ -327,6 +328,10 @@ func WithTitle(title string) SnapshotOption {
 
 func WithInternal(internal bool) SnapshotOption {
 	return func(o *snapshotOptions) { o.internal = &internal }
+}
+
+func WithUnarchived() SnapshotOption {
+	return func(o *snapshotOptions) { o.clearArchived = true }
 }
 
 func toStoredAgentRecord(agent *ManagedAgent, existing *StoredAgentRecord, opts *snapshotOptions) *StoredAgentRecord {
@@ -357,7 +362,9 @@ func toStoredAgentRecord(agent *ManagedAgent, existing *StoredAgentRecord, opts 
 
 	// Determine archivedAt (prefer agent value, fallback to existing)
 	var archivedAt *string
-	if agent.ArchivedAt != nil {
+	if opts.clearArchived {
+		archivedAt = nil
+	} else if agent.ArchivedAt != nil {
 		archivedAt = agent.ArchivedAt
 	} else if existing != nil {
 		archivedAt = existing.ArchivedAt

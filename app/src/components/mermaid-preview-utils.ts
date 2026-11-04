@@ -25,16 +25,21 @@ export function generateMermaidShellHtml(): string {
 body {
   margin: 0;
   padding: 16px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
   box-sizing: border-box;
   background: #ffffff;
 }
 #mermaid-graph {
   width: 100%;
   text-align: center;
+}
+/* mermaid appends an unstyled measurement div directly to body while it
+   renders. Keep it fully laid out but off-screen so the in-progress diagram
+   never flashes into view or stretches the document (same technique as the
+   native service shell stage; visibility/display would break measurement). */
+body > div:not(#mermaid-graph) {
+  position: absolute !important;
+  left: -100000px !important;
+  top: 0 !important;
 }
 </style>
 </head>
@@ -44,8 +49,12 @@ body {
 (function () {
   var cache = new Map();
   var currentTheme = null;
+  var currentWidth = null;
   var seq = 0;
   var pending = null;
+  var inFlightKey = null;
+  var renderedKey = null;
+  var latestKey = null;
 
   function escapeText(value) {
     return String(value)
@@ -61,17 +70,32 @@ body {
     notify();
   }
 
-  function applyTheme(theme) {
+  // mermaid v10 sizes gantt charts from the task list alone (a wide timeline
+  // still comes out ~226px), ignoring the container. useWidth pins the diagram
+  // to the pane width so it scales with the device instead of a narrow strip.
+  function applyConfig(theme, useWidth) {
     document.body.style.background = theme === 'dark' ? '#0d1117' : '#ffffff';
-    if (theme !== currentTheme) {
-      mermaid.initialize({ startOnLoad: false, theme: theme });
-      currentTheme = theme;
+    if (theme === currentTheme && useWidth === currentWidth) {
+      return;
     }
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: theme,
+      gantt: { useWidth: useWidth }
+    });
+    currentTheme = theme;
+    currentWidth = useWidth;
+  }
+
+  function paneWidth(el) {
+    var width = Math.floor(el.clientWidth || (window.innerWidth - 32));
+    return width > 0 ? width : 800;
   }
 
   function notify() {
-    var el = document.getElementById('mermaid-graph');
-    var height = Math.ceil(el.getBoundingClientRect().height);
+    // body scrollHeight includes the 16px padding, so the host can size the
+    // iframe container to the diagram and nothing gets clipped.
+    var height = Math.ceil(document.body.scrollHeight);
     var message = { type: 'mermaid:rendered', height: height };
     if (window.ReactNativeWebView) {
       window.ReactNativeWebView.postMessage(JSON.stringify(message));
@@ -81,21 +105,42 @@ body {
 
   function render(source, theme) {
     var el = document.getElementById('mermaid-graph');
-    var key = theme + '\\u0000' + source;
+    var useWidth = paneWidth(el);
+    var key = theme + '\\u0000' + useWidth + '\\u0000' + source;
+    latestKey = key;
+    // The host posts each request twice (iframe load + shell ready) and can
+    // post a newer diagram before an older one finishes. Skip work that is
+    // already on screen or already in flight, and ignore a finished render
+    // that a newer request has superseded — otherwise duplicate mermaid.render
+    // calls flash a half-drawn diagram and stale results clobber the latest.
+    if (key === renderedKey || key === inFlightKey) {
+      return;
+    }
+    applyConfig(theme, useWidth);
     if (cache.has(key)) {
-      applyTheme(theme);
       el.innerHTML = cache.get(key);
+      renderedKey = key;
       notify();
       return;
     }
-    applyTheme(theme);
+    inFlightKey = key;
     mermaid.render('mermaid-' + (++seq), source).then(function (result) {
+      inFlightKey = null;
       cache.set(key, result.svg);
+      if (key !== latestKey) {
+        return;
+      }
       el.innerHTML = result.svg;
+      renderedKey = key;
       notify();
     }).catch(function (err) {
+      inFlightKey = null;
+      if (key !== latestKey) {
+        return;
+      }
       el.innerHTML = '<pre style="color:red;padding:16px;">' +
         escapeText((err && err.message) || err) + '</pre>';
+      renderedKey = key;
       notify();
     });
   }

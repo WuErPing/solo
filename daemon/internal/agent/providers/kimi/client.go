@@ -591,9 +591,15 @@ func (s *kimiSession) StreamHistory(_ context.Context) ([]agent.AgentStreamEvent
 
 // --- Wire Translator ---
 
+type kimiToolCallState struct {
+	name  string
+	input interface{}
+}
+
 type kimiWireTranslator struct {
 	session              *kimiSession
 	threadStartedEmitted bool
+	toolCalls            map[string]kimiToolCallState
 }
 
 func (t *kimiWireTranslator) Translate(raw []byte, timestamp time.Time) ([]interface{}, bool, error) {
@@ -613,7 +619,7 @@ func (t *kimiWireTranslator) Translate(raw []byte, timestamp time.Time) ([]inter
 		return nil, false, fmt.Errorf("parse JSON-RPC: %w", err)
 	}
 
-	if msg.Method != "event" {
+	if msg.Method != "event" && msg.Method != "request" {
 		return nil, false, nil
 	}
 
@@ -649,21 +655,33 @@ func (t *kimiWireTranslator) Translate(raw []byte, timestamp time.Time) ([]inter
 			} `json:"function"`
 		}
 		_ = json.Unmarshal(msg.Params.Payload, &payload)
-		b.ToolCall(payload.ID, payload.Function.Name, nil, "running")
+		var input interface{}
+		if payload.Function.Arguments != "" {
+			if err := json.Unmarshal([]byte(payload.Function.Arguments), &input); err != nil {
+				input = payload.Function.Arguments
+			}
+		}
+		if t.toolCalls == nil {
+			t.toolCalls = make(map[string]kimiToolCallState)
+		}
+		t.toolCalls[payload.ID] = kimiToolCallState{name: payload.Function.Name, input: input}
+		detail := base.DeriveToolCallDetail(payload.Function.Name, input, nil)
+		b.ToolCall(payload.ID, payload.Function.Name, detail, "running")
 
 	case "ToolResult":
 		var payload struct {
-			ToolCallID  string `json:"tool_call_id"`
-			ReturnValue struct {
-				IsError bool `json:"is_error"`
-			} `json:"return_value"`
+			ToolCallID  string                 `json:"tool_call_id"`
+			ReturnValue map[string]interface{} `json:"return_value"`
 		}
 		_ = json.Unmarshal(msg.Params.Payload, &payload)
 		status := "completed"
-		if payload.ReturnValue.IsError {
+		if isError, _ := payload.ReturnValue["is_error"].(bool); isError {
 			status = "failed"
 		}
-		b.ToolCall(payload.ToolCallID, "", nil, status)
+		call := t.toolCalls[payload.ToolCallID]
+		detail := base.DeriveToolCallDetail(call.name, call.input, payload.ReturnValue)
+		b.ToolCall(payload.ToolCallID, call.name, detail, status)
+		delete(t.toolCalls, payload.ToolCallID)
 
 	case "TurnEnd":
 		b.TurnCompleted(nil)

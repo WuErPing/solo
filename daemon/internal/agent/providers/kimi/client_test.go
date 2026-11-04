@@ -415,8 +415,8 @@ func TestKimiWireTranslator_EmitsStreamEvents(t *testing.T) {
 			},
 		},
 		{
-			name:         "ApprovalRequest",
-			wire:         `{"jsonrpc":"2.0","method":"event","params":{"type":"ApprovalRequest","payload":{"id":"appr-1","tool_call_id":"tc-1","sender":"file_editor","action":"write","description":"write main.py"}}}`,
+			name:         "ApprovalRequest uses JSON-RPC request method",
+			wire:         `{"jsonrpc":"2.0","method":"request","id":"appr-1","params":{"type":"ApprovalRequest","payload":{"id":"appr-1","tool_call_id":"tc-1","sender":"file_editor","action":"write","description":"write main.py"}}}`,
 			wantTerminal: false,
 			wantLen:      1,
 			check: func(t *testing.T, evts []interface{}) {
@@ -508,6 +508,74 @@ func TestKimiWireTranslator_EmitsStreamEvents(t *testing.T) {
 				tt.check(t, events)
 			}
 		})
+	}
+}
+
+func translateKimiTimelineItem(t *testing.T, tr *kimiWireTranslator, wire string) protocol.TimelineItem {
+	t.Helper()
+	events, _, err := tr.Translate([]byte(wire), time.Now())
+	if err != nil {
+		t.Fatalf("Translate() error = %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	evt := events[0].(agent.AgentStreamEvent)
+	timeline, ok := evt.Event.(protocol.TimelineStreamEvent)
+	if !ok {
+		t.Fatalf("expected TimelineStreamEvent, got %T", evt.Event)
+	}
+	return timeline.Item
+}
+
+func TestKimiWireTranslator_PreservesShellCommandAndOutput(t *testing.T) {
+	sess := newKimiSession("fake-kimi", &protocol.AgentSessionConfig{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	tr := &kimiWireTranslator{session: sess}
+
+	running := translateKimiTimelineItem(t, tr, `{"jsonrpc":"2.0","method":"event","params":{"type":"ToolCall","payload":{"type":"function","id":"shell-1","function":{"name":"shell","arguments":"{\"command\":\"printf hello\"}"}}}}`)
+	runningDetail, ok := running.Detail.(protocol.ShellDetail)
+	if !ok {
+		t.Fatalf("running detail = %T, want ShellDetail", running.Detail)
+	}
+	if runningDetail.Command != "printf hello" {
+		t.Errorf("running command = %q, want printf hello", runningDetail.Command)
+	}
+
+	completed := translateKimiTimelineItem(t, tr, `{"jsonrpc":"2.0","method":"event","params":{"type":"ToolResult","payload":{"tool_call_id":"shell-1","return_value":{"is_error":false,"output":"hello\n"}}}}`)
+	completedDetail, ok := completed.Detail.(protocol.ShellDetail)
+	if !ok {
+		t.Fatalf("completed detail = %T, want ShellDetail", completed.Detail)
+	}
+	if completedDetail.Command != "printf hello" {
+		t.Errorf("completed command = %q, want printf hello", completedDetail.Command)
+	}
+	if completedDetail.Output != "hello\n" {
+		t.Errorf("completed output = %q, want hello newline", completedDetail.Output)
+	}
+}
+
+func TestKimiWireTranslator_PreservesUnknownToolInputAndOutput(t *testing.T) {
+	sess := newKimiSession("fake-kimi", &protocol.AgentSessionConfig{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	tr := &kimiWireTranslator{session: sess}
+
+	running := translateKimiTimelineItem(t, tr, `{"jsonrpc":"2.0","method":"event","params":{"type":"ToolCall","payload":{"type":"function","id":"custom-1","function":{"name":"custom_tool","arguments":"{\"query\":\"solo\"}"}}}}`)
+	runningDetail, ok := running.Detail.(protocol.UnknownDetail)
+	if !ok {
+		t.Fatalf("running detail = %T, want UnknownDetail", running.Detail)
+	}
+	input, ok := runningDetail.Input.(map[string]interface{})
+	if !ok || input["query"] != "solo" {
+		t.Errorf("running input = %#v, want query=solo", runningDetail.Input)
+	}
+
+	completed := translateKimiTimelineItem(t, tr, `{"jsonrpc":"2.0","method":"event","params":{"type":"ToolResult","payload":{"tool_call_id":"custom-1","return_value":{"is_error":false,"content":"done"}}}}`)
+	completedDetail, ok := completed.Detail.(protocol.UnknownDetail)
+	if !ok {
+		t.Fatalf("completed detail = %T, want UnknownDetail", completed.Detail)
+	}
+	output, ok := completedDetail.Output.(map[string]interface{})
+	if !ok || output["content"] != "done" {
+		t.Errorf("completed output = %#v, want content=done", completedDetail.Output)
 	}
 }
 

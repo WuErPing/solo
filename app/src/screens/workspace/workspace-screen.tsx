@@ -48,7 +48,9 @@ import { confirmDialog } from "@/utils/confirm-dialog";
 import { useArchiveAgent } from "@/hooks/use-archive-agent";
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { buildProviderCommand } from "@/utils/provider-command-templates";
-import { generateDraftId } from "@/stores/draft-keys";
+import { buildDraftStoreKey, generateDraftId } from "@/stores/draft-keys";
+import { useDraftStore } from "@/stores/draft-store";
+import { buildFileMentionDraftText } from "@/utils/file-mention-autocomplete";
 import {
   getWorkspaceExecutionAuthority,
   resolveWorkspaceRouteId,
@@ -1606,6 +1608,49 @@ function WorkspaceScreenContent({
     }
     document.title = "Workspace";
   }, [activeTabDescriptor, isRouteFocused]);
+  const handleOpenDraftForFile = useCallback(
+    (input: { filePath: string; paneId?: string | null }) => {
+      const filePath = trimNonEmpty(input.filePath);
+      if (!filePath || !persistenceKey || !workspaceDirectory) {
+        return;
+      }
+
+      const draftId = generateDraftId();
+      useDraftStore.getState().saveDraftInput({
+        draftKey: buildDraftStoreKey({
+          serverId: normalizedServerId,
+          agentId: draftId,
+          draftId,
+        }),
+        draft: {
+          text: buildFileMentionDraftText(filePath),
+          attachments: [],
+          cwd: workspaceDirectory,
+        },
+      });
+
+      if (!isMobile && canRenderDesktopPaneSplits && input.paneId) {
+        const paneId = splitWorkspacePaneEmpty(persistenceKey, {
+          targetPaneId: input.paneId,
+          position: "bottom",
+        });
+        if (paneId) {
+          focusWorkspacePane(persistenceKey, paneId);
+        }
+      }
+      openWorkspaceDraftTab({ draftId });
+    },
+    [
+      canRenderDesktopPaneSplits,
+      focusWorkspacePane,
+      isMobile,
+      normalizedServerId,
+      openWorkspaceDraftTab,
+      persistenceKey,
+      splitWorkspacePaneEmpty,
+      workspaceDirectory,
+    ],
+  );
   const buildPaneContentModel = useCallback(
     (input: {
       tab: WorkspaceTabDescriptor;
@@ -1647,9 +1692,13 @@ function WorkspaceScreenContent({
           }
           handleOpenFileFromChat({ filePath });
         },
+        onOpenDraftForFile: (filePath) => {
+          handleOpenDraftForFile({ filePath, paneId: input.paneId });
+        },
       }),
     [
       handleCloseTabById,
+      handleOpenDraftForFile,
       handleOpenFileFromChat,
       focusWorkspacePane,
       navigateToTabId,

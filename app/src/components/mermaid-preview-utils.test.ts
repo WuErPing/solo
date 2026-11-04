@@ -47,6 +47,41 @@ describe("generateMermaidShellHtml", () => {
     expect(generateMermaidShellHtml()).toBe(generateMermaidShellHtml());
   });
 
+  it("pins gantt charts to the pane width so they scale with the device", () => {
+    const html = generateMermaidShellHtml();
+    // mermaid v10 otherwise sizes gantt charts from the task list alone
+    // (~226px), ignoring the container.
+    expect(html).toContain("gantt: { useWidth: useWidth }");
+    expect(html).toContain("el.clientWidth");
+    // The rendered width is part of the cache key, so a resized pane re-renders.
+    expect(html).toContain("theme + '\\u0000' + useWidth + '\\u0000' + source");
+  });
+
+  it("dedupes duplicate render requests and discards stale results", () => {
+    const html = generateMermaidShellHtml();
+    // The host posts each request twice (iframe load + shell ready); without
+    // this guard two concurrent mermaid.render calls flash a half-drawn diagram.
+    expect(html).toContain("inFlightKey");
+    expect(html).toContain("renderedKey");
+    expect(html).toContain("latestKey");
+    expect(html).toContain("key === renderedKey || key === inFlightKey");
+    expect(html).toContain("key !== latestKey");
+  });
+
+  it("keeps mermaid's temporary measurement div off-screen", () => {
+    const html = generateMermaidShellHtml();
+    // mermaid v10 appends an unstyled div to body while rendering; visible in
+    // normal flow it flashes and stretches the document height.
+    expect(html).toContain("body > div:not(#mermaid-graph)");
+    expect(html).toContain("left: -100000px");
+  });
+
+  it("reports the document height so the host can size the container", () => {
+    const html = generateMermaidShellHtml();
+    expect(html).toContain("document.body.scrollHeight");
+    expect(html).toContain("mermaid:rendered");
+  });
+
   it("does not interpolate any mermaid source into the document", () => {
     const html = generateMermaidShellHtml();
     // Source is pushed in at runtime (postMessage / injectJavaScript), so the

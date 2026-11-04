@@ -351,6 +351,15 @@ func (m *AgentManager) GetAgent(agentID string) *ManagedAgent {
 	return m.agents[agentID]
 }
 
+// GetPersistedAgent returns a read-only projection of a stored agent.
+func (m *AgentManager) GetPersistedAgent(agentID string) *ManagedAgent {
+	record := m.storage.Get(agentID)
+	if record == nil {
+		return nil
+	}
+	return recordToManagedAgent(record)
+}
+
 // ListAgents returns all active (non-archived) agents.
 func (m *AgentManager) ListAgents() []*ManagedAgent {
 	m.mu.RLock()
@@ -468,6 +477,62 @@ func (m *AgentManager) ArchiveAgent(agentID string) error {
 	m.emitState(agent)
 	m.logger.Info("agent archived", "agentId", agentID)
 	return closeErr
+}
+
+// RestoreArchivedAgent reactivates an archived agent with a new provider context.
+func (m *AgentManager) RestoreArchivedAgent(ctx context.Context, agentID string) (*ManagedAgent, error) {
+	record := m.storage.Get(agentID)
+	if record == nil {
+		return nil, fmt.Errorf("agent %s not found", agentID)
+	}
+	if record.ArchivedAt == nil {
+		return nil, fmt.Errorf("agent %s is not archived", agentID)
+	}
+
+	client, err := m.registry.Get(record.Provider)
+	if err != nil {
+		return nil, fmt.Errorf("provider %s not available: %w", record.Provider, err)
+	}
+	if err := client.IsAvailable(ctx); err != nil {
+		return nil, fmt.Errorf("provider %s not available: %w", record.Provider, err)
+	}
+
+	ag := recordToManagedAgent(record)
+	ag.mu.Lock()
+	ag.ArchivedAt = nil
+	ag.Persistence = nil
+	ag.RuntimeInfo = nil
+	ag.LastError = nil
+	ag.Attention = AttentionState{}
+	ag.mu.Unlock()
+
+	config := cloneAgentConfig(ag.Config, ag.Provider, ag.Cwd)
+	session, err := client.CreateSession(ctx, config)
+	if err != nil {
+		return nil, fmt.Errorf("create session: %w", err)
+	}
+	ag.Config = config
+	ag.SetSession(session)
+	ag.Persistence = attachPersistenceMetadata(session.DescribePersistence(), ag.Cwd, config)
+	ag.SetLifecycle(protocol.AgentIdle)
+
+	m.mu.Lock()
+	if current := m.agents[agentID]; current != nil {
+		m.mu.Unlock()
+		_ = session.Close()
+		return current, nil
+	}
+	m.agents[agentID] = ag
+	m.mu.Unlock()
+
+	m.refreshSessionMetadata(ctx, ag, session)
+	if err := m.storage.ApplySnapshot(ag, WithUnarchived()); err != nil {
+		m.logger.Warn("failed to persist restored agent", "agentId", agentID, "error", err)
+	}
+	go m.subscribeToSession(ag)
+	m.emitState(ag)
+	m.logger.Info("agent restored with new context", "agentId", agentID, "provider", ag.Provider)
+	return ag, nil
 }
 
 // CancelAgentRun interrupts the currently running turn.
@@ -1142,6 +1207,30 @@ func (m *AgentManager) emitAttentionRequired(agent *ManagedAgent, reason string)
 						"reason":  notification.Data.Reason,
 					},
 				},
+			},
+			Timestamp: time.Now(),
+		},
+	}
+	agent.Emit(event)
+	m.emit(event)
+}
+
+// EmitPermissionResolved broadcasts a permission_resolved stream event so all
+// subscribed sessions (and their clients) can clear pending permission cards.
+func (m *AgentManager) EmitPermissionResolved(agentID, requestID string, resolution protocol.AgentPermissionResponse) {
+	agent := m.GetAgent(agentID)
+	if agent == nil {
+		return
+	}
+	event := AgentEvent{
+		Type:    EventAgentStream,
+		AgentID: agent.ID,
+		Stream: &AgentStreamEvent{
+			AgentID: agent.ID,
+			Event: protocol.PermissionResolvedStreamEvent{
+				Provider:   agent.Provider,
+				RequestID:  requestID,
+				Resolution: resolution,
 			},
 			Timestamp: time.Now(),
 		},

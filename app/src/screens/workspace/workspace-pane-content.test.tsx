@@ -55,7 +55,7 @@ const tab: WorkspaceTabDescriptor = {
   target: { kind: "agent", agentId: "agent-a" },
 };
 
-function buildContent() {
+function buildContent(onOpenDraftForFile = vi.fn()) {
   return buildWorkspacePaneContentModel({
     tab,
     normalizedServerId: "server-a",
@@ -64,6 +64,7 @@ function buildContent() {
     onCloseCurrentTab: vi.fn(),
     onRetargetCurrentTab: vi.fn(),
     onOpenWorkspaceFile: vi.fn(),
+    onOpenDraftForFile,
   });
 }
 
@@ -116,5 +117,14 @@ describe("WorkspacePaneContent", () => {
       isPaneFocused: true,
       isInteractive: true,
     });
+  });
+
+  it("exposes the file-specific draft action through pane context", () => {
+    const onOpenDraftForFile = vi.fn();
+    const content = buildContent(onOpenDraftForFile);
+
+    content.paneContextValue.openDraftForFile("docs/guide.md");
+
+    expect(onOpenDraftForFile).toHaveBeenCalledWith("docs/guide.md");
   });
 });

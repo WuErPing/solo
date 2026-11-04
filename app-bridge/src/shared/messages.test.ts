@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { WorkspaceDescriptorSchema } from "../generated/protocol-schemas.js";
 import {
+  AgentTimelineEntryPayloadSchema,
   WorkspaceDescriptorSchemaWithDefault,
   FetchWorkspacesResponseMessageSchema,
 } from "./messages.js";
@@ -167,5 +168,44 @@ describe("Message schemas with generated descriptor", () => {
     };
     const result = FetchWorkspacesResponseMessageSchema.parse(message);
     expect(result.payload.entries[0].workspaceDirectory).toBe("/repo");
+  });
+});
+
+describe("Agent timeline history schemas", () => {
+  it("accepts a tool call without detail when Go omits the empty field", () => {
+    const entry = {
+      provider: "kimi",
+      item: {
+        type: "tool_call",
+        callId: "call-without-detail",
+        name: "run_command",
+        status: "running",
+      },
+      timestamp: "2026-11-03T17:00:00Z",
+      seqStart: 21,
+      seqEnd: 21,
+      sourceSeqRanges: [{ startSeq: 21, endSeq: 21 }],
+      collapsed: [],
+    };
+
+    expect(() => AgentTimelineEntryPayloadSchema.parse(entry)).not.toThrow();
+  });
+
+  it("accepts a tool call without a name when Go omits the empty field", () => {
+    const entry = {
+      provider: "kimi",
+      item: {
+        type: "tool_call",
+        callId: "call-without-name",
+        status: "running",
+      },
+      timestamp: "2026-11-03T17:00:00Z",
+      seqStart: 22,
+      seqEnd: 22,
+      sourceSeqRanges: [{ startSeq: 22, endSeq: 22 }],
+      collapsed: [],
+    };
+
+    expect(() => AgentTimelineEntryPayloadSchema.parse(entry)).not.toThrow();
   });
 });

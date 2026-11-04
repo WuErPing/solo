@@ -238,6 +238,42 @@ func TestAgentManagerArchiveAgent(t *testing.T) {
 	}
 }
 
+func TestAgentManagerRestoreArchivedAgentStartsNewContext(t *testing.T) {
+	m := createTestManagerWithMock(t)
+
+	ag, err := m.CreateAgent(context.Background(), &protocol.AgentSessionConfig{Provider: "mock", Cwd: "/tmp"}, nil)
+	if err != nil {
+		t.Fatalf("CreateAgent: %v", err)
+	}
+	originalSessionID := ag.GetSession().(*MockAgentSession).sessionID
+	if err := m.ArchiveAgent(ag.ID); err != nil {
+		t.Fatalf("ArchiveAgent: %v", err)
+	}
+
+	restored, err := m.RestoreArchivedAgent(context.Background(), ag.ID)
+	if err != nil {
+		t.Fatalf("RestoreArchivedAgent: %v", err)
+	}
+	if restored.ID != ag.ID {
+		t.Errorf("ID: got %q, want %q", restored.ID, ag.ID)
+	}
+	if restored.ArchivedAt != nil {
+		t.Errorf("ArchivedAt: got %v, want nil", restored.ArchivedAt)
+	}
+	if restored.Lifecycle != protocol.AgentIdle {
+		t.Errorf("Lifecycle: got %q, want idle", restored.Lifecycle)
+	}
+	restoredSession := restored.GetSession().(*MockAgentSession)
+	if restoredSession.sessionID == originalSessionID {
+		t.Error("expected a new provider context, got the archived session ID")
+	}
+
+	record := m.storage.Get(ag.ID)
+	if record == nil || record.ArchivedAt != nil {
+		t.Errorf("stored archive marker was not cleared: %+v", record)
+	}
+}
+
 func TestAgentManagerCancelAgentRun(t *testing.T) {
 	m := createTestManagerWithMock(t)
 
@@ -291,6 +327,50 @@ func TestAgentManagerClearAgentAttention(t *testing.T) {
 	if _, err := m.ClearAgentAttention("nonexistent"); err == nil {
 		t.Error("expected error for non-existent agent")
 	}
+}
+
+func TestAgentManagerEmitPermissionResolved(t *testing.T) {
+	m := createTestManagerWithMock(t)
+
+	ag, err := m.CreateAgent(context.Background(), &protocol.AgentSessionConfig{Provider: "mock", Cwd: "/tmp"}, nil)
+	if err != nil {
+		t.Fatalf("CreateAgent: %v", err)
+	}
+
+	events := make(chan AgentEvent, 4)
+	defer m.Subscribe(func(evt AgentEvent) { events <- evt })()
+	defer ag.Subscribe(func(evt AgentEvent) { events <- evt })()
+
+	resolution := protocol.AgentPermissionResponse{Behavior: "allow", SelectedActionID: "allow-once"}
+	m.EmitPermissionResolved(ag.ID, "perm-1", resolution)
+
+	// Both the per-agent and the global subscriber receive the event.
+	for i := 0; i < 2; i++ {
+		select {
+		case evt := <-events:
+			if evt.Type != EventAgentStream || evt.Stream == nil {
+				t.Fatalf("expected stream event, got %+v", evt)
+			}
+			resolved, ok := evt.Stream.Event.(protocol.PermissionResolvedStreamEvent)
+			if !ok {
+				t.Fatalf("expected PermissionResolvedStreamEvent, got %T", evt.Stream.Event)
+			}
+			if resolved.Provider != "mock" {
+				t.Errorf("provider: got %q, want mock", resolved.Provider)
+			}
+			if resolved.RequestID != "perm-1" {
+				t.Errorf("requestId: got %q, want perm-1", resolved.RequestID)
+			}
+			if resolved.Resolution.Behavior != "allow" || resolved.Resolution.SelectedActionID != "allow-once" {
+				t.Errorf("resolution: got %+v", resolved.Resolution)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for permission_resolved event")
+		}
+	}
+
+	// Unknown agent is a no-op.
+	m.EmitPermissionResolved("nonexistent", "perm-1", resolution)
 }
 
 func TestAgentManagerCoalescerFlusher(t *testing.T) {

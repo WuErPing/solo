@@ -253,9 +253,10 @@ func (e PermissionRequestedStreamEvent) MarshalJSON() ([]byte, error) {
 
 // PermissionResolvedStreamEvent signals a permission response.
 type PermissionResolvedStreamEvent struct {
-	Type      string `json:"type"` // always "permission_resolved"
-	Provider  string `json:"provider"`
-	RequestID string `json:"requestId,omitempty"`
+	Type       string                  `json:"type"` // always "permission_resolved"
+	Provider   string                  `json:"provider"`
+	RequestID  string                  `json:"requestId"`
+	Resolution AgentPermissionResponse `json:"resolution"`
 }
 
 func (PermissionResolvedStreamEvent) StreamEventType() string { return "permission_resolved" }

@@ -26,6 +26,14 @@ describe("generateMermaidServiceShellHtml", () => {
     expect(html).toContain("htmlLabels: false");
   });
 
+  it("pins gantt charts to the stage width so they fill the pane", () => {
+    const html = generateMermaidServiceShellHtml(SENTINEL_JS);
+    // mermaid v10 otherwise sizes gantt charts from the task list alone
+    // (~226px); the host scales the 1000px result down with fitScale.
+    expect(html).toContain("gantt: { useWidth: 1000 }");
+    expect(html).toContain("min-width: 1000px");
+  });
+
   it("does not interpolate any diagram source", () => {
     const html = generateMermaidServiceShellHtml(SENTINEL_JS);
     expect(html).not.toContain("graph TD");

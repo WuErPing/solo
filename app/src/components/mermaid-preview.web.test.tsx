@@ -102,6 +102,34 @@ describe("MermaidPreview (web)", () => {
     vi.unstubAllGlobals();
   });
 
+  it("grows the container to the rendered diagram height", () => {
+    const dom = setupDom();
+    const { container, root } = mount(dom, <MermaidPreview source="gantt" />);
+
+    const iframe = container.querySelector("iframe") as HTMLIFrameElement;
+    const wrapper = container.querySelector(
+      '[data-testid="mermaid-preview-web"]',
+    ) as HTMLElement;
+    expect(wrapper.style.height).toBe("400px");
+
+    // Tall diagrams (gantt charts) must not be clipped by the initial height.
+    act(() => {
+      dom.window.dispatchEvent(
+        new dom.window.MessageEvent("message", {
+          data: { type: "mermaid:rendered", height: 544 },
+          source: iframe.contentWindow,
+        }),
+      );
+    });
+
+    expect(wrapper.style.height).toBe("544px");
+
+    act(() => {
+      root.unmount();
+    });
+    vi.unstubAllGlobals();
+  });
+
   it("cleans up iframe on unmount", () => {
     const dom = setupDom();
     const { container, root } = mount(dom, <MermaidPreview source="graph TD; A -- B;" />);

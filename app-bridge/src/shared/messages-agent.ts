@@ -247,8 +247,8 @@ const ToolCallBasePayloadSchema = z
   .object({
     type: z.literal("tool_call"),
     callId: z.string(),
-    name: z.string(),
-    detail: ToolCallDetailPayloadSchema,
+    name: z.string().optional(),
+    detail: ToolCallDetailPayloadSchema.optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
   })
   .strict();

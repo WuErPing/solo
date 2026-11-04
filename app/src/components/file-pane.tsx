@@ -7,7 +7,7 @@ import Markdown, {
   type RenderRules,
 } from "react-native-markdown-display";
 import FitImage from "react-native-fit-image";
-import { TextSelect } from "lucide-react-native";
+import { RefreshCw, SquarePen, TextSelect } from "lucide-react-native";
 import {
   ActivityIndicator,
   Image as RNImage,
@@ -16,23 +16,18 @@ import {
   Text,
   View,
 } from "react-native";
-import { StyleSheet, useUnistyles } from "react-native-unistyles";
+import { StyleSheet, UnistylesRuntime, useUnistyles } from "react-native-unistyles";
 import { useIsCompactFormFactor } from "@/constants/layout";
-import { Fonts } from "@/constants/theme";
 import { useAppSettings } from "@/hooks/use-settings";
 import { useSessionStore, type ExplorerFile } from "@/stores/session-store";
 import { useWebScrollViewScrollbar } from "@/components/use-web-scrollbar";
 import { useWebScrollbarStyle } from "@/hooks/use-web-scrollbar-style";
-import {
-  highlightCode,
-  darkHighlightColors,
-  lightHighlightColors,
-  type HighlightToken,
-  type HighlightStyle,
-} from "@getsolo/highlight";
+import { highlightCode, darkHighlightColors, lightHighlightColors } from "@getsolo/highlight";
+import { CodeLine } from "@/components/code-line";
 import { lineNumberGutterWidth } from "@/components/code-insets";
 import { isRenderedMarkdownFile } from "@/components/file-pane-render-mode";
 import { FilePreviewScrollView } from "@/components/file-preview-scroll-view";
+import { MarkdownFileImage, isWorkspaceImageReference } from "@/components/markdown-file-image";
 import { MermaidPreview } from "@/components/mermaid-preview";
 import { PlantUmlPreview } from "@/components/plantuml-preview";
 import { MathText } from "@/components/math-text";
@@ -54,14 +49,6 @@ import { useAttachmentPreviewUrl } from "@/attachments/use-attachment-preview-ur
 import { persistAttachmentFromBase64 } from "@/attachments/service";
 import { createPreviewAttachmentId, getFileNameFromPath } from "@/attachments/utils";
 
-interface CodeLineProps {
-  tokens: HighlightToken[];
-  lineNumber: number;
-  gutterWidth: number;
-  colorMap: Record<HighlightStyle, string>;
-  baseColor: string;
-}
-
 interface FilePreviewBodyProps {
   preview: ExplorerFile | null;
   isLoading: boolean;
@@ -70,6 +57,9 @@ interface FilePreviewBodyProps {
   filePath: string;
   imagePreviewUri: string | null;
   serverId: string;
+  workspaceRoot: string;
+  onNewAgent?: (filePath: string) => void;
+  onRefresh?: () => void;
 }
 
 function trimNonEmpty(value: string | null | undefined): string | null {
@@ -118,74 +108,6 @@ async function createFilePanePreview(file: ExplorerFile | null): Promise<{
   };
 }
 
-const CodeLine = React.memo(function CodeLine({
-  tokens,
-  lineNumber,
-  gutterWidth,
-  colorMap,
-  baseColor,
-}: CodeLineProps) {
-  const gutterStyle = useMemo(() => [codeLineStyles.gutter, { width: gutterWidth }], [gutterWidth]);
-  const gutterTextStyle = useMemo(
-    () => [codeLineStyles.gutterText, { color: baseColor }],
-    [baseColor],
-  );
-  const keyedTokens = useMemo(
-    () => tokens.map((token, index) => ({ key: `${index}-${token.text}`, token })),
-    [tokens],
-  );
-  return (
-    <View style={codeLineStyles.line}>
-      <View style={gutterStyle}>
-        <Text style={gutterTextStyle}>{String(lineNumber)}</Text>
-      </View>
-      <Text selectable style={codeLineStyles.lineText}>
-        {keyedTokens.map(({ key, token }) => (
-          <CodeLineToken
-            key={key}
-            color={token.style ? (colorMap[token.style] ?? baseColor) : baseColor}
-            text={token.text}
-          />
-        ))}
-      </Text>
-    </View>
-  );
-});
-
-interface CodeLineTokenProps {
-  color: string;
-  text: string;
-}
-
-function CodeLineToken({ color, text }: CodeLineTokenProps) {
-  const style = useMemo(() => ({ color }), [color]);
-  return <Text style={style}>{text}</Text>;
-}
-
-const codeLineStyles = StyleSheet.create((theme) => ({
-  line: {
-    flexDirection: "row",
-  },
-  gutter: {
-    alignItems: "flex-end",
-    paddingRight: theme.spacing[3],
-    flexShrink: 0,
-  },
-  gutterText: {
-    fontFamily: Fonts.mono,
-    fontSize: theme.fontSize.sm,
-    lineHeight: theme.fontSize.sm * 1.45,
-    opacity: 0.4,
-    userSelect: "none",
-  },
-  lineText: {
-    fontFamily: Fonts.mono,
-    fontSize: theme.fontSize.sm,
-    lineHeight: theme.fontSize.sm * 1.45,
-    flex: 1,
-  },
-}));
-
 const INITIAL_MARKDOWN_BLOCKS = 24;
 const MARKDOWN_BLOCKS_PER_TICK = 24;
 
@@ -216,6 +138,10 @@ interface MarkdownFilePreviewProps
   > {
   content: string;
   serverId: string;
+  filePath: string;
+  workspaceRoot: string;
+  onNewAgent?: (filePath: string) => void;
+  onRefresh?: () => void;
 }
 
 /**
@@ -229,6 +155,10 @@ interface MarkdownFilePreviewProps
 function MarkdownFilePreview({
   content,
   serverId,
+  filePath,
+  workspaceRoot,
+  onNewAgent,
+  onRefresh,
   scrollRef,
   scrollbar,
   pagerEnabled,
@@ -240,7 +170,15 @@ function MarkdownFilePreview({
   // variants so long-press starts the platform selection UI. Kept behind a
   // toggle because selectable text swallows link taps on Android/iOS.
   const [selectMode, setSelectMode] = React.useState(false);
-  const markdownStyles = useMemo(() => createMarkdownStyles(theme), [theme]);
+  // `useUnistyles()` returns a fresh Proxy each render, so keying the style
+  // memo (and createMarkdownStyles' WeakMap cache) on it recreates the style
+  // object every render. That makes each memoized block re-parse, and since
+  // AST node keys are unstable across parses, every embedded preview (mermaid
+  // iframe, math) remounts — an infinite flicker loop once a preview reports a
+  // new height. Resolve the stable registered theme instead; `useUnistyles()`
+  // above still subscribes this component to real theme changes.
+  const stableTheme = UnistylesRuntime.getTheme();
+  const markdownStyles = useMemo(() => createMarkdownStyles(stableTheme), [stableTheme]);
   const markdownParser = useMemo(
     () => MarkdownIt({ typographer: true, linkify: true }).use(mathPlugin),
     [],
@@ -293,6 +231,21 @@ function MarkdownFilePreview({
           allowedImageHandlers.filter((value) =>
             uri.toLowerCase().startsWith(value.toLowerCase()),
           ).length > 0;
+        // The library's defaultImageHandler is `https://`, so a workspace-relative
+        // reference (e.g. `imgs/architecture.svg`) would otherwise be requested as
+        // a bogus URL. Hand those to the daemon-backed renderer instead.
+        if (isWorkspaceImageReference(filePath, uri, workspaceRoot, allowedImageHandlers)) {
+          return (
+            <MarkdownFileImage
+              key={node.key}
+              src={uri}
+              alt={alt}
+              serverId={serverId}
+              workspaceRoot={workspaceRoot}
+              filePath={filePath}
+            />
+          );
+        }
         if (!show && !defaultImageHandler) {
           return null;
         }
@@ -314,7 +267,7 @@ function MarkdownFilePreview({
         <MathText key={node.key} tex={node.content} display isDark={isDark} />
       ),
     }),
-    [isDark, selectMode, serverId],
+    [isDark, selectMode, serverId, workspaceRoot, filePath],
   );
 
   const markdownBlocks = useMemo(() => {
@@ -400,25 +353,50 @@ function MarkdownFilePreview({
           />
         ))}
       </FilePreviewScrollView>
-      {isWeb ? null : (
-        <Pressable
-          testID="markdown-select-toggle"
-          accessibilityRole="button"
-          accessibilityLabel="Toggle text selection"
-          accessibilityState={{ selected: selectMode }}
-          onPress={() => setSelectMode((value) => !value)}
-          style={({ pressed }) => [
-            styles.selectToggleButton,
-            selectMode ? styles.selectToggleButtonActive : null,
-            pressed ? { opacity: 0.7 } : null,
-          ]}
-        >
-          <TextSelect
-            size={16}
-            color={selectMode ? theme.colors.background : theme.colors.foregroundMuted}
-          />
-        </Pressable>
-      )}
+      <View style={styles.markdownPreviewActions}>
+        {onRefresh ? (
+          <Pressable
+            testID="markdown-refresh"
+            accessibilityRole="button"
+            accessibilityLabel="Refresh preview"
+            onPress={onRefresh}
+            style={({ pressed }) => [styles.selectToggleButton, pressed ? { opacity: 0.7 } : null]}
+          >
+            <RefreshCw size={16} color={theme.colors.foregroundMuted} />
+          </Pressable>
+        ) : null}
+        {onNewAgent ? (
+          <Pressable
+            testID="markdown-new-agent"
+            accessibilityRole="button"
+            accessibilityLabel="New agent with this file"
+            onPress={() => onNewAgent(filePath)}
+            style={({ pressed }) => [styles.newAgentButton, pressed ? { opacity: 0.7 } : null]}
+          >
+            <SquarePen size={16} color={theme.colors.foregroundMuted} />
+            <Text style={styles.newAgentButtonText}>New Agent</Text>
+          </Pressable>
+        ) : null}
+        {isWeb ? null : (
+          <Pressable
+            testID="markdown-select-toggle"
+            accessibilityRole="button"
+            accessibilityLabel="Toggle text selection"
+            accessibilityState={{ selected: selectMode }}
+            onPress={() => setSelectMode((value) => !value)}
+            style={({ pressed }) => [
+              styles.selectToggleButton,
+              selectMode ? styles.selectToggleButtonActive : null,
+              pressed ? { opacity: 0.7 } : null,
+            ]}
+          >
+            <TextSelect
+              size={16}
+              color={selectMode ? theme.colors.background : theme.colors.foregroundMuted}
+            />
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 }
@@ -431,6 +409,9 @@ function FilePreviewBody({
   filePath,
   imagePreviewUri,
   serverId,
+  workspaceRoot,
+  onNewAgent,
+  onRefresh,
 }: FilePreviewBodyProps) {
   const { theme } = useUnistyles();
   const { settings: appSettings } = useAppSettings();
@@ -487,6 +468,10 @@ function FilePreviewBody({
         <MarkdownFilePreview
           content={preview.content ?? ""}
           serverId={serverId}
+          filePath={filePath}
+          workspaceRoot={workspaceRoot}
+          onNewAgent={onNewAgent}
+          onRefresh={onRefresh}
           scrollRef={previewScrollRef}
           scrollbar={scrollbar}
           pagerEnabled={showPagerButtons}
@@ -593,10 +578,12 @@ export function FilePane({
   serverId,
   workspaceRoot,
   filePath,
+  onNewAgent,
 }: {
   serverId: string;
   workspaceRoot: string;
   filePath: string;
+  onNewAgent?: (filePath: string) => void;
 }) {
   const isMobile = useIsCompactFormFactor();
   const showDesktopWebScrollbar = isWeb && !isMobile;
@@ -645,6 +632,11 @@ export function FilePane({
         filePath={filePath}
         imagePreviewUri={imagePreviewUri}
         serverId={serverId}
+        workspaceRoot={normalizedWorkspaceRoot}
+        onNewAgent={onNewAgent}
+        onRefresh={() => {
+          void query.refetch();
+        }}
       />
     </View>
   );
@@ -700,10 +692,31 @@ const styles = StyleSheet.create((theme) => ({
     flex: 1,
     minHeight: 0,
   },
-  selectToggleButton: {
+  markdownPreviewActions: {
     position: "absolute",
     top: theme.spacing[2],
     right: theme.spacing[2],
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+  },
+  newAgentButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: theme.spacing[2],
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface1,
+  },
+  newAgentButtonText: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
+  },
+  selectToggleButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",

@@ -40,9 +40,17 @@ export function findActiveFileMention(input: FindActiveFileMentionInput): FileMe
   return null;
 }
 
+function formatFileMention(relativePath: string): string {
+  const safePath = relativePath.replace(/"/g, '\\"');
+  return `"${safePath}"`;
+}
+
+export function buildFileMentionDraftText(relativePath: string): string {
+  return `${formatFileMention(relativePath)} `;
+}
+
 export function applyFileMentionReplacement(input: ApplyFileMentionReplacementInput): string {
-  const safePath = input.relativePath.replace(/"/g, '\\"');
   const before = input.text.slice(0, input.mention.start);
   const after = input.text.slice(input.mention.end);
-  return `${before}"${safePath}"${after}`;
+  return `${before}${formatFileMention(input.relativePath)}${after}`;
 }

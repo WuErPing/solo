@@ -25,7 +25,7 @@ function useFilePanelDescriptor(target: { kind: "file"; path: string }) {
 }
 
 function FilePanel() {
-  const { serverId, workspaceId, target } = usePaneContext();
+  const { serverId, workspaceId, target, openDraftForFile } = usePaneContext();
   const workspaceAuthority = useWorkspaceExecutionAuthority(serverId, workspaceId);
   const workspaceDirectory = workspaceAuthority?.ok
     ? workspaceAuthority.authority.workspaceDirectory
@@ -38,7 +38,14 @@ function FilePanel() {
       </View>
     );
   }
-  return <FilePane serverId={serverId} workspaceRoot={workspaceDirectory} filePath={target.path} />;
+  return (
+    <FilePane
+      serverId={serverId}
+      workspaceRoot={workspaceDirectory}
+      filePath={target.path}
+      onNewAgent={openDraftForFile}
+    />
+  );
 }
 
 export const filePanelRegistration: PanelRegistration<"file"> = {

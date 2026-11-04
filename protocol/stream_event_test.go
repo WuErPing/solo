@@ -116,6 +116,18 @@ func TestStreamEventMarshalRoundTrip(t *testing.T) {
 			wantJSON: `{"type":"permission_requested","provider":"opencode","request":{"id":"perm-1","provider":"opencode","name":"bash","kind":"tool","title":"Run shell command"}}`,
 		},
 		{
+			name: "permission_resolved",
+			event: PermissionResolvedStreamEvent{
+				Provider:  "opencode",
+				RequestID: "perm-1",
+				Resolution: AgentPermissionResponse{
+					Behavior:         "allow",
+					SelectedActionID: "allow-once",
+				},
+			},
+			wantJSON: `{"type":"permission_resolved","provider":"opencode","requestId":"perm-1","resolution":{"behavior":"allow","selectedActionId":"allow-once"}}`,
+		},
+		{
 			name:     "flush_signal",
 			event:    FlushSignalStreamEvent{},
 			wantJSON: `{"type":"flush_signal"}`,
@@ -237,6 +249,12 @@ func TestAgentStreamPayloadUnmarshal(t *testing.T) {
 			wantProv: "opencode",
 		},
 		{
+			name:     "permission_resolved",
+			json:     `{"agentId":"a1","event":{"type":"permission_resolved","provider":"opencode","requestId":"p1","resolution":{"behavior":"deny","message":"Denied by user"}},"timestamp":"2024-01-01T00:00:00Z"}`,
+			wantType: "permission_resolved",
+			wantProv: "opencode",
+		},
+		{
 			name:     "flush_signal",
 			json:     `{"agentId":"a1","event":{"type":"flush_signal"},"timestamp":"2024-01-01T00:00:00Z"}`,
 			wantType: "flush_signal",
@@ -300,6 +318,16 @@ func TestAgentStreamPayloadUnmarshal(t *testing.T) {
 			case PermissionRequestedStreamEvent:
 				if e.Provider != tt.wantProv {
 					t.Errorf("provider: got %q, want %q", e.Provider, tt.wantProv)
+				}
+			case PermissionResolvedStreamEvent:
+				if e.Provider != tt.wantProv {
+					t.Errorf("provider: got %q, want %q", e.Provider, tt.wantProv)
+				}
+				if e.RequestID != "p1" {
+					t.Errorf("requestId: got %q, want %q", e.RequestID, "p1")
+				}
+				if e.Resolution.Behavior != "deny" || e.Resolution.Message != "Denied by user" {
+					t.Errorf("resolution: got %+v", e.Resolution)
 				}
 			case AttentionRequiredStreamEvent:
 				if e.Provider != tt.wantProv {

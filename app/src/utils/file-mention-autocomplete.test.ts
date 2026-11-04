@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { applyFileMentionReplacement, findActiveFileMention } from "./file-mention-autocomplete";
+import {
+  applyFileMentionReplacement,
+  buildFileMentionDraftText,
+  findActiveFileMention,
+} from "./file-mention-autocomplete";
 
 describe("findActiveFileMention", () => {
   it("detects mentions at the start of input", () => {
@@ -35,6 +39,12 @@ describe("findActiveFileMention", () => {
       cursorIndex: text.length,
     });
     expect(mention).toBeNull();
+  });
+});
+
+describe("buildFileMentionDraftText", () => {
+  it("pre-fills a quoted file reference and leaves room for the instruction", () => {
+    expect(buildFileMentionDraftText('docs/"guide".md')).toBe('"docs/\\"guide\\".md" ');
   });
 });
 

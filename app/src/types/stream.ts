@@ -572,7 +572,13 @@ function reduceTimelineToolCall(
   >,
   timestamp: Date,
 ): StreamItem[] {
-  const normalizedToolName = item.name
+  const detail: ToolCallDetail = item.detail ?? {
+    type: "unknown",
+    input: null,
+    output: null,
+  };
+  const toolName = item.name ?? "unknown_tool";
+  const normalizedToolName = toolName
     .trim()
     .replace(/[.\s-]+/g, "_")
     .toLowerCase();
@@ -584,7 +590,7 @@ function reduceTimelineToolCall(
     event.provider === "claude" &&
     (normalizedToolName === "todowrite" || normalizedToolName === "todo_write")
   ) {
-    const tasks = extractTaskEntriesFromToolCall(item.name, inputFromUnknownDetail(item.detail));
+    const tasks = extractTaskEntriesFromToolCall(toolName, inputFromUnknownDetail(detail));
     if (!tasks) {
       return state;
     }
@@ -596,7 +602,7 @@ function reduceTimelineToolCall(
     );
   }
 
-  const tasks = extractTaskEntriesFromToolCall(item.name, inputFromUnknownDetail(item.detail));
+  const tasks = extractTaskEntriesFromToolCall(toolName, inputFromUnknownDetail(detail));
   if (tasks) {
     return appendTodoList(
       state,
@@ -611,10 +617,10 @@ function reduceTimelineToolCall(
     {
       provider: event.provider,
       callId: item.callId,
-      name: item.name,
+      name: toolName,
       status: item.status,
       error: item.error,
-      detail: item.detail,
+      detail,
       metadata: item.metadata,
     },
     timestamp,

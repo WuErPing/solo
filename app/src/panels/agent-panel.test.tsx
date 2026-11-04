@@ -303,6 +303,7 @@ function buildTestPaneValue() {
     closeCurrentTab: vi.fn(),
     retargetCurrentTab: vi.fn(),
     openFileInWorkspace: vi.fn(),
+    openDraftForFile: vi.fn(),
   };
 }
 

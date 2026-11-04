@@ -106,6 +106,9 @@ func (s *Session) handleFetchAgents(m *protocol.FetchAgentsRequest) {
 func (s *Session) handleFetchAgent(m *protocol.FetchAgentRequest) {
 	ag := s.agentMgr.GetAgent(m.AgentID)
 	if ag == nil {
+		ag = s.agentMgr.GetPersistedAgent(m.AgentID)
+	}
+	if ag == nil {
 		s.sendMessage(protocol.NewSessionMessage(&protocol.FetchAgentResponse{
 			Type: "fetch_agent_response",
 			Payload: protocol.FetchAgentResponsePayload{
@@ -128,15 +131,18 @@ func (s *Session) handleFetchAgent(m *protocol.FetchAgentRequest) {
 
 func (s *Session) handleFetchAgentTimeline(m *protocol.FetchAgentTimelineRequest) {
 	ag := s.agentMgr.GetAgent(m.AgentID)
+	if ag != nil {
+		// Hydrate history from provider on first fetch (idempotent).
+		// Blocks briefly so the response includes history data.
+		if err := s.agentMgr.HydrateTimeline(context.Background(), m.AgentID, s.timelineStore); err != nil {
+			s.logger.Warn("HydrateTimeline failed", "agentId", m.AgentID, "error", err)
+		}
+	} else {
+		ag = s.agentMgr.GetPersistedAgent(m.AgentID)
+	}
 	if ag == nil {
 		s.sendRPCError(m.RequestID, "fetch_agent_timeline_request", "agent not found", nil)
 		return
-	}
-
-	// Hydrate history from provider on first fetch (idempotent).
-	// Blocks briefly so the response includes history data.
-	if err := s.agentMgr.HydrateTimeline(context.Background(), m.AgentID, s.timelineStore); err != nil {
-		s.logger.Warn("HydrateTimeline failed", "agentId", m.AgentID, "error", err)
 	}
 
 	direction := "tail"
@@ -551,7 +557,9 @@ func (s *Session) handleAgentPermissionResponse(m *protocol.AgentPermissionRespo
 	}
 	if err := sess.RespondPermission(m.RequestID, m.Response); err != nil {
 		s.logger.Warn("failed to respond to permission request", "agentId", m.AgentID, "requestId", m.RequestID, "error", err)
+		return
 	}
+	s.agentMgr.EmitPermissionResolved(m.AgentID, m.RequestID, m.Response)
 }
 
 func (s *Session) handleSetAgentMode(m *protocol.SetAgentModeRequest) {
@@ -1044,8 +1052,12 @@ func (s *Session) handleUpdateAgent(m *protocol.UpdateAgentRequest) {
 func (s *Session) handleRefreshAgent(m *protocol.RefreshAgentRequest) {
 	ag := s.agentMgr.GetAgent(m.AgentID)
 	if ag == nil {
-		s.sendRPCError(m.RequestID, m.MsgType(), "agent not found", nil)
-		return
+		var err error
+		ag, err = s.agentMgr.RestoreArchivedAgent(context.Background(), m.AgentID)
+		if err != nil {
+			s.sendRPCError(m.RequestID, m.MsgType(), err.Error(), nil)
+			return
+		}
 	}
 	snapshot := ag.ToSnapshot()
 	s.sendMessage(protocol.NewSessionMessage(&protocol.StatusMessage{

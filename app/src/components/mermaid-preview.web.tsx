@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { generateMermaidShellHtml } from "./mermaid-preview-utils";
 
 interface MermaidPreviewProps {
@@ -11,11 +11,18 @@ interface RenderRequest {
   theme: string;
 }
 
+const INITIAL_HEIGHT = 400;
+const MIN_HEIGHT = 120;
+const MAX_HEIGHT = 4000;
+
 export function MermaidPreview({ source, isDark }: MermaidPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const readyRef = useRef(false);
   const requestRef = useRef<RenderRequest | null>(null);
+  // The shell reports the rendered diagram height; without it tall diagrams
+  // (gantt charts in particular) would be clipped by the fixed container.
+  const [height, setHeight] = useState(INITIAL_HEIGHT);
 
   // Static shell: independent of source/theme so the iframe is created once and
   // mermaid is fetched from the CDN a single time for this preview's lifetime.
@@ -52,10 +59,15 @@ export function MermaidPreview({ source, isDark }: MermaidPreviewProps) {
     // messages from other previews' iframes via the source check.
     const handleMessage = (event: MessageEvent) => {
       if (event.source !== iframe.contentWindow) return;
-      const data = event.data as { type?: string } | null;
-      if (data?.type !== "mermaid:ready") return;
-      readyRef.current = true;
-      postRender();
+      const data = event.data as { type?: string; height?: number } | null;
+      if (data?.type === "mermaid:ready") {
+        readyRef.current = true;
+        postRender();
+        return;
+      }
+      if (data?.type === "mermaid:rendered" && typeof data.height === "number") {
+        setHeight(Math.min(Math.max(Math.ceil(data.height), MIN_HEIGHT), MAX_HEIGHT));
+      }
     };
 
     iframe.addEventListener("load", handleLoad);
@@ -85,7 +97,7 @@ export function MermaidPreview({ source, isDark }: MermaidPreviewProps) {
     <div
       ref={containerRef}
       style={{
-        height: 400,
+        height,
         marginTop: 8,
         marginBottom: 8,
         borderRadius: 8,

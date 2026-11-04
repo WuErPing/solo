@@ -9,6 +9,7 @@ const appSrcRoot = path.resolve(projectRoot, "src");
 const serverSrcRoot = path.resolve(projectRoot, "../server/src");
 const relaySrcRoot = path.resolve(projectRoot, "../relay/src");
 const appBridgeSrcRoot = path.resolve(projectRoot, "../app-bridge/src");
+const highlightSrcRoot = path.resolve(projectRoot, "../packages/highlight/src");
 const customWebPlatform = (process.env.SOLO_WEB_PLATFORM ?? "")
   .trim()
   .replace(/^\./, "")
@@ -68,10 +69,17 @@ function resolveWithCustomWebOverlay(context, moduleName, platform) {
 }
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName === "@getsolo/highlight") {
+    return resolveWithCustomWebOverlay(context, path.join(highlightSrcRoot, "index.ts"), platform);
+  }
+
   const origin = context.originModulePath;
   if (
     origin &&
-    (origin.startsWith(serverSrcRoot) || origin.startsWith(relaySrcRoot) || origin.startsWith(appBridgeSrcRoot)) &&
+    (origin.startsWith(serverSrcRoot) ||
+      origin.startsWith(relaySrcRoot) ||
+      origin.startsWith(appBridgeSrcRoot) ||
+      origin.startsWith(highlightSrcRoot)) &&
     moduleName.endsWith(".js")
   ) {
     const tsModuleName = moduleName.replace(/\.js$/, ".ts");

@@ -117,12 +117,48 @@ export function subscribeToSessionEvents(deps: SubscribeToSessionEventsDeps): ()
     requestCanonicalCatchUp,
   });
 
+  const addPendingPermission = (
+    agentId: string,
+    request: Parameters<typeof derivePendingPermissionKey>[1],
+  ) => {
+    setPendingPermissions(serverId, (prev) => {
+      const next = new Map(prev);
+      const key = derivePendingPermissionKey(agentId, request);
+      next.set(key, { key, agentId, request });
+      return next;
+    });
+  };
+
+  const removePendingPermission = (agentId: string, requestId: string) => {
+    setPendingPermissions(serverId, (prev) => {
+      const next = new Map(prev);
+      const derivedKey = `${agentId}:${requestId}`;
+      if (!next.delete(derivedKey)) {
+        for (const [key, pending] of next.entries()) {
+          if (pending.agentId === agentId && pending.request.id === requestId) {
+            next.delete(key);
+            break;
+          }
+        }
+      }
+      return next;
+    });
+  };
+
   unsubs.push(
     client.on("agent_stream", (message) => {
       if (message.type !== "agent_stream") return;
       const { agentId, event, timestamp, seq, epoch } = message.payload;
       const parsedTimestamp = new Date(timestamp);
       const streamEvent = event as AgentStreamEventPayload;
+
+      if (event.type === "permission_requested") {
+        addPendingPermission(agentId, event.request);
+      }
+
+      if (event.type === "permission_resolved") {
+        removePendingPermission(agentId, event.requestId);
+      }
 
       // Attention notification stays in React (not extractable to pure reducer)
       if (event.type === "attention_required") {
@@ -215,13 +251,7 @@ export function subscribeToSessionEvents(deps: SubscribeToSessionEventsDeps): ()
     client.on("agent_permission_request", (message) => {
       if (message.type !== "agent_permission_request") return;
       const { agentId, request } = message.payload;
-
-      setPendingPermissions(serverId, (prev) => {
-        const next = new Map(prev);
-        const key = derivePendingPermissionKey(agentId, request);
-        next.set(key, { key, agentId, request });
-        return next;
-      });
+      addPendingPermission(agentId, request);
     }),
   );
 
@@ -229,20 +259,7 @@ export function subscribeToSessionEvents(deps: SubscribeToSessionEventsDeps): ()
     client.on("agent_permission_resolved", (message) => {
       if (message.type !== "agent_permission_resolved") return;
       const { requestId, agentId } = message.payload;
-
-      setPendingPermissions(serverId, (prev) => {
-        const next = new Map(prev);
-        const derivedKey = `${agentId}:${requestId}`;
-        if (!next.delete(derivedKey)) {
-          for (const [key, pending] of next.entries()) {
-            if (pending.agentId === agentId && pending.request.id === requestId) {
-              next.delete(key);
-              break;
-            }
-          }
-        }
-        return next;
-      });
+      removePendingPermission(agentId, requestId);
     }),
   );
 
