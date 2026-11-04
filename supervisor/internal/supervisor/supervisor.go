@@ -28,6 +28,7 @@ const (
 	defaultStableUptime   = 60 * time.Second
 	defaultMaxFastCrashes = 5
 	defaultShutdownGrace  = 10 * time.Second
+	defaultMaxLogBytes    = 50 << 20
 )
 
 // Config configures a Supervisor.
@@ -57,6 +58,9 @@ type Supervisor struct {
 	stableUptime   time.Duration
 	maxFastCrashes int
 	shutdownGrace  time.Duration
+	// maxLogBytes rotates daemon.log to daemon.log.1 on spawn once it grows
+	// past this size (0 disables rotation).
+	maxLogBytes int64
 	// fallbackHold delays the respawn right after a crash fallback so the
 	// transient `fallback` state stays observable in the state file; 0 in
 	// production.
@@ -102,6 +106,7 @@ func New(cfg Config) (*Supervisor, error) {
 		stableUptime:   defaultStableUptime,
 		maxFastCrashes: defaultMaxFastCrashes,
 		shutdownGrace:  defaultShutdownGrace,
+		maxLogBytes:    defaultMaxLogBytes,
 		failed:         make(map[string]bool),
 	}, nil
 }
@@ -497,6 +502,20 @@ func (s *Supervisor) openLogFile() (*os.File, error) {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, err
 	}
-	return os.OpenFile(filepath.Join(dir, "daemon.log"),
-		os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	path := filepath.Join(dir, "daemon.log")
+	s.rotateLogFile(path)
+	return os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+}
+
+func (s *Supervisor) rotateLogFile(path string) {
+	if s.maxLogBytes <= 0 {
+		return
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.Size() <= s.maxLogBytes {
+		return
+	}
+	if err := os.Rename(path, path+".1"); err != nil {
+		s.cfg.Logger.Warn("cannot rotate daemon log", "path", path, "error", err)
+	}
 }

@@ -22,8 +22,8 @@ func deriveInitialAgentTitle(prompt string) *string {
 		if title := classifyInitialPromptTitle(normalized); title != nil {
 			return title
 		}
-		if len(normalized) > maxInitialAgentTitleChars {
-			normalized = strings.TrimSpace(normalized[:maxInitialAgentTitleChars])
+		if runes := []rune(normalized); len(runes) > maxInitialAgentTitleChars {
+			normalized = strings.TrimSpace(string(runes[:maxInitialAgentTitleChars]))
 		}
 		if normalized == "" {
 			return nil

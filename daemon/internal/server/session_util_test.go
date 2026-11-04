@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/WuErPing/solo/daemon/internal/agent"
 	"github.com/WuErPing/solo/daemon/internal/workspace"
@@ -20,6 +21,8 @@ func TestDeriveInitialAgentTitle(t *testing.T) {
 		{"who are you", "Identity inquiry"},
 		{"What are you?", "Identity inquiry"},
 		{"a very long prompt that exceeds the sixty character limit for initial titles", "a very long prompt that exceeds the sixty character limit fo"},
+		{strings.Repeat("中", 70), strings.Repeat("中", 60)},
+		{"请帮我分析一下这个项目的整体架构并给出改进建议，重点关注模块边界、依赖方向以及测试覆盖率等方面的问题", "请帮我分析一下这个项目的整体架构并给出改进建议，重点关注模块边界、依赖方向以及测试覆盖率等方面的问题"},
 	}
 
 	for _, tc := range cases {
@@ -32,6 +35,9 @@ func TestDeriveInitialAgentTitle(t *testing.T) {
 		}
 		if *got != tc.expected {
 			t.Errorf("deriveInitialAgentTitle(%q): got %q, want %q", tc.input, *got, tc.expected)
+		}
+		if !utf8.ValidString(*got) {
+			t.Errorf("deriveInitialAgentTitle(%q): produced invalid UTF-8 %q", tc.input, *got)
 		}
 	}
 }

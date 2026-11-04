@@ -346,7 +346,7 @@ func TestRun_CrashFallbackToOlderVersion(t *testing.T) {
 	sup.maxFastCrashes = 2
 	versionsDir := filepath.Join(sup.cfg.SoloHome, "versions")
 	now := time.Now()
-	bad := installFakeVersion(t, versionsDir, "solo-bad", now)                 // newest
+	bad := installFakeVersion(t, versionsDir, "solo-bad", now)                   // newest
 	good := installFakeVersion(t, versionsDir, "solo-good", now.Add(-time.Hour)) // older
 	if err := os.WriteFile(filepath.Join(versionsDir, "current"), []byte("solo-bad\n"), 0644); err != nil {
 		t.Fatal(err)
@@ -577,5 +577,70 @@ func TestRun_ObserveBackoffAndFallbackStates(t *testing.T) {
 	}
 	if !sawBackoff || !sawFallback {
 		t.Errorf("sawBackoff = %v, sawFallback = %v, want both", sawBackoff, sawFallback)
+	}
+}
+
+func TestOpenLogFile_RotatesOversizedLog(t *testing.T) {
+	sup := newTestSupervisor(t)
+	sup.maxLogBytes = 16
+	dir := filepath.Join(sup.cfg.SoloHome, "logs")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	old := []byte("this line is longer than sixteen bytes\n")
+	if err := os.WriteFile(filepath.Join(dir, "daemon.log"), old, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	f, err := sup.openLogFile()
+	if err != nil {
+		t.Fatalf("openLogFile: %v", err)
+	}
+	if _, err := f.WriteString("fresh\n"); err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+
+	rotated, err := os.ReadFile(filepath.Join(dir, "daemon.log.1"))
+	if err != nil {
+		t.Fatalf("expected rotated log: %v", err)
+	}
+	if string(rotated) != string(old) {
+		t.Errorf("rotated content = %q, want %q", rotated, old)
+	}
+	current, err := os.ReadFile(filepath.Join(dir, "daemon.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(current) != "fresh\n" {
+		t.Errorf("current log = %q, want only fresh content", current)
+	}
+}
+
+func TestOpenLogFile_KeepsSmallLog(t *testing.T) {
+	sup := newTestSupervisor(t)
+	dir := filepath.Join(sup.cfg.SoloHome, "logs")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "daemon.log"), []byte("old\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	f, err := sup.openLogFile()
+	if err != nil {
+		t.Fatalf("openLogFile: %v", err)
+	}
+	if _, err := f.WriteString("new\n"); err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+
+	current, _ := os.ReadFile(filepath.Join(dir, "daemon.log"))
+	if string(current) != "old\nnew\n" {
+		t.Errorf("current log = %q, want appended content", current)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "daemon.log.1")); !os.IsNotExist(err) {
+		t.Errorf("small log must not be rotated (stat err = %v)", err)
 	}
 }

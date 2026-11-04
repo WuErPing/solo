@@ -25,13 +25,13 @@ func (s *Session) handleTmuxListAgents(m *protocol.TmuxListAgentsRequest) {
 		return
 	}
 
-	s.logger.Info("tmux scan result",
+	s.logger.Debug("tmux scan result",
 		"agents", len(agents),
 		"otherPanes", len(otherPanes),
 		"agentNames", agentNames,
 	)
 	for _, a := range agents {
-		s.logger.Info("tmux detected agent",
+		s.logger.Debug("tmux detected agent",
 			"paneID", a.PaneID,
 			"agentName", a.AgentName,
 			"currentCmd", a.CurrentCmd,
@@ -40,7 +40,7 @@ func (s *Session) handleTmuxListAgents(m *protocol.TmuxListAgentsRequest) {
 		)
 	}
 	for _, p := range otherPanes {
-		s.logger.Info("tmux other pane",
+		s.logger.Debug("tmux other pane",
 			"paneID", p.PaneID,
 			"currentCmd", p.CurrentCmd,
 			"title", p.Title,
@@ -69,7 +69,7 @@ func (s *Session) handleTmuxListAgents(m *protocol.TmuxListAgentsRequest) {
 					LaunchCmd: a.LaunchCmd,
 				})
 			} else {
-				s.logger.Info("tmux agent skipped due to empty launchCmd", "paneID", a.PaneID, "agentName", a.AgentName)
+				s.logger.Debug("tmux agent skipped due to empty launchCmd", "paneID", a.PaneID, "agentName", a.AgentName)
 			}
 		}
 		// Remove stale entries for currently running agents before merging,

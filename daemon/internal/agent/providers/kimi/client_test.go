@@ -579,6 +579,98 @@ func TestKimiWireTranslator_PreservesUnknownToolInputAndOutput(t *testing.T) {
 	}
 }
 
+func translateKimiEvents(t *testing.T, tr *kimiWireTranslator, wire string) []interface{} {
+	t.Helper()
+	events, _, err := tr.Translate([]byte(wire), time.Now())
+	if err != nil {
+		t.Fatalf("Translate() error = %v", err)
+	}
+	return events
+}
+
+// Kimi CLI 1.47 sends ToolCall with empty arguments and streams the JSON via
+// ToolCallPart events; the tool name is the CLI's own (e.g. "Shell").
+func TestKimiWireTranslator_AssemblesStreamedToolCallArguments(t *testing.T) {
+	sess := newKimiSession("fake-kimi", &protocol.AgentSessionConfig{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	tr := &kimiWireTranslator{session: sess}
+
+	if events := translateKimiEvents(t, tr, `{"jsonrpc":"2.0","method":"event","params":{"type":"ToolCall","payload":{"type":"function","id":"tool_1","function":{"name":"Shell","arguments":""},"extras":null}}}`); len(events) != 0 {
+		t.Fatalf("ToolCall with empty arguments emitted %d events, want 0 until arguments arrive", len(events))
+	}
+	for _, part := range []string{`{\"command\":\"`, `ls`, ` -la`, `\"`} {
+		if events := translateKimiEvents(t, tr, `{"jsonrpc":"2.0","method":"event","params":{"type":"ToolCallPart","payload":{"arguments_part":"`+part+`"}}}`); len(events) != 0 {
+			t.Fatalf("partial ToolCallPart %q emitted %d events, want 0", part, len(events))
+		}
+	}
+
+	running := translateKimiTimelineItem(t, tr, `{"jsonrpc":"2.0","method":"event","params":{"type":"ToolCallPart","payload":{"arguments_part":"}"}}}`)
+	if running.Status != "running" || running.CallID != "tool_1" || running.Name != "Shell" {
+		t.Fatalf("running item = %+v, want running Shell tool_1", running)
+	}
+	runningDetail, ok := running.Detail.(protocol.ShellDetail)
+	if !ok {
+		t.Fatalf("running detail = %T, want ShellDetail", running.Detail)
+	}
+	if runningDetail.Command != "ls -la" {
+		t.Errorf("running command = %q, want ls -la", runningDetail.Command)
+	}
+
+	completed := translateKimiTimelineItem(t, tr, `{"jsonrpc":"2.0","method":"event","params":{"type":"ToolResult","payload":{"tool_call_id":"tool_1","return_value":{"is_error":false,"output":"total 0\n","message":"Command executed successfully.","display":[],"extras":null}}}}`)
+	completedDetail, ok := completed.Detail.(protocol.ShellDetail)
+	if !ok {
+		t.Fatalf("completed detail = %T, want ShellDetail", completed.Detail)
+	}
+	if completedDetail.Command != "ls -la" {
+		t.Errorf("completed command = %q, want ls -la", completedDetail.Command)
+	}
+	if completedDetail.Output != "total 0\n" {
+		t.Errorf("completed output = %q, want total 0", completedDetail.Output)
+	}
+}
+
+func TestKimiWireTranslator_FlushesPendingToolCallOnNextEvent(t *testing.T) {
+	sess := newKimiSession("fake-kimi", &protocol.AgentSessionConfig{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	tr := &kimiWireTranslator{session: sess}
+
+	translateKimiEvents(t, tr, `{"jsonrpc":"2.0","method":"event","params":{"type":"ToolCall","payload":{"type":"function","id":"tool_2","function":{"name":"ReadFile","arguments":""}}}}`)
+	translateKimiEvents(t, tr, `{"jsonrpc":"2.0","method":"event","params":{"type":"ToolCallPart","payload":{"arguments_part":"{\"path\":\"main.go\""}}}`)
+
+	events := translateKimiEvents(t, tr, `{"jsonrpc":"2.0","method":"event","params":{"type":"ContentPart","payload":{"type":"text","text":"Reading..."}}}`)
+	if len(events) != 2 {
+		t.Fatalf("expected flushed tool_call + assistant message, got %d events", len(events))
+	}
+	flushed := events[0].(agent.AgentStreamEvent).Event.(protocol.TimelineStreamEvent).Item
+	if flushed.Type != "tool_call" || flushed.CallID != "tool_2" || flushed.Status != "running" {
+		t.Fatalf("flushed item = %+v, want running tool_call tool_2", flushed)
+	}
+	detail, ok := flushed.Detail.(protocol.ReadDetail)
+	if !ok {
+		t.Fatalf("flushed detail = %T, want ReadDetail", flushed.Detail)
+	}
+	if detail.FilePath != "" {
+		t.Errorf("incomplete JSON should not yield a file path, got %q", detail.FilePath)
+	}
+
+	completed := translateKimiTimelineItem(t, tr, `{"jsonrpc":"2.0","method":"event","params":{"type":"ToolResult","payload":{"tool_call_id":"tool_2","return_value":{"is_error":false,"output":"package main\n"}}}}`)
+	if completed.Status != "completed" || completed.CallID != "tool_2" {
+		t.Fatalf("completed item = %+v, want completed tool_2", completed)
+	}
+}
+
+func TestKimiWireTranslator_ToolResultWithoutPartsSkipsRunning(t *testing.T) {
+	sess := newKimiSession("fake-kimi", &protocol.AgentSessionConfig{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	tr := &kimiWireTranslator{session: sess}
+
+	translateKimiEvents(t, tr, `{"jsonrpc":"2.0","method":"event","params":{"type":"ToolCall","payload":{"type":"function","id":"tool_3","function":{"name":"Shell","arguments":""}}}}`)
+	completed := translateKimiTimelineItem(t, tr, `{"jsonrpc":"2.0","method":"event","params":{"type":"ToolResult","payload":{"tool_call_id":"tool_3","return_value":{"is_error":false,"output":"ok\n"}}}}`)
+	if completed.Status != "completed" || completed.Name != "Shell" {
+		t.Fatalf("completed item = %+v, want completed Shell", completed)
+	}
+	if _, ok := completed.Detail.(protocol.ShellDetail); !ok {
+		t.Fatalf("completed detail = %T, want ShellDetail", completed.Detail)
+	}
+}
+
 // --- RED Phase: kimiSession JSON-RPC communication tests ---
 
 // fakeWriteCloser is a test double that captures writes without blocking.

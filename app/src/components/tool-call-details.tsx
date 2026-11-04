@@ -444,13 +444,13 @@ function serializeUnknownValue(value: unknown): string {
 }
 
 interface UnknownDetail {
-  input: unknown;
-  output: unknown;
+  input?: unknown;
+  output?: unknown;
 }
 
 function buildUnknownSections(detail: UnknownDetail, ds: DetailStyles): ReactNode[] {
   const plainInputText =
-    typeof detail.input === "string" && detail.output === null ? detail.input : null;
+    typeof detail.input === "string" && detail.output == null ? detail.input : null;
 
   if (plainInputText !== null) {
     return [

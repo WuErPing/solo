@@ -3,7 +3,6 @@ import { useMemo, useCallback, useRef } from "react";
 import { getHostRuntimeStore, useHosts, isHostRuntimeConnected } from "@/runtime/host-runtime";
 import { withLiveTmuxClient } from "@/utils/tmux-rpc";
 import { useAppVisible } from "@/hooks/use-app-visible";
-import { computeAdaptiveQueryInterval } from "@/hooks/use-tmux-capture-pane";
 
 export interface TmuxAgent {
   sessionName: string;
@@ -74,6 +73,58 @@ export function tmuxAgentsQueryKey(serverId: string): readonly string[] {
   return ["tmux-agents", serverId];
 }
 
+// list_agents runs a full tmux + ps scan per request, so it polls far slower
+// than capture_pane: 1s while pane state changed recently, 5s once stable.
+const ACTIVE_LIST_INTERVAL = 1000;
+const IDLE_LIST_INTERVAL = 5000;
+const ACTIVE_LIST_PHASE_MS = 10_000;
+
+interface TmuxAgentsQueryData {
+  agents?: Partial<TmuxAgent>[];
+  otherPanes?: Partial<TmuxPane>[];
+  commandHistory?: Partial<AgentCommandEntry>[];
+  inputHistory?: Partial<TmuxInputEntry>[];
+  error?: string | null;
+}
+
+// The daemon rewrites lastSeen and the "N ago" strings on every scan, so data
+// identity can't tell real changes apart; fingerprint only the fields that
+// describe pane/agent state.
+function tmuxAgentsChangeFingerprint(data: TmuxAgentsQueryData | undefined): string {
+  if (!data) return "";
+  const panes = [...(data.agents ?? []), ...(data.otherPanes ?? [])].map((p) => [
+    p.sessionName,
+    p.windowName,
+    p.paneId,
+    p.panePid,
+    p.currentCmd,
+    p.workingDir,
+    p.title,
+    p.lastContentChange,
+    "agentName" in p ? p.agentName : undefined,
+    "status" in p ? p.status : undefined,
+    "activity" in p ? p.activity : undefined,
+  ]);
+  const commands = (data.commandHistory ?? []).map((c) => [c.agentName, c.launchCmd]);
+  const inputs = (data.inputHistory ?? []).map((i) => [i.text, i.count]);
+  return JSON.stringify([panes, commands, inputs, data.error ?? null]);
+}
+
+const lastChangeByQuery = new WeakMap<object, { fingerprint: string; changedAt: number }>();
+
+export function computeTmuxAgentsRefetchInterval(
+  query: { state: { data: unknown } },
+  now: number,
+): number {
+  const fingerprint = tmuxAgentsChangeFingerprint(query.state.data as TmuxAgentsQueryData | undefined);
+  let entry = lastChangeByQuery.get(query);
+  if (!entry || entry.fingerprint !== fingerprint) {
+    entry = { fingerprint, changedAt: now };
+    lastChangeByQuery.set(query, entry);
+  }
+  return now - entry.changedAt <= ACTIVE_LIST_PHASE_MS ? ACTIVE_LIST_INTERVAL : IDLE_LIST_INTERVAL;
+}
+
 export function useAggregatedTmuxAgents(options?: {
   enabled?: boolean;
 }): AggregatedTmuxAgentsResult {
@@ -96,8 +147,9 @@ export function useAggregatedTmuxAgents(options?: {
         placeholderData: keepPreviousData,
         refetchInterval: isAppVisible
           ? (query: { state: { data: unknown } }) =>
-              computeAdaptiveQueryInterval(query, Date.now())
+              computeTmuxAgentsRefetchInterval(query, Date.now())
           : false,
+        staleTime: ACTIVE_LIST_INTERVAL,
         retry: 1,
         queryFn: async () => {
           const payload = await withLiveTmuxClient(host.serverId, (c) => c.tmuxListAgents());

@@ -208,4 +208,27 @@ describe("Agent timeline history schemas", () => {
 
     expect(() => AgentTimelineEntryPayloadSchema.parse(entry)).not.toThrow();
   });
+
+  it("accepts an unknown tool call detail whose input Go omitted as empty", () => {
+    const entry = {
+      provider: "kimi",
+      item: {
+        type: "tool_call",
+        callId: "tool_pP8OHkS0ZPmzoht3d0qB9lyV",
+        name: "Shell",
+        status: "completed",
+        detail: {
+          type: "unknown",
+          output: { is_error: false, output: "total 248\n", display: [], extras: null },
+        },
+      },
+      timestamp: "2026-11-03T17:02:42Z",
+      seqStart: 2,
+      seqEnd: 2,
+      sourceSeqRanges: [{ startSeq: 2, endSeq: 2 }],
+      collapsed: [],
+    };
+
+    expect(() => AgentTimelineEntryPayloadSchema.parse(entry)).not.toThrow();
+  });
 });

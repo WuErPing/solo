@@ -6,7 +6,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useAggregatedTmuxAgents } from "./use-tmux-agents";
+import { computeTmuxAgentsRefetchInterval, useAggregatedTmuxAgents } from "./use-tmux-agents";
 
 const { mockStore, mockClient, mockHosts } = vi.hoisted(() => {
   const store = {
@@ -333,5 +333,55 @@ describe("useAggregatedTmuxAgents", () => {
       expect(merged.lastUsed).toBe("2026-08-11T00:00:00Z");
       expect(merged.serverId).toBe("s2");
     });
+  });
+});
+
+describe("computeTmuxAgentsRefetchInterval", () => {
+  const agent = {
+    sessionName: "work",
+    windowName: "main",
+    paneId: "%1",
+    paneIndex: 0,
+    panePid: 42,
+    agentName: "claude",
+    currentCmd: "claude",
+    workingDir: "/tmp",
+    status: "idle",
+    lastContentChange: 1_000,
+    lastContentChangeAgo: "just now",
+  };
+  const base = {
+    agents: [agent],
+    otherPanes: [],
+    commandHistory: [{ agentName: "claude", launchCmd: "claude", lastSeen: "2026-11-04T00:00:00Z" }],
+    inputHistory: [],
+    error: null,
+  };
+
+  it("ignores daemon-derived volatile fields when deciding whether data changed", () => {
+    const t0 = 1_000_000;
+    const query = { state: { data: base as unknown } };
+    expect(computeTmuxAgentsRefetchInterval(query, t0)).toBe(1000);
+
+    // Every scan rewrites lastSeen and "N ago" strings; that must not keep polling hot.
+    query.state.data = {
+      ...base,
+      agents: [{ ...agent, lastContentChangeAgo: "1m ago" }],
+      commandHistory: [{ agentName: "claude", launchCmd: "claude", lastSeen: "2026-11-04T00:00:01Z" }],
+    };
+    expect(computeTmuxAgentsRefetchInterval(query, t0 + 11_000)).toBe(5000);
+  });
+
+  it("returns to the active interval when pane state actually changes", () => {
+    const t0 = 1_000_000;
+    const query = { state: { data: base as unknown } };
+    computeTmuxAgentsRefetchInterval(query, t0);
+    expect(computeTmuxAgentsRefetchInterval(query, t0 + 11_000)).toBe(5000);
+
+    query.state.data = {
+      ...base,
+      agents: [{ ...agent, status: "running", lastContentChange: 2_000 }],
+    };
+    expect(computeTmuxAgentsRefetchInterval(query, t0 + 12_000)).toBe(1000);
   });
 });

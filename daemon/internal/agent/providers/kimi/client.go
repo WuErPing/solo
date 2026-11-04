@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -594,12 +595,59 @@ func (s *kimiSession) StreamHistory(_ context.Context) ([]agent.AgentStreamEvent
 type kimiToolCallState struct {
 	name  string
 	input interface{}
+	args  strings.Builder
+}
+
+// kimiToolDetailNames maps Kimi CLI tool names onto the generic names that
+// base.DeriveToolCallDetail knows how to type.
+var kimiToolDetailNames = map[string]string{
+	"Shell":          "shell",
+	"ReadFile":       "read_file",
+	"WriteFile":      "write_file",
+	"StrReplaceFile": "edit",
+	"Glob":           "glob",
+	"Grep":           "grep",
+	"SearchWeb":      "web_search",
+	"FetchURL":       "web_fetch",
+}
+
+func kimiDetailToolName(name string) string {
+	if mapped, ok := kimiToolDetailNames[name]; ok {
+		return mapped
+	}
+	return name
 }
 
 type kimiWireTranslator struct {
 	session              *kimiSession
 	threadStartedEmitted bool
-	toolCalls            map[string]kimiToolCallState
+	toolCalls            map[string]*kimiToolCallState
+	// pendingToolCallID is the ToolCall whose arguments are still streaming
+	// via ToolCallPart; its "running" item is deferred until they complete.
+	pendingToolCallID string
+}
+
+func (t *kimiWireTranslator) emitToolCall(b *streamevents.Builder, id string, call *kimiToolCallState, output interface{}, status string) {
+	detail := base.DeriveToolCallDetail(kimiDetailToolName(call.name), call.input, output)
+	b.ToolCall(id, call.name, detail, status)
+}
+
+func (t *kimiWireTranslator) flushPendingToolCall(b *streamevents.Builder, emit bool) {
+	id := t.pendingToolCallID
+	if id == "" {
+		return
+	}
+	t.pendingToolCallID = ""
+	call := t.toolCalls[id]
+	if call == nil {
+		return
+	}
+	if call.input == nil && call.args.Len() > 0 {
+		call.input = call.args.String()
+	}
+	if emit {
+		t.emitToolCall(b, id, call, nil, "running")
+	}
 }
 
 func (t *kimiWireTranslator) Translate(raw []byte, timestamp time.Time) ([]interface{}, bool, error) {
@@ -626,6 +674,14 @@ func (t *kimiWireTranslator) Translate(raw []byte, timestamp time.Time) ([]inter
 	b := streamevents.New(kimiProviderName, timestamp)
 
 	switch msg.Params.Type {
+	case "ToolCallPart":
+	case "ToolResult":
+		t.flushPendingToolCall(b, false)
+	default:
+		t.flushPendingToolCall(b, true)
+	}
+
+	switch msg.Params.Type {
 	case "TurnBegin":
 		if !t.threadStartedEmitted {
 			b.ThreadStarted(t.session.base.SessionID())
@@ -646,42 +702,13 @@ func (t *kimiWireTranslator) Translate(raw []byte, timestamp time.Time) ([]inter
 		}
 
 	case "ToolCall":
-		var payload struct {
-			Type     string `json:"type"`
-			ID       string `json:"id"`
-			Function struct {
-				Name      string `json:"name"`
-				Arguments string `json:"arguments"`
-			} `json:"function"`
-		}
-		_ = json.Unmarshal(msg.Params.Payload, &payload)
-		var input interface{}
-		if payload.Function.Arguments != "" {
-			if err := json.Unmarshal([]byte(payload.Function.Arguments), &input); err != nil {
-				input = payload.Function.Arguments
-			}
-		}
-		if t.toolCalls == nil {
-			t.toolCalls = make(map[string]kimiToolCallState)
-		}
-		t.toolCalls[payload.ID] = kimiToolCallState{name: payload.Function.Name, input: input}
-		detail := base.DeriveToolCallDetail(payload.Function.Name, input, nil)
-		b.ToolCall(payload.ID, payload.Function.Name, detail, "running")
+		t.handleToolCall(b, msg.Params.Payload)
+
+	case "ToolCallPart":
+		t.handleToolCallPart(b, msg.Params.Payload)
 
 	case "ToolResult":
-		var payload struct {
-			ToolCallID  string                 `json:"tool_call_id"`
-			ReturnValue map[string]interface{} `json:"return_value"`
-		}
-		_ = json.Unmarshal(msg.Params.Payload, &payload)
-		status := "completed"
-		if isError, _ := payload.ReturnValue["is_error"].(bool); isError {
-			status = "failed"
-		}
-		call := t.toolCalls[payload.ToolCallID]
-		detail := base.DeriveToolCallDetail(call.name, call.input, payload.ReturnValue)
-		b.ToolCall(payload.ToolCallID, call.name, detail, status)
-		delete(t.toolCalls, payload.ToolCallID)
+		t.handleToolResult(b, msg.Params.Payload)
 
 	case "TurnEnd":
 		b.TurnCompleted(nil)
@@ -730,6 +757,68 @@ func (t *kimiWireTranslator) Translate(raw []byte, timestamp time.Time) ([]inter
 	}
 
 	return b.Events(), b.Terminal(), nil
+}
+
+func (t *kimiWireTranslator) handleToolCall(b *streamevents.Builder, raw json.RawMessage) {
+	var payload struct {
+		ID       string `json:"id"`
+		Function struct {
+			Name      string `json:"name"`
+			Arguments string `json:"arguments"`
+		} `json:"function"`
+	}
+	_ = json.Unmarshal(raw, &payload)
+	if t.toolCalls == nil {
+		t.toolCalls = make(map[string]*kimiToolCallState)
+	}
+	call := &kimiToolCallState{name: payload.Function.Name}
+	t.toolCalls[payload.ID] = call
+	if payload.Function.Arguments == "" {
+		t.pendingToolCallID = payload.ID
+		return
+	}
+	if err := json.Unmarshal([]byte(payload.Function.Arguments), &call.input); err != nil {
+		call.input = payload.Function.Arguments
+	}
+	t.emitToolCall(b, payload.ID, call, nil, "running")
+}
+
+func (t *kimiWireTranslator) handleToolCallPart(b *streamevents.Builder, raw json.RawMessage) {
+	id := t.pendingToolCallID
+	call := t.toolCalls[id]
+	if call == nil {
+		return
+	}
+	var payload struct {
+		ArgumentsPart string `json:"arguments_part"`
+	}
+	_ = json.Unmarshal(raw, &payload)
+	call.args.WriteString(payload.ArgumentsPart)
+	var input interface{}
+	if err := json.Unmarshal([]byte(call.args.String()), &input); err != nil {
+		return
+	}
+	call.input = input
+	t.pendingToolCallID = ""
+	t.emitToolCall(b, id, call, nil, "running")
+}
+
+func (t *kimiWireTranslator) handleToolResult(b *streamevents.Builder, raw json.RawMessage) {
+	var payload struct {
+		ToolCallID  string                 `json:"tool_call_id"`
+		ReturnValue map[string]interface{} `json:"return_value"`
+	}
+	_ = json.Unmarshal(raw, &payload)
+	status := "completed"
+	if isError, _ := payload.ReturnValue["is_error"].(bool); isError {
+		status = "failed"
+	}
+	call := t.toolCalls[payload.ToolCallID]
+	if call == nil {
+		call = &kimiToolCallState{}
+	}
+	t.emitToolCall(b, payload.ToolCallID, call, payload.ReturnValue, status)
+	delete(t.toolCalls, payload.ToolCallID)
 }
 
 // --- Terminal Detector ---

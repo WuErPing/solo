@@ -238,8 +238,9 @@ const ToolCallDetailPayloadSchema =
     }),
     z.object({
       type: z.literal("unknown"),
-      input: UnknownValueSchema,
-      output: UnknownValueSchema,
+      // Go's UnknownDetail marks both fields omitempty, so either may be absent.
+      input: UnknownValueSchema.optional(),
+      output: UnknownValueSchema.optional(),
     }),
   ]);
 
