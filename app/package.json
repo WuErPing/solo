@@ -121,7 +121,7 @@
     "eslint-import-resolver-typescript": "^3.9.3",
     "jsdom": "^20.0.3",
     "material-icon-theme": "^5.32.0",
-    "mermaid": "^10.9.8",
+    "mermaid": "^12.3.0",
     "patch-package": "^8.0.1",
     "playwright": "^1.56.1",
     "typescript": "~6.0.3",

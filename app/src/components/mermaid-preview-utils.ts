@@ -20,7 +20,7 @@ export function generateMermaidShellHtml(): string {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@12/dist/mermaid.min.js"></script>
 <style>
 body {
   margin: 0;
@@ -70,7 +70,7 @@ body > div:not(#mermaid-graph) {
     notify();
   }
 
-  // mermaid v10 sizes gantt charts from the task list alone (a wide timeline
+  // mermaid sizes gantt charts from the task list alone (a wide timeline
   // still comes out ~226px), ignoring the container. useWidth pins the diagram
   // to the pane width so it scales with the device instead of a narrow strip.
   function applyConfig(theme, useWidth) {

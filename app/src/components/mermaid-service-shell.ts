@@ -82,7 +82,7 @@ html, body { margin: 0; padding: 0; background: transparent; min-width: 1000px; 
       theme: theme,
       // react-native-svg cannot render HTML labels inside foreignObject.
       flowchart: { htmlLabels: false },
-      // mermaid v10 sizes gantt charts from the task list alone (a wide
+      // mermaid sizes gantt charts from the task list alone (a wide
       // timeline still comes out ~226px). Pin it to the stage width so the
       // diagram fills the pane; the host scales it down with fitScale.
       gantt: { useWidth: 1000 },
