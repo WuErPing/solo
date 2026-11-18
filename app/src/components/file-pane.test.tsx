@@ -2,9 +2,9 @@
  * @vitest-environment jsdom
  */
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FilePane } from "@/components/file-pane";
 
 const exploreFileSystemMock = vi.hoisted(() => vi.fn());
@@ -56,6 +56,7 @@ vi.mock("react-native-fit-image", () => ({
 vi.mock("lucide-react-native", () => ({
   TextSelect: () => null,
   SquarePen: () => null,
+  SquareTerminal: () => null,
   RefreshCw: () => null,
 }));
 
@@ -123,7 +124,7 @@ vi.mock("@/attachments/use-attachment-preview-url", () => ({
   useAttachmentPreviewUrl: () => null,
 }));
 
-function renderFilePane(filePath: string, onNewAgent = vi.fn()) {
+function renderFilePane(filePath: string, onNewAgent = vi.fn(), onNewTmux = vi.fn()) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const result = render(
     <QueryClientProvider client={queryClient}>
@@ -132,13 +133,18 @@ function renderFilePane(filePath: string, onNewAgent = vi.fn()) {
         workspaceRoot="/repo"
         filePath={filePath}
         onNewAgent={onNewAgent}
+        onNewTmux={onNewTmux}
       />
     </QueryClientProvider>,
   );
-  return { ...result, onNewAgent, queryClient };
+  return { ...result, onNewAgent, onNewTmux, queryClient };
 }
 
 describe("FilePane markdown agent action", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     exploreFileSystemMock.mockReset();
     exploreFileSystemMock.mockResolvedValue({
@@ -158,6 +164,28 @@ describe("FilePane markdown agent action", () => {
     fireEvent.click(await screen.findByTestId("markdown-new-agent"));
 
     expect(onNewAgent).toHaveBeenCalledWith("docs/guide.md");
+    queryClient.clear();
+  });
+
+  it("opens the tmux agent picker with the previewed markdown file", async () => {
+    const { onNewTmux, queryClient } = renderFilePane("docs/guide.md");
+
+    fireEvent.click(await screen.findByTestId("markdown-new-tmux"));
+
+    expect(onNewTmux).toHaveBeenCalledWith("docs/guide.md");
+    queryClient.clear();
+  });
+
+  it("hides the tmux button when no handler is provided", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <FilePane serverId="server" workspaceRoot="/repo" filePath="docs/guide.md" />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByTestId("markdown-refresh");
+    expect(screen.queryByTestId("markdown-new-tmux")).toBeNull();
     queryClient.clear();
   });
 

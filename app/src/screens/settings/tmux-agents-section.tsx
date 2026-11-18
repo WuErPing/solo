@@ -7,8 +7,7 @@ import { useHostRuntimeIsConnected } from "@/runtime/host-runtime";
 import { useDaemonConfig } from "@/hooks/use-daemon-config";
 import { Button } from "@/components/ui/button";
 import { SettingsSection } from "@/screens/settings/settings-section";
-
-const BUILT_IN_AGENT_NAMES = ["claude", "opencode", "qodercli", "pi", "cursor", "kimi", "kimi-cli", "codex"];
+import { BUILT_IN_AGENT_NAMES } from "@/constants/tmux-agent-names";
 
 export interface TmuxAgentsSectionProps {
   serverId: string;

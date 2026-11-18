@@ -7,7 +7,7 @@ import Markdown, {
   type RenderRules,
 } from "react-native-markdown-display";
 import FitImage from "react-native-fit-image";
-import { RefreshCw, SquarePen, TextSelect } from "lucide-react-native";
+import { RefreshCw, SquarePen, SquareTerminal, TextSelect } from "lucide-react-native";
 import {
   ActivityIndicator,
   Image as RNImage,
@@ -59,6 +59,7 @@ interface FilePreviewBodyProps {
   serverId: string;
   workspaceRoot: string;
   onNewAgent?: (filePath: string) => void;
+  onNewTmux?: (filePath: string) => void;
   onRefresh?: () => void;
 }
 
@@ -141,6 +142,7 @@ interface MarkdownFilePreviewProps
   filePath: string;
   workspaceRoot: string;
   onNewAgent?: (filePath: string) => void;
+  onNewTmux?: (filePath: string) => void;
   onRefresh?: () => void;
 }
 
@@ -158,6 +160,7 @@ function MarkdownFilePreview({
   filePath,
   workspaceRoot,
   onNewAgent,
+  onNewTmux,
   onRefresh,
   scrollRef,
   scrollbar,
@@ -377,6 +380,18 @@ function MarkdownFilePreview({
             <Text style={styles.newAgentButtonText}>New Agent</Text>
           </Pressable>
         ) : null}
+        {onNewTmux ? (
+          <Pressable
+            testID="markdown-new-tmux"
+            accessibilityRole="button"
+            accessibilityLabel="New tmux agent with this file"
+            onPress={() => onNewTmux(filePath)}
+            style={({ pressed }) => [styles.newAgentButton, pressed ? { opacity: 0.7 } : null]}
+          >
+            <SquareTerminal size={16} color={theme.colors.foregroundMuted} />
+            <Text style={styles.newAgentButtonText}>New tmux</Text>
+          </Pressable>
+        ) : null}
         {isWeb ? null : (
           <Pressable
             testID="markdown-select-toggle"
@@ -411,6 +426,7 @@ function FilePreviewBody({
   serverId,
   workspaceRoot,
   onNewAgent,
+  onNewTmux,
   onRefresh,
 }: FilePreviewBodyProps) {
   const { theme } = useUnistyles();
@@ -471,6 +487,7 @@ function FilePreviewBody({
           filePath={filePath}
           workspaceRoot={workspaceRoot}
           onNewAgent={onNewAgent}
+          onNewTmux={onNewTmux}
           onRefresh={onRefresh}
           scrollRef={previewScrollRef}
           scrollbar={scrollbar}
@@ -579,11 +596,13 @@ export function FilePane({
   workspaceRoot,
   filePath,
   onNewAgent,
+  onNewTmux,
 }: {
   serverId: string;
   workspaceRoot: string;
   filePath: string;
   onNewAgent?: (filePath: string) => void;
+  onNewTmux?: (filePath: string) => void;
 }) {
   const isMobile = useIsCompactFormFactor();
   const showDesktopWebScrollbar = isWeb && !isMobile;
@@ -634,6 +653,7 @@ export function FilePane({
         serverId={serverId}
         workspaceRoot={normalizedWorkspaceRoot}
         onNewAgent={onNewAgent}
+        onNewTmux={onNewTmux}
         onRefresh={() => {
           void query.refetch();
         }}

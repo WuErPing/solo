@@ -1,7 +1,9 @@
+import { useCallback, useState } from "react";
 import { Text, View } from "react-native";
 import { FileText } from "lucide-react-native";
 import invariant from "tiny-invariant";
 import { FilePane } from "@/components/file-pane";
+import { NewTmuxAgentPicker } from "@/components/new-tmux-agent-picker";
 import { usePaneContext } from "@/panels/pane-context";
 import type { PanelRegistration } from "@/panels/panel-registry";
 import { useWorkspaceExecutionAuthority } from "@/stores/session-store-hooks";
@@ -30,6 +32,15 @@ function FilePanel() {
   const workspaceDirectory = workspaceAuthority?.ok
     ? workspaceAuthority.authority.workspaceDirectory
     : null;
+  // Picker state lives here, outside the memoized markdown tree, so opening it
+  // never re-parses preview blocks.
+  const [tmuxPickerFilePath, setTmuxPickerFilePath] = useState<string | null>(null);
+  const handleNewTmux = useCallback((filePath: string) => {
+    setTmuxPickerFilePath(filePath);
+  }, []);
+  const handleCloseTmuxPicker = useCallback(() => {
+    setTmuxPickerFilePath(null);
+  }, []);
   invariant(target.kind === "file", "FilePanel requires file target");
   if (!workspaceDirectory) {
     return (
@@ -39,12 +50,24 @@ function FilePanel() {
     );
   }
   return (
-    <FilePane
-      serverId={serverId}
-      workspaceRoot={workspaceDirectory}
-      filePath={target.path}
-      onNewAgent={openDraftForFile}
-    />
+    <>
+      <FilePane
+        serverId={serverId}
+        workspaceRoot={workspaceDirectory}
+        filePath={target.path}
+        onNewAgent={openDraftForFile}
+        onNewTmux={handleNewTmux}
+      />
+      {tmuxPickerFilePath ? (
+        <NewTmuxAgentPicker
+          serverId={serverId}
+          filePath={tmuxPickerFilePath}
+          workspaceRoot={workspaceDirectory}
+          visible
+          onClose={handleCloseTmuxPicker}
+        />
+      ) : null}
+    </>
   );
 }
 
