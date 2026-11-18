@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0] - 2026-11-18
+
+### Added
+
+- **App**: launch coding agents in tmux from the markdown preview — a "New tmux" button opens an agent picker (history-first, supplemented with built-in/custom agent names), starts the selected CLI at the workspace root, passes the file as the initial prompt for claude/codex, and auto-navigates to the tmux pane screen
+- **App**: prefill the tmux pane command input with the previewed file path after a New tmux launch
+- **App**: schedules create route matching loops, with creation entries navigating to it
+- **App**: direct agent creation and recent project paths in the project picker
+
+### Fixed
+
+- **App-bridge**: accept omitted `error`/`archivedAt` fields in `remove_project_response` and `archive_workspace_response`, fixing client validation timeouts on successful remove/archive RPCs
+- **Daemon, App, App-bridge**: restore Kimi timeline loading and tame tmux polling
+- **App, Daemon**: permission resolution flow and markdown preview stability
+- **App**: open agent selection before model selection on mobile; recover the file explorer from stale directories
+- **Daemon**: discover Pi models from the Pi CLI; read Kimi Code model configuration
+- **App, Daemon**: harden loop and schedule creation forms
+
 ## [0.18.0] - 2026-10-28
 
 ### Added
