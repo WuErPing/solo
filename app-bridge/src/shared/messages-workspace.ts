@@ -364,8 +364,9 @@ export const ArchiveWorkspaceResponseMessageSchema = z.object({
   payload: z.object({
     requestId: z.string(),
     workspaceId: z.string(),
-    archivedAt: z.string().nullable(),
-    error: z.string().nullable(),
+    // Go marshals these pointer fields with omitempty, so they are absent on success.
+    archivedAt: z.string().nullable().optional(),
+    error: z.string().nullable().optional(),
   }),
 });
 
@@ -375,7 +376,8 @@ export const RemoveProjectResponseMessageSchema = z.object({
     requestId: z.string(),
     workspaceIds: z.array(z.string()),
     removedCount: z.number(),
-    error: z.string().nullable(),
+    // Go marshals Error *string with omitempty, so it is absent on success.
+    error: z.string().nullable().optional(),
   }),
 });
 

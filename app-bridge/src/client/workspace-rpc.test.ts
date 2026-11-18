@@ -194,4 +194,70 @@ describe("WorkspaceRpc", () => {
     expect(result.ok).toBe(true);
     await cleanup();
   });
+
+  it("removeProject resolves when the daemon omits error (Go omitempty on success)", async () => {
+    const { client, transport, cleanup } = createConnectedClient();
+
+    const promise = client.removeProject(["ws-1", "ws-2"], "req-remove-project");
+
+    const sent = findSentMessage(transport, "remove_project_request");
+    expect(sent).toBeDefined();
+
+    simulateServerResponse(transport, {
+      type: "remove_project_response",
+      payload: {
+        requestId: "req-remove-project",
+        workspaceIds: ["ws-1", "ws-2"],
+        removedCount: 2,
+      },
+    });
+
+    const result = await promise;
+    expect(result.removedCount).toBe(2);
+    expect(result.error).toBeUndefined();
+    await cleanup();
+  });
+
+  it("removeProject still surfaces an explicit error string", async () => {
+    const { client, transport, cleanup } = createConnectedClient();
+
+    const promise = client.removeProject(["ws-1"], "req-remove-project-error");
+
+    simulateServerResponse(transport, {
+      type: "remove_project_response",
+      payload: {
+        requestId: "req-remove-project-error",
+        workspaceIds: [],
+        removedCount: 0,
+        error: "boom",
+      },
+    });
+
+    const result = await promise;
+    expect(result.error).toBe("boom");
+    await cleanup();
+  });
+
+  it("archiveWorkspace resolves when the daemon omits error (Go omitempty on success)", async () => {
+    const { client, transport, cleanup } = createConnectedClient();
+
+    const promise = client.archiveWorkspace("ws-1", "req-archive-workspace");
+
+    const sent = findSentMessage(transport, "archive_workspace_request");
+    expect(sent).toBeDefined();
+
+    simulateServerResponse(transport, {
+      type: "archive_workspace_response",
+      payload: {
+        requestId: "req-archive-workspace",
+        workspaceId: "ws-1",
+        archivedAt: "2026-11-18T00:00:00Z",
+      },
+    });
+
+    const result = await promise;
+    expect(result.archivedAt).toBe("2026-11-18T00:00:00Z");
+    expect(result.error).toBeUndefined();
+    await cleanup();
+  });
 });
