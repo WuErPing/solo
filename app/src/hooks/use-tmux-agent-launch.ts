@@ -108,6 +108,7 @@ export function useTmuxAgentLaunch(): {
         }
 
         useTmuxAgentStore.getState().setSelectedAgent(pane);
+        useTmuxAgentStore.getState().setPaneInputSeed(input.filePath);
         void queryClient.invalidateQueries({ queryKey: tmuxAgentsQueryKey(input.serverId) });
         router.push("/tmux-pane");
         return { ok: true };

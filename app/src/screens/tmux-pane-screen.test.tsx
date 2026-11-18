@@ -202,8 +202,9 @@ const mockAgent = {
   serverLabel: "local",
 };
 
-const { agentRef, historyRef } = vi.hoisted(() => ({
+const { agentRef, historyRef, seedRef } = vi.hoisted(() => ({
   agentRef: { current: null as typeof mockAgent | null },
+  seedRef: { current: null as string | null },
   historyRef: {
     current: {
       commandHistory: [] as { agentName: string; launchCmd: string; lastSeen: string; serverId: string; serverLabel: string }[],
@@ -227,8 +228,18 @@ vi.mock("@/hooks/use-tmux-agents", () => ({
 }));
 
 vi.mock("@/stores/tmux-agent-store", () => ({
-  useTmuxAgentStore: (selector: (s: { selectedAgent: typeof mockAgent | null }) => unknown) => {
-    const state = { selectedAgent: agentRef.current };
+  useTmuxAgentStore: (selector: (s: {
+    selectedAgent: typeof mockAgent | null;
+    paneInputSeed: string | null;
+    setPaneInputSeed: (value: string | null) => void;
+  }) => unknown) => {
+    const state = {
+      selectedAgent: agentRef.current,
+      paneInputSeed: seedRef.current,
+      setPaneInputSeed: (value: string | null) => {
+        seedRef.current = value;
+      },
+    };
     return selector ? selector(state) : state;
   },
 }));
@@ -266,6 +277,7 @@ describe("TmuxPaneScreen", () => {
     contentRef.current = "$ ls\nfile1.txt\nfile2.txt\n$ _";
     terminalThemeRef.current = "light";
     historyRef.current = { commandHistory: [], inputHistory: [] };
+    seedRef.current = null;
   });
 
   it("renders pane content text", () => {
@@ -354,6 +366,20 @@ describe("TmuxPaneScreen", () => {
     fireEvent.click(screen.getByTestId("history-input-continue"));
     const input = screen.getByPlaceholderText(/type a command/i) as HTMLInputElement;
     expect(input.value).toBe("continue");
+  });
+
+  it("prefills the input with the pane input seed and consumes it", () => {
+    seedRef.current = "docs/guide.md";
+    render(<TmuxPaneScreen />);
+    const input = screen.getByPlaceholderText(/type a command/i) as HTMLInputElement;
+    expect(input.value).toBe("docs/guide.md");
+    expect(seedRef.current).toBeNull();
+  });
+
+  it("leaves the input empty when no seed is present", () => {
+    render(<TmuxPaneScreen />);
+    const input = screen.getByPlaceholderText(/type a command/i) as HTMLInputElement;
+    expect(input.value).toBe("");
   });
 
   it("hides the history button when both histories are empty", () => {

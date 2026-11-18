@@ -56,6 +56,8 @@ function TmuxPaneScreenInner() {
   const { theme } = useUnistyles();
   const { settings, updateSettings } = useAppSettings();
   const agent = useTmuxAgentStore((s) => s.selectedAgent);
+  const paneInputSeed = useTmuxAgentStore((s) => s.paneInputSeed);
+  const setPaneInputSeed = useTmuxAgentStore((s) => s.setPaneInputSeed);
   const {
     content,
     isLoading,
@@ -94,6 +96,15 @@ function TmuxPaneScreenInner() {
   const [inputText, setInputText] = useState("");
   const [sendError, setSendError] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+
+  useEffect(() => {
+    if (!paneInputSeed) {
+      return;
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- consume the one-shot input seed set by the New tmux launch flow
+    setInputText(paneInputSeed);
+    setPaneInputSeed(null);
+  }, [paneInputSeed, setPaneInputSeed]);
   const { commandHistory, inputHistory } = useAggregatedTmuxAgents();
 
   const agentName = agent && "agentName" in agent ? agent.agentName : undefined;

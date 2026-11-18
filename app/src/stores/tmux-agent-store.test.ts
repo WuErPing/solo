@@ -29,4 +29,14 @@ describe("tmuxAgentStore", () => {
     setSelectedAgent(null);
     expect(useTmuxAgentStore.getState().selectedAgent).toBeNull();
   });
+
+  it("starts with no pane input seed and round-trips it", () => {
+    expect(useTmuxAgentStore.getState().paneInputSeed).toBeNull();
+
+    useTmuxAgentStore.getState().setPaneInputSeed("docs/guide.md");
+    expect(useTmuxAgentStore.getState().paneInputSeed).toBe("docs/guide.md");
+
+    useTmuxAgentStore.getState().setPaneInputSeed(null);
+    expect(useTmuxAgentStore.getState().paneInputSeed).toBeNull();
+  });
 });

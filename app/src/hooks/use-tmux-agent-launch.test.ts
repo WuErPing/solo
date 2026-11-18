@@ -83,6 +83,7 @@ afterEach(() => {
   vi.clearAllMocks();
   vi.useRealTimers();
   useTmuxAgentStore.getState().setSelectedAgent(null);
+  useTmuxAgentStore.getState().setPaneInputSeed(null);
 });
 
 describe("useTmuxAgentLaunch", () => {
@@ -109,6 +110,7 @@ describe("useTmuxAgentLaunch", () => {
       serverLabel: "Host 1",
     });
     expect(mockRouter.push).toHaveBeenCalledWith("/tmux-pane");
+    expect(useTmuxAgentStore.getState().paneInputSeed).toBe("docs/guide.md");
     expect(result.current.isLaunching).toBe(false);
   });
 
@@ -141,6 +143,7 @@ describe("useTmuxAgentLaunch", () => {
     expect(outcome).toEqual({ ok: false, error: "tmux is not installed or not in PATH" });
     expect(mockRouter.push).not.toHaveBeenCalled();
     expect(useTmuxAgentStore.getState().selectedAgent).toBeNull();
+    expect(useTmuxAgentStore.getState().paneInputSeed).toBeNull();
   });
 
   it("surfaces transport errors when creation throws", async () => {
