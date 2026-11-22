@@ -34,13 +34,15 @@ case "$MODULE" in
     echo "Updated $FILE → $NEW_VER"
     ;;
   cli)
-    FILE="cli/cmd/root.go"
-    sed -i '' "s/Version:[[:space:]]*\"[^\"]*\"/Version:       \"$NEW_VER\"/" "$FILE"
+    FILE="cli/internal/config/version.go"
+    sed -i '' "s/var Version = \"[^\"]*\"/var Version = \"$NEW_VER\"/" "$FILE"
+    grep -q "var Version = \"$NEW_VER\"" "$FILE" || { echo "Failed to update $FILE" >&2; exit 1; }
     echo "Updated $FILE → $NEW_VER"
     ;;
   daemon)
     FILE="daemon/internal/config/config.go"
-    sed -i '' "s/Version:[[:space:]]*\"[^\"]*\"/Version:             \"$NEW_VER\"/" "$FILE"
+    sed -i '' "s/var Version = \"[^\"]*\"/var Version = \"$NEW_VER\"/" "$FILE"
+    grep -q "var Version = \"$NEW_VER\"" "$FILE" || { echo "Failed to update $FILE" >&2; exit 1; }
     echo "Updated $FILE → $NEW_VER"
     ;;
   relay-go)
